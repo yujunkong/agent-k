@@ -1,0 +1,45 @@
+{
+  "id": "C4-T02",
+  "phase": "C4",
+  "title": "승인 UI: 명령/경로/Diff 프리뷰 + Allow once / Always for session / Reject",
+  "description": "ApprovalUI 웹뷰 컴포넌트: 권한 요청 시 모달 표시. 내용: 도구명, 명령어/파일 경로, Diff 프리뷰(편집 시). 버튼: Allow once(이번만), Always for session(이 세션 동안), Reject(거부). 키보드: Enter=Allow once, Shift+Enter=Always, Esc=Reject. 체크박스: '이 도구/경로 항상 허용' 옵션.",
+  "files": [
+    "src/permission/ApprovalUI.tsx",
+    "src/permission/ApprovalUI.css"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C4-T01"
+  ],
+  "acceptanceCriteria": [
+    "모달: 도구명 + 명령/경로 + Diff 프리뷰",
+    "3개 버튼: Allow once / Always for session / Reject",
+    "키보드: Enter=Allow once, Shift+Enter=Always, Esc=Reject",
+    "'이 도구/경로 항상 허용' 체크박스",
+    "세션 단위 권한 캐시"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "approval",
+    "ui",
+    "modal",
+    "diff-preview",
+    "keyboard",
+    "session-cache"
+  ],
+  "completedCriteria": [
+    "✅ 승인 UI: 명령/경로/Diff 프리뷰 + Allow once / Always for session / Reject implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 4,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/permission/ApprovalUI.tsx"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

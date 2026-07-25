@@ -28,8 +28,7 @@
       "agent-k": [
         {
           "id": "agent-k.chat",
-          "name": "Chat",
-          "when": "agent-k.chat.visible"
+          "name": "Chat"
         }
       ]
     },
@@ -159,6 +158,24 @@
         "key": "ctrl+,",
         "mac": "cmd+,",
         "when": "view == agent-k.chat"
+      },
+      {
+        "command": "agent-k.mode.switch",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m",
+        "when": "view == agent-k.chat"
+      },
+      {
+        "command": "agent-k.provider.add",
+        "key": "ctrl+shift+p",
+        "mac": "cmd+shift+p",
+        "when": "view == agent-k.chat"
+      },
+      {
+        "command": "agent-k.chat.focusInput",
+        "key": "ctrl+l",
+        "mac": "cmd+l",
+        "when": "view == agent-k.chat"
       }
     ],
     "menus": {
@@ -219,7 +236,10 @@
     "serialize-javascript": "^7.0.6"
   },
   "dependencies": {
+    "@types/mermaid": "^9.1.0",
     "@types/uuid": "^10.0.0",
+    "mermaid": "^11.16.0",
+    "shiki": "1.27",
     "uuid": "^14.0.1"
   }
 }

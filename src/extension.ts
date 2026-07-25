@@ -72,6 +72,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   public switchMode() {
     this._view?.webview.postMessage({ type: 'mode.switch' });
   }
+
+  public focusInput() {
+    this._view?.webview.postMessage({ type: 'focus.input' });
+  }
 }
 
 function getNonce(): string {
@@ -86,8 +90,13 @@ function getNonce(): string {
 export function activate(context: vscode.ExtensionContext) {
   console.log('Agent K extension activated');
 
+  // Create output channel for logging
+  const outputChannel = vscode.window.createOutputChannel('Agent K');
+  outputChannel.appendLine('[Agent K] Extension activated');
+
   const provider = new ChatViewProvider(context.extensionUri);
   context.subscriptions.push(
+    outputChannel,
     vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider, {
       webviewOptions: { retainContextWhenHidden: true }
     }),
@@ -110,8 +119,14 @@ export function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand('agent-k.mode.switch', () => {
       provider.switchMode();
+    }),
+
+    vscode.commands.registerCommand('agent-k.chat.focusInput', () => {
+      provider.focusInput();
     })
   );
+
+  outputChannel.appendLine('[Agent K] Commands registered: agent-k.chat.new, agent-k.chat.clear, agent-k.openSettings, agent-k.provider.add, agent-k.mode.switch, agent-k.chat.focusInput');
 }
 
 export function deactivate() {}

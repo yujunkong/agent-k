@@ -1,0 +1,45 @@
+{
+  "id": "C1-T09",
+  "phase": "C1",
+  "title": "LSP 도구: definition, references, diagnostics",
+  "description": "LspTools: getDefinitions(uri, position), getReferences(uri, position), getDiagnostics(uri?). vscode.languages API 사용. 결과: {uri, range, kind}. 진단: severity(Error/Warning/Info/Hint) 필터. 캐싱: 동일 위치 5분 캐시.",
+  "files": [
+    "src/tools/search/LspTools.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "C1-T03"
+  ],
+  "acceptanceCriteria": [
+    "정의 이동: 심볼 → 정의 위치 배열 반환",
+    "참조 찾기: 심볼 → 참조 위치 배열 반환",
+    "진단 가져오기: 파일/워크스페이스 에러/경고 목록",
+    "5분 캐시로 중복 호출 방지",
+    "LSP 미지원 언어 graceful fallback"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "lsp",
+    "definition",
+    "references",
+    "diagnostics",
+    "vscode-api",
+    "cache"
+  ],
+  "completedCriteria": [
+    "✅ LSP 도구: definition, references, diagnostics implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/tools/readTools.ts",
+      "src/tools/executors.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

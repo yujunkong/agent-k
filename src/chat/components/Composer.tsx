@@ -5,10 +5,11 @@ interface ComposerProps {
   disabled: boolean;
   onStop: () => void;
   onRegenerate: () => void;
+  onQueueMessage?: (text: string) => void; // Alt+Enter: queue message without interrupting
   isStreaming: boolean;
 }
 
-export function Composer({ onSend, disabled, onStop, onRegenerate, isStreaming }: ComposerProps) {
+export function Composer({ onSend, disabled, onStop, onRegenerate, onQueueMessage, isStreaming }: ComposerProps) {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [height, setHeight] = useState(44);
@@ -23,12 +24,28 @@ export function Composer({ onSend, disabled, onStop, onRegenerate, isStreaming }
   }, [text]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    const isEnter = e.key === 'Enter' && !e.shiftKey;
+    const isAltEnter = e.key === 'Enter' && e.altKey && !e.shiftKey;
+    const isCtrlEnter = e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey;
+
+    if (isAltEnter) {
+      // Alt+Enter: Queue-only - send message without interrupting current stream
+      e.preventDefault();
+      if (text.trim() && !disabled && onQueueMessage) {
+        onQueueMessage(text.trim());
+        setText('');
+      }
+      return;
+    }
+
+    if (isEnter || isCtrlEnter) {
       e.preventDefault();
       if (isStreaming) {
+        // Enter/Ctrl+Enter/Cmd+Enter during streaming: Interrupt & Resynthesize
         onStop();
         setTimeout(() => onRegenerate(), 100);
       } else if (text.trim() && !disabled) {
+        // Idle: Enter = Send
         onSend(text.trim(), []);
         setText('');
       }
@@ -42,6 +59,13 @@ export function Composer({ onSend, disabled, onStop, onRegenerate, isStreaming }
     }
   };
 
+  const getPlaceholder = () => {
+    if (isStreaming) {
+      return 'Streaming... (Enter/Cmd+Enter: Stop & Regenerate, Alt+Enter: Queue message)';
+    }
+    return 'Type your message... (Enter to send, Shift+Enter for new line, Alt+Enter to queue)';
+  };
+
   return (
     <div className="composer">
       <textarea
@@ -50,14 +74,14 @@ export function Composer({ onSend, disabled, onStop, onRegenerate, isStreaming }
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
-        placeholder={isStreaming ? 'Streaming... (Enter to stop & regenerate)' : 'Type your message... (Enter to send, Shift+Enter for new line)'}
+        placeholder={getPlaceholder()}
         disabled={disabled}
         rows={1}
         style={{ height: `${height}px`, minHeight: '44px', maxHeight: '200px' }}
       />
       <div className="composer-actions">
         {isStreaming ? (
-          <button onClick={onStop} className="stop-btn" title="Stop (Enter)">
+          <button onClick={onStop} className="stop-btn" title="Stop (Enter/Cmd+Enter)">
             ⏹ Stop
           </button>
         ) : (

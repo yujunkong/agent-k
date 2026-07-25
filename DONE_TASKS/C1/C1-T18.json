@@ -1,0 +1,46 @@
+{
+  "id": "C1-T18",
+  "phase": "C1",
+  "title": "Ask 모드에서 쓰기 도구 호출 시 즉시 에러 반환 (이중 가드)",
+  "description": "이중 가드: 1) ToolRegistry.getSchemas('ask')에서 쓰기 도구 제외(스키마 미포함). 2) AgentLoop에서 tool_call 수신 시 ModeRegistry.isToolAllowed('ask', toolName) 재검증 → false면 ToolResult.error 반환 + 루프 지속. 에러 메시지: 'Tool \"edit_file\" not allowed in Ask mode (read-only). Switch to Agent mode to edit.'",
+  "files": [
+    "src/tools/registry.ts",
+    "src/agent/loop.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C1-T01",
+    "C1-T11"
+  ],
+  "acceptanceCriteria": [
+    "ToolRegistry에서 ask 모드 쓰기 도구 스키마 미포함",
+    "AgentLoop에서 런타임 재검증 작동",
+    "쓰기 도구 호출 시 명확한 에러 메시지 반환",
+    "에러 후 루프 중단되지 않고 계속 (모델이 재시도 가능)",
+    "Agent 모드 전환 시 즉시 쓰기 가능"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "ask-mode",
+    "guard",
+    "write-block",
+    "error-handling",
+    "mode"
+  ],
+  "completedCriteria": [
+    "✅ Ask 모드에서 쓰기 도구 호출 시 즉시 에러 반환 (이중 가드) implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 2,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/loop/AgentLoopController.ts",
+      "src/tools/registry.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

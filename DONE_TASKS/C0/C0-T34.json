@@ -1,0 +1,20 @@
+{
+  "id": "C0-T34",
+  "phase": "C0",
+  "title": "Open Settings 명령 + 채팅 헤더 ⚙",
+  "description": "agent-k.openSettings 명령. 채팅 헤더 ⚙ 버튼.",
+  "files": ["src/extension.ts", "src/chat/ChatApp.tsx", "package.json"],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": ["C0-T03", "C0-T33"],
+  "completedCriteria": [
+    "✅ 명령 팔레트 Agent K: Open Settings",
+    "✅ 헤더 ⚙ 클릭 시 설정 진입",
+    "✅ view/command ID: agent-k.* 만 사용"
+  ],
+  "actualHours": 0.5,
+  "implementationNotes": {
+    "completedAt": "2026-07-25",
+    "notes": "ChatApp.tsx 149-151번 줄에 ⚙ 버튼 이미 존재. agent-k.openSettings 명령 등록됨."
+  }
+}

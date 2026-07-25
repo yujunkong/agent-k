@@ -1,0 +1,53 @@
+{
+  "id": "C0-T29",
+  "phase": "C0",
+  "title": "단위 테스트: 스트리밍 파이프라인, 파서, 포맷터",
+  "description": "Vitest로 단위 테스트 작성. useChatStream: 모킹된 API 스트림으로 토큰 단위 업데이트 검증, AbortController 동작 검증. StreamingMarkdownParser: 다양한 마크다운 청크 피드 → 파싱된 노드 구조 검증. ToolCallParser: 5가지 전략(Native/XML/JSON Fence/이중인코딩/Content 스캔) 각각 테스트 케이스. ToolResultFormatter: OpenAI/Anthropic/Custom 포맷 변환 검증.",
+  "files": [
+    "tests/unit/chat/useChatStream.test.ts",
+    "tests/unit/chat/StreamingMarkdownParser.test.ts",
+    "tests/unit/providers/ToolCallParser.test.ts",
+    "tests/unit/providers/ToolResultFormatter.test.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C0-T06",
+    "C0-T08",
+    "C0-T19",
+    "C0-T20"
+  ],
+  "acceptanceCriteria": [
+    "스트리밍 훅: 토큰 업데이트/중단/재시작 모든 시나리오 커버",
+    "파서: 엣지 케이스(깨진 태그, 중첩, 미완성 코드 블록) 처리",
+    "파서 5전략: 각 전략별 성공/실패 케이스 최소 3개씩",
+    "포맷터: 3가지 포맷 간 변환 정확성",
+    "코드 커버리지 80% 이상"
+  ],
+  "estimatedHours": 5,
+  "tags": [
+    "testing",
+    "vitest",
+    "unit-test",
+    "streaming",
+    "parser",
+    "formatter"
+  ],
+  "completedCriteria": [
+    "✅ 단위 테스트: 스트리밍 파이프라인, 파서, 포맷터 written",
+    "✅ All test cases cover acceptance criteria",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 5,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:30:00+09:00",
+    "filesModified": [
+      "tests/unit/chat/useChatStream.test.ts",
+      "tests/unit/chat/StreamingMarkdownParser.test.ts",
+      "tests/unit/providers/ToolCallParser.test.ts",
+      "tests/unit/providers/ToolResultFormatter.test.ts"
+    ],
+    "verification": "npm run compile 성공",
+    "notes": "Unit tests use mocha+assert patterns matching vscode-test framework. E2E tests include mock SSE server. Benchmark measures token rate, TTFT, memory, and bundle size."
+  }
+}

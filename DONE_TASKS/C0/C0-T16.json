@@ -1,0 +1,22 @@
+{
+  "id": "C0-T16",
+  "phase": "C0",
+  "title": "메시지 액션 (편집/재전송/복사/삭제)",
+  "description": "MessageBubble 내 액션 버튼: 편집, 재전송, 복사, 삭제",
+  "files": ["src/chat/components/MessageBubble.tsx"],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": ["C0-T04"],
+  "completedCriteria": [
+    "✅ 호버 시 액션 아이콘 표시 (편집/재전송/복사/삭제)",
+    "✅ 편집: onEdit 핸들러로 수정 모드 전환",
+    "✅ 재전송: onRetry로 동일 프롬프트 재호출",
+    "✅ 복사: onCopy로 클립보드 복사",
+    "✅ 삭제: onDelete로 메시지 제거"
+  ],
+  "actualHours": 0.5,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T15:42:00+09:00",
+    "notes": "고정(pin) 기능 미구현. 향후 T16 보강 시 추가."
+  }
+}

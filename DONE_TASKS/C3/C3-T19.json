@@ -1,0 +1,42 @@
+{
+  "id": "C3-T19",
+  "phase": "C3",
+  "title": "단위 테스트: DoomLoopDetector (지문 생성, 임계값, 다양한 에러)",
+  "description": "DoomLoopDetector: 지문 = hash(toolName + JSON.stringify(args) + errorSignature). 연속 3회 동일 지문 → 감지. 테스트: 동일 grep 4회 실패 → 감지. 다른 에러 메시지 → 다른 지문. 임계값 설정 가능(기본 3). 지문 TTL: 10턴.",
+  "files": [
+    "tests/unit/loop/DoomLoopDetector.test.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C3-T04"
+  ],
+  "acceptanceCriteria": [
+    "지문 생성: toolName + args + errorSignature 해시",
+    "동일 지문 3회 연속 → 감지",
+    "다른 에러 메시지 → 다른 지문 (감지 안 됨)",
+    "임계값 설정 가능 (기본 3)",
+    "지문 TTL 10턴 후 만료"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "testing",
+    "doom-loop",
+    "fingerprint",
+    "threshold",
+    "ttl",
+    "hash"
+  ],
+  "completedCriteria": [
+    "✅ 단위 테스트: DoomLoopDetector (지문 생성, 임계값, 다양한 에러) implemented"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T19:00:00+09:00",
+    "filesModified": [
+      "tests/unit/loop/DoomLoopDetector.test.ts"
+    ],
+    "verification": "npm run compile 성공",
+    "notes": ""
+  }
+}

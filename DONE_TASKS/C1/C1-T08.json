@@ -1,0 +1,42 @@
+{
+  "id": "C1-T08",
+  "phase": "C1",
+  "title": "codebase_search 도구 (임베딩 인덱스 연동 - C7까지 스텁)",
+  "description": "CodebaseSearchTool: query, maxResults → 현재는 스텁 구현 (C7에서 임베딩 인덱스 연동). 스텁: vscode.workspace.findFiles('**/*')로 전체 파일 검색 후 파일명/경로 매칭으로 폴백. 결과: {file, score, snippet}. C7에서 Vector DB 연동으로 교체 예정. 인터페이스 미리 정의.",
+  "files": [
+    "src/tools/search/CodebaseSearchTool.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "C1-T03"
+  ],
+  "acceptanceCriteria": [
+    "인터페이스 정의: query, maxResults → ToolResult",
+    "스텁: 파일명/경로 매칭으로 폴백 작동",
+    "결과에 score, snippet 포함",
+    "C7 연동 시 구현체만 교체 가능하도록 인터페이스 분리"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "codebase-search",
+    "embedding",
+    "stub",
+    "vector-search"
+  ],
+  "completedCriteria": [
+    "✅ codebase_search 도구 (임베딩 인덱스 연동 - C7까지 스텁) implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 2,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/tools/readTools.ts",
+      "src/tools/executors.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

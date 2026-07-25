@@ -1,0 +1,46 @@
+{
+  "id": "C2-T08",
+  "phase": "C2",
+  "title": "PatchApplier: 체크포인트 생성 → WorkspaceEdit 적용 → 롤백 연동",
+  "description": "PatchApplier.apply(edit): 1) CheckpointManager.createBeforeEdit(files) → before 스냅샷 저장. 2) vscode.workspace.applyEdit(edit) 실행. 3) 성공: 체크포인트 유지(롤백용). 실패: CheckpointManager.restore(checkpointId) 자동 호출. 반환: {applied: boolean, checkpointId?, error?}.",
+  "files": [
+    "src/patches/applier.ts",
+    "src/checkpoint/CheckpointManager.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C2-T07",
+    "C4-T03*"
+  ],
+  "acceptanceCriteria": [
+    "적용 전 체크포인트 생성 (변경 대상 파일 before 스냅샷)",
+    "WorkspaceEdit 적용 실행",
+    "실패 시 자동 롤백 (체크포인트에서 복구)",
+    "성공 시 체크포인트 ID 반환 (Undo용)",
+    "적용된 파일 목록/변경 요약 반환"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "patch",
+    "applier",
+    "checkpoint",
+    "rollback",
+    "workspace-edit",
+    "atomic"
+  ],
+  "completedCriteria": [
+    "✅ PatchApplier: 체크포인트 생성 → WorkspaceEdit 적용 → 롤백 연동 implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/patches/applier.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

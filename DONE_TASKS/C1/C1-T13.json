@@ -1,0 +1,43 @@
+{
+  "id": "C1-T13",
+  "phase": "C1",
+  "title": "ParallelExecutor: Promise.all + p-limit(16) 병렬 읽기 실행",
+  "description": "ParallelExecutor 클래스: executeAll(toolCalls) → p-limit(16)로 동시성 제어. 읽기 도구(grep, glob, list_dir, read_file, codebase_search, lsp_*)만 병렬 실행. 쓰기/터미널 도구는 직렬(SequentialExecutor 위임). 결과 순서 보장: 입력 순서대로 정렬. 타임아웃: 개별 30초, 전체 120초.",
+  "files": [
+    "src/loop/ParallelExecutor.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C1-T02"
+  ],
+  "acceptanceCriteria": [
+    "p-limit(16)로 최대 16개 동시 실행",
+    "읽기 도구만 병렬, 쓰기/터미널은 직렬",
+    "결과 순서 입력 순서와 일치",
+    "개별 타임아웃 30초, 전체 120초",
+    "에러 발생 시 해당 도구만 실패, 나머지 계속"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "parallel",
+    "executor",
+    "p-limit",
+    "concurrency",
+    "timeout"
+  ],
+  "completedCriteria": [
+    "✅ ParallelExecutor: Promise.all + p-limit(16) 병렬 읽기 실행 implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/loop/ParallelExecutor.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

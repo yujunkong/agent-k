@@ -1,0 +1,44 @@
+{
+  "id": "C1-T20",
+  "phase": "C1",
+  "title": "모드 전환 시 히스토리 초기화 + 시스템 프롬프트 교체",
+  "description": "ChatApp.handleModeChange(newMode): setMessages([]) 히스토리 클리어. AgentLoop 재생성(newMode). 시스템 프롬프트 즉시 교체. 세션 ID 변경으로 체크포인트/메모리 분리. URL/상태에 모드 저장 안 함(항시 명시적 선택).",
+  "files": [
+    "src/chat/ChatApp.tsx",
+    "src/agent/loop.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C1-T11"
+  ],
+  "acceptanceCriteria": [
+    "모드 변경 시 메시지 히스토리 완전 초기화",
+    "AgentLoop 새 인스턴스 생성 (새 mode)",
+    "시스템 프롬프트 즉시 교체",
+    "세션 ID 변경으로 상태 격리",
+    "모드 저장 안 함 (항시 명시적 선택)"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "mode-switch",
+    "history-reset",
+    "system-prompt",
+    "session-isolation",
+    "agent-loop"
+  ],
+  "completedCriteria": [
+    "✅ 모드 전환 시 히스토리 초기화 + 시스템 프롬프트 교체 implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 2,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/chat/ChatApp.tsx"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "id": "C4-T15",
+  "phase": "C4",
+  "title": "HookSystem: PreToolUse / PostToolUse (차단/수정/로깅/시크릿 스캔)",
+  "description": "HookSystem: 훅 등록/실행 엔진. PreToolUse(toolCall) → {allow: boolean, modifiedToolCall?, reason?}. PostToolUse(toolResult) → {modifiedToolResult?, sideEffects?}. 우선순위: 내장(시크릿 스캔/자동검증) > 사용자 설정 > 기본 통과. 비동기 병렬 실행(Promise.allSettled). 타임아웃 5초. 에러 시: fail-open(기본) 또는 fail-close(설정).",
+  "files": [
+    "src/hooks/HookSystem.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C2-T18"
+  ],
+  "acceptanceCriteria": [
+    "PreToolUse/PostToolUse 훅 등록/실행",
+    "반환: allow/modifiedToolCall/reason",
+    "우선순위: 내장 > 사용자 > 기본 통과",
+    "비동기 병렬 실행 + Promise.allSettled",
+    "타임아웃 5초",
+    "fail-open/fail-close 설정 가능"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "hooks",
+    "pre-tool-use",
+    "post-tool-use",
+    "priority",
+    "async",
+    "timeout",
+    "fail-open",
+    "fail-close"
+  ],
+  "completedCriteria": [
+    "✅ HookSystem: PreToolUse / PostToolUse (차단/수정/로깅/시크릿 스캔) implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 4,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/hooks/HookSystem.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

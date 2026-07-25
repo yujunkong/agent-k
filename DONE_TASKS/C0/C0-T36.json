@@ -1,0 +1,7 @@
+{
+  "id": "C0-T36", "phase": "C0", "title": "Models/Providers 설정 탭",
+  "status": "done", "files": ["src/settings/tabs/ModelsTab.tsx"],
+  "completedCriteria": ["✅ Provider Type/Base URL/Model 설정", "✅ 연결 테스트", "✅ ConfigManager 동기화"],
+  "actualHours": 0.5,
+  "implementationNotes": {"completedAt": "2026-07-25T16:00:00+09:00", "verification": "npm run compile 성공"}
+}

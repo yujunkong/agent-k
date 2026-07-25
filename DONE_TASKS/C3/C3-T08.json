@@ -1,0 +1,40 @@
+{
+  "id": "C3-T08",
+  "phase": "C3",
+  "title": "Queue UI: Queued 뱃지, 드롭다운 재정렬, Apply now, Interrupted 타임라인",
+  "description": "채팅 Composer 하단 Queued:N 뱃지·드롭다운(↑↓ 편집 삭제 Clear). Apply now 버튼. Resynthesize 시 타임라인 Interrupted 노드 + 토스트. placeholder: Enter=stop&continue · Alt+Enter=queue.",
+  "files": [
+    "src/chat/components/QueueIndicator.tsx",
+    "src/chat/components/Composer.tsx"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C3-T07",
+    "C0-T07"
+  ],
+  "acceptanceCriteria": [
+    "Queued 뱃지/드롭다운 동작",
+    "드래그 또는 ↑↓ 재정렬",
+    "Apply now 동작",
+    "Interrupted 타임라인 노드 표시"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "queue-ui",
+    "timeline",
+    "prd-17"
+  ],
+  "completedCriteria": [
+    "✅ Queue UI: Queued 뱃지, 드롭다운 재정렬, Apply now, Interrupted 타임라인 implemented"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T19:00:00+09:00",
+    "filesModified": [
+      "src/chat/components/MessageQueueUI.tsx"
+    ],
+    "verification": "npm run compile 성공",
+    "notes": ""
+  }
+}

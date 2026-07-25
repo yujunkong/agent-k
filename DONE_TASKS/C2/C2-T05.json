@@ -1,0 +1,45 @@
+{
+  "id": "C2-T05",
+  "phase": "C2",
+  "title": "SearchReplaceHunk 타입 + 유일 매칭 로직 (0건/2건+ → 에러)",
+  "description": "SearchReplaceHunk: {path, oldText, newText, lineStart?, lineEnd?}. Matcher.match(fileContent, hunk): oldText 검색 → 매칭 위치 배열 반환. 0건: MatchError.NOT_FOUND. 1건: 위치 반환. 2건+: MatchError.AMBIGUOUS (위치들 포함). 퍼지 매칭: 공백/줄끝 무시 옵션. xxhash64로 oldText 해시 저장 → 스테일니스 체크용.",
+  "files": [
+    "src/patches/types.ts",
+    "src/patches/matcher.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C2-T04"
+  ],
+  "acceptanceCriteria": [
+    "SearchReplaceHunk 타입 정의 완료",
+    "match() → 위치 배열 또는 에러(NotFound/Ambiguous)",
+    "퍼지 매칭 옵션 (공백/줄끝 무시)",
+    "xxhash64 해시 계산로 스테일니스 체크 지원",
+    "Ambiguous 시 매칭 위치들 포함하여 반환"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "search-replace",
+    "hunk",
+    "matcher",
+    "fuzzy-match",
+    "xxhash",
+    "staleness"
+  ],
+  "completedCriteria": [
+    "✅ SearchReplaceHunk 타입 + 유일 매칭 로직 (0건/2건+ → 에러) implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/tools/patchDocument.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

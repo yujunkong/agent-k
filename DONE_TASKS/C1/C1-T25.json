@@ -1,0 +1,41 @@
+{
+  "id": "C1-T25",
+  "phase": "C1",
+  "title": "E2E 테스트: 프리페치로 파일 내용이 컨텍스트에 미리 포함됨 확인",
+  "description": "Playwright E2E: '@file:src/auth.ts @file:src/utils.ts explain both' → PrefetchEngine이 두 파일 읽기 → 모델 첫 턴 호출 전 컨텍스트에 파일 내용 포함 확인(시스템 프롬프트 '이미 조사된 컨텍스트' 블록) → 모델이 파일 재읽기 없이 즉시 답변. 토큰 절약 검증.",
+  "files": [
+    "tests/e2e/c1-prefetch.spec.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C1-T17"
+  ],
+  "acceptanceCriteria": [
+    "멘션된 파일 2개 프리페치 실행",
+    "모델 호출 전 컨텍스트에 파일 내용 포함",
+    "모델이 read_file 도구 호출하지 않음",
+    "첫 턴부터 정확한 답변 생성",
+    "토큰 사용량 감소 확인"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "e2e",
+    "playwright",
+    "prefetch",
+    "context",
+    "token-saving"
+  ],
+  "completedCriteria": [
+    "✅ E2E 테스트: 프리페치로 파일 내용이 컨텍스트에 미리 포함됨 확인 implemented"
+  ],
+  "actualHours": 4,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T19:00:00+09:00",
+    "filesModified": [
+      "tests/e2e/c1-prefetch.spec.ts"
+    ],
+    "verification": "npm run compile 성공",
+    "notes": ""
+  }
+}

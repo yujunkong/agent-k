@@ -1,0 +1,7 @@
+{
+  "id": "C0-T20", "phase": "C0", "title": "ToolResultFormatter (OpenAI/Anthropic/Custom)",
+  "status": "done", "files": ["src/providers/ToolResultFormatter.ts"],
+  "completedCriteria": ["✅ 3가지 프로바이더 포맷 변환", "✅ tool_call_id / tool_use_id 매핑", "✅ 대용량 결과 트렁케이트(32KB)", "✅ 경로 정보 보존"],
+  "actualHours": 1,
+  "implementationNotes": {"completedAt": "2026-07-25T16:00:00+09:00", "verification": "npm run compile 성공"}
+}

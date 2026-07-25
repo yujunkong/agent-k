@@ -1,0 +1,20 @@
+{
+  "id": "C0-T10",
+  "phase": "C0",
+  "title": "Mermaid 다이어그램 렌더링",
+  "status": "done",
+  "files": ["src/chat/components/MermaidDiagram.tsx"],
+  "completedCriteria": [
+    "✅ mermaid.js 라이브러리 통합",
+    "✅ ```mermaid 블록 감지 시 자동 렌더링",
+    "✅ 스트리밍 중 정의 변경 시 debounce(150ms) → 재렌더",
+    "✅ 렌더 에러 시 폴백: 원본 코드 + 에러 메시지",
+    "✅ 다크 테마 변수 설정"
+  ],
+  "actualHours": 1,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T15:50:00+09:00",
+    "filesModified": ["src/chat/components/MermaidDiagram.tsx"],
+    "verification": "npm run compile 성공"
+  }
+}

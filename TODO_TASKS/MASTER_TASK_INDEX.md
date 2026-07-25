@@ -10,16 +10,16 @@
 
 | Phase | 태스크 수 | 완료 | 진행중 | 대기 | 완료율 | 상태 |
 |-------|-----------|------|--------|------|--------|------|
-| **C0** Chat UI + Streaming + Settings | 32 | 1 | 0 | 31 | 3% | 🔄 진행중 |
-| **C1** Ask Mode (Read-Only) | 28 | 0 | 0 | 28 | 0% | ⏳ 대기 |
-| **C2** Agent Single Turn | 35 | 0 | 0 | 35 | 0% | ⏳ 대기 |
-| **C3** Agent Multi-Turn + Resynthesize | 33 | 0 | 0 | 33 | 0% | ⏳ 대기 |
-| **C4** Infrastructure | 42 | 0 | 0 | 42 | 0% | ⏳ 대기 |
+| **C0** Chat UI + Streaming + Settings | 32 | 32 | 0 | 0 | 100% | ✅ 완료 |
+| **C1** Ask Mode (Read-Only) | 28 | 28 | 0 | 0 | 100% | ✅ 완료 |
+| **C2** Agent Single Turn | 35 | 35 | 0 | 0 | 100% | ✅ 완료 |
+| **C3** Agent Multi-Turn + Resynthesize | 33 | 33 | 0 | 0 | 100% | ✅ 완료 |
+| **C4** Infrastructure | 42 | 42 | 0 | 0 | 100% | ✅ 완료 |
 | **C5** Plan Mode | 25 | 0 | 0 | 25 | 0% | ⏳ 대기 |
 | **C6** Debug Mode | 28 | 0 | 0 | 28 | 0% | ⏳ 대기 |
 | **C7** Production Grade | 46 | 0 | 0 | 46 | 0% | ⏳ 대기 |
 | **HARB** Harness/Specs (병렬) | 38 | 0 | 0 | 38 | 0% | ⏳ 대기 |
-| **TOTAL** | **~303** | **1** | **0** | **302** | **0%** | |
+| **TOTAL** | **~307** | **170** | **0** | **137** | **55%** | |
 
 ---
 
@@ -27,14 +27,14 @@
 
 | 마일스톤 | 목표일 | 기준 Phase | 완료 조건 |
 |----------|--------|------------|-----------|
-| **M1: 채팅 셸 완성** | Week 1 금 | C0 | 사이드바 + 스트리밍 + 모드 + Provider + **Settings Hub 뼈대** |
-| **M2: Ask 모드 동작** | Week 2 금 | C1 | 읽기 도구 8개 병렬 실행 + 프리페치 + 쓰기 완전 차단 |
-| **M3: 첫 쓰기 성공** | Week 3 수 | C2 | Search-Replace edit + Diff 승인 + 자동 린트 검증 |
-| **M4: 멀티턴 루프 완성** | Week 4 금 | C3 | 코어 루프 + maxTurns + Doom Loop + **Interrupt & Resynthesize** |
-| **M5: 제품급 인프라** | Week 6 금 | C4 | 권한/체크포인트/컴팩션/훅 + Memories + Side Chat |
-| **M6: Plan/Debug 모드** | Week 8 금 | C5+C6 | 질문 UI/Mermaid 플랜 + 가설-계측-재현-최소수정 |
-| **M7: Cursor급 확장** | Week 10-11 | C7 | Browser/Worktree/Review/MCP/Skills/Artifacts |
-| **M8: 하네스 검증 통과** | Week 3-4 병렬 | HARB | 4개 수용 테스트 통과 (단일 픽스/테스트 루프/Ask 정확도/JSON 복구) |
+| **M1: 채팅 셸 완성** | ✅ 완료 | C0 | 사이드바 + 스트리밍 + 모드 + Provider + **Settings Hub 뼈대** |
+| **M2: Ask 모드 동작** | ✅ 완료 | C1 | 읽기 도구 8개 병렬 실행 + 프리페치 + 쓰기 완전 차단 |
+| **M3: 첫 쓰기 성공** | ✅ 완료 | C2 | Search-Replace edit + Diff 승인 + 자동 린트 검증 |
+| **M4: 멀티턴 루프 완성** | ✅ 완료 | C3 | 코어 루프 + maxTurns + Doom Loop + **Interrupt & Resynthesize** |
+| **M5: 제품급 인프라** | ✅ 완료 | C4 | 권한/체크포인트/컴팩션/훅 + Memories + Side Chat |
+| **M6: Plan/Debug 모드** | 다음 목표 | C5+C6 | 질문 UI/Mermaid 플랜 + 가설-계측-재현-최소수정 |
+| **M7: Cursor급 확장** | TBD | C7 | Browser/Worktree/Review/MCP/Skills/Artifacts |
+| **M8: 하네스 검증 통과** | TBD | HARB | 4개 수용 테스트 통과 (단일 픽스/테스트 루프/Ask 정확도/JSON 복구) |
 
 ---
 
@@ -90,34 +90,34 @@
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
-| 1 | C1-T01 | ModeRegistry: ModeConfig 타입 + ASK_WHITELIST (10 tools) | `src/agent/modeRegistry.ts` | P0 | ☐ | C0-T11 |
-| 2 | C1-T02 | ToolRegistry.getSchemas(mode) 필터링 구현 | `src/tools/registry.ts` | P0 | ☐ | C0-T19 |
-| 3 | C1-T03 | 읽기 도구 8개 구현: grep, glob, file_search, list_dir, read_file, codebase_search, lsp_definition, lsp_references | `src/tools/search/` | P0 | ☐ | C1-T02 |
-| 4 | C1-T04 | grep 도구 (ripgrep + child_process, 병렬 지원) | `src/tools/search/GrepTool.ts` | P0 | ☐ | C1-T03 |
-| 5 | C1-T05 | glob/file_search 도구 (vscode.workspace.findFiles) | `src/tools/search/GlobTool.ts` | P0 | ☐ | C1-T03 |
-| 6 | C1-T06 | list_dir 도구 (vscode.workspace.fs.readDirectory) | `src/tools/search/ListDirTool.ts` | P0 | ☐ | C1-T03 |
-| 7 | C1-T07 | read_file 도구 (offset/limit 필수, 250줄 캡) | `src/tools/search/ReadFileTool.ts` | P0 | ☐ | C1-T03 |
-| 8 | C1-T08 | codebase_search 도구 (임베딩 인덱스 연동 - C7까지 스텁) | `src/tools/search/CodebaseSearchTool.ts` | P1 | ☐ | C1-T03 |
-| 9 | C1-T09 | LSP 도구: definition, references, diagnostics | `src/tools/search/LspTools.ts` | P1 | ☐ | C1-T03 |
-| 10 | C1-T10 | ask_question, todo_write 도구 (세션 UX) | `src/tools/session/` | P0 | ☐ | C1-T02 |
-| 11 | C1-T11 | AgentLoop에 mode 주입 + 시스템 프롬프트 자동 주입 | `src/agent/loop.ts` | P0 | ☐ | C0-T02 |
-| 12 | C1-T12 | ContextAssembler에 mode 파라미터 + 예산 분리 (Ask: 60k) | `src/agent/contextAssembler.ts` | P0 | ☐ | C0-T02 |
-| 13 | C1-T13 | ParallelExecutor: Promise.all + p-limit(16) 병렬 읽기 실행 | `src/loop/ParallelExecutor.ts` | P0 | ☐ | C1-T02 |
-| 14 | C1-T14 | PrefetchEngine: 메시지에서 경로/심볼/에러 스택 추출 → 선독 | `src/prefetch/PrefetchEngine.ts` | P0 | ☐ | C1-T03 |
-| 15 | C1-T15 | Prefetch: @file: @folder: @symbol: @codebase: 파싱 | `src/prefetch/MentionExtractor.ts` | P0 | ☐ | C1-T14 |
-| 16 | C1-T16 | Prefetch: 에러 스택 트레이스 파싱 (파일:라인 ±N) | `src/prefetch/StackTraceParser.ts` | P1 | ☐ | C1-T14 |
-| 17 | C1-T17 | Prefetch 결과 "이미 조사된 컨텍스트" 블록으로 시스템 프롬프트에 주입 | `src/prefetch/ContextBlockBuilder.ts` | P0 | ☐ | C1-T14 |
-| 18 | C1-T18 | Ask 모드에서 쓰기 도구 호출 시 즉시 에러 반환 (이중 가드) | `src/tools/registry.ts`, `src/agent/loop.ts` | P0 | ☐ | C1-T01 |
-| 19 | C1-T19 | UI: Ask 모드 배지 (🔒 Read-only) + 도구 패널 🔒 아이콘 | `src/chat/components/ModeBadge.tsx` | P1 | ☐ | C0-T11 |
-| 20 | C1-T20 | 모드 전환 시 히스토리 초기화 + 시스템 프롬프트 교체 | `src/agent/loop.ts`, `src/chat/ChatApp.tsx` | P0 | ☐ | C1-T11 |
-| 21 | C1-T21 | 단위 테스트: ToolRegistry 필터링, ParallelExecutor, PrefetchEngine | `tests/unit/tools/`, `tests/unit/loop/` | P0 | ☐ | C1-T03 |
-| 22 | C1-T22 | 단위 테스트: ModeRegistry 화이트리스트 정확성 | `tests/unit/agent/modeRegistry.test.ts` | P0 | ☐ | C1-T01 |
-| 23 | C1-T23 | E2E 테스트: Ask 모드에서 "Explain @file:src/auth.ts" → 읽기만, 디스크 변경 없음 | `tests/e2e/c1-ask-mode.spec.ts` | P0 | ☐ | C1-T18 |
-| 24 | C1-T24 | E2E 테스트: 쓰기 도구 환상 호출 시 에러 반환 + 루프 지속 | `tests/e2e/c1-write-blocked.spec.ts` | P0 | ☐ | C1-T18 |
-| 25 | C1-T25 | E2E 테스트: 프리페치로 파일 내용이 컨텍스트에 미리 포함됨 확인 | `tests/e2e/c1-prefetch.spec.ts` | P0 | ☐ | C1-T17 |
-| 26 | C1-T26 | 성능 테스트: 10개 파일 병렬 읽기 < 500ms | `tests/bench/parallel-read.bench.ts` | P1 | ☐ | C1-T13 |
-| 27 | C1-T27 | 메모리 누수 테스트: 100턴 Ask 대화 후 메모리 증가 < 10MB | `tests/bench/memory-leak.bench.ts` | P1 | ☐ | C1-T20 |
-| 28 | C1-T28 | 문서화: Ask 모드 사용 가이드 (README 섹션) | `docs/ask-mode.md` | P2 | ☐ | C1-T23 |
+| 1 | C1-T01 | ModeRegistry: ModeConfig 타입 + ASK_WHITELIST (10 tools) | `src/agent/modeRegistry.ts` | P0 | ✅ | C0-T11 |
+| 2 | C1-T02 | ToolRegistry.getSchemas(mode) 필터링 구현 | `src/tools/registry.ts` | P0 | ✅ | C0-T19 |
+| 3 | C1-T03 | 읽기 도구 8개 구현: grep, glob, file_search, list_dir, read_file, codebase_search, lsp_definition, lsp_references | `src/tools/search/` | P0 | ✅ | C1-T02 |
+| 4 | C1-T04 | grep 도구 (ripgrep + child_process, 병렬 지원) | `src/tools/search/GrepTool.ts` | P0 | ✅ | C1-T03 |
+| 5 | C1-T05 | glob/file_search 도구 (vscode.workspace.findFiles) | `src/tools/search/GlobTool.ts` | P0 | ✅ | C1-T03 |
+| 6 | C1-T06 | list_dir 도구 (vscode.workspace.fs.readDirectory) | `src/tools/search/ListDirTool.ts` | P0 | ✅ | C1-T03 |
+| 7 | C1-T07 | read_file 도구 (offset/limit 필수, 250줄 캡) | `src/tools/search/ReadFileTool.ts` | P0 | ✅ | C1-T03 |
+| 8 | C1-T08 | codebase_search 도구 (임베딩 인덱스 연동 - C7까지 스텁) | `src/tools/search/CodebaseSearchTool.ts` | P1 | ✅ | C1-T03 |
+| 9 | C1-T09 | LSP 도구: definition, references, diagnostics | `src/tools/search/LspTools.ts` | P1 | ✅ | C1-T03 |
+| 10 | C1-T10 | ask_question, todo_write 도구 (세션 UX) | `src/tools/session/` | P0 | ✅ | C1-T02 |
+| 11 | C1-T11 | AgentLoop에 mode 주입 + 시스템 프롬프트 자동 주입 | `src/agent/loop.ts` | P0 | ✅ | C0-T02 |
+| 12 | C1-T12 | ContextAssembler에 mode 파라미터 + 예산 분리 (Ask: 60k) | `src/agent/contextAssembler.ts` | P0 | ✅ | C0-T02 |
+| 13 | C1-T13 | ParallelExecutor: Promise.all + p-limit(16) 병렬 읽기 실행 | `src/loop/ParallelExecutor.ts` | P0 | ✅ | C1-T02 |
+| 14 | C1-T14 | PrefetchEngine: 메시지에서 경로/심볼/에러 스택 추출 → 선독 | `src/prefetch/PrefetchEngine.ts` | P0 | ✅ | C1-T03 |
+| 15 | C1-T15 | Prefetch: @file: @folder: @symbol: @codebase: 파싱 | `src/prefetch/MentionExtractor.ts` | P0 | ✅ | C1-T14 |
+| 16 | C1-T16 | Prefetch: 에러 스택 트레이스 파싱 (파일:라인 ±N) | `src/prefetch/StackTraceParser.ts` | P1 | ✅ | C1-T14 |
+| 17 | C1-T17 | Prefetch 결과 "이미 조사된 컨텍스트" 블록으로 시스템 프롬프트에 주입 | `src/prefetch/ContextBlockBuilder.ts` | P0 | ✅ | C1-T14 |
+| 18 | C1-T18 | Ask 모드에서 쓰기 도구 호출 시 즉시 에러 반환 (이중 가드) | `src/tools/registry.ts`, `src/agent/loop.ts` | P0 | ✅ | C1-T01 |
+| 19 | C1-T19 | UI: Ask 모드 배지 (🔒 Read-only) + 도구 패널 🔒 아이콘 | `src/chat/components/ModeBadge.tsx` | P1 | ✅ | C0-T11 |
+| 20 | C1-T20 | 모드 전환 시 히스토리 초기화 + 시스템 프롬프트 교체 | `src/agent/loop.ts`, `src/chat/ChatApp.tsx` | P0 | ✅ | C1-T11 |
+| 21 | C1-T21 | 단위 테스트: ToolRegistry 필터링, ParallelExecutor, PrefetchEngine | `tests/unit/tools/`, `tests/unit/loop/` | P0 | ✅ | C1-T03 |
+| 22 | C1-T22 | 단위 테스트: ModeRegistry 화이트리스트 정확성 | `tests/unit/agent/modeRegistry.test.ts` | P0 | ✅ | C1-T01 |
+| 23 | C1-T23 | E2E 테스트: Ask 모드에서 "Explain @file:src/auth.ts" → 읽기만, 디스크 변경 없음 | `tests/e2e/c1-ask-mode.spec.ts` | P0 | ✅ | C1-T18 |
+| 24 | C1-T24 | E2E 테스트: 쓰기 도구 환상 호출 시 에러 반환 + 루프 지속 | `tests/e2e/c1-write-blocked.spec.ts` | P0 | ✅ | C1-T18 |
+| 25 | C1-T25 | E2E 테스트: 프리페치로 파일 내용이 컨텍스트에 미리 포함됨 확인 | `tests/e2e/c1-prefetch.spec.ts` | P0 | ✅ | C1-T17 |
+| 26 | C1-T26 | 성능 테스트: 10개 파일 병렬 읽기 < 500ms | `tests/bench/parallel-read.bench.ts` | P1 | ✅ | C1-T13 |
+| 27 | C1-T27 | 메모리 누수 테스트: 100턴 Ask 대화 후 메모리 증가 < 10MB | `tests/bench/memory-leak.bench.ts` | P1 | ✅ | C1-T20 |
+| 28 | C1-T28 | 문서화: Ask 모드 사용 가이드 (README 섹션) | `docs/ask-mode.md` | P2 | ✅ | C1-T23 |
 
 ---
 
@@ -125,41 +125,41 @@
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
-| 1 | C2-T01 | Agent 모드 화이트리스트: edit_file, write_file, run_terminal_cmd 추가 | `src/agent/modeRegistry.ts` | P0 | ☐ | C1-T01 |
-| 2 | C2-T02 | edit_file 도구: Search-Replace 파서 + 유일 매칭 검증 | `src/tools/edit/EditFileTool.ts` | P0 | ☐ | C2-T01 |
-| 3 | C2-T03 | write_file 도구: 신규 파일/짧은 파일(<200줄)만 허용 | `src/tools/edit/WriteFileTool.ts` | P0 | ☐ | C2-T01 |
-| 4 | C2-T04 | PatchDocument 파서 (`*** Begin Patch` ~ `*** End Patch`) | `src/patches/parser.ts` | P0 | ☐ | C2-T02 |
-| 5 | C2-T05 | SearchReplaceHunk 타입 + 유일 매칭 로직 (0건/2건+ → 에러) | `src/patches/types.ts`, `src/patches/matcher.ts` | P0 | ☐ | C2-T04 |
-| 6 | C2-T06 | Staleness 체크: mtime + xxhash64 (마지막 read 이후 변경 감지) | `src/patches/staleness.ts` | P0 | ☐ | C2-T05 |
-| 7 | C2-T07 | 멀티 헌크 병합: 라인 번호 재계산 후 단일 WorkspaceEdit | `src/patches/merger.ts` | P0 | ☐ | C2-T05 |
-| 8 | C2-T08 | PatchApplier: 체크포인트 생성 → WorkspaceEdit 적용 → 롤백 연동 | `src/patches/applier.ts` | P0 | ☐ | C2-T07, C4-T03* |
-| 9 | C2-T09 | run_terminal_cmd 도구: allowlist (git, npm test, pytest, cargo test) | `src/tools/terminal/TerminalTool.ts` | P0 | ☐ | C2-T01 |
-| 10 | C2-T10 | 터미널 출력 캡처 (stdout+stderr, 끝 32KB, exit code 포함) | `src/tools/terminal/OutputCapture.ts` | P0 | ☐ | C2-T09 |
-| 11 | C2-T11 | Diff Preview Webview: 파일 트리 + 통합 Diff + 가상화 | `src/review/ReviewUIProvider.tsx` | P0 | ☐ | C0-T03 |
-| 12 | C2-T12 | Diff 뷰: Side-by-side / Unified 토글, 헌크 네비게이션 (n/p) | `src/review/DiffView.tsx` | P0 | ☐ | C2-T11 |
-| 13 | C2-T13 | 파일/헌크 체크박스 상태 동기화 (파일 선택 시 헌크 전체 토글) | `src/review/CheckboxSync.ts` | P0 | ☐ | C2-T11 |
-| 14 | C2-T14 | 키보드 단축키: Ctrl+Enter(전체적용), Ctrl+Shift+Enter(선택적용), Esc(취소) | `src/review/KeyboardHandler.ts` | P0 | ☐ | C2-T11 |
-| 15 | C2-T15 | PendingStore: 변경사항 메모리 관리 + 세션 간 클리어 정책 | `src/review/PendingStore.ts` | P0 | ☐ | C2-T11 |
-| 16 | C2-T16 | Apply Selected: 체크된 파일/헌크만 WorkspaceEdit 적용 | `src/review/ApplySelected.ts` | P0 | ☐ | C2-T15 |
-| 17 | C2-T17 | Undo: 체크포인트에서 before 스냅샷으로 복구 | `src/review/Undo.ts` | P0 | ☐ | C2-T08 |
-| 18 | C2-T18 | 자동 검증 훅: PostToolUse → read_lints 실행 (Tier A 강제) | `src/hooks/autoVerificationHook.ts` | P0 | ☐ | HARB-T10* |
-| 19 | C2-T19 | LintRunner: vscode.languages.getDiagnostics 파싱 → 에러 블록 구성 | `src/verification/LintRunner.ts` | P0 | ☐ | C2-T18 |
-| 20 | C2-T20 | injectVerificationError: tool_result에 린트 에러 주입 + retryCount 증가 | `src/hooks/injectVerificationError.ts` | P0 | ☐ | C2-T18 |
-| 21 | C2-T21 | TestFinder: 동일 디렉터리 *.test.ts / 미러 디렉터리 탐지 | `src/verification/TestFinder.ts` | P1 | ☐ | HARB-T10* |
-| 22 | C2-T22 | TestRunner: 허용된 명령어 실행 (timeout 60s, 출력 트렁케이트) | `src/verification/TestRunner.ts` | P1 | ☐ | C2-T21 |
-| 23 | C2-T23 | Tier별 검증 설정: A(lint만, retry=2), B(lint+test, retry=1), C(비활성) | `src/verification/config.ts` | P0 | ☐ | HARB-T01* |
-| 24 | C2-T24 | 재시도 루프: 모델이 린트 에러 보고 재편집 → 재검증 (최대 N회) | `src/loop/AgentLoopController.ts` | P0 | ☐ | C2-T20 |
-| 25 | C2-T25 | 최대 재시도 초과 시 ask_question으로 사용자 개입 유도 | `src/hooks/askOnMaxRetries.ts` | P1 | ☐ | C2-T24 |
-| 26 | C2-T26 | 단위 테스트: PatchParser, Matcher, Staleness, Merger | `tests/unit/patches/` | P0 | ☐ | C2-T08 |
-| 27 | C2-T27 | 단위 테스트: DiffView 렌더링, 체크박스 동기화, 키보드 핸들러 | `tests/unit/review/` | P0 | ☐ | C2-T14 |
-| 28 | C2-T28 | 단위 테스트: LintRunner, TestFinder, injectVerificationError | `tests/unit/verification/` | P0 | ☐ | C2-T22 |
-| 29 | C2-T29 | E2E: "Add null check to getUser" → edit_file → Diff 승인 → 적용 → 린트 통과 | `tests/e2e/c2-single-turn.spec.ts` | P0 | ☐ | C2-T16 |
-| 30 | C2-T30 | E2E: 의도적 문법 에러 포함 패치 → 자동 린트 감지 → 재시도 → 성공 | `tests/e2e/c2-auto-lint.spec.ts` | P0 | ☐ | C2-T24 |
-| 31 | C2-T31 | E2E: Stale 파일 감지 → "파일 변경됨" 에러 → 재읽기 유도 | `tests/e2e/c2-staleness.spec.ts` | P0 | ☐ | C2-T06 |
-| 32 | C2-T32 | E2E: 10파일 멀티 헌크 리팩터링 → 선택적 적용 (일부 Undo) | `tests/e2e/c2-multi-file.spec.ts` | P1 | ☐ | C2-T16 |
-| 33 | C2-T33 | 성능: 50파일 Diff 렌더링 < 500ms | `tests/bench/diff-render.bench.ts` | P1 | ☐ | C2-T11 |
-| 34 | C2-T34 | 성능: PatchApplier 50파일 적용 < 2초 (원자적) | `tests/bench/patch-apply.bench.ts` | P1 | ☐ | C2-T08 |
-| 35 | C2-T35 | 문서화: Search-Replace 포맷 가이드 + Diff UI 사용법 | `docs/patch-format.md`, `docs/diff-review.md` | P2 | ☐ | C2-T29 |
+| 1 | C2-T01 | Agent 모드 화이트리스트: edit_file, write_file, run_terminal_cmd 추가 | `src/agent/modeRegistry.ts` | P0 | ✅ | C1-T01 |
+| 2 | C2-T02 | edit_file 도구: Search-Replace 파서 + 유일 매칭 검증 | `src/tools/edit/EditFileTool.ts` | P0 | ✅ | C2-T01 |
+| 3 | C2-T03 | write_file 도구: 신규 파일/짧은 파일(<200줄)만 허용 | `src/tools/edit/WriteFileTool.ts` | P0 | ✅ | C2-T01 |
+| 4 | C2-T04 | PatchDocument 파서 (`*** Begin Patch` ~ `*** End Patch`) | `src/patches/parser.ts` | P0 | ✅ | C2-T02 |
+| 5 | C2-T05 | SearchReplaceHunk 타입 + 유일 매칭 로직 (0건/2건+ → 에러) | `src/patches/types.ts`, `src/patches/matcher.ts` | P0 | ✅ | C2-T04 |
+| 6 | C2-T06 | Staleness 체크: mtime + xxhash64 (마지막 read 이후 변경 감지) | `src/patches/staleness.ts` | P0 | ✅ | C2-T05 |
+| 7 | C2-T07 | 멀티 헌크 병합: 라인 번호 재계산 후 단일 WorkspaceEdit | `src/patches/merger.ts` | P0 | ✅ | C2-T05 |
+| 8 | C2-T08 | PatchApplier: 체크포인트 생성 → WorkspaceEdit 적용 → 롤백 연동 | `src/patches/applier.ts` | P0 | ✅ | C2-T07, C4-T03* |
+| 9 | C2-T09 | run_terminal_cmd 도구: allowlist (git, npm test, pytest, cargo test) | `src/tools/terminal/TerminalTool.ts` | P0 | ✅ | C2-T01 |
+| 10 | C2-T10 | 터미널 출력 캡처 (stdout+stderr, 끝 32KB, exit code 포함) | `src/tools/terminal/OutputCapture.ts` | P0 | ✅ | C2-T09 |
+| 11 | C2-T11 | Diff Preview Webview: 파일 트리 + 통합 Diff + 가상화 | `src/review/ReviewUIProvider.tsx` | P0 | ✅ | C0-T03 |
+| 12 | C2-T12 | Diff 뷰: Side-by-side / Unified 토글, 헌크 네비게이션 (n/p) | `src/review/DiffView.tsx` | P0 | ✅ | C2-T11 |
+| 13 | C2-T13 | 파일/헌크 체크박스 상태 동기화 (파일 선택 시 헌크 전체 토글) | `src/review/CheckboxSync.ts` | P0 | ✅ | C2-T11 |
+| 14 | C2-T14 | 키보드 단축키: Ctrl+Enter(전체적용), Ctrl+Shift+Enter(선택적용), Esc(취소) | `src/review/KeyboardHandler.ts` | P0 | ✅ | C2-T11 |
+| 15 | C2-T15 | PendingStore: 변경사항 메모리 관리 + 세션 간 클리어 정책 | `src/review/PendingStore.ts` | P0 | ✅ | C2-T11 |
+| 16 | C2-T16 | Apply Selected: 체크된 파일/헌크만 WorkspaceEdit 적용 | `src/review/ApplySelected.ts` | P0 | ✅ | C2-T15 |
+| 17 | C2-T17 | Undo: 체크포인트에서 before 스냅샷으로 복구 | `src/review/Undo.ts` | P0 | ✅ | C2-T08 |
+| 18 | C2-T18 | 자동 검증 훅: PostToolUse → read_lints 실행 (Tier A 강제) | `src/hooks/autoVerificationHook.ts` | P0 | ✅ | HARB-T10* |
+| 19 | C2-T19 | LintRunner: vscode.languages.getDiagnostics 파싱 → 에러 블록 구성 | `src/verification/LintRunner.ts` | P0 | ✅ | C2-T18 |
+| 20 | C2-T20 | injectVerificationError: tool_result에 린트 에러 주입 + retryCount 증가 | `src/hooks/injectVerificationError.ts` | P0 | ✅ | C2-T18 |
+| 21 | C2-T21 | TestFinder: 동일 디렉터리 *.test.ts / 미러 디렉터리 탐지 | `src/verification/TestFinder.ts` | P1 | ✅ | HARB-T10* |
+| 22 | C2-T22 | TestRunner: 허용된 명령어 실행 (timeout 60s, 출력 트렁케이트) | `src/verification/TestRunner.ts` | P1 | ✅ | C2-T21 |
+| 23 | C2-T23 | Tier별 검증 설정: A(lint만, retry=2), B(lint+test, retry=1), C(비활성) | `src/verification/config.ts` | P0 | ✅ | HARB-T01* |
+| 24 | C2-T24 | 재시도 루프: 모델이 린트 에러 보고 재편집 → 재검증 (최대 N회) | `src/loop/AgentLoopController.ts` | P0 | ✅ | C2-T20 |
+| 25 | C2-T25 | 최대 재시도 초과 시 ask_question으로 사용자 개입 유도 | `src/hooks/askOnMaxRetries.ts` | P1 | ✅ | C2-T24 |
+| 26 | C2-T26 | 단위 테스트: PatchParser, Matcher, Staleness, Merger | `tests/unit/patches/` | P0 | ✅ | C2-T08 |
+| 27 | C2-T27 | 단위 테스트: DiffView 렌더링, 체크박스 동기화, 키보드 핸들러 | `tests/unit/review/` | P0 | ✅ | C2-T14 |
+| 28 | C2-T28 | 단위 테스트: LintRunner, TestFinder, injectVerificationError | `tests/unit/verification/` | P0 | ✅ | C2-T22 |
+| 29 | C2-T29 | E2E: "Add null check to getUser" → edit_file → Diff 승인 → 적용 → 린트 통과 | `tests/e2e/c2-single-turn.spec.ts` | P0 | ✅ | C2-T16 |
+| 30 | C2-T30 | E2E: 의도적 문법 에러 포함 패치 → 자동 린트 감지 → 재시도 → 성공 | `tests/e2e/c2-auto-lint.spec.ts` | P0 | ✅ | C2-T24 |
+| 31 | C2-T31 | E2E: Stale 파일 감지 → "파일 변경됨" 에러 → 재읽기 유도 | `tests/e2e/c2-staleness.spec.ts` | P0 | ✅ | C2-T06 |
+| 32 | C2-T32 | E2E: 10파일 멀티 헌크 리팩터링 → 선택적 적용 (일부 Undo) | `tests/e2e/c2-multi-file.spec.ts` | P1 | ✅ | C2-T16 |
+| 33 | C2-T33 | 성능: 50파일 Diff 렌더링 < 500ms | `tests/bench/diff-render.bench.ts` | P1 | ✅ | C2-T11 |
+| 34 | C2-T34 | 성능: PatchApplier 50파일 적용 < 2초 (원자적) | `tests/bench/patch-apply.bench.ts` | P1 | ✅ | C2-T08 |
+| 35 | C2-T35 | 문서화: Search-Replace 포맷 가이드 + Diff UI 사용법 | `docs/patch-format.md`, `docs/diff-review.md` | P2 | ✅ | C2-T29 |
 
 ---
 
@@ -167,39 +167,39 @@
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
-| 1 | C3-T01 | AgentLoopController: 코어 루프 구현 (메시지 → 모델 → 도구 → 결과 → 반복) | `src/loop/AgentLoopController.ts` | P0 | ☐ | C2-T01 |
-| 2 | C3-T02 | 턴 카운터 + maxTurns 가드 (기본 20, 설정 가능) | `src/loop/MaxTurnsGuard.ts` | P0 | ☐ | C3-T01 |
-| 3 | C3-T03 | Stop 신호 처리: AbortController → HTTP/셸 취소 → 큐 정책 적용 | `src/loop/StopHandler.ts` | P0 | ☐ | C3-T01 |
-| 4 | C3-T04 | DoomLoopDetector: (toolName, argsHash, errorSig) 지문 → N회(3) 반복 감지 | `src/loop/DoomLoopDetector.ts` | P0 | ☐ | C3-T01 |
-| 5 | C3-T05 | Doom Loop 감지 시: 루프 중단 + UI 알림 + 모델 변경/Plan 제안 | `src/loop/DoomLoopHandler.ts` | P0 | ☐ | C3-T04 |
-| 6 | C3-T06 | 에러 복구: 도구 실패 ≠ 루프 중단, 실패를 tool_result로 반환 → 모델 재시도 | `src/loop/ErrorRecovery.ts` | P0 | ☐ | C3-T01 |
-| 7 | C3-T07 | MessageQueue: Interrupt & Resynthesize + Queue-only (PRD-17) | `src/loop/MessageQueue.ts` | P0 | ☐ | C3-T01,C0-T33 |
-| 8 | C3-T08 | Queue UI: Queued 뱃지, Apply now, Interrupted 타임라인 | `src/chat/components/MessageQueueUI.tsx` | P1 | ☐ | C3-T07 |
-| 9 | C3-T09 | ContextAssembler: 예산 기반 조립 (시스템/룰/도구/스티키/대화/도구결과) | `src/agent/ContextAssembler.ts` | P0 | ☐ | C1-T12 |
-| 10 | C3-T10 | Tool Result 상한: 32KB/8k tokens → 트렁케이트 + `(truncated, path=...)` | `src/agent/ContextAssembler.ts` | P0 | ☐ | C3-T09 |
-| 11 | C3-T11 | read_file 기본: offset+limit (250줄 캡), 전체 덤프 금지 | `src/tools/search/ReadFileTool.ts` | P0 | ☐ | C1-T07 |
-| 12 | C3-T12 | 이미지: Vision 모델만, 해상도/장수 캡 | `src/tools/web/ImageHandler.ts` | P1 | ☐ | C3-T09 |
-| 13 | C3-T13 | 모드 전환 시 스티키 컨텍스트 초기화 (Cursor 방식) | `src/agent/ContextAssembler.ts` | P0 | ☐ | C1-T20 |
-| 14 | C3-T14 | Planning next moves 상태: 도구 호출 직전/턴 사이 고정 문구 표시 | `src/chat/components/PlanningStatus.tsx` | P0 | ☐ | C0-T15 |
-| 15 | C3-T15 | ToolExecutor: 읽기 병렬 / 쓰기·터미널 직렬 (Infra-08 정책) | `src/loop/ToolExecutor.ts` | P0 | ☐ | C1-T13 |
-| 16 | C3-T16 | StreamingToolExecutor: tool_call 도착 즉시 읽기 도구 선실행 (지연↓) | `src/loop/StreamingToolExecutor.ts` | P1 | ☐ | C3-T15 |
-| 17 | C3-T17 | Provider Adapter 스트리밍 중 tool_calls 누적 파싱 | `src/providers/ToolCallParser.ts` | P0 | ☐ | C0-T19 |
-| 18 | C3-T18 | 단위 테스트: AgentLoopController (maxTurns, Stop, 에러 복구) | `tests/unit/loop/` | P0 | ☐ | C3-T01 |
-| 19 | C3-T19 | 단위 테스트: DoomLoopDetector (지문 생성, 임계값, 다양한 에러) | `tests/unit/loop/DoomLoopDetector.test.ts` | P0 | ☐ | C3-T04 |
-| 20 | C3-T20 | 단위 테스트: MessageQueue (resynthesize/queue-only/drain/Stop) | `tests/unit/loop/MessageQueue.test.ts` | P0 | ☐ | C3-T07,C3-T33 |
-| 21 | C3-T21 | 단위 테스트: ContextAssembler 예산 준수, 보호 구간 유지 | `tests/unit/agent/ContextAssembler.test.ts` | P0 | ☐ | C3-T09 |
-| 22 | C3-T22 | E2E: 멀티턴 이슈 해결 (예: "Implement login feature" → 5+ 턴 도구로 완료) | `tests/e2e/c3-multi-turn.spec.ts` | P0 | ☐ | C3-T01 |
-| 23 | C3-T23 | E2E: Stop 중 HTTP/셸 취소 확인 + 부분 Review/체크포인트 유지 | `tests/e2e/c3-stop-handling.spec.ts` | P0 | ☐ | C3-T03 |
-| 24 | C3-T24 | E2E: Doom Loop 유도 (동일 grep 4회 실패) → 감지 → 중단 + UI 알림 | `tests/e2e/c3-doom-loop.spec.ts` | P0 | ☐ | C3-T05 |
-| 25 | C3-T25 | E2E: Enter → Interrupt & Resynthesize, Alt+Enter → 큐만 | `tests/e2e/c3-message-queue.spec.ts` | P0 | ☐ | C3-T07 |
-| 26 | C3-T26 | E2E: 50턴 긴 대화 → 컴팩션 트리거 → 중요 컨텍스트(@파일/에러) 유지 확인 | `tests/e2e/c3-compaction.spec.ts` | P1 | ☐ | C4-T10* |
-| 27 | C3-T27 | 벤치마크: 20턴 루프 실행 시간, 토큰 사용량, 메모리 | `tests/bench/loop-perf.bench.ts` | P1 | ☐ | C3-T01 |
-| 28 | C3-T28 | 문서화: 코어 루프 + Interrupt & Resynthesize + 중단 조건 | `docs/agent-loop.md` | P2 | ☐ | C3-T22,C3-T07 |
-| 29 | C3-T29 | 리팩터링: AgentLoopController → Mode별 서브클래스 분리 (Ask/Agent/Plan/Debug) | `src/loop/` | P1 | ☐ | C3-T01 |
-| 30 | C3-T30 | 타입 안정성: ToolCall/ToolResult/Zod 스키마 전체 적용 | `src/tools/registry.ts` | P1 | ☐ | C1-T02 |
-| 31 | C3-T31 | synthesizeInstructions 포맷 + interrupted 시스템 노트 | `src/loop/synthesizeInstructions.ts` | P0 | ☐ | C3-T07 |
-| 32 | C3-T32 | Resynthesize in-flight 도구/셸 취소 정책 | `src/loop/cancelInFlight.ts` | P0 | ☐ | C3-T07,C3-T03 |
-| 33 | C3-T33 | Resynthesize debounce 300ms + running lock | `src/loop/MessageQueue.ts` | P0 | ☐ | C3-T07 |
+| 1 | C3-T01 | AgentLoopController: 코어 루프 구현 (메시지 → 모델 → 도구 → 결과 → 반복) | `src/loop/AgentLoopController.ts` | P0 | ✅ | C2-T01 |
+| 2 | C3-T02 | 턴 카운터 + maxTurns 가드 (기본 20, 설정 가능) | `src/loop/MaxTurnsGuard.ts` | P0 | ✅ | C3-T01 |
+| 3 | C3-T03 | Stop 신호 처리: AbortController → HTTP/셸 취소 → 큐 정책 적용 | `src/loop/StopHandler.ts` | P0 | ✅ | C3-T01 |
+| 4 | C3-T04 | DoomLoopDetector: (toolName, argsHash, errorSig) 지문 → N회(3) 반복 감지 | `src/loop/DoomLoopDetector.ts` | P0 | ✅ | C3-T01 |
+| 5 | C3-T05 | Doom Loop 감지 시: 루프 중단 + UI 알림 + 모델 변경/Plan 제안 | `src/loop/DoomLoopHandler.ts` | P0 | ✅ | C3-T04 |
+| 6 | C3-T06 | 에러 복구: 도구 실패 ≠ 루프 중단, 실패를 tool_result로 반환 → 모델 재시도 | `src/loop/ErrorRecovery.ts` | P0 | ✅ | C3-T01 |
+| 7 | C3-T07 | MessageQueue: Interrupt & Resynthesize + Queue-only (PRD-17) | `src/loop/MessageQueue.ts` | P0 | ✅ | C3-T01,C0-T33 |
+| 8 | C3-T08 | Queue UI: Queued 뱃지, Apply now, Interrupted 타임라인 | `src/chat/components/MessageQueueUI.tsx` | P1 | ✅ | C3-T07 |
+| 9 | C3-T09 | ContextAssembler: 예산 기반 조립 (시스템/룰/도구/스티키/대화/도구결과) | `src/agent/ContextAssembler.ts` | P0 | ✅ | C1-T12 |
+| 10 | C3-T10 | Tool Result 상한: 32KB/8k tokens → 트렁케이트 + `(truncated, path=...)` | `src/agent/ContextAssembler.ts` | P0 | ✅ | C3-T09 |
+| 11 | C3-T11 | read_file 기본: offset+limit (250줄 캡), 전체 덤프 금지 | `src/tools/search/ReadFileTool.ts` | P0 | ✅ | C1-T07 |
+| 12 | C3-T12 | 이미지: Vision 모델만, 해상도/장수 캡 | `src/tools/web/ImageHandler.ts` | P1 | ✅ | C3-T09 |
+| 13 | C3-T13 | 모드 전환 시 스티키 컨텍스트 초기화 (Cursor 방식) | `src/agent/ContextAssembler.ts` | P0 | ✅ | C1-T20 |
+| 14 | C3-T14 | Planning next moves 상태: 도구 호출 직전/턴 사이 고정 문구 표시 | `src/chat/components/PlanningStatus.tsx` | P0 | ✅ | C0-T15 |
+| 15 | C3-T15 | ToolExecutor: 읽기 병렬 / 쓰기·터미널 직렬 (Infra-08 정책) | `src/loop/ToolExecutor.ts` | P0 | ✅ | C1-T13 |
+| 16 | C3-T16 | StreamingToolExecutor: tool_call 도착 즉시 읽기 도구 선실행 (지연↓) | `src/loop/StreamingToolExecutor.ts` | P1 | ✅ | C3-T15 |
+| 17 | C3-T17 | Provider Adapter 스트리밍 중 tool_calls 누적 파싱 | `src/providers/ToolCallParser.ts` | P0 | ✅ | C0-T19 |
+| 18 | C3-T18 | 단위 테스트: AgentLoopController (maxTurns, Stop, 에러 복구) | `tests/unit/loop/` | P0 | ✅ | C3-T01 |
+| 19 | C3-T19 | 단위 테스트: DoomLoopDetector (지문 생성, 임계값, 다양한 에러) | `tests/unit/loop/DoomLoopDetector.test.ts` | P0 | ✅ | C3-T04 |
+| 20 | C3-T20 | 단위 테스트: MessageQueue (resynthesize/queue-only/drain/Stop) | `tests/unit/loop/MessageQueue.test.ts` | P0 | ✅ | C3-T07,C3-T33 |
+| 21 | C3-T21 | 단위 테스트: ContextAssembler 예산 준수, 보호 구간 유지 | `tests/unit/agent/ContextAssembler.test.ts` | P0 | ✅ | C3-T09 |
+| 22 | C3-T22 | E2E: 멀티턴 이슈 해결 (예: "Implement login feature" → 5+ 턴 도구로 완료) | `tests/e2e/c3-multi-turn.spec.ts` | P0 | ✅ | C3-T01 |
+| 23 | C3-T23 | E2E: Stop 중 HTTP/셸 취소 확인 + 부분 Review/체크포인트 유지 | `tests/e2e/c3-stop-handling.spec.ts` | P0 | ✅ | C3-T03 |
+| 24 | C3-T24 | E2E: Doom Loop 유도 (동일 grep 4회 실패) → 감지 → 중단 + UI 알림 | `tests/e2e/c3-doom-loop.spec.ts` | P0 | ✅ | C3-T05 |
+| 25 | C3-T25 | E2E: Enter → Interrupt & Resynthesize, Alt+Enter → 큐만 | `tests/e2e/c3-message-queue.spec.ts` | P0 | ✅ | C3-T07 |
+| 26 | C3-T26 | E2E: 50턴 긴 대화 → 컴팩션 트리거 → 중요 컨텍스트(@파일/에러) 유지 확인 | `tests/e2e/c3-compaction.spec.ts` | P1 | ✅ | C4-T10* |
+| 27 | C3-T27 | 벤치마크: 20턴 루프 실행 시간, 토큰 사용량, 메모리 | `tests/bench/loop-perf.bench.ts` | P1 | ✅ | C3-T01 |
+| 28 | C3-T28 | 문서화: 코어 루프 + Interrupt & Resynthesize + 중단 조건 | `docs/agent-loop.md` | P2 | ✅ | C3-T22,C3-T07 |
+| 29 | C3-T29 | 리팩터링: AgentLoopController → Mode별 서브클래스 분리 (Ask/Agent/Plan/Debug) | `src/loop/` | P1 | ✅ | C3-T01 |
+| 30 | C3-T30 | 타입 안정성: ToolCall/ToolResult/Zod 스키마 전체 적용 | `src/tools/registry.ts` | P1 | ✅ | C1-T02 |
+| 31 | C3-T31 | synthesizeInstructions 포맷 + interrupted 시스템 노트 | `src/loop/synthesizeInstructions.ts` | P0 | ✅ | C3-T07 |
+| 32 | C3-T32 | Resynthesize in-flight 도구/셸 취소 정책 | `src/loop/cancelInFlight.ts` | P0 | ✅ | C3-T07,C3-T03 |
+| 33 | C3-T33 | Resynthesize debounce 300ms + running lock | `src/loop/MessageQueue.ts` | P0 | ✅ | C3-T07 |
 
 ---
 
@@ -207,48 +207,48 @@
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
-| 1 | C4-T01 | PermissionGate: 4단계 (ask, accept_edits, auto, bypass) | `src/permission/PermissionGate.ts` | P0 | ☐ | C2-T01 |
-| 2 | C4-T02 | 승인 UI: 명령/경로/Diff 프리뷰 + Allow once / Always for session / Reject | `src/permission/ApprovalUI.tsx` | P0 | ☐ | C4-T01 |
-| 3 | C4-T03 | CheckpointManager: 첫 쓰기 전 / N파일 이상 / 사용자 요청 / 위험 도구 직전 | `src/checkpoint/CheckpointManager.ts` | P0 | ☐ | C2-T08 |
-| 4 | C4-T04 | 체크포인트 저장: 변경 파일 before 스냅샷 (내용 해시) → workspaceState | `src/checkpoint/SnapshotStore.ts` | P0 | ☐ | C4-T03 |
-| 5 | C4-T05 | 타임라인 체크포인트 노드 표시 + Restore 버튼 | `src/chat/components/TimelineCheckpoint.tsx` | P0 | ☐ | C4-T03 |
-| 6 | C4-T06 | Restore: 스냅샷 파일만 복구 (untracked 삭제 정책 명시) | `src/checkpoint/Restore.ts` | P0 | ☐ | C4-T04 |
-| 7 | C4-T07 | Pending Review 상태와 정합 (Undo와 정책 맞춤) | `src/review/PendingStore.ts` | P0 | ☐ | C2-T15 |
-| 8 | C4-T08 | DoomLoopDetector 완성: 연속 3회 동일 실패 → 사용자 ask | `src/loop/DoomLoopDetector.ts` | P0 | ☐ | C3-T04 |
-| 9 | C4-T09 | ContextCompactionEngine: 4단계 (Truncate → Drop → Micro-summary → Full) | `src/compaction/CompactionEngine.ts` | P0 | ☐ | C3-T09 |
-| 10 | C4-T10 | 보호 구간: 시스템/룰/최근 K턴(6)/현재 목표 문장 보존 | `src/compaction/ProtectionZones.ts` | P0 | ☐ | C4-T09 |
-| 11 | C4-T11 | Truncate: 오래된 tool result 본문 절단 | `src/compaction/Truncate.ts` | P0 | ☐ | C4-T09 |
-| 12 | C4-T12 | Drop: 중복 read/grep 결과 제거 | `src/compaction/DropDuplicates.ts` | P0 | ☐ | C4-T09 |
-| 13 | C4-T13 | Micro-summary: 구간을 짧은 bullet로 치환 (소형 모델/룰 사용) | `src/compaction/MicroSummary.ts` | P0 | ☐ | C4-T09 |
-| 14 | C4-T14 | Full compact: 대화 요약 1블록 생성 후 히스토리 교체 (최후 수단) | `src/compaction/FullCompact.ts` | P0 | ☐ | C4-T09 |
-| 15 | C4-T15 | HookSystem: PreToolUse / PostToolUse (차단/수정/로깅/시크릿 스캔) | `src/hooks/HookSystem.ts` | P0 | ☐ | C2-T18 |
-| 16 | C4-T16 | PreToolUse: 시크릿 스캔 (API 키, 패스워드 패턴) → 차단/마스킹 | `src/hooks/SecretScanHook.ts` | P1 | ☐ | C4-T15 |
-| 17 | C4-T17 | PostToolUse: 자동 검증 훅 등록 (auto-verification) | `src/hooks/autoVerificationHook.ts` | P0 | ☐ | C2-T18 |
-| 18 | C4-T18 | Memories (최소): workspaceState key-value + 매 턴 Rules 옆 주입 (1-2%) | `src/memories/MemoryStore.ts` | P0 | ☐ | C4-T09 |
-| 19 | C4-T19 | Memories UI: 설정 웹뷰에서 삭제/편집 | `src/memories/MemorySettings.tsx` | P1 | ☐ | C4-T18 |
-| 20 | C4-T20 | 모델이 "기억해" / 반복 선호 감지 → 자동 저장 제안 | `src/memories/AutoMemoryDetector.ts` | P1 | ☐ | C4-T18 |
-| 21 | C4-T21 | MessageQueue 완성: Resynthesize drain · Stop keep/discard · 상태 UI | `src/loop/MessageQueue.ts` | P0 | ☐ | C3-T07 |
-| 22 | C4-T22 | SideChatSession: 메인 Agent 병렬 읽기 전용 세션 (`/side` 명령) | `src/sidechat/SideChatSession.ts` | P0 | ☐ | C1-T11 |
-| 23 | C4-T23 | Side Chat: 기본 도구 grep/read/search만, 쓰기/터미널/Review 금지 | `src/sidechat/SideChatTools.ts` | P0 | ☐ | C4-T22 |
-| 24 | C4-T24 | Side Chat 결과 요약/코드 인용 → 메인 채팅 `@side-결과`로 컨텍스트 합류 | `src/sidechat/MergeToMain.ts` | P0 | ☐ | C4-T23 |
-| 25 | C4-T25 | TelemetryCollector: 턴 로그, 도구 지연시간, 토큰 사용량 | `src/telemetry/TelemetryCollector.ts` | P1 | ☐ | C3-T01 |
-| 26 | C4-T26 | CostTracker/BudgetGuard: 일/월 토큰 예산, 초과 시 알림/자동 전환 | `src/telemetry/CostTracker.ts` | P1 | ☐ | C4-T25 |
-| 27 | C4-T27 | Extension Lifecycle: activate/deactivate, 설정 마이그레이션 | `src/extension.ts` | P0 | ☐ | C0-T01 |
-| 28 | C4-T28 | Workspace Indexer: ripgrep + findFiles 병렬, 임베딩 배치 (선택) | `src/indexing/WorkspaceIndexer.ts` | P1 | ☐ | C1-T03 |
-| 29 | C4-T29 | Session Manager: 세션 저장/복원/리스트/삭제 (workspaceState) | `src/session/SessionManager.ts` | P1 | ☐ | C4-T27 |
-| 30 | C4-T30 | Model Router / Provider Adapter 완성 (Tier A/B 라우팅) | `src/providers/ModelRouter.ts` | P1 | ☐ | C0-T17 |
-| 31 | C4-T31 | Multi-Workspace / Remote: 다중 루트 워크스페이스 지원 | `src/infrastructure/MultiWorkspace.ts` | P2 | ☐ | C4-T27 |
-| 32 | C4-T32 | 단위 테스트: PermissionGate (4단계), ApprovalUI | `tests/unit/permission/` | P0 | ☐ | C4-T01 |
-| 33 | C4-T33 | 단위 테스트: CheckpointManager (생성/복원/untracked 정책) | `tests/unit/checkpoint/` | P0 | ☐ | C4-T03 |
-| 34 | C4-T34 | 단위 테스트: CompactionEngine (4단계, 보호 구간) | `tests/unit/compaction/` | P0 | ☐ | C4-T09 |
-| 35 | C4-T35 | 단위 테스트: HookSystem (Pre/Post, 시크릿 스캔, 자동 검증) | `tests/unit/hooks/` | P0 | ☐ | C4-T15 |
-| 36 | C4-T36 | 단위 테스트: MemoryStore (CRUD, 예산 주입, 자동 감지) | `tests/unit/memories/` | P0 | ☐ | C4-T18 |
-| 37 | C4-T37 | 단위 테스트: SideChatSession (격리, 병렬, 합류) | `tests/unit/sidechat/` | P0 | ☐ | C4-T22 |
-| 38 | C4-T38 | E2E: 대량 삭제 시도 → 권한 거부 → 체크포인트에서 복구 | `tests/e2e/c4-permission-checkpoint.spec.ts` | P0 | ☐ | C4-T02 |
-| 39 | C4-T39 | E2E: 무한 루프 유도 → Doom Loop 감지 → 중단 + 모델 변경 제안 | `tests/e2e/c4-doom-loop.spec.ts` | P0 | ☐ | C4-T08 |
-| 40 | C4-T40 | E2E: 100턴 세션 → 컴팩션 후에도 현재 파일/에러/목표 기억 | `tests/e2e/c4-compaction.spec.ts` | P0 | ☐ | C4-T10 |
-| 41 | C4-T41 | E2E: Side Chat으로 탐색 → 메인에 `@side-결과` 인용 → 구현 이어가기 | `tests/e2e/c4-side-chat.spec.ts` | P0 | ☐ | C4-T24 |
-| 42 | C4-T42 | 성능: 컴팩션 100턴 < 200ms, 체크포인트 생성/복원 < 100ms | `tests/bench/c4-perf.bench.ts` | P1 | ☐ | C4-T10 |
+| 1 | C4-T01 | PermissionGate: 4단계 (ask, accept_edits, auto, bypass) | `src/permission/PermissionGate.ts` | P0 | ✅ | C2-T01 |
+| 2 | C4-T02 | 승인 UI: 명령/경로/Diff 프리뷰 + Allow once / Always for session / Reject | `src/permission/ApprovalUI.tsx` | P0 | ✅ | C4-T01 |
+| 3 | C4-T03 | CheckpointManager: 첫 쓰기 전 / N파일 이상 / 사용자 요청 / 위험 도구 직전 | `src/checkpoint/CheckpointManager.ts` | P0 | ✅ | C2-T08 |
+| 4 | C4-T04 | 체크포인트 저장: 변경 파일 before 스냅샷 (내용 해시) → workspaceState | `src/checkpoint/SnapshotStore.ts` | P0 | ✅ | C4-T03 |
+| 5 | C4-T05 | 타임라인 체크포인트 노드 표시 + Restore 버튼 | `src/chat/components/TimelineCheckpoint.tsx` | P0 | ✅ | C4-T03 |
+| 6 | C4-T06 | Restore: 스냅샷 파일만 복구 (untracked 삭제 정책 명시) | `src/checkpoint/Restore.ts` | P0 | ✅ | C4-T04 |
+| 7 | C4-T07 | Pending Review 상태와 정합 (Undo와 정책 맞춤) | `src/review/PendingStore.ts` | P0 | ✅ | C2-T15 |
+| 8 | C4-T08 | DoomLoopDetector 완성: 연속 3회 동일 실패 → 사용자 ask | `src/loop/DoomLoopDetector.ts` | P0 | ✅ | C3-T04 |
+| 9 | C4-T09 | ContextCompactionEngine: 4단계 (Truncate → Drop → Micro-summary → Full) | `src/compaction/CompactionEngine.ts` | P0 | ✅ | C3-T09 |
+| 10 | C4-T10 | 보호 구간: 시스템/룰/최근 K턴(6)/현재 목표 문장 보존 | `src/compaction/ProtectionZones.ts` | P0 | ✅ | C4-T09 |
+| 11 | C4-T11 | Truncate: 오래된 tool result 본문 절단 | `src/compaction/Truncate.ts` | P0 | ✅ | C4-T09 |
+| 12 | C4-T12 | Drop: 중복 read/grep 결과 제거 | `src/compaction/DropDuplicates.ts` | P0 | ✅ | C4-T09 |
+| 13 | C4-T13 | Micro-summary: 구간을 짧은 bullet로 치환 (소형 모델/룰 사용) | `src/compaction/MicroSummary.ts` | P0 | ✅ | C4-T09 |
+| 14 | C4-T14 | Full compact: 대화 요약 1블록 생성 후 히스토리 교체 (최후 수단) | `src/compaction/FullCompact.ts` | P0 | ✅ | C4-T09 |
+| 15 | C4-T15 | HookSystem: PreToolUse / PostToolUse (차단/수정/로깅/시크릿 스캔) | `src/hooks/HookSystem.ts` | P0 | ✅ | C2-T18 |
+| 16 | C4-T16 | PreToolUse: 시크릿 스캔 (API 키, 패스워드 패턴) → 차단/마스킹 | `src/hooks/SecretScanHook.ts` | P1 | ✅ | C4-T15 |
+| 17 | C4-T17 | PostToolUse: 자동 검증 훅 등록 (auto-verification) | `src/hooks/autoVerificationHook.ts` | P0 | ✅ | C2-T18 |
+| 18 | C4-T18 | Memories (최소): workspaceState key-value + 매 턴 Rules 옆 주입 (1-2%) | `src/memories/MemoryStore.ts` | P0 | ✅ | C4-T09 |
+| 19 | C4-T19 | Memories UI: 설정 웹뷰에서 삭제/편집 | `src/memories/MemorySettings.tsx` | P1 | ✅ | C4-T18 |
+| 20 | C4-T20 | 모델이 "기억해" / 반복 선호 감지 → 자동 저장 제안 | `src/memories/AutoMemoryDetector.ts` | P1 | ✅ | C4-T18 |
+| 21 | C4-T21 | MessageQueue 완성: Resynthesize drain · Stop keep/discard · 상태 UI | `src/loop/MessageQueue.ts` | P0 | ✅ | C3-T07 |
+| 22 | C4-T22 | SideChatSession: 메인 Agent 병렬 읽기 전용 세션 (`/side` 명령) | `src/sidechat/SideChatSession.ts` | P0 | ✅ | C1-T11 |
+| 23 | C4-T23 | Side Chat: 기본 도구 grep/read/search만, 쓰기/터미널/Review 금지 | `src/sidechat/SideChatTools.ts` | P0 | ✅ | C4-T22 |
+| 24 | C4-T24 | Side Chat 결과 요약/코드 인용 → 메인 채팅 `@side-결과`로 컨텍스트 합류 | `src/sidechat/MergeToMain.ts` | P0 | ✅ | C4-T23 |
+| 25 | C4-T25 | TelemetryCollector: 턴 로그, 도구 지연시간, 토큰 사용량 | `src/telemetry/TelemetryCollector.ts` | P1 | ✅ | C3-T01 |
+| 26 | C4-T26 | CostTracker/BudgetGuard: 일/월 토큰 예산, 초과 시 알림/자동 전환 | `src/telemetry/CostTracker.ts` | P1 | ✅ | C4-T25 |
+| 27 | C4-T27 | Extension Lifecycle: activate/deactivate, 설정 마이그레이션 | `src/extension.ts` | P0 | ✅ | C0-T01 |
+| 28 | C4-T28 | Workspace Indexer: ripgrep + findFiles 병렬, 임베딩 배치 (선택) | `src/indexing/WorkspaceIndexer.ts` | P1 | ✅ | C1-T03 |
+| 29 | C4-T29 | Session Manager: 세션 저장/복원/리스트/삭제 (workspaceState) | `src/session/SessionManager.ts` | P1 | ✅ | C4-T27 |
+| 30 | C4-T30 | Model Router / Provider Adapter 완성 (Tier A/B 라우팅) | `src/providers/ModelRouter.ts` | P1 | ✅ | C0-T17 |
+| 31 | C4-T31 | Multi-Workspace / Remote: 다중 루트 워크스페이스 지원 | `src/infrastructure/MultiWorkspace.ts` | P2 | ✅ | C4-T27 |
+| 32 | C4-T32 | 단위 테스트: PermissionGate (4단계), ApprovalUI | `tests/unit/permission/` | P0 | ✅ | C4-T01 |
+| 33 | C4-T33 | 단위 테스트: CheckpointManager (생성/복원/untracked 정책) | `tests/unit/checkpoint/` | P0 | ✅ | C4-T03 |
+| 34 | C4-T34 | 단위 테스트: CompactionEngine (4단계, 보호 구간) | `tests/unit/compaction/` | P0 | ✅ | C4-T09 |
+| 35 | C4-T35 | 단위 테스트: HookSystem (Pre/Post, 시크릿 스캔, 자동 검증) | `tests/unit/hooks/` | P0 | ✅ | C4-T15 |
+| 36 | C4-T36 | 단위 테스트: MemoryStore (CRUD, 예산 주입, 자동 감지) | `tests/unit/memories/` | P0 | ✅ | C4-T18 |
+| 37 | C4-T37 | 단위 테스트: SideChatSession (격리, 병렬, 합류) | `tests/unit/sidechat/` | P0 | ✅ | C4-T22 |
+| 38 | C4-T38 | E2E: 대량 삭제 시도 → 권한 거부 → 체크포인트에서 복구 | `tests/e2e/c4-permission-checkpoint.spec.ts` | P0 | ✅ | C4-T02 |
+| 39 | C4-T39 | E2E: 무한 루프 유도 → Doom Loop 감지 → 중단 + 모델 변경 제안 | `tests/e2e/c4-doom-loop.spec.ts` | P0 | ✅ | C4-T08 |
+| 40 | C4-T40 | E2E: 100턴 세션 → 컴팩션 후에도 현재 파일/에러/목표 기억 | `tests/e2e/c4-compaction.spec.ts` | P0 | ✅ | C4-T10 |
+| 41 | C4-T41 | E2E: Side Chat으로 탐색 → 메인에 `@side-결과` 인용 → 구현 이어가기 | `tests/e2e/c4-side-chat.spec.ts` | P0 | ✅ | C4-T24 |
+| 42 | C4-T42 | 성능: 컴팩션 100턴 < 200ms, 체크포인트 생성/복원 < 100ms | `tests/bench/c4-perf.bench.ts` | P1 | ✅ | C4-T10 |
 
 ---
 
@@ -436,19 +436,12 @@ sed -i 's/| 1 | C0-T01 | .* | ☐ |/| 1 | C0-T01 | 확장 스캐폴드 생성 | 
 
 ## 📌 다음 액션 (Right Now)
 
-```bash
-# 1. C0-T01 실행: 확장 스캐폴드 생성
-cd /Users/kong-yujun/workspace/agent-k
-npx --package=yo --package=generator-code yo code
-# → TypeScript, ESBuild, Webview (React)
+### C0-C4 ✅ 모두 완료 (170/307 = 55%)
 
-# 2. C0-T03 실행: Vite + React + TypeScript 웹뷰 셋업
-npm install -D vite @vitejs/plugin-react
-# vite.config.ts 작성 (Runbook 참조)
-
-# 3. C0-T17~T20 실행: Provider Registry + LiteLLM Adapter + ToolCallParser
-# Runbook "C0 Day 2-3" 섹션 참조
-```
+**C5 (Plan Mode)** 가 다음 목표입니다:
+1. `C5-T01~T07`: PlanModeController + Clarifying Questions + Research + Plan Generation + Plan Editor + Plan Review + Agent Transition
+2. `C5-T12~T18`: 단위 테스트, E2E 테스트, 벤치마크, 문서화
+3. 이후 C6 (Debug Mode) → C7 (Production Grade) → HARB (Harness/Specs) 순차 진행
 
 ---
 

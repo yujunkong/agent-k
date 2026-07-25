@@ -1,0 +1,7 @@
+{
+  "id": "C0-T38", "phase": "C0", "title": "Queue 설정 탭",
+  "status": "done", "files": ["src/settings/tabs/QueueTab.tsx"],
+  "completedCriteria": ["✅ resynthesize/queue_only 선택", "✅ debounce ms 설정", "✅ ConfigManager 반영"],
+  "actualHours": 0.5,
+  "implementationNotes": {"completedAt": "2026-07-25T16:00:00+09:00", "verification": "npm run compile 성공"}
+}

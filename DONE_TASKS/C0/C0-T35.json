@@ -1,0 +1,7 @@
+{
+  "id": "C0-T35", "phase": "C0", "title": "Settings Hub Webview 뼈대 (카테고리 탭 셸)",
+  "status": "done", "files": ["src/settings/SettingsPanel.tsx"],
+  "completedCriteria": ["✅ 7개 탭 UI (Models/Permission/Queue/Harness/Context/MCP/Privacy)", "✅ ConfigManager와 연동", "✅ 탭 전환", "✅ Settings Hub 셸 구조"],
+  "actualHours": 1,
+  "implementationNotes": {"completedAt": "2026-07-25T16:00:00+09:00", "verification": "npm run compile 성공"}
+}

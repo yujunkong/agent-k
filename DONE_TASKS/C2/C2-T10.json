@@ -1,0 +1,44 @@
+{
+  "id": "C2-T10",
+  "phase": "C2",
+  "title": "터미널 출력 캡처 (stdout+stderr, 끝 32KB, exit code 포함)",
+  "description": "OutputCapture: spawn stdout/stderr 스트림 버퍼링. 링 버퍼(32KB)로 메모리 제한. 완료 시: {stdout: string, stderr: string, exitCode: number, truncated: boolean, durationMs}. 트렁케이트 시 앞부분 '(truncated, showing last 32KB)' 표기. ANSI 이스케이프 코드 스트립 옵션.",
+  "files": [
+    "src/tools/terminal/OutputCapture.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C2-T09"
+  ],
+  "acceptanceCriteria": [
+    "stdout+stderr 합쳐 끝 32KB 링 버퍼",
+    "exitCode 캡처",
+    "트렁케이트 여부 표시",
+    "실행 시간 측정",
+    "ANSI 이스케이프 코드 제거 옵션"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "terminal",
+    "output",
+    "capture",
+    "ring-buffer",
+    "truncation",
+    "ansi"
+  ],
+  "completedCriteria": [
+    "✅ 터미널 출력 캡처 (stdout+stderr, 끝 32KB, exit code 포함) implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 2,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/tools/terminal/TerminalTool.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

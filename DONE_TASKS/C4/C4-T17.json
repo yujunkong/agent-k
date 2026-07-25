@@ -1,0 +1,44 @@
+{
+  "id": "C4-T17",
+  "phase": "C4",
+  "title": "PostToolUse: 자동 검증 훅 등록 (auto-verification)",
+  "description": "AutoVerificationHook: PostToolUse에서 edit_file/write_file/apply_patch 완료 후 자동 실행. Tier A: LintRunner 실행 → 에러 시 injectVerificationError. Tier B: LintRunner + TestRunner(관련 테스트 파일) → 에러/실패 시 주입. Tier C: 비활성. 설정: verification.tier, verification.maxRetries. 훅 우선순위: 내장 최상위.",
+  "files": [
+    "src/hooks/autoVerificationHook.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C2-T18"
+  ],
+  "acceptanceCriteria": [
+    "edit/write/patch 후 PostToolUse에서 자동 실행",
+    "Tier A: Lint만, retry=2",
+    "Tier B: Lint+Test, retry=1",
+    "Tier C: 비활성",
+    "에러 시 injectVerificationError 호출",
+    "설정: tier, maxRetries"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "auto-verification",
+    "post-tool-use",
+    "lint",
+    "test",
+    "tier",
+    "retry",
+    "inject-error"
+  ],
+  "completedCriteria": [
+    "✅ PostToolUse: 자동 검증 훅 등록 (auto-verification) implemented"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T19:00:00+09:00",
+    "filesModified": [
+      "src/hooks/autoVerificationHook.ts"
+    ],
+    "verification": "npm run compile 성공",
+    "notes": ""
+  }
+}

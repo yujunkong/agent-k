@@ -1,0 +1,42 @@
+{
+  "id": "C2-T03",
+  "phase": "C2",
+  "title": "write_file 도구: 신규 파일/짧은 파일(<200줄)만 허용",
+  "description": "WriteFileTool: 입력 {path, content}. 사전 검증: 파일이 이미 존재하면 에러('File exists, use edit_file'). 라인 수 > 200이면 에러('File too large, use edit_file for partial writes'). 디렉토리 자동 생성. vscode.workspace.fs.writeFile로 작성. 반환: {path, lines, bytes}.",
+  "files": [
+    "src/tools/edit/WriteFileTool.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C2-T01"
+  ],
+  "acceptanceCriteria": [
+    "기존 파일 존재 시 에러 (edit_file 사용 유도)",
+    "200줄 초과 시 에러 (edit_file 사용 유도)",
+    "디렉토리 자동 생성",
+    "작성 후 라인 수/바이트 수 반환",
+    "UTF-8 인코딩 보장"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "write-file",
+    "validation",
+    "line-limit",
+    "directory-create"
+  ],
+  "completedCriteria": [
+    "✅ write_file 도구: 신규 파일/짧은 파일(<200줄)만 허용 implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 2,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/tools/editTools.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

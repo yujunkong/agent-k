@@ -1,0 +1,43 @@
+{
+  "id": "C3-T06",
+  "phase": "C3",
+  "title": "에러 복구: 도구 실패 ≠ 루프 중단, 실패를 tool_result로 반환 → 모델 재시도",
+  "description": "ErrorRecovery: ToolExecutor.execute() try-catch → 에러 시 ToolResult{error: true, content: 에러 메시지, metadata: {recoverable: true}} 반환. AgentLoop: tool_result.error=true지만 recoverable=true면 루프 지속 → 모델이 에러 보고 후 재시도. 치명적 에러(권한/파일없음/타임아웃): recoverable=false → 루프 중단 + 사용자 알림.",
+  "files": [
+    "src/loop/ErrorRecovery.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C3-T01"
+  ],
+  "acceptanceCriteria": [
+    "도구 실행 에러 → tool_result.error=true 반환",
+    "recoverable=true면 루프 지속 (모델 재시도)",
+    "모델이 에러 인지 후 대체 전략 시도",
+    "치명적 에러: recoverable=false → 루프 중단",
+    "치명적 에러 분류: 권한/파일없음/타임아웃"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "error-recovery",
+    "tool-result",
+    "recoverable",
+    "loop-continue",
+    "fatal-error"
+  ],
+  "completedCriteria": [
+    "✅ 에러 복구: 도구 실패 ≠ 루프 중단, 실패를 tool_result로 반환 → 모델 재시도 implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/loop/AgentLoopController.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "id": "C0-T26", "phase": "C0", "title": "테마 대응 (VS Code 다크/라이트/하이컨트라스트)",
+  "status": "done", "files": ["src/chat/chat.css"],
+  "completedCriteria": ["✅ CSS 변수로 VS Code 테마 매핑", "✅ 다크/라이트 자동 추종", "✅ 하이컨트라스트 @media (forced-colors)", "✅ Shiki 테마 동기화 (dark-plus/light-plus)"],
+  "actualHours": 0.5,
+  "implementationNotes": {"completedAt": "2026-07-25T16:00:00+09:00", "verification": "npm run compile 성공"}
+}

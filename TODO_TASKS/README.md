@@ -141,6 +141,8 @@ grep -c "☐" TODO_TASKS/MASTER_TASK_INDEX.md   # 남은 태스크 수
 | v1.0 | 2026-07-25 | 초기 태스크 생성 (C0–C7 + HARB) |
 | v1.1 | 2026-07-25 | C5–HARB 깨진 JSON 복구 · C0 Settings Hub 서브타스크(T33–T39) · C3 Resynthesize(T07/T08/T31/T32) · C7-T46 Settings 완성 · README 경로 정정 |
 | v1.2 | 2026-07-25 | Audit follow-up: C4-T21/C3-T28 stale 제거 · C3-T33 debounce · Skills PRD-28 보강 · HARB-T06/T24 · MASTER C3-T20 동기화 |
+| v1.3 | 2026-07-25 | C0-T07 완료 (Stop/Regenerate + 키보드 단축키) · C0-T05/T06 status 정정 · README에 태스크 완료 워크플로우 추가 |
+| v1.4 | 2026-07-25 | C0 Bulk: T08(StreamingMarkdownParser) · T09(Shiki CodeBlock) · T10(Mermaid) · T17(ProviderRegistry) · T18(LiteLLMProvider) · T19(ToolCallParser) · T20(ToolResultFormatter) · T21(SecretManager) · T22(ProviderSettings UI) · T23(HealthCheck) · T24(Protocol types) · T26(Theme) · T33(ConfigManager) · T35(SettingsPanel) · T36(ModelsTab) · T38(QueueTab) 완료. 남은 태스크 12개. |
 
 *각 태스크 JSON은 PRD Implementation Checklist + Runbook + 최신 PRD(PRD-17/29 등)를 기준으로 유지합니다.*
 

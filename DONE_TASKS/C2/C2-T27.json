@@ -1,0 +1,44 @@
+{
+  "id": "C2-T27",
+  "phase": "C2",
+  "title": "단위 테스트: DiffView 렌더링, 체크박스 동기화, 키보드 핸들러",
+  "description": "Vitest + React Testing Library. DiffView: Side-by-side/Unified 토글, 헌크 네비게이션 n/p, 라인 번호/색상. CheckboxSync: 파일↔헌크 양방향 동기화, indeterminate 상태. KeyboardHandler: Ctrl+Enter/Ctrl+Shift+Enter/Esc/Enter/Space 단축키, 포커스 조건부 작동.",
+  "files": [
+    "tests/unit/review/DiffView.test.tsx",
+    "tests/unit/review/CheckboxSync.test.ts",
+    "tests/unit/review/KeyboardHandler.test.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C2-T14"
+  ],
+  "acceptanceCriteria": [
+    "DiffView: 뷰 토글/네비게이션/하이라이트 모두 테스트",
+    "CheckboxSync: 양방향 동기화 + indeterminate",
+    "KeyboardHandler: 6개 단축키 모두 테스트",
+    "포커스 조건부 작동 검증",
+    "커버리지 80% 이상"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "testing",
+    "vitest",
+    "react-testing-library",
+    "diff",
+    "checkbox",
+    "keyboard"
+  ],
+  "completedCriteria": [
+    "✅ 단위 테스트: DiffView 렌더링, 체크박스 동기화, 키보드 핸들러 implemented"
+  ],
+  "actualHours": 4,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T19:00:00+09:00",
+    "filesModified": [
+      "tests/unit/review/"
+    ],
+    "verification": "npm run compile 성공",
+    "notes": ""
+  }
+}

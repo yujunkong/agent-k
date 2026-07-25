@@ -1,0 +1,158 @@
+/**
+ * 편집 도구 정의 (C2)
+ * 
+ * edit_file, write_file, run_terminal_cmd
+ */
+import type { ToolDefinition } from '../agent/types';
+import { toolRegistry } from './registry';
+
+const editFileTool: ToolDefinition = {
+  name: 'edit_file',
+  description: 'Edit a file using search-replace. Each hunk must match exactly one unique location. Supports fuzzy matching for whitespace flexibility.',
+  parameters: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'File path to edit' },
+      hunks: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            oldText: { type: 'string', description: 'Text to find (must match exactly one location)' },
+            newText: { type: 'string', description: 'Text to replace with' }
+          },
+          required: ['oldText', 'newText']
+        },
+        description: 'Array of search-replace hunks'
+      },
+      isComplete: { type: 'boolean', description: 'If false, more edits follow. Skip final post-edit validation.', optional: true }
+    },
+    required: ['path', 'hunks']
+  },
+  modeAllowlist: ['agent', 'plan', 'debug'],
+  category: 'edit',
+  requiresApproval: true,
+  destructive: true
+};
+
+const writeFileTool: ToolDefinition = {
+  name: 'write_file',
+  description: 'Create a new file or overwrite a short file (<200 lines). For existing files, use edit_file instead.',
+  parameters: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'File path to create' },
+      content: { type: 'string', description: 'File content' }
+    },
+    required: ['path', 'content']
+  },
+  modeAllowlist: ['agent', 'plan', 'debug'],
+  category: 'edit',
+  requiresApproval: true,
+  destructive: true
+};
+
+const runTerminalCmdTool: ToolDefinition = {
+  name: 'run_terminal_cmd',
+  description: 'Run a terminal command. Commands run in the workspace root directory. Use for build, test, lint, git, and other CLI operations.',
+  parameters: {
+    type: 'object',
+    properties: {
+      command: { type: 'string', description: 'Shell command to execute' },
+      description: { type: 'string', description: 'What this command does (visible in timeline)', optional: true },
+      timeout: { type: 'number', description: 'Timeout in ms (default: 120000)', optional: true },
+      requireApproval: { type: 'boolean', description: 'Force approval even in auto mode', optional: true }
+    },
+    required: ['command']
+  },
+  modeAllowlist: ['agent', 'debug'],
+  category: 'terminal',
+  requiresApproval: true,
+  destructive: true
+};
+
+const terminalOutputTool: ToolDefinition = {
+  name: 'terminal_output',
+  description: 'Get output from a running terminal session.',
+  parameters: {
+    type: 'object',
+    properties: {
+      sessionId: { type: 'string', description: 'Terminal session ID', optional: true }
+    },
+    required: []
+  },
+  modeAllowlist: ['agent', 'debug'],
+  category: 'terminal'
+};
+
+const processListTool: ToolDefinition = {
+  name: 'process_list',
+  description: 'List running terminal processes.',
+  parameters: {
+    type: 'object',
+    properties: {},
+    required: []
+  },
+  modeAllowlist: ['agent', 'debug'],
+  category: 'terminal'
+};
+
+const instrumentCodeTool: ToolDefinition = {
+  name: 'instrument_code',
+  description: 'Add logging/instrumentation to code for debugging purposes.',
+  parameters: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'File path' },
+      line: { type: 'number', description: 'Line number to add instrumentation' },
+      variable: { type: 'string', description: 'Variable to log', optional: true }
+    },
+    required: ['path', 'line']
+  },
+  modeAllowlist: ['debug'],
+  category: 'debug',
+  destructive: false
+};
+
+const askQuestionTool: ToolDefinition = {
+  name: 'ask_question',
+  description: 'Ask the user a question when you need clarification or additional information.',
+  parameters: {
+    type: 'object',
+    properties: {
+      question: { type: 'string', description: 'Question to ask the user' },
+      options: { type: 'array', items: { type: 'string' }, description: 'Answer options', optional: true }
+    },
+    required: ['question']
+  },
+  modeAllowlist: ['ask', 'agent', 'plan', 'debug'],
+  category: 'session'
+};
+
+const todoWriteTool: ToolDefinition = {
+  name: 'todo_write',
+  description: 'Record a todo item or update task progress.',
+  parameters: {
+    type: 'object',
+    properties: {
+      action: { type: 'string', enum: ['add', 'update', 'complete'], description: 'Action' },
+      text: { type: 'string', description: 'Todo text' },
+      status: { type: 'string', optional: true }
+    },
+    required: ['action', 'text']
+  },
+  modeAllowlist: ['ask', 'agent', 'plan'],
+  category: 'session'
+};
+
+// ─── Register all edit/session tools ──────────────────
+export function registerEditTools() {
+  toolRegistry.registerTool(editFileTool);
+  toolRegistry.registerTool(writeFileTool);
+  toolRegistry.registerTool(runTerminalCmdTool);
+  toolRegistry.registerTool(terminalOutputTool);
+  toolRegistry.registerTool(processListTool);
+  toolRegistry.registerTool(instrumentCodeTool);
+  toolRegistry.registerTool(askQuestionTool);
+  toolRegistry.registerTool(todoWriteTool);
+}

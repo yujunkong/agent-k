@@ -1,0 +1,46 @@
+{
+  "id": "C2-T18",
+  "phase": "C2",
+  "title": "단위 테스트: LintRunner, TestFinder, injectVerificationError",
+  "description": "LintRunner: vscode.languages.getDiagnostics 모킹 → 에러/경고 필터링. TestFinder: 3가지 전략(동일디렉터리/미러/설정) 각각 테스트. injectVerificationError: tool_result에 verificationInjected=true, lintErrors[], retryCount 주입 검증. 에러 메시지 포맷 통일.",
+  "files": [
+    "tests/unit/verification/LintRunner.test.ts",
+    "tests/unit/verification/TestFinder.test.ts",
+    "tests/unit/hooks/injectVerificationError.test.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C2-T22"
+  ],
+  "acceptanceCriteria": [
+    "LintRunner: 진단 필터링 정확 (에러/경고/정보/힌트)",
+    "TestFinder: 3전략 각각 독립 테스트",
+    "injectVerificationError: 주입 필드 정확",
+    "에러 메시지 포맷 통일 검증",
+    "모킹으로 VS Code API 의존성 격리"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "testing",
+    "lint-runner",
+    "test-finder",
+    "inject-verification",
+    "mock",
+    "vscode-api"
+  ],
+  "completedCriteria": [
+    "✅ 단위 테스트: LintRunner, TestFinder, injectVerificationError implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 4,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/hooks/HookSystem.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

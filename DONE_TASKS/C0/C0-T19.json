@@ -1,0 +1,7 @@
+{
+  "id": "C0-T19", "phase": "C0", "title": "ToolCallParser (Native/XML/JSON Fence/이중인코딩/Content 스캔)",
+  "status": "done", "files": ["src/providers/ToolCallParser.ts"],
+  "completedCriteria": ["✅ 5가지 전략(Native/XML/JSON Fence/이중인코딩/Content 스캔)", "✅ Native tool_calls 최우선 파싱", "✅ XML: <tool name=\"\"> 파싱", "✅ JSON 펜스: ```json 파싱", "✅ 이중 인코딩 디코딩", "✅ Content 스캔 휴리스틱"],
+  "actualHours": 1.5,
+  "implementationNotes": {"completedAt": "2026-07-25T16:00:00+09:00", "verification": "npm run compile 성공"}
+}

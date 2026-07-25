@@ -1,0 +1,47 @@
+{
+  "id": "C4-T19",
+  "phase": "C4",
+  "title": "Memories UI: 설정 웹뷰에서 삭제/편집",
+  "description": "MemorySettings 웹뷰 컴포넌트: 메모리 리스트 테이블(키/값/생성일/사용횟수). 편집: 행 클릭 → 인라인 편집 모달 → 저장. 삭제: 휴지통 아이콘 → 확인 모달. 검색/필터: 키/값 부분 일치. 내보내기/가져오기: JSON 파일. 사용 횟수 내림차순 정렬 기본.",
+  "files": [
+    "src/memories/MemorySettings.tsx"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "C4-T18"
+  ],
+  "acceptanceCriteria": [
+    "메모리 리스트 테이블: 키/값/생성일/사용횟수",
+    "인라인 편집 모달",
+    "삭제 확인 모달",
+    "검색/필터: 키/값 부분 일치",
+    "JSON 내보내기/가져오기",
+    "사용 횟수 내림차순 정렬"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "memories",
+    "ui",
+    "settings",
+    "webview",
+    "crud",
+    "search",
+    "import-export",
+    "sort"
+  ],
+  "completedCriteria": [
+    "✅ Memories UI: 설정 웹뷰에서 삭제/편집 implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/memories/MemoryStore.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

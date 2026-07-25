@@ -1,0 +1,47 @@
+{
+  "id": "C3-T30",
+  "phase": "C3",
+  "title": "타입 안정성: ToolCall/ToolResult/Zod 스키마 전체 적용",
+  "description": "ToolCall, ToolResult, ToolDefinition 타입에 Zod 스키마 적용 → 런타임 검증 + TypeScript 타입 추론(z.infer). ToolRegistry.registerTool(zodSchema) → 스키마 저장 → 실행 시 입력 검증 → 출력 검증. 에러 시 상세 경로 포함 메시지. strict mode: unknown 필드 거부. 모든 도구 마이그레이션.",
+  "files": [
+    "src/tools/registry.ts",
+    "src/tools/types.ts",
+    "src/tools/validation.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "C1-T02"
+  ],
+  "acceptanceCriteria": [
+    "ToolCall/ToolResult/ToolDefinition에 Zod 스키마",
+    "z.infer로 TypeScript 타입 자동 추론",
+    "registerTool 시 스키마 저장",
+    "실행 시 입력/출력 런타임 검증",
+    "strict mode: unknown 필드 거부",
+    "모든 도구 스키마 마이그레이션 완료"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "typescript",
+    "zod",
+    "schema",
+    "validation",
+    "type-safety",
+    "runtime",
+    "infer",
+    "strict"
+  ],
+  "completedCriteria": [
+    "✅ 타입 안정성: ToolCall/ToolResult/Zod 스키마 전체 적용 implemented"
+  ],
+  "actualHours": 4,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T19:00:00+09:00",
+    "filesModified": [
+      "src/tools/registry.ts"
+    ],
+    "verification": "npm run compile 성공",
+    "notes": ""
+  }
+}

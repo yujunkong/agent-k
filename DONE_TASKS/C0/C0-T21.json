@@ -1,0 +1,7 @@
+{
+  "id": "C0-T21", "phase": "C0", "title": "SecretStorage 연동 (API Key 저장/조회)",
+  "status": "done", "files": ["src/providers/SecretManager.ts"],
+  "completedCriteria": ["✅ SecretManager 클래스: store/get/delete", "✅ 키 네이밍: agent-k.{providerId}.{keyName}", "✅ SecretStorage 래퍼", "✅ 캐시 계층"],
+  "actualHours": 0.5,
+  "implementationNotes": {"completedAt": "2026-07-25T16:00:00+09:00", "verification": "npm run compile 성공"}
+}

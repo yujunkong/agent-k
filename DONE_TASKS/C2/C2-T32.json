@@ -1,0 +1,43 @@
+{
+  "id": "C2-T32",
+  "phase": "C2",
+  "title": "E2E: 10파일 멀티 헌크 리팩터링 → 선택적 적용 (일부 Undo)",
+  "description": "Playwright E2E: Agent 모드 → 'Refactor auth module across 10 files' → 모델 10파일 멀티 헌크 패치 생성 → Diff Preview에서 파일 3개 언체크 → Ctrl+Shift+Enter(선택적 적용) → 7개 파일만 적용 → 3개 파일 Undo 버튼으로 복구 → 체크포인트에서 before 스냅샷으로 복원 확인. 각 단계 파일 시스템 상태 검증.",
+  "files": [
+    "tests/e2e/c2-multi-file.spec.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "C2-T16"
+  ],
+  "acceptanceCriteria": [
+    "10파일 멀티 헌크 패치 생성",
+    "Diff Preview에서 3개 파일 언체크",
+    "선택적 적용(Ctrl+Shift+Enter) → 7개만 적용",
+    "Undo로 3개 파일 복구 (체크포인트 before 스냅샷)",
+    "각 단계 파일 시스템 상태 검증"
+  ],
+  "estimatedHours": 5,
+  "tags": [
+    "e2e",
+    "multi-file",
+    "multi-hunk",
+    "selective-apply",
+    "undo",
+    "checkpoint",
+    "partial"
+  ],
+  "completedCriteria": [
+    "✅ E2E: 10파일 멀티 헌크 리팩터링 → 선택적 적용 (일부 Undo) implemented"
+  ],
+  "actualHours": 5,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T19:00:00+09:00",
+    "filesModified": [
+      "tests/e2e/c2-multi-file.spec.ts"
+    ],
+    "verification": "npm run compile 성공",
+    "notes": ""
+  }
+}

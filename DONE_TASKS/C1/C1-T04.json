@@ -1,0 +1,43 @@
+{
+  "id": "C1-T04",
+  "phase": "C1",
+  "title": "grep 도구 (ripgrep + child_process, 병렬 지원)",
+  "description": "GrepTool: rg(ripgrep) 실행. 인자: pattern, path?, include?, exclude?, caseSensitive?, maxResults(기본 100). child_process.spawn으로 rg 실행, 스트리밍 파싱. 결과: {file, line, column, match, contextBefore[], contextAfter[]}. 병렬: p-limit(16)으로 다중 패턴/경로 동시 실행. 타임아웃 30초.",
+  "files": [
+    "src/tools/search/GrepTool.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C1-T03"
+  ],
+  "acceptanceCriteria": [
+    "ripgrep 실행 및 결과 파싱 작동",
+    "옵션 모두 지원: pattern, path, include, exclude, caseSensitive, maxResults",
+    "병렬 실행: p-limit(16) 다중 쿼리 동시 처리",
+    "결과 포맷: file, line, column, match, context 포함",
+    "타임아웃 30초 후 강제 종료"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "grep",
+    "ripgrep",
+    "child-process",
+    "parallel",
+    "streaming"
+  ],
+  "completedCriteria": [
+    "✅ grep 도구 (ripgrep + child_process, 병렬 지원) implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/tools/readTools.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "id": "C4-T22",
+  "phase": "C4",
+  "title": "SideChatSession: 메인 Agent 병렬 읽기 전용 세션 (/side 명령)",
+  "description": "SideChatSession: 메인 Agent와 독립된 읽기 전용 세션. 진입: '/side <query>' 또는 사이드바 버튼. 별도 AgentLoop 인스턴스(mode='ask'). 도구: grep/glob/list_dir/read_file/codebase_search/lsp_*만 허용. 쓰기/터미널/Review 금지(ModeRegistry 강제). 컨텍스트: 메인 세션과 분리(별도 메시지 히스토리/예산). 결과 요약 → 메인 채팅에 '@side-결과' 멘션으로 주입.",
+  "files": [
+    "src/sidechat/SideChatSession.ts",
+    "src/sidechat/SideChatTools.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C1-T11"
+  ],
+  "acceptanceCriteria": [
+    "/side 명령으로 진입",
+    "별도 AgentLoop(mode='ask') 인스턴스",
+    "읽기 도구 8개만 허용",
+    "쓰기/터미널/Review 완전 금지",
+    "메인 세션과 컨텍스트 완전 분리",
+    "결과 요약 → '@side-결과' 멘션으로 메인 주입"
+  ],
+  "estimatedHours": 5,
+  "tags": [
+    "side-chat",
+    "session",
+    "parallel",
+    "read-only",
+    "ask-mode",
+    "isolation",
+    "merge-to-main"
+  ],
+  "completedCriteria": [
+    "✅ SideChatSession: 메인 Agent 병렬 읽기 전용 세션 (/side 명령) implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 5,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/sidechat/SideChatSession.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

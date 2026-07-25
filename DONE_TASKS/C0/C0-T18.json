@@ -1,0 +1,7 @@
+{
+  "id": "C0-T18", "phase": "C0", "title": "LiteLLM/OpenAI-compatible Provider Adapter",
+  "status": "done", "files": ["src/providers/LiteLLMProvider.ts"],
+  "completedCriteria": ["✅ streamChat: POST /chat/completions + SSE 파싱", "✅ listModels: GET /models", "✅ 에러 처리: 401/429/5xx", "✅ 인증 헤더 전송"],
+  "actualHours": 1,
+  "implementationNotes": {"completedAt": "2026-07-25T16:00:00+09:00", "verification": "npm run compile 성공"}
+}

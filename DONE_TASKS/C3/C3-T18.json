@@ -1,0 +1,43 @@
+{
+  "id": "C3-T18",
+  "phase": "C3",
+  "title": "단위 테스트: AgentLoopController (maxTurns, Stop, 에러 복구)",
+  "description": "Vitest: AgentLoopController.run() 시나리오. maxTurns=3 도달 시 중단. Stop 신호(AbortController) → HTTP/셸 취소 + 부분 결과 보존. 도구 에러 발생 → tool_result로 반환 → 모델 재시도 → 루프 지속. Mock Provider로 결정적 응답.",
+  "files": [
+    "tests/unit/loop/AgentLoopController.test.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C3-T01"
+  ],
+  "acceptanceCriteria": [
+    "maxTurns 도달 시 루프 중단",
+    "Stop 신호로 HTTP/셸 취소 + 부분 결과 보존",
+    "도구 에러 → tool_result 반환 → 모델 재시도 → 루프 지속",
+    "Mock Provider로 결정적 테스트",
+    "커버리지 80% 이상"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "testing",
+    "vitest",
+    "agent-loop",
+    "max-turns",
+    "stop",
+    "error-recovery",
+    "mock-provider"
+  ],
+  "completedCriteria": [
+    "✅ 단위 테스트: AgentLoopController (maxTurns, Stop, 에러 복구) implemented"
+  ],
+  "actualHours": 4,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T19:00:00+09:00",
+    "filesModified": [
+      "tests/unit/loop/"
+    ],
+    "verification": "npm run compile 성공",
+    "notes": ""
+  }
+}

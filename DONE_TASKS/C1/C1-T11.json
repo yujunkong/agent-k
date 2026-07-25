@@ -1,0 +1,47 @@
+{
+  "id": "C1-T11",
+  "phase": "C1",
+  "title": "AgentLoop에 mode 주입 + 시스템 프롬프트 자동 주입",
+  "description": "AgentLoopController.run(mode): ModeRegistry에서 modeConfig 조회 → 시스템 프롬프트 선택(Ask/Agent/Plan/Debug) → ContextAssembler에 mode 전달. 시스템 프롬프트: 역할, 허용 도구, 제약사항, 출력 형식. 모드별 프롬프트 파일: prompts/ask.md, prompts/agent.md, prompts/plan.md, prompts/debug.md.",
+  "files": [
+    "src/agent/loop.ts",
+    "src/agent/modeRegistry.ts",
+    "prompts/ask.md",
+    "prompts/agent.md",
+    "prompts/plan.md",
+    "prompts/debug.md"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C0-T02"
+  ],
+  "acceptanceCriteria": [
+    "AgentLoop 실행 시 mode 파라미터로 시스템 프롬프트 결정",
+    "4개 모드별 시스템 프롬프트 파일 분리",
+    "모드 변경 시 즉시 프롬프트 교체",
+    "ContextAssembler에 mode 전달로 예산 분리 적용"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "agent-loop",
+    "mode",
+    "system-prompt",
+    "context-assembler",
+    "prompts"
+  ],
+  "completedCriteria": [
+    "✅ AgentLoop에 mode 주입 + 시스템 프롬프트 자동 주입 implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/loop/AgentLoopController.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "id": "C1-T12",
+  "phase": "C1",
+  "title": "ContextAssembler에 mode 파라미터 + 예산 분리 (Ask: 60k)",
+  "description": "ContextAssembler.assemble({mode, ...}): mode별 토큰 예산 적용. Ask: 60k, Agent: 100k, Plan: 80k, Debug: 80k. 보호 구간: 시스템/룰(10%), 도구 스키마(8%), 스티키(12%), 최근 K턴(30%), 현재 목표(10%), 여유(30%). mode별 도구 스키마만 포함 (ToolRegistry.getSchemas(mode)).",
+  "files": [
+    "src/agent/contextAssembler.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C0-T02"
+  ],
+  "acceptanceCriteria": [
+    "mode별 토큰 예산 다르게 적용",
+    "보호 구간 비율 준수",
+    "ToolRegistry.getSchemas(mode)로 도구 필터링",
+    "예산 초과 시 컴팩션 트리거"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "context-assembler",
+    "token-budget",
+    "mode",
+    "protection-zones"
+  ],
+  "completedCriteria": [
+    "✅ ContextAssembler에 mode 파라미터 + 예산 분리 (Ask: 60k) implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/agent/ContextAssembler.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

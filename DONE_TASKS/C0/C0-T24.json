@@ -1,0 +1,7 @@
+{
+  "id": "C0-T24", "phase": "C0", "title": "Extension ↔ Webview 메시지 프로토콜 타입 정의",
+  "status": "done", "files": ["src/chat/protocol.ts"],
+  "completedCriteria": ["✅ 모든 메시지 타입 정의(Webview→Extension 10개, Extension→Webview 12개)", "✅ 양방향 메시지 래퍼 타입", "✅ validateMessageType 런타임 검증", "✅ TypeScript 타입 자동 추론"],
+  "actualHours": 1,
+  "implementationNotes": {"completedAt": "2026-07-25T16:00:00+09:00", "verification": "npm run compile 성공"}
+}

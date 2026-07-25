@@ -1,0 +1,48 @@
+{
+  "id": "C4-T25",
+  "phase": "C4",
+  "title": "TelemetryCollector: 턴 로그, 도구 지연시간, 토큰 사용량",
+  "description": "TelemetryCollector: 이벤트 기반 수집. 이벤트: turn_start, turn_end, tool_call_start, tool_call_end, tool_call_error, token_usage, compaction, checkpoint_create, checkpoint_restore. 필드: sessionId, turnNumber, mode, model, durationMs, tokens{input,output}, tools[], errors[]. 저장: 메모리 링 버퍼(최근 1000 이벤트) + 주기적 파일 덤프(JSONL). 설정: telemetry.enabled, telemetry.intervalMs.",
+  "files": [
+    "src/telemetry/TelemetryCollector.ts",
+    "src/telemetry/types.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "C3-T01"
+  ],
+  "acceptanceCriteria": [
+    "10가지 이벤트 타입 수집",
+    "필수 필드 모두 포함",
+    "링 버퍼(1000 이벤트) + JSONL 파일 덤프",
+    "설정: enabled, intervalMs",
+    "PII 제외(파일 경로만, 내용 없음)"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "telemetry",
+    "collector",
+    "events",
+    "ring-buffer",
+    "jsonl",
+    "turn",
+    "tool",
+    "tokens",
+    "pii"
+  ],
+  "completedCriteria": [
+    "✅ TelemetryCollector: 턴 로그, 도구 지연시간, 토큰 사용량 implemented",
+    "✅ Source code written in appropriate module(s)",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/telemetry/TelemetryCollector.ts"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

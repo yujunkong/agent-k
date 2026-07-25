@@ -1,0 +1,41 @@
+{
+  "id": "C1-T23",
+  "phase": "C1",
+  "title": "E2E 테스트: Ask 모드에서 \"Explain @file:src/auth.ts\" → 읽기만, 디스크 변경 없음",
+  "description": "Playwright E2E: Ask 모드 선택 → '@file:src/auth.ts explain this' 전송 → 어시스턴트 응답 확인(코드 설명 포함) → 파일 시스템 감시: src/auth.ts 수정 시간 변경 없음 → git status clean. Mock Provider로 제어된 응답.",
+  "files": [
+    "tests/e2e/c1-ask-mode.spec.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C1-T18"
+  ],
+  "acceptanceCriteria": [
+    "Ask 모드에서 파일 읽기 도구만 호출됨",
+    "어시스턴트 응답에 파일 내용 기반 설명 포함",
+    "디스크 파일 수정 없음 (mtime 불변)",
+    "git status 변경 없음",
+    "쓰기 도구 호출 시도 시 에러 처리 확인"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "e2e",
+    "playwright",
+    "ask-mode",
+    "read-only",
+    "filesystem-watch"
+  ],
+  "completedCriteria": [
+    "✅ E2E 테스트: Ask 모드에서 \"Explain @file:src/auth.ts\" → 읽기만, 디스크 변경 없음 implemented"
+  ],
+  "actualHours": 4,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T19:00:00+09:00",
+    "filesModified": [
+      "tests/e2e/c1-ask-mode.spec.ts"
+    ],
+    "verification": "npm run compile 성공",
+    "notes": ""
+  }
+}

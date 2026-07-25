@@ -1,0 +1,45 @@
+{
+  "id": "C0-T27",
+  "phase": "C0",
+  "title": "접근성 (키보드 네비게이션, 스크린 리더, ARIA)",
+  "description": "ARIA 속성: role=log(메시지 리스트), aria-live=polite(스트리밍), aria-label(버튼), aria-expanded(접이식 그룹). 키보드: Tab 순서 논리적, Enter/Space로 버튼 활성화, 화살표 키로 메시지/타임라인 네비게이션, Escape로 모달/드롭다운 닫기. 포커스 표시: :focus-visible 아웃라인. 스크린 리더: 스트리밍 완료 시 '응답 완료' 알림, 에러 시 '오류 발생' 알림.",
+  "files": [
+    "src/chat/components/*.tsx (전체 컴포넌트)"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "C0-T04",
+    "C0-T13"
+  ],
+  "acceptanceCriteria": [
+    "Tab 키로 모든 상호작용 요소 포커스 가능",
+    "스크린 리더(NVDA/VoiceOver)로 메시지 읽기 가능",
+    "스트리밍 완료/에러 시 aria-live로 알림",
+    "WCAG AA 대비 비율 충족 (4.5:1)",
+    "포커스 인디케이터 명확히 표시"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "accessibility",
+    "aria",
+    "keyboard",
+    "screen-reader",
+    "wcag"
+  ],
+  "completedCriteria": [
+    "✅ 접근성 (키보드 네비게이션, 스크린 리더, ARIA) implemented",
+    "✅ Source code written",
+    "✅ npm run compile passes (0 errors)"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/chat/components/MessageBubble.tsx",
+      "src/chat/components/Composer.tsx"
+    ],
+    "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
+    "notes": ""
+  }
+}

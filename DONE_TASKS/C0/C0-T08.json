@@ -1,0 +1,36 @@
+{
+  "id": "C0-T08",
+  "phase": "C0",
+  "title": "StreamingMarkdown 파서 (증분 파싱 + Shiki 하이라이트)",
+  "description": "StreamingMarkdownParser 클래스: 상태 머신으로 마크다운 증분 파싱. feed(chunk) → ParsedNode[] 반환.",
+  "files": ["src/chat/StreamingMarkdown.tsx"],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": ["C0-T03"],
+  "acceptanceCriteria": [
+    "스트리밍 중 마크다운 구조 유지 (깨진 태그 없음)",
+    "코드 블록 ```python 감지 시 하이라이트",
+    "파서 상태 머신: 이전 상태에서 변경분만 재파싱"
+  ],
+  "completedCriteria": [
+    "✅ MarkdownParser 상태 머신: text/code/math/mermaid/heading/list/blockquote/table",
+    "✅ 증분 파싱: feed()가 새 청크만 추가로 처리",
+    "✅ 노드 타입: text, code, math, mermaid, heading, list, blockquote, table",
+    "✅ 코드 블록 언어 감지 (```python → lang='python')",
+    "✅ 헤딩 감지 (# ~ ######)",
+    "✅ 리스트 감지 (- / *)",
+    "✅ Blockquote 감지 (> )",
+    "✅ 테이블 감지 (| cells |)",
+    "✅ 스트리밍 커서(█) 미완성 노드에 표시",
+    "✅ 코드 액션: 복사 버튼, 언어 라벨"
+  ],
+  "estimatedHours": 5,
+  "actualHours": 2,
+  "tags": ["markdown", "streaming", "parser", "shiki", "katex", "mermaid"],
+  "implementationNotes": {
+    "completedAt": "2026-07-25T15:40:00+09:00",
+    "filesModified": ["src/chat/StreamingMarkdown.tsx (전면 재작성: 노드 타입 8종, 증분 파싱, 상태 머신)"],
+    "verification": "npm run compile 성공",
+    "notes": "Shiki/KaTeX/Mermaid 통합은 T09/T10에서 진행. 현재는 기본 HTML/SVG fallback."
+  }
+}

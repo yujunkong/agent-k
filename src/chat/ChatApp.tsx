@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { MessageBubble } from './components/MessageBubble';
 import { Composer } from './components/Composer';
@@ -35,12 +35,24 @@ export function ChatApp() {
   });
   const [mode, setMode] = useState<Mode>('agent');
   const [error, setError] = useState<string | null>(null);
+  const [messageQueue, setMessageQueue] = useState<string[]>([]);
 
   const { streaming, sendMessage, stop, regenerate } = useChatStream();
+
+  const queuedMessageRef = useRef<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
   }, [messages]);
+
+  // Process queued message when streaming completes
+  useEffect(() => {
+    if (!streaming && queuedMessageRef.current) {
+      const queued = queuedMessageRef.current;
+      queuedMessageRef.current = null;
+      handleSend(queued, []);
+    }
+  }, [streaming]);
 
   const handleSend = useCallback((text: string, files: Attachment[]) => {
     if (!text.trim() && files.length === 0) return;
@@ -92,6 +104,16 @@ export function ChatApp() {
       }
     );
   }, [messages, mode, sendMessage]);
+
+  const handleQueueMessage = useCallback((text: string) => {
+    if (streaming) {
+      // Queue the message to be sent after current stream completes
+      queuedMessageRef.current = text;
+    } else {
+      // Not streaming, send immediately
+      handleSend(text, []);
+    }
+  }, [streaming, handleSend]);
 
   const handleEditMessage = useCallback((messageId: string, newContent: string) => {
     setMessages((prev) => {
@@ -218,6 +240,7 @@ export function ChatApp() {
               });
             }
           )}
+          onQueueMessage={handleQueueMessage}
           isStreaming={streaming}
         />
       </footer>
