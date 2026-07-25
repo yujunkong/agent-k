@@ -1,0 +1,35 @@
+{
+  "id": "RW-C7-04",
+  "severity": "P0",
+  "category": "orchestration",
+  "title": "task 서브에이전트 실 AgentLoop 스폰 (Simulate setTimeout 제거)",
+  "description": "TaskTool이 setTimeout 500ms simulate.",
+  "relatedDoneIds": [
+    "C7-T21",
+    "C7-T22"
+  ],
+  "files": [
+    "src/tools/orchestration/TaskTool.ts"
+  ],
+  "acceptanceCriteria": [
+    "중첩 AgentLoop",
+    "부모엔 요약만",
+    "취소 전파"
+  ],
+  "estimatedHours": 6,
+  "tags": [
+    "task",
+    "stub",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-Tools-F_Orchestration_Extension.md"
+  ],
+  "dependencies": [
+    "RW-C57-01"
+  ],
+  "status": "done",
+  "createdAt": "2026-07-25",
+  "source": "C5–C7 functional audit (scaffold≠wired; rubber-stamp DONE)",
+  "notes": "Severity P0: feature exists as files but not product-complete. Mark related DONE as rework until AC verified."
+}

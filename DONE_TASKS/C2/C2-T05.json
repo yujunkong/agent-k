@@ -4,8 +4,8 @@
   "title": "SearchReplaceHunk 타입 + 유일 매칭 로직 (0건/2건+ → 에러)",
   "description": "SearchReplaceHunk: {path, oldText, newText, lineStart?, lineEnd?}. Matcher.match(fileContent, hunk): oldText 검색 → 매칭 위치 배열 반환. 0건: MatchError.NOT_FOUND. 1건: 위치 반환. 2건+: MatchError.AMBIGUOUS (위치들 포함). 퍼지 매칭: 공백/줄끝 무시 옵션. xxhash64로 oldText 해시 저장 → 스테일니스 체크용.",
   "files": [
-    "src/patches/types.ts",
-    "src/patches/matcher.ts"
+    "src/tools/types.ts",
+    "src/tools/editTools.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -40,6 +40,18 @@
       "src/tools/patchDocument.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/patches/types.ts",
+        "to": "src/tools/types.ts",
+        "reason": "class_A:found 4 candidates (e.g. `src/tools/types.ts`)"
+      },
+      {
+        "from": "src/patches/matcher.ts",
+        "to": "src/tools/editTools.ts",
+        "reason": "explicit_map→src/tools/editTools.ts"
+      }
+    ]
   }
 }

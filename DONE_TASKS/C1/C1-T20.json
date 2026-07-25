@@ -5,7 +5,7 @@
   "description": "ChatApp.handleModeChange(newMode): setMessages([]) 히스토리 클리어. AgentLoop 재생성(newMode). 시스템 프롬프트 즉시 교체. 세션 ID 변경으로 체크포인트/메모리 분리. URL/상태에 모드 저장 안 함(항시 명시적 선택).",
   "files": [
     "src/chat/ChatApp.tsx",
-    "src/agent/loop.ts"
+    "src/loop/AgentLoopController.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -39,6 +39,13 @@
       "src/chat/ChatApp.tsx"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/agent/loop.ts",
+        "to": "src/loop/AgentLoopController.ts",
+        "reason": "explicit_map→src/loop/AgentLoopController.ts"
+      }
+    ]
   }
 }

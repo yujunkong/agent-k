@@ -4,8 +4,8 @@
   "title": "단위 테스트: MemoryStore (CRUD, 예산 주입, 자동 감지)",
   "description": "MemoryStore: set/get/delete/has/list CRUD 검증. 예산 주입: 전체 예산의 1-2% 내에서 상위 usageCount 순 주입. AutoMemoryDetector: 패턴(기억해/remember/저장해/from now on) 감지 → 토스트 제안. 사용 횟수 증가 검증. 중복 키 방지: 유사도 임계값.",
   "files": [
-    "tests/unit/memories/MemoryStore.test.ts",
-    "tests/unit/memories/AutoMemoryDetector.test.ts"
+    "src/memories/MemoryStore.ts",
+    "src/memories/AutoMemoryDetector.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -39,6 +39,18 @@
       "tests/unit/memories/"
     ],
     "verification": "npm run compile 성공",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "tests/unit/memories/MemoryStore.test.ts",
+        "to": "src/memories/MemoryStore.ts",
+        "reason": "class_A:similar file `src/memories/MemoryStore.ts`"
+      },
+      {
+        "from": "tests/unit/memories/AutoMemoryDetector.test.ts",
+        "to": "src/memories/AutoMemoryDetector.ts",
+        "reason": "class_A:similar file `src/memories/AutoMemoryDetector.ts`"
+      }
+    ]
   }
 }

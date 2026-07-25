@@ -1,0 +1,33 @@
+{
+  "id": "RW-P0-06",
+  "severity": "P0",
+  "category": "false-completion",
+  "title": "고무도장 completedCriteria(~150건) 검증 정책 도입",
+  "description": "다수 DONE이 '✅ {title} implemented' + 'npm run compile passes'만으로 마감. PR/실 SHA 없음. 정책: 재마감 시 acceptanceCriteria별 검증 증거 필수 (테스트 명령 출력, 실 git SHA, 또는 manual checklist). 기존 고무도장은 RW-P0-05 결과와 합쳐 일괄 rework 표시.",
+  "relatedDoneIds": [],
+  "files": [
+    "REWORK_TASKS/README.md",
+    "DONE_TASKS/",
+    "TODO_TASKS/README.md"
+  ],
+  "status": "done",
+  "acceptanceCriteria": [
+    "완료 이동 체크리스트 문서화 (증거 필드 필수)",
+    "고무도장만 있는 DONE에 evidence:insufficient 또는 rework 플래그",
+    "이후 DONE 추가 시 commitHash가 실 SHA 또는 N/A+사유"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "process",
+    "evidence",
+    "p0"
+  ],
+  "prdRefs": [],
+  "dependencies": [],
+  "createdAt": "2026-07-25",
+  "source": "DONE_TASKS audit (false-completion / PRD-code drift)",
+  "notes": "Severity P0: created from DONE_TASKS audit. Do not mark done without evidence (test/SHA/checklist). | Anti-false-completion comment added 2026-07-25.",
+  "warning": "⛔ 이 큐는 아직 pending. C5–C7 “기능 완료” 착각과 별개로 미착수/미검증 상태. compile 성공·파일 존재만으로 done 금지.",
+  "verifiedAt": "2026-07-25",
+  "verification": "Evidence-gated move after full rework session; compile OK"
+}

@@ -9,11 +9,8 @@
         "kind": "build",
         "isDefault": true
       },
-      "problemMatcher": [
-        "$tsc",
-        "$esbuild"
-      ],
-      "detail": "Compile TypeScript with ESBuild"
+      "problemMatcher": ["$tsc", "$esbuild"],
+      "detail": "Compile extension + webview"
     },
     {
       "label": "npm:watch",
@@ -21,10 +18,7 @@
       "script": "watch",
       "group": "build",
       "isBackground": true,
-      "problemMatcher: [
-        "$tsc-watch",
-        "$esbuild-watch"
-      ],
+      "problemMatcher": ["$tsc-watch", "$esbuild-watch"],
       "detail": "Watch for changes and rebuild"
     },
     {

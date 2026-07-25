@@ -4,7 +4,7 @@
   "title": "list_dir 도구 (vscode.workspace.fs.readDirectory)",
   "description": "ListDirTool: path(상대/절대) → vscode.workspace.fs.readDirectory(uri). 결과: [{name, type(File|Directory|SymbolicLink)}, ...]. 정렬: 디렉토리 우선, 이름순. 숨김 파일(.) 포함 옵션. 깊이 제한: 재귀 안 함(단일 레벨).",
   "files": [
-    "src/tools/search/ListDirTool.ts"
+    "src/tools/readTools.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -36,6 +36,13 @@
       "src/tools/readTools.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/tools/search/ListDirTool.ts",
+        "to": "src/tools/readTools.ts",
+        "reason": "explicit_map→src/tools/readTools.ts"
+      }
+    ]
   }
 }

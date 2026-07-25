@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { configManager } from '../../core/ConfigManager';
 
 export function PermissionTab() {
-  const [level, setLevel] = useState<string>(configManager.get('agent-k.permission.level') || 'ask');
+  // RW-P0-02: product default is accept_edits (ask remains selectable)
+  const [level, setLevel] = useState<string>(configManager.get('agent-k.permission.level') || 'accept_edits');
 
   const handleSave = () => {
     configManager.set('agent-k.permission.level', level);

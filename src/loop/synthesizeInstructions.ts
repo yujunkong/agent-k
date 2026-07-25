@@ -83,3 +83,29 @@ export function buildResynthesizeMessages(
     { role: 'user', content: synthesis }
   ];
 }
+
+/**
+ * UI 표시용: interrupt/resynth 래퍼를 제거하고 사용자 입력만 남김.
+ * (API에는 synthesizeInstructions 전문을 보내고, bubble에는 이 함수 결과를 저장)
+ */
+export function stripResynthForDisplay(content: string): string {
+  if (!content) return content;
+
+  // Preferred: text after the standard synthesis footer
+  const footer = /please address this new input:\s*/i;
+  const footerMatch = content.match(footer);
+  if (footerMatch && footerMatch.index != null) {
+    const after = content.slice(footerMatch.index + footerMatch[0].length).trim();
+    if (after) return after;
+  }
+
+  // Fallback: strip <system_note type="interrupt_resynthesize">…</system_note>
+  if (/<system_note\s+type=["']?interrupt_resynthesize["']?/i.test(content)) {
+    return content
+      .replace(/<system_note\s+type=["']?interrupt_resynthesize["']?[^>]*>[\s\S]*?<\/system_note>\s*/gi, '')
+      .replace(/^Now,?\s+continuing in context of the above,?\s*/im, '')
+      .trim();
+  }
+
+  return content;
+}

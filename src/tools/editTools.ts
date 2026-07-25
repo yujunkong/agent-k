@@ -97,22 +97,8 @@ const processListTool: ToolDefinition = {
   category: 'terminal'
 };
 
-const instrumentCodeTool: ToolDefinition = {
-  name: 'instrument_code',
-  description: 'Add logging/instrumentation to code for debugging purposes.',
-  parameters: {
-    type: 'object',
-    properties: {
-      path: { type: 'string', description: 'File path' },
-      line: { type: 'number', description: 'Line number to add instrumentation' },
-      variable: { type: 'string', description: 'Variable to log', optional: true }
-    },
-    required: ['path', 'line']
-  },
-  modeAllowlist: ['debug'],
-  category: 'debug',
-  destructive: false
-};
+// instrument_code is deprecated — use add_instrumentation (PRD-C6 standard name, registered in c5c7Tools.ts)
+// @deprecated RW-C6-02: removed duplicate, add_instrumentation is the canonical name
 
 const askQuestionTool: ToolDefinition = {
   name: 'ask_question',
@@ -145,14 +131,31 @@ const todoWriteTool: ToolDefinition = {
   category: 'session'
 };
 
+const deleteFileTool: ToolDefinition = {
+  name: 'delete_file',
+  description: 'Delete a file in the workspace (high risk — requires approval).',
+  parameters: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'File path to delete' }
+    },
+    required: ['path']
+  },
+  modeAllowlist: ['agent', 'debug'],
+  category: 'edit',
+  requiresApproval: true,
+  destructive: true
+};
+
 // ─── Register all edit/session tools ──────────────────
 export function registerEditTools() {
   toolRegistry.registerTool(editFileTool);
   toolRegistry.registerTool(writeFileTool);
+  toolRegistry.registerTool(deleteFileTool);
   toolRegistry.registerTool(runTerminalCmdTool);
   toolRegistry.registerTool(terminalOutputTool);
   toolRegistry.registerTool(processListTool);
-  toolRegistry.registerTool(instrumentCodeTool);
+  // instrument_code removed — use add_instrumentation (RW-C6-02)
   toolRegistry.registerTool(askQuestionTool);
   toolRegistry.registerTool(todoWriteTool);
 }

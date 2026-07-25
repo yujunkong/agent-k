@@ -4,7 +4,7 @@
   "title": "터미널 출력 캡처 (stdout+stderr, 끝 32KB, exit code 포함)",
   "description": "OutputCapture: spawn stdout/stderr 스트림 버퍼링. 링 버퍼(32KB)로 메모리 제한. 완료 시: {stdout: string, stderr: string, exitCode: number, truncated: boolean, durationMs}. 트렁케이트 시 앞부분 '(truncated, showing last 32KB)' 표기. ANSI 이스케이프 코드 스트립 옵션.",
   "files": [
-    "src/tools/terminal/OutputCapture.ts"
+    "src/tools/terminal/TerminalTool.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -39,6 +39,13 @@
       "src/tools/terminal/TerminalTool.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/tools/terminal/OutputCapture.ts",
+        "to": "src/tools/terminal/TerminalTool.ts",
+        "reason": "class_A:implemented elsewhere: `src/tools/terminal/TerminalTool.ts`"
+      }
+    ]
   }
 }

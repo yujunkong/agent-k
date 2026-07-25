@@ -34,12 +34,15 @@ export class PermissionGate {
   private allowedSessions: Set<string> = new Set();
   private listeners: Set<PermissionListener> = new Set();
   private denyGlobs: string[] = [];
+  /** accept_edits: 편집은 자동, 삭제·복구·셸은 승인 (C4-T01) */
   private requireApprovalTools: string[] = [
-    'edit_file', 'write_file', 'run_terminal_cmd',
-    'delete_file', 'checkpoint_restore'
+    'run_terminal_cmd',
+    'delete_file',
+    'checkpoint_restore'
   ];
 
-  constructor(level: PermissionLevel = 'ask') {
+  // 제품 기본값: accept_edits (PRD-29 / C4-T01)
+  constructor(level: PermissionLevel = 'accept_edits') {
     this.level = level;
   }
 

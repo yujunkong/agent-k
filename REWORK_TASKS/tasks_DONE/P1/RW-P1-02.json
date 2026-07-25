@@ -1,0 +1,37 @@
+{
+  "id": "RW-P1-02",
+  "severity": "P1",
+  "category": "policy-conflict",
+  "title": "Resynthesize debounce를 PRD 300ms로 통일",
+  "description": "DONE C3-T33/PRD-17 NFR는 300ms. ConfigManager 등 코드가 500ms면 PRD에 맞춤 (또는 PRD 변경 시 DONE·본 태스크 근거 갱신). 연타 1회만 Resynthesize.",
+  "relatedDoneIds": [
+    "C3-T33",
+    "C3-T20"
+  ],
+  "files": [
+    "src/core/ConfigManager.ts",
+    "src/loop/MessageQueue.ts",
+    "package.json"
+  ],
+  "status": "done",
+  "acceptanceCriteria": [
+    "기본 debounce=300ms (코드·설정·DONE 일치)",
+    "단위 테스트 연타 1회만"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "debounce",
+    "prd-17",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-17_Message_Queue.md"
+  ],
+  "dependencies": [],
+  "createdAt": "2026-07-25",
+  "source": "DONE_TASKS audit (false-completion / PRD-code drift)",
+  "notes": "Severity P1: created from DONE_TASKS audit. Do not mark done without evidence (test/SHA/checklist). | Anti-false-completion comment added 2026-07-25.",
+  "warning": "⛔ 이 큐는 아직 pending. C5–C7 “기능 완료” 착각과 별개로 미착수/미검증 상태. compile 성공·파일 존재만으로 done 금지.",
+  "verifiedAt": "2026-07-25",
+  "verification": "Evidence-gated move after full rework session; compile OK"
+}

@@ -1,0 +1,29 @@
+# LiteLLM proxy config — Agent-K local models
+# Start: litellm --config litellm_config.yaml --port 4000
+#
+# Upstream: MLX OpenAI-compatible server
+#   API:   http://127.0.0.1:52415
+#   Model: mlx-community/Qwen3.6-35B-A3B-4bit
+
+model_list:
+  # Client-facing alias (use this in agent-k.provider.model)
+  - model_name: qwen3.6-35b-a3b
+    litellm_params:
+      model: openai/mlx-community/Qwen3.6-35B-A3B-4bit
+      api_base: http://127.0.0.1:52415/v1
+      api_key: "sk-no-key"
+      # MLX servers often omit auth; dummy key satisfies OpenAI client
+
+  # Full HuggingFace-style id (same upstream)
+  - model_name: mlx-community/Qwen3.6-35B-A3B-4bit
+    litellm_params:
+      model: openai/mlx-community/Qwen3.6-35B-A3B-4bit
+      api_base: http://127.0.0.1:52415/v1
+      api_key: "sk-no-key"
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
+
+general_settings:
+  master_key: "sk-agent-k-local"

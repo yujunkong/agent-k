@@ -1,7 +1,29 @@
 {
-  "id": "C0-T21", "phase": "C0", "title": "SecretStorage 연동 (API Key 저장/조회)",
-  "status": "done", "files": ["src/providers/SecretManager.ts"],
-  "completedCriteria": ["✅ SecretManager 클래스: store/get/delete", "✅ 키 네이밍: agent-k.{providerId}.{keyName}", "✅ SecretStorage 래퍼", "✅ 캐시 계층"],
+  "id": "C0-T21",
+  "phase": "C0",
+  "title": "SecretStorage 연동 (API Key 저장/조회)",
+  "description": "vscode.SecretStorage 래퍼(SecretManager)로 API 키를 agent-k.{providerId}.{keyName} 규칙으로 저장·조회·삭제한다. settings.json 평문 저장은 금지한다.",
+  "status": "done",
+  "files": ["src/providers/SecretManager.ts"],
+  "acceptanceCriteria": [
+    "SecretManager: store/get/delete",
+    "키 네이밍: agent-k.{providerId}.{keyName}",
+    "SecretStorage 래퍼 + 메모리 캐시",
+    "settings.json에 API 키 평문 금지"
+  ],
+  "prdRefs": [
+    "PRDs/02_A_Tier_Production_Grade/PRD-29_Settings_Hub.md",
+    "PRDs/05_Core_Infrastructure/PRD-Infra-17_Extension_Lifecycle_Config.md"
+  ],
+  "completedCriteria": [
+    "✅ SecretManager 클래스: store/get/delete",
+    "✅ 키 네이밍: agent-k.{providerId}.{keyName}",
+    "✅ SecretStorage 래퍼",
+    "✅ 캐시 계층"
+  ],
   "actualHours": 0.5,
-  "implementationNotes": {"completedAt": "2026-07-25T16:00:00+09:00", "verification": "npm run compile 성공"}
+  "implementationNotes": {
+    "completedAt": "2026-07-25T16:00:00+09:00",
+    "verification": "npm run compile 성공"
+  }
 }

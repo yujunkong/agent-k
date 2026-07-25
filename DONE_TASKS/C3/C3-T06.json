@@ -4,7 +4,7 @@
   "title": "에러 복구: 도구 실패 ≠ 루프 중단, 실패를 tool_result로 반환 → 모델 재시도",
   "description": "ErrorRecovery: ToolExecutor.execute() try-catch → 에러 시 ToolResult{error: true, content: 에러 메시지, metadata: {recoverable: true}} 반환. AgentLoop: tool_result.error=true지만 recoverable=true면 루프 지속 → 모델이 에러 보고 후 재시도. 치명적 에러(권한/파일없음/타임아웃): recoverable=false → 루프 중단 + 사용자 알림.",
   "files": [
-    "src/loop/ErrorRecovery.ts"
+    "src/loop/AgentLoopController.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -38,6 +38,13 @@
       "src/loop/AgentLoopController.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/loop/ErrorRecovery.ts",
+        "to": "src/loop/AgentLoopController.ts",
+        "reason": "explicit_map→src/loop/AgentLoopController.ts"
+      }
+    ]
   }
 }

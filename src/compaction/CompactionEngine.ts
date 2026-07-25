@@ -13,6 +13,8 @@ export interface CompactionResult {
   compactedTokens: number;
   protectedSections: string[];
   droppedSections: string[];
+  /** 컴팩션 적용 후 메시지 배열 (HARB-T26) */
+  messages: ContextMessage[];
 }
 
 export interface ContextMessage {
@@ -38,35 +40,55 @@ export class ContextCompactionEngine {
     const level = targetLevel || this.determineLevel(messages);
     const originalTokens = this.estimateTokens(messages);
 
+    // Step 1: Protect critical sections (mutable copy)
+    const protectedMessages = this.markProtected(
+      messages.map(m => ({ ...m, metadata: { ...m.metadata } }))
+    );
+
+    let compactedMessages = protectedMessages;
     let protectedSections: string[] = [];
     let droppedSections: string[] = [];
 
-    // Step 1: Protect critical sections
-    const protected_messages = this.markProtected(messages);
-
     switch (level) {
-      case 'truncate':
-        ({ protectedSections, droppedSections } = this.levelTruncate(protected_messages));
+      case 'truncate': {
+        const r = this.levelTruncate(protectedMessages);
+        compactedMessages = r.messages;
+        protectedSections = r.protectedSections;
+        droppedSections = r.droppedSections;
         break;
-      case 'drop':
-        ({ protectedSections, droppedSections } = this.levelDrop(protected_messages));
+      }
+      case 'drop': {
+        const r = this.levelDrop(protectedMessages);
+        compactedMessages = r.messages;
+        protectedSections = r.protectedSections;
+        droppedSections = r.droppedSections;
         break;
-      case 'micro_summary':
-        ({ protectedSections, droppedSections } = this.levelMicroSummary(protected_messages));
+      }
+      case 'micro_summary': {
+        const r = this.levelMicroSummary(protectedMessages);
+        compactedMessages = r.messages;
+        protectedSections = r.protectedSections;
+        droppedSections = r.droppedSections;
         break;
-      case 'full':
-        ({ protectedSections, droppedSections } = this.levelFull(protected_messages));
+      }
+      case 'full': {
+        const r = this.levelFull(protectedMessages);
+        compactedMessages = r.messages;
+        protectedSections = r.protectedSections;
+        droppedSections = r.droppedSections;
         break;
+      }
     }
 
-    const compactedTokens = this.estimateTokens(messages);
+    const compactedTokens = this.estimateTokens(compactedMessages);
 
     return {
       level,
       originalTokens,
       compactedTokens,
       protectedSections,
-      droppedSections
+      droppedSections,
+      messages: compactedMessages
     };
   }
 
@@ -100,7 +122,11 @@ export class ContextCompactionEngine {
     }));
   }
 
-  private levelTruncate(messages: ContextMessage[]): { protectedSections: string[]; droppedSections: string[] } {
+  private levelTruncate(messages: ContextMessage[]): {
+    messages: ContextMessage[];
+    protectedSections: string[];
+    droppedSections: string[];
+  } {
     const protectedSections: string[] = [];
     const droppedSections: string[] = [];
 
@@ -121,10 +147,14 @@ export class ContextCompactionEngine {
       return msg;
     });
 
-    return { protectedSections, droppedSections };
+    return { messages: processed, protectedSections, droppedSections };
   }
 
-  private levelDrop(messages: ContextMessage[]): { protectedSections: string[]; droppedSections: string[] } {
+  private levelDrop(messages: ContextMessage[]): {
+    messages: ContextMessage[];
+    protectedSections: string[];
+    droppedSections: string[];
+  } {
     const protectedSections: string[] = [];
     const droppedSections: string[] = [];
 
@@ -149,10 +179,14 @@ export class ContextCompactionEngine {
       return true;
     });
 
-    return { protectedSections, droppedSections };
+    return { messages: processed, protectedSections, droppedSections };
   }
 
-  private levelMicroSummary(messages: ContextMessage[]): { protectedSections: string[]; droppedSections: string[] } {
+  private levelMicroSummary(messages: ContextMessage[]): {
+    messages: ContextMessage[];
+    protectedSections: string[];
+    droppedSections: string[];
+  } {
     const protectedSections: string[] = [];
     const droppedSections: string[] = [];
 
@@ -176,21 +210,24 @@ export class ContextCompactionEngine {
       return msg;
     });
 
-    return { protectedSections, droppedSections };
+    return { messages: processed, protectedSections, droppedSections };
   }
 
-  private levelFull(messages: ContextMessage[]): { protectedSections: string[]; droppedSections: string[] } {
+  private levelFull(messages: ContextMessage[]): {
+    messages: ContextMessage[];
+    protectedSections: string[];
+    droppedSections: string[];
+  } {
     const protectedSections: string[] = [];
     const droppedSections: string[] = [];
-
-    // Full compact: keep only protected + a single summary block
+    const kept: ContextMessage[] = [];
     const summaryParts: string[] = [];
 
     for (const msg of messages) {
       if (msg.metadata?.protected) {
         protectedSections.push(msg.role);
+        kept.push(msg);
       } else {
-        // Summarize non-protected into a brief entry
         if (msg.metadata?.type === 'tool_result') {
           summaryParts.push(`[${msg.metadata?.toolName}]: ${msg.content.slice(0, 200)}`);
         } else if (msg.role === 'assistant') {
@@ -200,7 +237,15 @@ export class ContextCompactionEngine {
       }
     }
 
-    return { protectedSections, droppedSections };
+    if (summaryParts.length > 0) {
+      kept.push({
+        role: 'system',
+        content: `[compaction summary]\n${summaryParts.join('\n')}`,
+        metadata: { protected: true, type: 'compaction_summary' }
+      });
+    }
+
+    return { messages: kept, protectedSections, droppedSections };
   }
 
   estimateTokens(messages: ContextMessage[]): number {

@@ -1,14 +1,23 @@
 /**
- * ContextAssembler - 컨텍스트 예산 기반 조립 (C1-T12 / C3-T09)
+ * ContextAssembler - 컨텍스트 예산 기반 조립 (C1-T12 / C3-T09 / HARB)
  * 
  * 시스템/룰/도구/스티키/대화/도구결과 슬롯
  * 예산: 시스템5% / 룰5% / 도구8% / 스티키12% / 대화60% / 여유10%
  * 보호 구간 유지, 128k 토큰 제한
+ * 
+ * HARB: VerificationFirst + Slogans + CursorPattern 프롬프트 주입
  */
 import type { Mode } from './types';
 import { modeRegistry } from './modeRegistry';
 import { MemoryStore } from '../memories/MemoryStore';
-import * as vscode from 'vscode';
+import { getSkillRegistry } from '../skills/SkillRegistry';
+import { RuntimeServices } from '../core/RuntimeServices';
+import { configManager } from '../core/ConfigManager';
+import { injectVerificationFirst } from '../harness/VerificationFirstPrompt';
+import { injectDesignSlogans } from '../harness/DesignSlogans';
+import { injectCursorPattern } from '../harness/CursorPattern';
+import { injectTurnStructure } from '../harness/PromptTurnStructure';
+import { injectDontDoMedium } from '../harness/DontDoMedium';
 
 export interface ContextSlot {
   name: string;
@@ -30,11 +39,17 @@ export class ContextAssembler {
   private memoryStore: MemoryStore;
 
   constructor(memoryStore?: MemoryStore) {
-    // Use a minimal mock if no SecretStorage available
-    this.memoryStore = memoryStore || new MemoryStore(
+    // RW-C7-09: activate 주입 스토어 우선, 없으면 no-op SecretStorage 폴백
+    const runtimeStore = RuntimeServices.getMemoryStore();
+    this.memoryStore = memoryStore || runtimeStore || new MemoryStore(
       { get: async () => undefined, store: async () => {}, delete: async () => {} } as any,
-      { subscriptions: [], workspaces: [] } as any
+      { subscriptions: [], workspaces: [], secrets: { get: async () => undefined, store: async () => {}, delete: async () => {} } } as any
     );
+  }
+
+  /** 턴 조립 시 RuntimeServices에 스토어가 나중에 주입된 경우 반영 */
+  private resolveMemoryStore(): MemoryStore {
+    return RuntimeServices.getMemoryStore() || this.memoryStore;
   }
 
   assemble(
@@ -46,10 +61,38 @@ export class ContextAssembler {
       additionalRules?: string[];
       stickyContext?: string;
       recentTurns?: number;
+      tier?: 'A' | 'B' | 'C'; // HARB: 티어 정보
     }
   ): ContextAssembly {
     const modeConfig = modeRegistry.getModeConfig(mode);
-    const systemPrompt = options?.customSystemPrompt || modeConfig.systemPrompt;
+    let systemPrompt = options?.customSystemPrompt || modeConfig.systemPrompt;
+
+    // RW-C7-07: 핀 스킬을 시스템 프롬프트 근처에 주입 (Tier A 캡은 registry 내부)
+    try {
+      const registry = getSkillRegistry();
+      const tierA = configManager.get('agent-k.harness.tierA') === true;
+      const injected = registry.injectPinnedSkills(systemPrompt, tierA);
+      systemPrompt = injected.prompt;
+      if (injected.warnings.length > 0 && options?.additionalRules) {
+        options.additionalRules.push(...injected.warnings);
+      } else if (injected.warnings.length > 0) {
+        options = { ...options, additionalRules: [...(options?.additionalRules || []), ...injected.warnings] };
+      }
+    } catch {
+      /* skills dir unavailable in test host */
+    }
+
+    // ─── HARB: Tier A 하네스 프롬프트 주입 ─────────────────
+    const isTierA = options?.tier === 'A' || (!options?.tier);
+    if (isTierA) {
+      systemPrompt = injectVerificationFirst(systemPrompt);
+      systemPrompt = injectDesignSlogans(systemPrompt);
+      systemPrompt = injectCursorPattern(systemPrompt);
+      systemPrompt = injectTurnStructure(systemPrompt);
+      systemPrompt = injectDontDoMedium(systemPrompt);
+    }
+
+    const memoryStore = this.resolveMemoryStore();
 
     const slots: ContextSlot[] = [
       {
@@ -78,7 +121,7 @@ export class ContextAssembler {
       {
         name: 'memories',
         budgetPercent: 2,
-        content: this.memoryStore.injectMemoriesIntoPrompt('', Math.floor(this.maxTokens * 0.02)).trim() || '(no memories)',
+        content: memoryStore.injectMemoriesIntoPrompt('', Math.floor(this.maxTokens * 0.02)).trim() || '(no memories)',
         priority: 70,
         protected_: false
       },

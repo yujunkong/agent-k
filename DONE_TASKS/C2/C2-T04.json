@@ -4,8 +4,8 @@
   "title": "PatchDocument 파서 (\"*** Begin Patch\" ~ \"*** End Patch\")",
   "description": "PatchDocument 클래스: 통합 diff 형식 파싱. 헤더: '*** Begin Patch', '*** End Patch'. 각 헌크: '--- a/file', '+++ b/file', '@@ -oldStart,oldCount +newStart,newCount @@'. 라인 접두사: ' '(context), '-'(delete), '+'(add). 멀티 파일 지원. 검증: 헌크 내부 일관성, 파일 경로 정규화.",
   "files": [
-    "src/patches/parser.ts",
-    "src/patches/types.ts"
+    "src/providers/ToolCallParser.ts",
+    "src/tools/types.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -39,6 +39,18 @@
       "src/tools/patchDocument.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/patches/parser.ts",
+        "to": "src/providers/ToolCallParser.ts",
+        "reason": "class_A:similar file `src/providers/ToolCallParser.ts`"
+      },
+      {
+        "from": "src/patches/types.ts",
+        "to": "src/tools/types.ts",
+        "reason": "class_A:found 4 candidates (e.g. `src/tools/types.ts`)"
+      }
+    ]
   }
 }

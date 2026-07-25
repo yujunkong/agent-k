@@ -4,10 +4,15 @@
   "title": "단위 테스트: Instrumentation 패턴 적용/제거 정확성",
   "description": "단위: 계측 apply/remove.",
   "files": [
-    "tests/unit/debug/"
+    "tests/unit/debug/DebugLogServer.test.ts",
+    "tests/unit/debug/HypothesisGenerator.test.ts",
+    "tests/unit/debug/LogAnalyzer.test.ts",
+    "tests/unit/debug/TargetedFixGenerator.test.ts",
+    "tests/unit/debug/instrumentation-io.test.ts",
+    "tests/unit/debug/instrumentation.test.ts"
   ],
   "priority": "P0",
-  "status": "done",
+  "status": "rework",
   "dependencies": [
     "C6-T04"
   ],
@@ -37,6 +42,12 @@
       "tests/unit/debug/"
     ],
     "verification": "npm run compile 성공 (0 errors)",
-    "notes": "C6 Debug Mode 전 태스크 동시 구현 완료"
-  }
+    "notes": "C6 Debug Mode 전 태스크 동시 구현 완료",
+    "pathFixAudit": []
+  },
+  "reworkReason": "Rubber-stamp DONE cluster; pending functional rework queue",
+  "reworkRefs": [
+    "RW-C57-01",
+    "RW-C57-03"
+  ]
 }

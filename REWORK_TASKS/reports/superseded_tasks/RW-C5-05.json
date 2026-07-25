@@ -1,0 +1,34 @@
+{
+  "id": "RW-C5-05",
+  "severity": "P0",
+  "category": "plan",
+  "title": "Plan 모드 쓰기/터미널 deny를 AgentLoop에서 강제",
+  "description": "whitelist는 있으나 executeTool stub이 성공을 반환할 수 있음. 이중 가드 필수.",
+  "relatedDoneIds": [
+    "C5-T03",
+    "C5-T16"
+  ],
+  "files": [
+    "src/loop/AgentLoopController.ts",
+    "src/plan/ResearchPhase.ts"
+  ],
+  "acceptanceCriteria": [
+    "plan 모드 edit/write/terminal/browser 즉시 deny",
+    "디스크 unchanged E2E"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "whitelist",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "dependencies": [
+    "RW-C57-01"
+  ],
+  "status": "done",
+  "createdAt": "2026-07-25",
+  "source": "C5–C7 functional audit (scaffold≠wired; rubber-stamp DONE)",
+  "notes": "Severity P0: feature exists as files but not product-complete. Mark related DONE as rework until AC verified."
+}

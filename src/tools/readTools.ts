@@ -78,13 +78,22 @@ const listDirTool: ToolDefinition = {
 // ─── read_file ─────────────────────────────────────────
 const readFileTool: ToolDefinition = {
   name: 'read_file',
-  description: 'Read a file from the filesystem. Returns content with line numbers.',
+  description:
+    'Read a slice of a file (Cursor-style). Default ~250 lines. Prefer grep/codebase_search first, then read with offset/limit around hits. Do not read entire large files.',
   parameters: {
     type: 'object',
     properties: {
       path: { type: 'string', description: 'File path to read' },
-      offset: { type: 'number', description: 'Starting line number (1-indexed)', optional: true },
-      limit: { type: 'number', description: 'Maximum lines to read', optional: true },
+      offset: {
+        type: 'number',
+        description: 'Starting line (1-indexed). Use match line − context.',
+        optional: true
+      },
+      limit: {
+        type: 'number',
+        description: 'Max lines to read (default 250 when omitted)',
+        optional: true
+      },
       maxChars: { type: 'number', description: 'Maximum characters (default: 50000)', optional: true }
     },
     required: ['path']
@@ -96,11 +105,12 @@ const readFileTool: ToolDefinition = {
 // ─── codebase_search ───────────────────────────────────
 const codebaseSearchTool: ToolDefinition = {
   name: 'codebase_search',
-  description: 'Semantic search across the codebase. Uses embedding-based similarity search.',
+  description:
+    'Find relevant code regions (path + startLine/endLine + snippet). Prefer this or grep before read_file. Then read only those windows with offset/limit.',
   parameters: {
     type: 'object',
     properties: {
-      query: { type: 'string', description: 'Natural language query about the codebase' },
+      query: { type: 'string', description: 'Natural language or keyword query about the codebase' },
       maxResults: { type: 'number', description: 'Maximum results (default: 10)', optional: true }
     },
     required: ['query']
@@ -141,6 +151,27 @@ const lspReferencesTool: ToolDefinition = {
   category: 'search'
 };
 
+// ─── read_lints (HARB-T06 / T30) ───────────────────────
+/** 워크스페이스 진단(린트) 조회 — edit 후 자동 검증 루프에서도 사용 */
+const readLintsTool: ToolDefinition = {
+  name: 'read_lints',
+  description: 'Read linter/diagnostics for one or more file paths. Returns errors and warnings.',
+  parameters: {
+    type: 'object',
+    properties: {
+      paths: {
+        type: 'array',
+        description: 'Absolute or workspace-relative file paths to lint',
+        optional: true
+      }
+    },
+    required: []
+  },
+  modeAllowlist: ['ask', 'agent', 'plan', 'debug'],
+  category: 'search',
+  requiresApproval: false
+};
+
 // ─── Register all tools ────────────────────────────────
 export function registerReadTools() {
   toolRegistry.registerTool(grepTool);
@@ -151,4 +182,5 @@ export function registerReadTools() {
   toolRegistry.registerTool(codebaseSearchTool);
   toolRegistry.registerTool(lspDefinitionTool);
   toolRegistry.registerTool(lspReferencesTool);
+  toolRegistry.registerTool(readLintsTool);
 }

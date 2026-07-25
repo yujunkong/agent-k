@@ -1,0 +1,38 @@
+{
+  "id": "RW-P2-02",
+  "severity": "P2",
+  "category": "wording",
+  "title": "C3-T08 등 placeholder 용어를 Interrupt & Resynthesize로 통일",
+  "description": "Enter=stop&continue / Stop & Regenerate 등 구식 카피 잔존. PRD-17 용어로 DONE·UI 카피 정리.",
+  "relatedDoneIds": [
+    "C3-T08",
+    "C0-T07"
+  ],
+  "files": [
+    "DONE_TASKS/C3/C3-T08.json",
+    "src/chat/components/Composer.tsx"
+  ],
+  "status": "done",
+  "dependencies": [
+    "RW-P0-04"
+  ],
+  "acceptanceCriteria": [
+    "사용자 노출 문자열에 Resynthesize/Queue-only 용어 사용",
+    "DONE description 일치"
+  ],
+  "estimatedHours": 1,
+  "tags": [
+    "copy",
+    "prd-17",
+    "p2"
+  ],
+  "prdRefs": [
+    "PRD-17_Message_Queue.md"
+  ],
+  "createdAt": "2026-07-25",
+  "source": "DONE_TASKS audit (false-completion / PRD-code drift)",
+  "notes": "Severity P2: created from DONE_TASKS audit. Do not mark done without evidence (test/SHA/checklist). | Anti-false-completion comment added 2026-07-25.",
+  "warning": "⛔ 이 큐는 아직 pending. C5–C7 “기능 완료” 착각과 별개로 미착수/미검증 상태. compile 성공·파일 존재만으로 done 금지.",
+  "verifiedAt": "2026-07-25",
+  "verification": "Evidence-gated move after full rework session; compile OK"
+}

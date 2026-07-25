@@ -5,7 +5,7 @@
  * 핀 스킬과 중복 주입 시 예산 준수
  */
 import { z } from 'zod';
-import { SkillRegistry } from '../../skills/SkillRegistry';
+import { SkillRegistry, getSkillRegistry } from '../../skills/SkillRegistry';
 
 // ===== Schemas =====
 
@@ -117,6 +117,34 @@ export class SkillTool {
       data: { unpinned: params.name, pinnedCount: this.registry.pinnedCount }
     };
   }
+
+  /**
+   * Handle skill_run — 스킬 본문 + 선택 입력을 턴 컨텍스트로 반환 (C7-T20 / RW-C7-07)
+   */
+  handleRun(params: { skill: string; input?: string }): SkillToolResult {
+    const loadResult = this.handleLoad({ name: params.skill });
+    if (!loadResult.success) {
+      return loadResult;
+    }
+    return {
+      success: true,
+      data: {
+        ...(loadResult.data as Record<string, unknown>),
+        userInput: params.input,
+        message: `Skill "${params.skill}" loaded. Follow the skill content in this turn.`
+      }
+    };
+  }
+}
+
+/** Singleton SkillTool for AgentLoop dispatch */
+let _skillTool: SkillTool | null = null;
+
+export function getSkillTool(registry?: SkillRegistry): SkillTool {
+  if (!_skillTool) {
+    _skillTool = new SkillTool(registry ?? getSkillRegistry());
+  }
+  return _skillTool;
 }
 
 // ===== Tool Metadata =====

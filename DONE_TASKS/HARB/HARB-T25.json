@@ -1,0 +1,43 @@
+{
+  "id": "HARB-T25",
+  "phase": "HARB",
+  "title": "Spec-06: Checkpoint/Rollback (첫 쓰기/N파일/위험도구/사용자 요청)",
+  "description": "Spec-06 Checkpoint 게이트.",
+  "files": [
+    "src/checkpoint/"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C4-T03"
+  ],
+  "acceptanceCriteria": [
+    "스냅샷"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Spec-06_Checkpoint_Rollback.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "CheckpointManager first_write 트리거 구현",
+    "N파일 쓰기 감지 로직 구현",
+    "위험 도구 사용 시 checkpoint 생성",
+    "사용자 요청 시 rollback 기능 구현"
+  ],
+  "actualHours": 2.5,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T19:00:00+09:00",
+    "filesModified": [
+      "src/checkpoint/CheckpointManager.ts",
+      "tests/acceptance/harness/spec-gapfill.spec.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)"
+  }
+}

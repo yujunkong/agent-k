@@ -10,6 +10,8 @@ interface DebugTimelineProps {
   logsCollected: number;
   markersRemaining: number;
   verified: boolean;
+  /** RW-C6-03-R2: browser evidence attached to timeline */
+  evidenceCount?: number;
 }
 
 const STAGE_INFO: Record<DebugStage, { label: string; icon: string; color: string }> = {
@@ -23,7 +25,7 @@ const STAGE_INFO: Record<DebugStage, { label: string; icon: string; color: strin
 
 const STAGE_ORDER: DebugStage[] = ['hypothesis', 'instrument', 'reproduce', 'analyze', 'fix', 'cleanup'];
 
-export function DebugTimeline({ currentStage, hypothesisCount, logsCollected, markersRemaining, verified }: DebugTimelineProps) {
+export function DebugTimeline({ currentStage, hypothesisCount, logsCollected, markersRemaining, verified, evidenceCount = 0 }: DebugTimelineProps) {
   const currentIdx = STAGE_ORDER.indexOf(currentStage);
 
   return (
@@ -66,6 +68,8 @@ export function DebugTimeline({ currentStage, hypothesisCount, logsCollected, ma
       <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: '0.75em', opacity: 0.6 }}>
         <span>🧪 {hypothesisCount} hypotheses</span>
         <span>📊 {logsCollected} logs</span>
+        {/* RW-C6-03-R2: show attached browser evidence count */}
+        {evidenceCount > 0 && <span>🖼️ {evidenceCount} evidence</span>}
         {markersRemaining > 0 && <span style={{ color: '#f59e0b' }}>⚠️ {markersRemaining} markers</span>}
       </div>
     </div>

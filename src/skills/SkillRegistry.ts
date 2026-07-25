@@ -221,3 +221,21 @@ export class SkillRegistry {
     }
   }
 }
+
+/** Extension / AgentLoop 공유 SkillRegistry 싱글톤 (RW-C7-07) */
+let _skillRegistry: SkillRegistry | null = null;
+
+export function getSkillRegistry(skillsDir?: string): SkillRegistry {
+  if (!_skillRegistry) {
+    const dir =
+      skillsDir ||
+      path.join(process.cwd(), 'skills');
+    _skillRegistry = new SkillRegistry(dir);
+    _skillRegistry.loadAll();
+  }
+  return _skillRegistry;
+}
+
+export function resetSkillRegistryForTests(): void {
+  _skillRegistry = null;
+}

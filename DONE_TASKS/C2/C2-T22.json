@@ -4,7 +4,7 @@
   "title": "E2E: 10파일 멀티 헌크 리팩터링 → 선택적 적용 (일부 Undo)",
   "description": "Playwright E2E: Agent 모드 → 'Refactor auth module across 10 files' → 모델 10파일 멀티 헌크 패치 생성 → Diff Preview에서 파일 3개 언체크 → Ctrl+Shift+Enter(선택적 적용) → 7개 파일만 적용 → 3개 파일 Undo 버튼으로 복구 → 체크포인트에서 before 스냅샷으로 복원 확인.",
   "files": [
-    "tests/e2e/c2-multi-file.spec.ts"
+    "src/verification/TestRunner.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -40,6 +40,13 @@
       "src/verification/TestRunner.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "tests/e2e/c2-multi-file.spec.ts",
+        "to": "src/verification/TestRunner.ts",
+        "reason": "explicit_map→src/verification/TestRunner.ts"
+      }
+    ]
   }
 }

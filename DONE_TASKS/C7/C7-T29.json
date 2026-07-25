@@ -7,7 +7,7 @@
     "src/tools/search/ParallelSearch.ts"
   ],
   "priority": "P0",
-  "status": "done",
+  "status": "rework",
   "dependencies": [
     "C1-T13"
   ],
@@ -39,5 +39,10 @@
     ],
     "verification": "npm run compile 성공 (0 errors)",
     "notes": "C7 Production Grade 전 태스크 동시 구현 완료 (P2 4개 제외)"
-  }
+  },
+  "reworkReason": "Rubber-stamp DONE cluster; pending functional rework queue",
+  "reworkRefs": [
+    "RW-C57-01",
+    "RW-C57-03"
+  ]
 }

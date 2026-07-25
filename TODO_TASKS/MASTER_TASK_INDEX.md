@@ -10,16 +10,16 @@
 
 | Phase | 태스크 수 | 완료 | 진행중 | 대기 | 완료율 | 상태 |
 |-------|-----------|------|--------|------|--------|------|
-| **C0** Chat UI + Streaming + Settings | 32 | 32 | 0 | 0 | 100% | ✅ 완료 |
+| **C0** Chat UI + Streaming + Settings | 39 | 39 | 0 | 0 | 100% | ✅ 완료 |
 | **C1** Ask Mode (Read-Only) | 28 | 28 | 0 | 0 | 100% | ✅ 완료 |
 | **C2** Agent Single Turn | 35 | 35 | 0 | 0 | 100% | ✅ 완료 |
 | **C3** Agent Multi-Turn + Resynthesize | 33 | 33 | 0 | 0 | 100% | ✅ 완료 |
 | **C4** Infrastructure | 42 | 42 | 0 | 0 | 100% | ✅ 완료 |
-| **C5** Plan Mode | 25 | 25 | 0 | 0 | 100% | ✅ 완료 |
-| **C6** Debug Mode | 29 | 29 | 0 | 0 | 100% | ✅ 완료 |
-| **C7** Production Grade | 46 | 42 | 0 | 4 | 91% | ✅ 완료 (P2 4개 제외) |
-| **HARB** Harness/Specs (병렬) | 38 | 0 | 0 | 38 | 0% | ⏳ 다음 목표 |
-| **TOTAL** | **~311** | **273** | **0** | **38** | **~88%** | |
+| **C5** Plan Mode | 25 | 13 | 12 | 0 | 52% | 🔄 13/25 done · 12 rework |
+| **C6** Debug Mode | 29 | 0 | 29 | 0 | 0% | 🔄 rework (29) |
+| **C7** Production Grade | 46 | 0 | 46 | 0 | 0% | 🔄 rework (46) |
+| **HARB** Harness/Specs (병렬) | 38 | 38 | 0 | 0 | 100% | ✅ 전체 완료 |
+| **TOTAL** | **~315** | **228** | **87** | **0** | **~72%** | |
 
 ---
 
@@ -35,57 +35,56 @@
 | **M6: Plan 모드 완성** | ✅ 완료 | C5 | 질문 UI/Mermaid 플랜 + 승인/에이전트 전환 + TODO 분기 |
 | **M7: Debug 모드** | ✅ 완료 | C6 | 가설-계측-재현-분석-수정-청소 전 사이클 |
 | **M8: Cursor급 확장** | ✅ 완료 | C7 | Browser/Worktree/Review/MCP/Skills/Artifacts 전 기능 |
-| **M9: 하네스 검증 통과** | 다음 목표 | HARB | 4개 수용 테스트 통과 |
-| **M9: 하네스 검증 통과** | TBD | HARB | 4개 수용 테스트 통과 |
-| **M8: 하네스 검증 통과** | TBD | HARB | 4개 수용 테스트 통과 (단일 픽스/테스트 루프/Ask 정확도/JSON 복구) |
+| **M9: 하네스 검증 통과** | ✅ 완료 | HARB | Phase A+B (T01~T19) 완료 — 4개 수용 테스트 스위트 구현 |
+| **M10: Specs + Tools + Bench** | ✅ 완료 | HARB | T20~T38 Spec 7개 + Tools A~G + Bench 3종 + Docs |
 
 ---
 
 ## 📋 Phase별 태스크 상세 인덱스
 
-### 🟢 C0: Chat UI + Streaming + Settings Hub (32 tasks)
+### 🟢 C0: Chat UI + Streaming + Settings Hub (39 tasks)
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
 | 1 | C0-T01 | 확장 스캐폴드 생성 (package.json, tsconfig, ESBuild) | `package.json`, `tsconfig.json`, `esbuild.js` | P0 | ✅ | 2026-07-25 abc1234 | - |
-| 2 | C0-T02 | Webview ViewProvider 등록 (`agent-k.chat`) | `src/extension.ts`, `src/chat/ChatViewProvider.ts` | P0 | ☐ | T01 |
-| 3 | C0-T03 | Vite + React + TypeScript 웹뷰 셋업 (HMR) | `vite.config.ts`, `src/chat/ChatApp.tsx` | P0 | ☐ | T01 |
-| 4 | C0-T04 | 메시지 버블 UI (User/Assistant/Tool/System) | `src/chat/components/MessageBubble.tsx` | P0 | ☐ | T03 |
-| 5 | C0-T05 | VirtualList 구현 (100+ 메시지 60fps) | `src/chat/components/VirtualList.tsx` | P0 | ☐ | T03 |
-| 6 | C0-T06 | 스트리밍 파이프라인 (AbortController + 토큰 단위 렌더링) | `src/chat/hooks/useChatStream.ts` | P0 | ☐ | T03 |
-| 7 | C0-T07 | Stop / Regenerate 버튼 + 키보드 단축키 | `src/chat/components/Composer.tsx` | P0 | ☐ | T06 |
-| 8 | C0-T08 | StreamingMarkdown 파서 (증분 파싱 + Shiki 하이라이트) | `src/chat/StreamingMarkdown.tsx` | P0 | ☐ | T03 |
-| 9 | C0-T09 | 코드 블록 실시간 하이라이트 (Shiki WASM) | `src/chat/components/CodeBlock.tsx` | P1 | ☐ | T08 |
-| 10 | C0-T10 | Mermaid 다이어그램 렌더링 | `src/chat/components/MermaidDiagram.tsx` | P1 | ☐ | T08 |
-| 11 | C0-T11 | 모드 드롭다운 (Ask/Agent/Plan/Debug) + 세션 리셋 | `src/chat/components/ModeSelector.tsx` | P0 | ☐ | T03 |
-| 12 | C0-T12 | @멘션 트리거 + 자동완성 (파일/폴더/심볼/코드베이스) | `src/chat/components/MentionTrigger.tsx` | P0 | ☐ | T03 |
-| 13 | C0-T13 | 루프 상태 타임라인 UI (Thought/Search/Edit/Planning) | `src/chat/components/Timeline.tsx` | P0 | ☐ | T03 |
-| 14 | C0-T14 | 타임라인 접이식 그룹화 (완료 시 collapse) | `src/chat/components/TimelineGroup.tsx` | P0 | ☐ | T13 |
-| 15 | C0-T15 | Planning next moves 상태 표시 | `src/chat/components/PlanningStatus.tsx` | P1 | ☐ | T13 |
-| 16 | C0-T16 | 메시지 액션 (편집/재전송/복사/삭제/고정) | `src/chat/components/MessageActions.tsx` | P1 | ☐ | T04 |
-| 17 | C0-T17 | Provider Registry (멀티 프로바이더 관리) | `src/providers/ProviderRegistry.ts` | P0 | ☐ | T01 |
-| 18 | C0-T18 | LiteLLM/OpenAI-compatible Provider Adapter | `src/providers/LiteLLMProvider.ts` | P0 | ☐ | T01 |
-| 19 | C0-T19 | ToolCallParser (Native/XML/JSON Fence/이중인코딩/Content 스캔) | `src/providers/ToolCallParser.ts` | P0 | ☐ | T01 |
-| 20 | C0-T20 | ToolResultFormatter (OpenAI/Anthropic/Custom) | `src/providers/ToolResultFormatter.ts` | P0 | ☐ | T01 |
-| 21 | C0-T21 | SecretStorage 연동 (API Key 저장/조회) | `src/providers/SecretManager.ts` | P0 | ☐ | T01 |
-| 22 | C0-T22 | Provider 설정 UI (등록/테스트/모델 선택) | `src/chat/components/ProviderSettings.tsx` | P0 | ☐ | T17 |
-| 23 | C0-T23 | 헬스체크 엔드포인트 (`/models` 호출로 검증) | `src/providers/HealthCheck.ts` | P1 | ☐ | T18 |
-| 24 | C0-T24 | Extension ↔ Webview 메시지 프로토콜 타입 정의 | `src/chat/protocol.ts` | P0 | ☐ | T02 |
-| 25 | C0-T25 | CSP 설정 (nonce + 웹뷰 리소스) | `src/chat/ChatViewProvider.ts` | P0 | ☐ | T02 |
-| 26 | C0-T26 | 테마 대응 (VS Code 다크/라이트/하이컨트라스트) | `src/chat/chat.css`, `theme.css` | P1 | ☐ | T03 |
-| 27 | C0-T27 | 접근성 (키보드 네비게이션, 스크린 리더, ARIA) | `src/chat/components/*.tsx` | P1 | ☐ | T03 |
-| 28 | C0-T28 | i18n 준비 (영어/한국어 문자열 분리) | `src/chat/i18n/` | P2 | ☐ | T03 |
-| 29 | C0-T29 | 단위 테스트: 스트리밍 파이프라인, 파서, 포맷터 | `tests/unit/chat/`, `tests/unit/providers/` | P0 | ☐ | T06,T19,T20 |
-| 30 | C0-T30 | E2E 테스트: "Hello" 전송 → 스트리밍 응답 확인 | `tests/e2e/c0-chat-streaming.spec.ts` | P0 | ☐ | T29 |
-| 31 | C0-T31 | E2E 테스트: Provider 등록 → 연결 테스트 → 모델 선택 | `tests/e2e/c0-provider-setup.spec.ts` | P0 | ☐ | T22 |
-| 32 | C0-T32 | 성능 벤치마크: 50토큰/sec 렌더링 60fps 유지 | `tests/bench/rendering.bench.ts` | P1 | ☐ | T05 |
-| 33 | C0-T33 | ConfigManager + agent-k.* configuration 스키마 (Infra-17) | `src/core/ConfigManager.ts` | P0 | ☐ | T01 |
-| 34 | C0-T34 | Open Settings 명령 + 채팅 헤더 ⚙ | `src/extension.ts`, ChatHeader | P0 | ☐ | T03,T33 |
-| 35 | C0-T35 | Settings Hub Webview 뼈대 (카테고리 탭 셸) | `src/settings/SettingsPanel.tsx` | P0 | ☐ | T33,T34 |
-| 36 | C0-T36 | Models/Providers 설정 탭 + 연결 테스트 | `src/settings/tabs/ModelsTab.tsx` | P0 | ☐ | T35,T22 |
-| 37 | C0-T37 | Secrets 탭 (SecretStorage only, PRD-21) | `src/settings/tabs/SecretsTab.tsx` | P0 | ☐ | T35,T21 |
-| 38 | C0-T38 | Queue 설정 탭 (resynthesize 기본, PRD-17) | `src/settings/tabs/QueueTab.tsx` | P1 | ☐ | T35 |
-| 39 | C0-T39 | E2E: Settings Hub 뼈대 (Models/Secrets/Queue 기본값) | `tests/e2e/c0-settings-hub.spec.ts` | P0 | ☐ | T36,T37,T38 |
+| 2 | C0-T02 | Webview ViewProvider 등록 (`agent-k.chat`) | `src/extension.ts`, `src/chat/ChatViewProvider.ts` | P0 | ✅ | T01 |
+| 3 | C0-T03 | Vite + React + TypeScript 웹뷰 셋업 (HMR) | `vite.config.ts`, `src/chat/ChatApp.tsx` | P0 | ✅ | T01 |
+| 4 | C0-T04 | 메시지 버블 UI (User/Assistant/Tool/System) | `src/chat/components/MessageBubble.tsx` | P0 | ✅ | T03 |
+| 5 | C0-T05 | VirtualList 구현 (100+ 메시지 60fps) | `src/chat/components/VirtualList.tsx` | P0 | ✅ | T03 |
+| 6 | C0-T06 | 스트리밍 파이프라인 (AbortController + 토큰 단위 렌더링) | `src/chat/hooks/useChatStream.ts` | P0 | ✅ | T03 |
+| 7 | C0-T07 | Stop / Regenerate 버튼 + 키보드 단축키 | `src/chat/components/Composer.tsx` | P0 | ✅ | T06 |
+| 8 | C0-T08 | StreamingMarkdown 파서 (증분 파싱 + Shiki 하이라이트) | `src/chat/StreamingMarkdown.tsx` | P0 | ✅ | T03 |
+| 9 | C0-T09 | 코드 블록 실시간 하이라이트 (Shiki WASM) | `src/chat/components/CodeBlock.tsx` | P1 | ✅ | T08 |
+| 10 | C0-T10 | Mermaid 다이어그램 렌더링 | `src/chat/components/MermaidDiagram.tsx` | P1 | ✅ | T08 |
+| 11 | C0-T11 | 모드 드롭다운 (Ask/Agent/Plan/Debug) + 세션 리셋 | `src/chat/components/ModeSelector.tsx` | P0 | ✅ | T03 |
+| 12 | C0-T12 | @멘션 트리거 + 자동완성 (파일/폴더/심볼/코드베이스) | `src/chat/components/MentionTrigger.tsx` | P0 | ✅ | T03 |
+| 13 | C0-T13 | 루프 상태 타임라인 UI (Thought/Search/Edit/Planning) | `src/chat/components/Timeline.tsx` | P0 | ✅ | T03 |
+| 14 | C0-T14 | 타임라인 접이식 그룹화 (완료 시 collapse) | `src/chat/components/TimelineGroup.tsx` | P0 | ✅ | T13 |
+| 15 | C0-T15 | Planning next moves 상태 표시 | `src/chat/components/PlanningStatus.tsx` | P1 | ✅ | T13 |
+| 16 | C0-T16 | 메시지 액션 (편집/재전송/복사/삭제/고정) | `src/chat/components/MessageActions.tsx` | P1 | ✅ | T04 |
+| 17 | C0-T17 | Provider Registry (멀티 프로바이더 관리) | `src/providers/ProviderRegistry.ts` | P0 | ✅ | T01 |
+| 18 | C0-T18 | LiteLLM/OpenAI-compatible Provider Adapter | `src/providers/LiteLLMProvider.ts` | P0 | ✅ | T01 |
+| 19 | C0-T19 | ToolCallParser (Native/XML/JSON Fence/이중인코딩/Content 스캔) | `src/providers/ToolCallParser.ts` | P0 | ✅ | T01 |
+| 20 | C0-T20 | ToolResultFormatter (OpenAI/Anthropic/Custom) | `src/providers/ToolResultFormatter.ts` | P0 | ✅ | T01 |
+| 21 | C0-T21 | SecretStorage 연동 (API Key 저장/조회) | `src/providers/SecretManager.ts` | P0 | ✅ | T01 |
+| 22 | C0-T22 | Provider 설정 UI (등록/테스트/모델 선택) | `src/chat/components/ProviderSettings.tsx` | P0 | ✅ | T17 |
+| 23 | C0-T23 | 헬스체크 엔드포인트 (`/models` 호출로 검증) | `src/providers/HealthCheck.ts` | P1 | ✅ | T18 |
+| 24 | C0-T24 | Extension ↔ Webview 메시지 프로토콜 타입 정의 | `src/chat/protocol.ts` | P0 | ✅ | T02 |
+| 25 | C0-T25 | CSP 설정 (nonce + 웹뷰 리소스) | `src/chat/ChatViewProvider.ts` | P0 | ✅ | T02 |
+| 26 | C0-T26 | 테마 대응 (VS Code 다크/라이트/하이컨트라스트) | `src/chat/chat.css`, `theme.css` | P1 | ✅ | T03 |
+| 27 | C0-T27 | 접근성 (키보드 네비게이션, 스크린 리더, ARIA) | `src/chat/components/*.tsx` | P1 | ✅ | T03 |
+| 28 | C0-T28 | i18n 준비 (영어/한국어 문자열 분리) | `src/chat/i18n/` | P2 | ✅ | T03 |
+| 29 | C0-T29 | 단위 테스트: 스트리밍 파이프라인, 파서, 포맷터 | `tests/unit/chat/`, `tests/unit/providers/` | P0 | ✅ | T06,T19,T20 |
+| 30 | C0-T30 | E2E 테스트: "Hello" 전송 → 스트리밍 응답 확인 | `tests/e2e/c0-chat-streaming.spec.ts` | P0 | ✅ | T29 |
+| 31 | C0-T31 | E2E 테스트: Provider 등록 → 연결 테스트 → 모델 선택 | `tests/e2e/c0-provider-setup.spec.ts` | P0 | ✅ | T22 |
+| 32 | C0-T32 | 성능 벤치마크: 50토큰/sec 렌더링 60fps 유지 | `tests/bench/rendering.bench.ts` | P1 | ✅ | T05 |
+| 33 | C0-T33 | ConfigManager + agent-k.* configuration 스키마 (Infra-17) | `src/core/ConfigManager.ts` | P0 | ✅ | T01 |
+| 34 | C0-T34 | Open Settings 명령 + 채팅 헤더 ⚙ | `src/extension.ts`, ChatHeader | P0 | ✅ | T03,T33 |
+| 35 | C0-T35 | Settings Hub Webview 뼈대 (카테고리 탭 셸) | `src/settings/SettingsPanel.tsx` | P0 | ✅ | T33,T34 |
+| 36 | C0-T36 | Models/Providers 설정 탭 + 연결 테스트 | `src/settings/tabs/ModelsTab.tsx` | P0 | ✅ | T35,T22 |
+| 37 | C0-T37 | Secrets 탭 (SecretStorage only, PRD-21) | `src/settings/tabs/SecretsTab.tsx` | P0 | ✅ | T35,T21 |
+| 38 | C0-T38 | Queue 설정 탭 (resynthesize 기본, PRD-17) | `src/settings/tabs/QueueTab.tsx` | P1 | ✅ | T35 |
+| 39 | C0-T39 | E2E: Settings Hub 뼈대 (Models/Secrets/Queue 기본값) | `tests/e2e/c0-settings-hub.spec.ts` | P0 | ✅ | T36,T37,T38 |
 
 ---
 
@@ -259,29 +258,29 @@
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
-| 1 | C5-T01 | PlanModeController: 읽기 전용 루프 + 계획 생성 플로우 | `src/plan/PlanModeController.ts` | P0 | ✅ | C4-T01 |
-| 2 | C5-T02 | Clarifying Questions: 객관식 UI (ask_question 도구) | `src/plan/ClarifyingQuestions.tsx` | P0 | ✅ | C5-T01 |
-| 3 | C5-T03 | Codebase Research: Ask 모드와 유사한 읽기·검색 루프 | `src/plan/ResearchPhase.ts` | P0 | ✅ | C5-T01 |
+| 1 | C5-T01 | PlanModeController: 읽기 전용 루프 + 계획 생성 플로우 | `src/plan/PlanModeController.ts` | P0 | 🔄 rework | C4-T01 |
+| 2 | C5-T02 | Clarifying Questions: 객관식 UI (ask_question 도구) | `src/plan/ClarifyingQuestions.tsx` | P0 | 🔄 rework | C5-T01 |
+| 3 | C5-T03 | Codebase Research: Ask 모드와 유사한 읽기·검색 루프 | `src/plan/ResearchPhase.ts` | P0 | 🔄 rework | C5-T01 |
 | 4 | C5-T04 | Implementation Plan 생성: Markdown + Mermaid + Todo 리스트 | `src/plan/PlanGenerator.ts` | P0 | ✅ | C5-T03 |
-| 5 | C5-T05 | Plan Webview: 계획 문서 편집 + Mermaid 실시간 렌더링 | `src/plan/PlanEditor.tsx` | P0 | ✅ | C5-T04 |
-| 6 | C5-T06 | 사용자 리뷰: 직접 md 편집, 불필요 스텝 삭제, 승인 버튼 | `src/plan/PlanReview.tsx` | P0 | ✅ | C5-T05 |
-| 7 | C5-T07 | 승인 시 Agent 모드로 전환 실행 (쓰기 도구 활성화) | `src/plan/PlanToAgent.ts` | P0 | ✅ | C5-T06 |
+| 5 | C5-T05 | Plan Webview: 계획 문서 편집 + Mermaid 실시간 렌더링 | `src/plan/PlanEditor.tsx` | P0 | 🔄 rework | C5-T04 |
+| 6 | C5-T06 | 사용자 리뷰: 직접 md 편집, 불필요 스텝 삭제, 승인 버튼 | `src/plan/PlanReview.tsx` | P0 | 🔄 rework | C5-T05 |
+| 7 | C5-T07 | 승인 시 Agent 모드로 전환 실행 (쓰기 도구 활성화) | `src/plan/PlanToAgent.ts` | P0 | 🔄 rework | C5-T06 |
 | 8 | C5-T08 | Todo 분기: 일부만 새 Agent 세션으로 분기 (선택) | `src/plan/TodoBranching.ts` | P1 | ✅ | C5-T07 |
-| 9 | C5-T09 | 계획 문서 저장: `.agentk/plans/` (설정 오버라이드 가능) | `src/plan/PlanStorage.ts` | P1 | ✅ | C5-T04 |
+| 9 | C5-T09 | 계획 문서 저장: `.agentk/plans/` (설정 오버라이드 가능) | `src/plan/PlanStorage.ts` | P1 | 🔄 rework | C5-T04 |
 | 10 | C5-T10 | 복잡도 휴리스틱: 파일≥3, "리팩터/마이그레이션" 키워드 → Plan 모드 강제 제안 | `src/plan/ComplexityHeuristic.ts` | P1 | ✅ | C5-T01 |
 | 11 | C5-T11 | 실패 시: 변경 revert → 계획 다듬기 → 재승인 (Cursor 권장 플로우) | `src/plan/FailureRecovery.ts` | P1 | ✅ | C5-T07 |
 | 12 | C5-T12 | 단위 테스트: PlanGenerator (Mermaid/Todo 파싱) | `tests/unit/plan/` | P0 | ✅ | C5-T04 |
 | 13 | C5-T13 | 단위 테스트: ComplexityHeuristic (키워드/파일 수 임계값) | `tests/unit/plan/ComplexityHeuristic.test.ts` | P0 | ✅ | C5-T10 |
-| 14 | C5-T14 | E2E: "Refactor auth module" → Plan 모드 진입 → 질문 → 계획 → 승인 → 구현 | `tests/e2e/c5-plan-mode.spec.ts` | P0 | ✅ | C5-T07 |
+| 14 | C5-T14 | E2E: "Refactor auth module" → Plan 모드 진입 → 질문 → 계획 → 승인 → 구현 | `tests/e2e/c5-plan-mode.spec.ts` | P0 | 🔄 rework | C5-T07 |
 | 15 | C5-T15 | E2E: 계획 승인 후 Agent 모드에서 todo_write로 진행 상황 표시 | `tests/e2e/c5-todo-integration.spec.ts` | P0 | ✅ | C5-T08 |
-| 16 | C5-T16 | E2E: Plan 모드에서 쓰기 도구 완전 차단 확인 | `tests/e2e/c5-plan-readonly.spec.ts` | P0 | ✅ | C5-T01 |
+| 16 | C5-T16 | E2E: Plan 모드에서 쓰기 도구 완전 차단 확인 | `tests/e2e/c5-plan-readonly.spec.ts` | P0 | 🔄 rework | C5-T01 |
 | 17 | C5-T17 | Mermaid 렌더링 성능: 50개 다이어그램 < 300ms | `tests/bench/mermaid-render.bench.ts` | P1 | ✅ | C5-T05 |
 | 18 | C5-T18 | 문서화: Plan 모드 워크플로우 + Mermaid 템플릿 | `docs/plan-mode.md` | P2 | ✅ | C5-T14 |
-| 19 | C5-T19 | UI: Plan 모드 헤더 배지 + 진행 단계 표시 (Research → Plan → Review → Build) | `src/chat/components/PlanModeHeader.tsx` | P1 | ✅ | C5-T01 |
+| 19 | C5-T19 | UI: Plan 모드 헤더 배지 + 진행 단계 표시 (Research → Plan → Review → Build) | `src/chat/components/PlanModeHeader.tsx` | P1 | 🔄 rework | C5-T01 |
 | 20 | C5-T20 | Plan 모드 진입/이탈 시 세션 리셋 확인 | `src/plan/SessionReset.ts` | P0 | ✅ | C5-T01 |
 | 21 | C5-T21 | Plan 모드에서 `@codebase` / `@file:` 멘션 정상 작동 | `src/plan/PlanMentions.ts` | P0 | ✅ | C5-T03 |
-| 22 | C5-T22 | Plan 저장/불러오기 UI (최근 계획 10개) | `src/plan/PlanHistory.tsx` | P2 | ✅ | C5-T09 |
-| 23 | C5-T23 | TodoWrite 도구: Plan 모드에서 todo 생성 → Agent 모드에서 이어받기 | `src/tools/session/TodoWriteTool.ts` | P0 | ✅ | C5-T08 |
+| 22 | C5-T22 | Plan 저장/불러오기 UI (최근 계획 10개) | `src/plan/PlanHistory.tsx` | P2 | 🔄 rework | C5-T09 |
+| 23 | C5-T23 | TodoWrite 도구: Plan 모드에서 todo 생성 → Agent 모드에서 이어받기 | `src/tools/session/TodoWriteTool.ts` | P0 | 🔄 rework | C5-T08 |
 | 24 | C5-T24 | Agent 모드 실행 중 계획 참조: "Per plan step 3..." 컨텍스트 주입 | `src/plan/PlanContextInjection.ts` | P1 | ✅ | C5-T07 |
 | 25 | C5-T25 | 회고: Plan 없이 코드 작성 시도 시 경고 + Plan 모드 제안 | `src/plan/PlanEnforcement.ts` | P1 | ✅ | C5-T01 |
 
@@ -291,134 +290,134 @@
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
-| 1 | C6-T01 | DebugModeController: 가설→계측→재현→로그→최소수정→청소 6단계 | `src/debug/DebugModeController.ts` | P0 | ✅ | C4-T01 |
-| 2 | C6-T02 | 가설 생성: 관련 파일 탐색 → N개 가설 리스트 UI (객관식 선택) | `src/debug/HypothesisGenerator.ts` | P0 | ✅ | C6-T01 |
-| 3 | C6-T03 | add_instrumentation 도구: 로그 삽입 (시작/끝/조건부/변수 덤프) | `src/tools/debug/AddInstrumentationTool.ts` | P0 | ✅ | C6-T01 |
-| 4 | C6-T04 | 계측 코드 패턴 라이브러리 (JS/TS/Python/Go/Rust 공통) | `src/debug/InstrumentationPatterns.ts` | P0 | ✅ | C6-T03 |
-| 5 | C6-T05 | DebugLogServer: 로컬 로그 수집 엔드포인트 (WebSocket/HTTP) | `src/debug/DebugLogServer.ts` | P0 | ✅ | C6-T01 |
-| 6 | C6-T06 | collect_runtime_logs 도구: 서버에서 로그 수집 + 포맷팅 | `src/tools/debug/CollectRuntimeLogsTool.ts` | P0 | ✅ | C6-T05 |
-| 7 | C6-T07 | request_reproduce 도구: 사용자 재현 대기 (가이드 + 진행 표시) | `src/tools/debug/RequestReproduceTool.ts` | P0 | ✅ | C6-T01 |
-| 8 | C6-T08 | Reproduce UI: 단계별 가이드, 스크린샷, "완료" 버튼 | `src/debug/ReproduceUI.tsx` | P0 | ✅ | C6-T07 |
-| 9 | C6-T09 | 로그 분석: 수집 로그로 실제 원인 특정 (스택 트레이스 매칭) | `src/debug/LogAnalyzer.ts` | P0 | ✅ | C6-T06 |
-| 10 | C6-T10 | Targeted Fix: 원인에 맞는 최소 패치 (종종 수 줄) | `src/debug/TargetedFixGenerator.ts` | P0 | ✅ | C6-T09 |
-| 11 | C6-T11 | remove_instrumentation 도구: 수정 확정 후 계측 코드 제거 | `src/tools/debug/RemoveInstrumentationTool.ts` | P0 | ✅ | C6-T03 |
-| 12 | C6-T12 | Verify & Cleanup: 재현으로 검증 → 계측 제거 → 최종 확인 | `src/debug/VerifyCleanup.ts` | P0 | ✅ | C6-T11 |
-| 13 | C6-T13 | Debug 전용 타임라인 UI: 가설/계측/재현/분석/수정/청소 단계별 그룹 | `src/chat/components/DebugTimeline.tsx` | P1 | ✅ | C0-T13 |
-| 14 | C6-T14 | 단위 테스트: Instrumentation 패턴 적용/제거 정확성 | `tests/unit/debug/` | P0 | ✅ | C6-T04 |
-| 15 | C6-T15 | 단위 테스트: DebugLogServer (로그 수집/필터링/트렁케이트) | `tests/unit/debug/DebugLogServer.test.ts` | P0 | ✅ | C6-T05 |
-| 16 | C6-T16 | 단위 테스트: LogAnalyzer (스택 매칭, 원인 특정) | `tests/unit/debug/LogAnalyzer.test.ts` | P0 | ✅ | C6-T09 |
-| 17 | C6-T17 | E2E: "Fix race condition in cache" → 가설 3개 → 계측 → 재현 → 2줄 수정 → 검증 | `tests/e2e/c6-debug-cycle.spec.ts` | P0 | ✅ | C6-T12 |
-| 18 | C6-T18 | E2E: 재현 대기 중 Stop → 계측 제거 + 부분 상태 복구 | `tests/e2e/c6-debug-stop.spec.ts` | P0 | ✅ | C6-T07 |
-| 19 | C6-T19 | E2E: 계측 추가 후 테스트 실패 → 로그 분석 → 수정 → 테스트 통과 | `tests/e2e/c6-debug-test-failure.spec.ts` | P0 | ✅ | C6-T09 |
-| 20 | C6-T20 | 성능: DebugLogServer 1000 로그/초 처리, 메모리 < 50MB | `tests/bench/debug-mode.bench.ts` | P1 | ✅ | C6-T05 |
-| 21 | C6-T21 | 문서화: Debug 모드 워크플로우 + 계측 패턴 가이드 | `docs/debug-mode.md` | P2 | ✅ | C6-T17 |
-| 22 | C6-T22 | UI: Debug 모드 배지 + "가설 선택" 모달 + 재현 가이드 패널 | `src/chat/components/DebugModeUI.tsx` | P1 | ✅ | C6-T01 |
-| 23 | C6-T23 | Debug 모드에서 일반 edit_file 도구도 사용 가능 (계측용) | `src/debug/DebugTools.ts` | P0 | ✅ | C6-T01 |
-| 24 | C6-T24 | 재현 단계 자동 기록 (사용자 액션 → 재현 스크립트 생성) | `src/debug/ReproduceRecorder.ts` | P2 | ✅ | C6-T07 |
-| 25 | C6-T25 | 계측 코드 템플릿: 콘솔 로그, 성능 마크, 에러 경계 | `src/debug/Templates.ts` | P1 | ✅ | C6-T04 |
-| 26 | C6-T26 | 멀티파일 버그: 여러 파일 계측 → 통합 로그 분석 | `src/debug/MultiFileDebug.ts` | P2 | ✅ | C6-T09 |
-| 27 | C6-T27 | 디버그 세션 저장/불러오기 (재현 스크립트 + 로그 + 수정 이력) | `src/debug/DebugSessionStore.ts` | P2 | ✅ | C6-T20 |
-| 28 | C6-T28 | 회고: Debug 모드 진입 기준 (재현 어려움 / 동시성 / 힙 분석) 문서화 | `docs/debug-mode-guidelines.md` | P2 | ✅ | C6-T21 |
-| 29 | C6-T29 | Debug 증거용 browser_screenshot/console/network (Design Mode=C7) | `src/debug/BrowserEvidence.ts` | P1 | ✅ | C6-T01,C7-T01 |
+| 1 | C6-T01 | DebugModeController: 가설→계측→재현→로그→최소수정→청소 6단계 | `src/debug/DebugModeController.ts` | P0 | 🔄 rework | C4-T01 |
+| 2 | C6-T02 | 가설 생성: 관련 파일 탐색 → N개 가설 리스트 UI (객관식 선택) | `src/debug/HypothesisGenerator.ts` | P0 | 🔄 rework | C6-T01 |
+| 3 | C6-T03 | add_instrumentation 도구: 로그 삽입 (시작/끝/조건부/변수 덤프) | `src/tools/debug/AddInstrumentationTool.ts` | P0 | 🔄 rework | C6-T01 |
+| 4 | C6-T04 | 계측 코드 패턴 라이브러리 (JS/TS/Python/Go/Rust 공통) | `src/debug/InstrumentationPatterns.ts` | P0 | 🔄 rework | C6-T03 |
+| 5 | C6-T05 | DebugLogServer: 로컬 로그 수집 엔드포인트 (WebSocket/HTTP) | `src/debug/DebugLogServer.ts` | P0 | 🔄 rework | C6-T01 |
+| 6 | C6-T06 | collect_runtime_logs 도구: 서버에서 로그 수집 + 포맷팅 | `src/tools/debug/CollectRuntimeLogsTool.ts` | P0 | 🔄 rework | C6-T05 |
+| 7 | C6-T07 | request_reproduce 도구: 사용자 재현 대기 (가이드 + 진행 표시) | `src/tools/debug/RequestReproduceTool.ts` | P0 | 🔄 rework | C6-T01 |
+| 8 | C6-T08 | Reproduce UI: 단계별 가이드, 스크린샷, "완료" 버튼 | `src/debug/ReproduceUI.tsx` | P0 | 🔄 rework | C6-T07 |
+| 9 | C6-T09 | 로그 분석: 수집 로그로 실제 원인 특정 (스택 트레이스 매칭) | `src/debug/LogAnalyzer.ts` | P0 | 🔄 rework | C6-T06 |
+| 10 | C6-T10 | Targeted Fix: 원인에 맞는 최소 패치 (종종 수 줄) | `src/debug/TargetedFixGenerator.ts` | P0 | 🔄 rework | C6-T09 |
+| 11 | C6-T11 | remove_instrumentation 도구: 수정 확정 후 계측 코드 제거 | `src/tools/debug/RemoveInstrumentationTool.ts` | P0 | 🔄 rework | C6-T03 |
+| 12 | C6-T12 | Verify & Cleanup: 재현으로 검증 → 계측 제거 → 최종 확인 | `src/debug/VerifyCleanup.ts` | P0 | 🔄 rework | C6-T11 |
+| 13 | C6-T13 | Debug 전용 타임라인 UI: 가설/계측/재현/분석/수정/청소 단계별 그룹 | `src/chat/components/DebugTimeline.tsx` | P1 | 🔄 rework | C0-T13 |
+| 14 | C6-T14 | 단위 테스트: Instrumentation 패턴 적용/제거 정확성 | `tests/unit/debug/` | P0 | 🔄 rework | C6-T04 |
+| 15 | C6-T15 | 단위 테스트: DebugLogServer (로그 수집/필터링/트렁케이트) | `tests/unit/debug/DebugLogServer.test.ts` | P0 | 🔄 rework | C6-T05 |
+| 16 | C6-T16 | 단위 테스트: LogAnalyzer (스택 매칭, 원인 특정) | `tests/unit/debug/LogAnalyzer.test.ts` | P0 | 🔄 rework | C6-T09 |
+| 17 | C6-T17 | E2E: "Fix race condition in cache" → 가설 3개 → 계측 → 재현 → 2줄 수정 → 검증 | `tests/e2e/c6-debug-cycle.spec.ts` | P0 | 🔄 rework | C6-T12 |
+| 18 | C6-T18 | E2E: 재현 대기 중 Stop → 계측 제거 + 부분 상태 복구 | `tests/e2e/c6-debug-stop.spec.ts` | P0 | 🔄 rework | C6-T07 |
+| 19 | C6-T19 | E2E: 계측 추가 후 테스트 실패 → 로그 분석 → 수정 → 테스트 통과 | `tests/e2e/c6-debug-test-failure.spec.ts` | P0 | 🔄 rework | C6-T09 |
+| 20 | C6-T20 | 성능: DebugLogServer 1000 로그/초 처리, 메모리 < 50MB | `tests/bench/debug-mode.bench.ts` | P1 | 🔄 rework | C6-T05 |
+| 21 | C6-T21 | 문서화: Debug 모드 워크플로우 + 계측 패턴 가이드 | `docs/debug-mode.md` | P2 | 🔄 rework | C6-T17 |
+| 22 | C6-T22 | UI: Debug 모드 배지 + "가설 선택" 모달 + 재현 가이드 패널 | `src/chat/components/DebugModeUI.tsx` | P1 | 🔄 rework | C6-T01 |
+| 23 | C6-T23 | Debug 모드에서 일반 edit_file 도구도 사용 가능 (계측용) | `src/debug/DebugTools.ts` | P0 | 🔄 rework | C6-T01 |
+| 24 | C6-T24 | 재현 단계 자동 기록 (사용자 액션 → 재현 스크립트 생성) | `src/debug/ReproduceRecorder.ts` | P2 | 🔄 rework | C6-T07 |
+| 25 | C6-T25 | 계측 코드 템플릿: 콘솔 로그, 성능 마크, 에러 경계 | `src/debug/Templates.ts` | P1 | 🔄 rework | C6-T04 |
+| 26 | C6-T26 | 멀티파일 버그: 여러 파일 계측 → 통합 로그 분석 | `src/debug/MultiFileDebug.ts` | P2 | 🔄 rework | C6-T09 |
+| 27 | C6-T27 | 디버그 세션 저장/불러오기 (재현 스크립트 + 로그 + 수정 이력) | `src/debug/DebugSessionStore.ts` | P2 | 🔄 rework | C6-T20 |
+| 28 | C6-T28 | 회고: Debug 모드 진입 기준 (재현 어려움 / 동시성 / 힙 분석) 문서화 | `docs/debug-mode-guidelines.md` | P2 | 🔄 rework | C6-T21 |
+| 29 | C6-T29 | Debug 증거용 browser_screenshot/console/network (Design Mode=C7) | `src/debug/BrowserEvidence.ts` | P1 | 🔄 rework | C6-T01,C7-T01 |
 
 ### 🟢 C7: Production Grade (46 tasks)
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
-| 1 | C7-T01 | BrowserTools: Playwright 연동 (navigate, click, screenshot, evaluate) | `src/browser/BrowserTools.ts` | P0 | ☐ | C4-T27 |
-| 2 | C7-T02 | Browser 세션 관리: 영구 컨텍스트, 쿠키/스토리지 유지 | `src/browser/BrowserSession.ts` | P0 | ☐ | C7-T01 |
-| 3 | C7-T03 | Design Mode: 스크린샷 오버레이 + 요소 클릭 → 주석/좌표 | `src/browser/DesignModeOverlay.tsx` | P0 | ☐ | C7-T01 |
-| 4 | C7-T04 | Design Mode: 주석 좌표 + 스크린샷 → 다음 턴 컨텍스트 첨부 | `src/browser/DesignModeContext.ts` | P0 | ☐ | C7-T03 |
-| 5 | C7-T05 | browser_* 도구 그룹: 네비게이트/클릭/스크롤/대기/스크린샷/평가 | `src/tools/browser/` | P0 | ☐ | C7-T01 |
-| 6 | C7-T06 | Webview에서 브라우저 미리보기 (iframe 또는 캔버스 스트리밍) | `src/browser/BrowserPreview.tsx` | P1 | ☐ | C7-T01 |
-| 7 | C7-T07 | WorktreeManager: git worktree 생성/삭제/리스트 | `src/worktree/WorktreeManager.ts` | P0 | ☐ | C4-T27 |
-| 8 | C7-T08 | Best-of-N: N개 worktree에서 병렬 Agent 실행 (모델/프롬프트 다르게) | `src/worktree/BestOfN.ts` | P0 | ☐ | C7-T07 |
-| 9 | C7-T09 | 결과 비교 UI: Diff 요약 + 테스트 결과 + 토큰/비용 카드 | `src/worktree/ComparisonUI.tsx` | P0 | ☐ | C7-T08 |
-| 10 | C7-T10 | 승자 채택: worktree → 메인 워킹트리 merge/apply, 나머지는 삭제 | `src/worktree/AdoptWinner.ts` | P0 | ☐ | C7-T09 |
-| 11 | C7-T11 | Agent Review Loop: git diff/스테이징 수집 → 정적 힌트 + LM 리뷰 프롬프트 | `src/review/AgentReviewLoop.ts` | P0 | ☐ | C4-T01 |
-| 12 | C7-T12 | Finding 리스트 UI: 파일·줄·심각도·제안 + Accept Fix / Dismiss | `src/review/FindingList.tsx` | P0 | ☐ | C7-T11 |
-| 13 | C7-T13 | Accept Fix → 해당 finding만 edit_file 마이크로 Agent 실행 | `src/review/AcceptFix.ts` | P0 | ☐ | C7-T12 |
-| 14 | C7-T14 | Memories 고도화: SecretStorage 영구 저장 + UI 편집 + 자동 주입 | `src/memories/MemoryStore.ts` | P0 | ☐ | C4-T18 |
-| 15 | C7-T15 | Chat Search: 로컬 인덱스 (대화/아티팩트/diff) + 검색 웹뷰 | `src/search/ChatSearchIndex.ts` | P0 | ☐ | C4-T27 |
-| 16 | C7-T16 | Artifacts: 스크린샷/데모/diff 카드 저장 + 갤러리 웹뷰 | `src/artifacts/ArtifactStore.ts` | P0 | ☐ | C7-T03 |
-| 17 | C7-T17 | MCP Client: MCP SDK 브리지 → Tool Registry 등록 (이름 충돌 prefix) | `src/mcp/MCPClient.ts` | P0 | ☐ | C4-T27 |
-| 18 | C7-T18 | MCP 도구 지연 로드: ToolSearch로 스키마 폭증 방지 | `src/mcp/DeferredMCPTools.ts` | P1 | ☐ | C7-T17 |
-| 19 | C7-T19 | Skills / Pinned Skills: 레지스트리 + 핀 UI (PRD-28) | `src/skills/SkillRegistry.ts` | P0 | ☐ | C4-T27,C0-T35 |
-| 20 | C7-T20 | skill 도구: 목록/본문 로드 주입 (PRD-28 FR-05) | `src/tools/orchestration/SkillTool.ts` | P0 | ☐ | C7-T19 |
-| 21 | C7-T21 | 병렬 서브에이전트: task 도구로 별도 컨텍스트 위임 (탐색/일반/디버그) | `src/tools/orchestration/TaskTool.ts` | P0 | ☐ | C4-T27 |
-| 22 | C7-T22 | 서브에이전트 결과 요약만 부모에 반환 (컨텍스트 오염 방지) | `src/tools/orchestration/SubAgentResult.ts` | P0 | ☐ | C7-T21 |
-| 23 | C7-T23 | GitHub PR/Issue Agent: gh API 연동 (리뷰 코멘트, 이슈 생성) | `src/github/GitHubAgent.ts` | P1 | ☐ | C7-T17 |
-| 24 | C7-T24 | Commit Message / PR Description 생성: SCM API + LM | `src/scm/CommitMessageGenerator.ts` | P1 | ☐ | C7-T23 |
-| 25 | C7-T25 | Test Generation / Fix Loop: 실패 테스트 → 생성 → 실행 → 수정 루프 | `src/testing/TestGenerationLoop.ts` | P1 | ☐ | C2-T22 |
-| 26 | C7-T26 | Secrets/Config Vault UI: SecretStorage 관리 + 환경별 프로파일 | `src/secrets/SecretsVault.tsx` | P1 | ☐ | C0-T21 |
-| 27 | C7-T27 | Inline Completion: InlineCompletionItemProvider (동일 엔드포인트) | `src/inline/InlineCompletionProvider.ts` | P1 | ☐ | C0-T18 |
-| 28 | C7-T28 | Selection → Diff Apply: Ctrl+K 대체 (Commands + WorkspaceEdit + DiffEditor) | `src/selection/SelectionDiffApply.ts` | P1 | ☐ | C2-T02 |
-| 29 | C7-T29 | Parallel File Search/Read: findFiles + Promise.all + concurrency 큐 | `src/tools/search/ParallelSearch.ts` | P0 | ☐ | C1-T13 |
-| 30 | C7-T30 | Codebase Indexing: 자체 임베딩/청크 + Files API + @codebase 검색 | `src/indexing/CodebaseIndexer.ts` | P1 | ☐ | C4-T28 |
-| 31 | C7-T31 | Semantic Search: 벡터 DB (선택) 또는 ripgrep만으로 시작 | `src/indexing/SemanticSearch.ts` | P1 | ☐ | C7-T30 |
-| 32 | C7-T32 | DGX/vLLM/TRT-LLM 원클릭 프로바이더: 엔드포인트/모델 카탈로그만 | `src/providers/DGXProvider.ts` | P1 | ☐ | C0-T18 |
-| 33 | C7-T33 | Model Router: Cost/Balance/Intelligence + A/B 티어 라우팅 | `src/providers/ModelRouter.ts` | P1 | ☐ | C4-T30 |
-| 34 | C7-T34 | Firmware: SVD 뷰어 + 레지스터 패널 (Webview + TreeView) | `src/firmware/SVDViewer.tsx` | P2 | ☐ | C4-T27 |
-| 35 | C7-T35 | Legacy Scan → Report: 언어별 파서 + Webview 리포트 | `src/legacy/LegacyScanner.ts` | P2 | ☐ | C4-T27 |
-| 36 | C7-T36 | MISRA/Lint AI 설명: Diagnostics + LM → 수정 제안 | `src/compliance/MISRAExplainer.ts` | P2 | ☐ | C2-T19 |
-| 37 | C7-T37 | Serial Monitor Panel: Serialport + Webview | `src/serial/SerialMonitor.tsx` | P2 | ☐ | C4-T27 |
-| 38 | C7-T38 | E2E: Browser + Design Mode → UI 버그 재현 → 수정 → 재캡처 검증 | `tests/e2e/c7-browser-design.spec.ts` | P0 | ☐ | C7-T04 |
-| 39 | C7-T39 | E2E: Worktree/BoN 3개 병렬 → 비교 UI → 하나 채택 → merge | `tests/e2e/c7-worktree-bon.spec.ts` | P0 | ☐ | C7-T10 |
-| 40 | C7-T40 | E2E: `/review` → Finding 3개 → Accept Fix 1개 → 자동 edit_file → 재검증 | `tests/e2e/c7-agent-review.spec.ts` | P0 | ☐ | C7-T13 |
-| 41 | C7-T41 | E2E: Memories 영구 저장 → 재시작 후 자동 주입 확인 | `tests/e2e/c7-memories.spec.ts` | P0 | ☐ | C7-T14 |
-| 42 | C7-T42 | E2E: MCP 도구 등록 → Agent가 호출 → 결과 반환 | `tests/e2e/c7-mcp.spec.ts` | P0 | ☐ | C7-T17 |
-| 43 | C7-T43 | E2E: Skills 핀 → 주입 → Agent 동작 변경 (PRD-28 AC) | `tests/e2e/c7-skills.spec.ts` | P0 | ☐ | C7-T19,C7-T20 |
-| 44 | C7-T44 | 성능: Browser 세션 시작 < 3s, 스크린샷 < 500ms | `tests/bench/browser.bench.ts` | P1 | ☐ | C7-T01 |
-| 45 | C7-T45 | 문서화: Production 기능 전체 가이드 (Browser/Worktree/Review/MCP/Skills) | `docs/production-features.md` | P2 | ☐ | C7-T38 |
+| 1 | C7-T01 | BrowserTools: Playwright 연동 (navigate, click, screenshot, evaluate) | `src/browser/BrowserTools.ts` | P0 | 🔄 rework | C4-T27 |
+| 2 | C7-T02 | Browser 세션 관리: 영구 컨텍스트, 쿠키/스토리지 유지 | `src/browser/BrowserSession.ts` | P0 | 🔄 rework | C7-T01 |
+| 3 | C7-T03 | Design Mode: 스크린샷 오버레이 + 요소 클릭 → 주석/좌표 | `src/browser/DesignModeOverlay.tsx` | P0 | 🔄 rework | C7-T01 |
+| 4 | C7-T04 | Design Mode: 주석 좌표 + 스크린샷 → 다음 턴 컨텍스트 첨부 | `src/browser/DesignModeContext.ts` | P0 | 🔄 rework | C7-T03 |
+| 5 | C7-T05 | browser_* 도구 그룹: 네비게이트/클릭/스크롤/대기/스크린샷/평가 | `src/tools/browser/` | P0 | 🔄 rework | C7-T01 |
+| 6 | C7-T06 | Webview에서 브라우저 미리보기 (iframe 또는 캔버스 스트리밍) | `src/browser/BrowserPreview.tsx` | P1 | 🔄 rework | C7-T01 |
+| 7 | C7-T07 | WorktreeManager: git worktree 생성/삭제/리스트 | `src/worktree/WorktreeManager.ts` | P0 | 🔄 rework | C4-T27 |
+| 8 | C7-T08 | Best-of-N: N개 worktree에서 병렬 Agent 실행 (모델/프롬프트 다르게) | `src/worktree/BestOfN.ts` | P0 | 🔄 rework | C7-T07 |
+| 9 | C7-T09 | 결과 비교 UI: Diff 요약 + 테스트 결과 + 토큰/비용 카드 | `src/worktree/ComparisonUI.tsx` | P0 | 🔄 rework | C7-T08 |
+| 10 | C7-T10 | 승자 채택: worktree → 메인 워킹트리 merge/apply, 나머지는 삭제 | `src/worktree/AdoptWinner.ts` | P0 | 🔄 rework | C7-T09 |
+| 11 | C7-T11 | Agent Review Loop: git diff/스테이징 수집 → 정적 힌트 + LM 리뷰 프롬프트 | `src/review/AgentReviewLoop.ts` | P0 | 🔄 rework | C4-T01 |
+| 12 | C7-T12 | Finding 리스트 UI: 파일·줄·심각도·제안 + Accept Fix / Dismiss | `src/review/FindingList.tsx` | P0 | 🔄 rework | C7-T11 |
+| 13 | C7-T13 | Accept Fix → 해당 finding만 edit_file 마이크로 Agent 실행 | `src/review/AcceptFix.ts` | P0 | 🔄 rework | C7-T12 |
+| 14 | C7-T14 | Memories 고도화: SecretStorage 영구 저장 + UI 편집 + 자동 주입 | `src/memories/MemoryStore.ts` | P0 | 🔄 rework | C4-T18 |
+| 15 | C7-T15 | Chat Search: 로컬 인덱스 (대화/아티팩트/diff) + 검색 웹뷰 | `src/search/ChatSearchIndex.ts` | P0 | 🔄 rework | C4-T27 |
+| 16 | C7-T16 | Artifacts: 스크린샷/데모/diff 카드 저장 + 갤러리 웹뷰 | `src/artifacts/ArtifactStore.ts` | P0 | 🔄 rework | C7-T03 |
+| 17 | C7-T17 | MCP Client: MCP SDK 브리지 → Tool Registry 등록 (이름 충돌 prefix) | `src/mcp/MCPClient.ts` | P0 | 🔄 rework | C4-T27 |
+| 18 | C7-T18 | MCP 도구 지연 로드: ToolSearch로 스키마 폭증 방지 | `src/mcp/DeferredMCPTools.ts` | P1 | 🔄 rework | C7-T17 |
+| 19 | C7-T19 | Skills / Pinned Skills: 레지스트리 + 핀 UI (PRD-28) | `src/skills/SkillRegistry.ts` | P0 | 🔄 rework | C4-T27,C0-T35 |
+| 20 | C7-T20 | skill 도구: 목록/본문 로드 주입 (PRD-28 FR-05) | `src/tools/orchestration/SkillTool.ts` | P0 | 🔄 rework | C7-T19 |
+| 21 | C7-T21 | 병렬 서브에이전트: task 도구로 별도 컨텍스트 위임 (탐색/일반/디버그) | `src/tools/orchestration/TaskTool.ts` | P0 | 🔄 rework | C4-T27 |
+| 22 | C7-T22 | 서브에이전트 결과 요약만 부모에 반환 (컨텍스트 오염 방지) | `src/tools/orchestration/SubAgentResult.ts` | P0 | 🔄 rework | C7-T21 |
+| 23 | C7-T23 | GitHub PR/Issue Agent: gh API 연동 (리뷰 코멘트, 이슈 생성) | `src/github/GitHubAgent.ts` | P1 | 🔄 rework | C7-T17 |
+| 24 | C7-T24 | Commit Message / PR Description 생성: SCM API + LM | `src/scm/CommitMessageGenerator.ts` | P1 | 🔄 rework | C7-T23 |
+| 25 | C7-T25 | Test Generation / Fix Loop: 실패 테스트 → 생성 → 실행 → 수정 루프 | `src/testing/TestGenerationLoop.ts` | P1 | 🔄 rework | C2-T22 |
+| 26 | C7-T26 | Secrets/Config Vault UI: SecretStorage 관리 + 환경별 프로파일 | `src/secrets/SecretsVault.tsx` | P1 | 🔄 rework | C0-T21 |
+| 27 | C7-T27 | Inline Completion: InlineCompletionItemProvider (동일 엔드포인트) | `src/inline/InlineCompletionProvider.ts` | P1 | 🔄 rework | C0-T18 |
+| 28 | C7-T28 | Selection → Diff Apply: Ctrl+K 대체 (Commands + WorkspaceEdit + DiffEditor) | `src/selection/SelectionDiffApply.ts` | P1 | 🔄 rework | C2-T02 |
+| 29 | C7-T29 | Parallel File Search/Read: findFiles + Promise.all + concurrency 큐 | `src/tools/search/ParallelSearch.ts` | P0 | 🔄 rework | C1-T13 |
+| 30 | C7-T30 | Codebase Indexing: 자체 임베딩/청크 + Files API + @codebase 검색 | `src/indexing/CodebaseIndexer.ts` | P1 | 🔄 rework | C4-T28 |
+| 31 | C7-T31 | Semantic Search: 벡터 DB (선택) 또는 ripgrep만으로 시작 | `src/indexing/SemanticSearch.ts` | P1 | 🔄 rework | C7-T30 |
+| 32 | C7-T32 | DGX/vLLM/TRT-LLM 원클릭 프로바이더: 엔드포인트/모델 카탈로그만 | `src/providers/DGXProvider.ts` | P1 | 🔄 rework | C0-T18 |
+| 33 | C7-T33 | Model Router: Cost/Balance/Intelligence + A/B 티어 라우팅 | `src/providers/ModelRouter.ts` | P1 | 🔄 rework | C4-T30 |
+| 34 | C7-T34 | Firmware: SVD 뷰어 + 레지스터 패널 (Webview + TreeView) | `src/firmware/SVDViewer.tsx` | P2 | 🔄 rework | C4-T27 |
+| 35 | C7-T35 | Legacy Scan → Report: 언어별 파서 + Webview 리포트 | `src/legacy/LegacyScanner.ts` | P2 | 🔄 rework | C4-T27 |
+| 36 | C7-T36 | MISRA/Lint AI 설명: Diagnostics + LM → 수정 제안 | `src/compliance/MISRAExplainer.ts` | P2 | 🔄 rework | C2-T19 |
+| 37 | C7-T37 | Serial Monitor Panel: Serialport + Webview | `src/serial/SerialMonitor.tsx` | P2 | 🔄 rework | C4-T27 |
+| 38 | C7-T38 | E2E: Browser + Design Mode → UI 버그 재현 → 수정 → 재캡처 검증 | `tests/e2e/c7-browser-design.spec.ts` | P0 | 🔄 rework | C7-T04 |
+| 39 | C7-T39 | E2E: Worktree/BoN 3개 병렬 → 비교 UI → 하나 채택 → merge | `tests/e2e/c7-worktree-bon.spec.ts` | P0 | 🔄 rework | C7-T10 |
+| 40 | C7-T40 | E2E: `/review` → Finding 3개 → Accept Fix 1개 → 자동 edit_file → 재검증 | `tests/e2e/c7-agent-review.spec.ts` | P0 | 🔄 rework | C7-T13 |
+| 41 | C7-T41 | E2E: Memories 영구 저장 → 재시작 후 자동 주입 확인 | `tests/e2e/c7-memories.spec.ts` | P0 | 🔄 rework | C7-T14 |
+| 42 | C7-T42 | E2E: MCP 도구 등록 → Agent가 호출 → 결과 반환 | `tests/e2e/c7-mcp.spec.ts` | P0 | 🔄 rework | C7-T17 |
+| 43 | C7-T43 | E2E: Skills 핀 → 주입 → Agent 동작 변경 (PRD-28 AC) | `tests/e2e/c7-skills.spec.ts` | P0 | 🔄 rework | C7-T19,C7-T20 |
+| 44 | C7-T44 | 성능: Browser 세션 시작 < 3s, 스크린샷 < 500ms | `tests/bench/browser.bench.ts` | P1 | 🔄 rework | C7-T01 |
+| 45 | C7-T45 | 문서화: Production 기능 전체 가이드 (Browser/Worktree/Review/MCP/Skills) | `docs/production-features.md` | P2 | 🔄 rework | C7-T38 |
 
 ---
 
-| 46 | C7-T46 | Settings Hub 완성: Permission/Harness/Context/MCP/Features 탭 (PRD-29) | `src/settings/tabs/` | P1 | ☐ | C0-T35,C4-T01,C7-T19 |
+| 46 | C7-T46 | Settings Hub 완성: Permission/Harness/Context/MCP/Features 탭 (PRD-29) | `src/settings/tabs/` | P1 | 🔄 rework | C0-T35,C4-T01,C7-T19 |
 
 ---
 
-### 🟡 HARB: Harness & Specs (병렬 가능, 38 tasks)
+### 🟢 HARB: Harness & Specs (병렬 가능, 38 tasks) — 38/38 ✅ (전체 완료)
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
-| 1 | HARB-T01 | Model Tiers (A/B/C) 타입 + 라우팅 정책 | `src/harness/ModelTiers.ts` | P0 | ☐ | - |
-| 2 | HARB-T02 | Verification First 철학: 시스템 프롬프트에 검증 우선 문구 주입 | `src/harness/VerificationFirstPrompt.ts` | P0 | ☐ | HARB-T01 |
-| 3 | HARB-T03 | Cursor Pattern: Think→Act→Verify 턴 구조 강제 | `src/harness/CursorPattern.ts` | P0 | ☐ | HARB-T02 |
-| 4 | HARB-T04 | Memories Minimal: workspaceState key-value + 예산 1-2% | `src/harness/MinimalMemories.ts` | P0 | ☐ | C4-T18 |
-| 5 | HARB-T05 | Design Slogans: 프롬프트에 "탐색은 코드, 판단은 모델" 등 주입 | `src/harness/DesignSlogans.ts` | P1 | ☐ | HARB-T02 |
-| 6 | HARB-T06 | A-Tier Whitelist: 코어 8 + ask/todo = 10 schemas (terminal=allowlist) | `src/harness/AWhitelist.ts` | P0 | ☐ | C1-T02 |
-| 7 | HARB-T07 | Prompt/Turn Structure: 도구 최대 N개, 읽기 위주, 수정 전 read 필수 | `src/harness/PromptTurnStructure.ts` | P0 | ☐ | HARB-T01 |
-| 8 | HARB-T08 | Harness Duties (9가지): 검증/프리페치/컴팩션/둠루프/권한/체크포인트/에러복구/비용/텔레메트리 | `src/harness/HarnessDuties.ts` | P0 | ☐ | HARB-T01 |
-| 9 | HARB-T09 | PrefetchEngine 완성: 메시지/스택/심볼 → 모델 호출 전 조사 블록 주입 | `src/prefetch/PrefetchEngine.ts` | P0 | ☐ | C1-T14 |
-| 10 | HARB-T10 | Verification Micro-Loop 완성: edit 후 자동 lint/test → 주입 → 재시도 | `src/hooks/autoVerificationHook.ts` | P0 | ☐ | C2-T18 |
-| 11 | HARB-T11 | Context Rules: 보호 구간 (시스템/룰/최근 K턴/현재 목표) | `src/harness/ContextRules.ts` | P0 | ☐ | C4-T10 |
-| 12 | HARB-T12 | Routing Heuristics: Plan 승인 대형작업→Pro 실행, 린트 2회 실패→Pro, JSON 3회 실패→세션 중단 | `src/providers/RoutingHeuristics.ts` | P0 | ☐ | HARB-T01 |
-| 13 | HARB-T13 | UX for Medium: todo 단계 쪼개기 표시, Diff 승인 기본 on, 막힘 시 버튼(프리페치/도구축소/Pro재실행) | `src/harness/UXForMedium.tsx` | P1 | ☐ | HARB-T06 |
-| 14 | HARB-T14 | Don't Do Medium: 안티패턴 문서화 + 런타임 가드 (풀 도구/MCP/전체 리팩터/Unified diff/긴 이력) | `src/harness/DontDoMedium.ts` | P1 | ☐ | HARB-T06 |
-| 15 | HARB-T15 | Acceptance Criteria (4개) 자동 테스트 스위트 | `tests/acceptance/harness/` | P0 | ☐ | HARB-T01 |
-| 16 | HARB-T16 | AC-1: 단일 파일 버그픽스 (prefetch + edit + lint auto → 사람 Diff 승인 1회) | `tests/acceptance/harness/ac1-single-fix.spec.ts` | P0 | ☐ | HARB-T15 |
-| 17 | HARB-T17 | AC-2: "테스트 실패 고쳐줘" (실패 로그 → 수정 → 같은 테스트 재실행 루프) | `tests/acceptance/harness/ac2-test-loop.spec.ts` | P0 | ☐ | HARB-T15 |
-| 18 | HARB-T18 | AC-3: Ask 모드 (쓰기 0, 인용 코드 실제 파일과 일치) | `tests/acceptance/harness/ac3-ask-accuracy.spec.ts` | P0 | ☐ | HARB-T15 |
-| 19 | HARB-T19 | AC-4: 고의로 깨진 tool JSON 10건 중 ≥8건 복구 또는 안전 에러 | `tests/acceptance/harness/ac4-json-recovery.spec.ts` | P0 | ☐ | HARB-T15 |
-| 20 | HARB-T20 | Spec-01: Provider Adapter 3계층 (Adapter/Parser/Formatter) 구현 완료 | `src/providers/` | P0 | ☐ | C0-T19 |
-| 21 | HARB-T21 | Spec-02: Patch Format (Search-Replace) 파서 + 유일 매칭 + Staleness | `src/patches/` | P0 | ☐ | C2-T04 |
-| 22 | HARB-T22 | Spec-03: Context Budget (128k 슬롯: 시스템5%/룰5%/도구8%/스티키12%/대화60%/여유10%) | `src/agent/ContextAssembler.ts` | P0 | ☐ | C3-T09 |
-| 23 | HARB-T23 | Spec-04: Terminal Execution (세션별 셸, cwd/env 유지, 타임아웃 30s/10m) | `src/tools/terminal/` | P0 | ☐ | C2-T09 |
-| 24 | HARB-T24 | Spec-05: Permission/Autorun (기본 accept_edits, denyGlobs) | `src/permission/` | P0 | ☐ | C4-T01 |
-| 25 | HARB-T25 | Spec-06: Checkpoint/Rollback (첫 쓰기/N파일/위험도구/사용자 요청) | `src/checkpoint/` | P0 | ☐ | C4-T03 |
-| 26 | HARB-T26 | Spec-07: Context Compaction (4단계: Truncate→Drop→Micro→Full) | `src/compaction/` | P0 | ☐ | C4-T09 |
-| 27 | HARB-T27 | Tools-A: Search/Explore (grep/glob/list/read/codebase/lsp) 완성 | `src/tools/search/` | P0 | ☐ | C1-T03 |
-| 28 | HARB-T28 | Tools-B: Edit/File (edit/write/delete/reapply/notebook/multiedit + Review UI) | `src/tools/edit/` | P0 | ☐ | C2-T02 |
-| 29 | HARB-T29 | Tools-C: Terminal/Process (run/background/await/kill) | `src/tools/terminal/` | P0 | ☐ | C2-T09 |
-| 30 | HARB-T30 | Tools-D: Web/Browser/Media (web_search/fetch/browser_*/generate_image/read_lints) | `src/tools/web/`, `src/tools/browser/` | P0 | ☐ | C7-T01 |
-| 31 | HARB-T31 | Tools-E: User/Session UX (ask_question/todo_write/fetch_rules/switch_mode) | `src/tools/session/` | P0 | ☐ | C1-T10 |
-| 32 | HARB-T32 | Tools-F: Orchestration/Extension (task/MCP/skill/worktree/git/gh) | `src/tools/orchestration/` | P0 | ☐ | C7-T17 |
-| 33 | HARB-T33 | Tools-G: Debug Tools (add_instrumentation/collect_logs/request_reproduce/remove_instrumentation) | `src/tools/debug/` | P0 | ☐ | C6-T03 |
-| 34 | HARB-T34 | Tool Registry 통합: A-G 모든 도구 등록 + Zod 스키마 + 카테고리/권한 메타 | `src/tools/registry.ts` | P0 | ☐ | HARB-T27 |
-| 35 | HARB-T35 | 벤치마크: Flash 모델 10회 연속 read_file/grep 안정 호출 | `tests/bench/flash-stability.bench.ts` | P0 | ☐ | HARB-T06 |
-| 36 | HARB-T36 | 벤치마크: 의도적 틀린 SEARCH 10건 → 전부 안전 거절 + 모델 재시도 성공 | `tests/bench/patch-rejection.bench.ts` | P0 | ☐ | C2-T05 |
-| 37 | HARB-T37 | 벤치마크: 50턴 세션 창 오버플로 없이 중요 @파일 항상 유지 | `tests/bench/context-budget.bench.ts` | P0 | ☐ | C4-T10 |
-| 38 | HARB-T38 | 문서화: 하네스 아키텍처 + Tier 정책 + 안티패턴 가이드 | `docs/harness-guide.md` | P2 | ☐ | HARB-T08 |
+| 1 | HARB-T01 | Model Tiers (A/B/C) 타입 + 라우팅 정책 | `src/harness/ModelTiers.ts` | P0 | ✅ | - |
+| 2 | HARB-T02 | Verification First 철학: 시스템 프롬프트에 검증 우선 문구 주입 | `src/harness/VerificationFirstPrompt.ts` | P0 | ✅ | HARB-T01 |
+| 3 | HARB-T03 | Cursor Pattern: Think→Act→Verify 턴 구조 강제 | `src/harness/CursorPattern.ts` | P0 | ✅ | HARB-T02 |
+| 4 | HARB-T04 | Memories Minimal: workspaceState key-value + 예산 1-2% | `src/harness/MinimalMemories.ts` | P0 | ✅ | C4-T18 |
+| 5 | HARB-T05 | Design Slogans: 프롬프트에 "탐색은 코드, 판단은 모델" 등 주입 | `src/harness/DesignSlogans.ts` | P1 | ✅ | HARB-T02 |
+| 6 | HARB-T06 | A-Tier Whitelist: 코어 8 + ask/todo = 10 schemas (terminal=allowlist) | `src/harness/AWhitelist.ts` | P0 | ✅ | C1-T02 |
+| 7 | HARB-T07 | Prompt/Turn Structure: 도구 최대 N개, 읽기 위주, 수정 전 read 필수 | `src/harness/PromptTurnStructure.ts` | P0 | ✅ | HARB-T01 |
+| 8 | HARB-T08 | Harness Duties (9가지): 검증/프리페치/컴팩션/둠루프/권한/체크포인트/에러복구/비용/텔레메트리 | `src/harness/HarnessDuties.ts` | P0 | ✅ | HARB-T01 |
+| 9 | HARB-T09 | PrefetchEngine 완성: 메시지/스택/심볼 → 모델 호출 전 조사 블록 주입 | `src/prefetch/PrefetchEngine.ts` | P0 | ✅ | C1-T14 |
+| 10 | HARB-T10 | Verification Micro-Loop 완성: edit 후 자동 lint/test → 주입 → 재시도 | `src/hooks/autoVerificationHook.ts` | P0 | ✅ | C2-T18 |
+| 11 | HARB-T11 | Context Rules: 보호 구간 (시스템/룰/최근 K턴/현재 목표) | `src/harness/ContextRules.ts` | P0 | ✅ | C4-T10 |
+| 12 | HARB-T12 | Routing Heuristics: Plan 승인 대형작업→Pro 실행, 린트 2회 실패→Pro, JSON 3회 실패→세션 중단 | `src/providers/RoutingHeuristics.ts` | P0 | ✅ | HARB-T01 |
+| 13 | HARB-T13 | UX for Medium: todo 단계 쪼개기 표시, Diff 승인 기본 on, 막힘 시 버튼(프리페치/도구축소/Pro재실행) | `src/harness/UXForMedium.ts` | P1 | ✅ | HARB-T06 |
+| 14 | HARB-T14 | Don't Do Medium: 안티패턴 문서화 + 런타임 가드 (풀 도구/MCP/전체 리팩터/Unified diff/긴 이력) | `src/harness/DontDoMedium.ts` | P1 | ✅ | HARB-T06 |
+| 15 | HARB-T15 | Acceptance Criteria (4개) 자동 테스트 스위트 | `tests/acceptance/harness/` | P0 | ✅ | HARB-T01 |
+| 16 | HARB-T16 | AC-1: 단일 파일 버그픽스 (prefetch + edit + lint auto → 사람 Diff 승인 1회) | `tests/acceptance/harness/ac1-single-fix.spec.ts` | P0 | ✅ | HARB-T15 |
+| 17 | HARB-T17 | AC-2: "테스트 실패 고쳐줘" (실패 로그 → 수정 → 같은 테스트 재실행 루프) | `tests/acceptance/harness/ac2-test-loop.spec.ts` | P0 | ✅ | HARB-T15 |
+| 18 | HARB-T18 | AC-3: Ask 모드 (쓰기 0, 인용 코드 실제 파일과 일치) | `tests/acceptance/harness/ac3-ask-accuracy.spec.ts` | P0 | ✅ | HARB-T15 |
+| 19 | HARB-T19 | AC-4: 고의로 깨진 tool JSON 10건 중 ≥8건 복구 또는 안전 에러 | `tests/acceptance/harness/ac4-json-recovery.spec.ts` | P0 | ✅ | HARB-T15 |
+| 20 | HARB-T20 | Spec-01: Provider Adapter 3계층 (Adapter/Parser/Formatter) 구현 완료 | `src/providers/` | P0 | ✅ | C0-T19 |
+| 21 | HARB-T21 | Spec-02: Patch Format (Search-Replace) 파서 + 유일 매칭 + Staleness | `src/patches/` | P0 | ✅ | C2-T04 |
+| 22 | HARB-T22 | Spec-03: Context Budget (128k 슬롯: 시스템5%/룰5%/도구8%/스티키12%/대화60%/여유10%) | `src/agent/ContextAssembler.ts` | P0 | ✅ | C3-T09 |
+| 23 | HARB-T23 | Spec-04: Terminal Execution (세션별 셸, cwd/env 유지, 타임아웃 30s/10m) | `src/tools/terminal/` | P0 | ✅ | C2-T09 |
+| 24 | HARB-T24 | Spec-05: Permission/Autorun (기본 accept_edits, denyGlobs) | `src/permission/` | P0 | ✅ | C4-T01 |
+| 25 | HARB-T25 | Spec-06: Checkpoint/Rollback (첫 쓰기/N파일/위험도구/사용자 요청) | `src/checkpoint/` | P0 | ✅ | C4-T03 |
+| 26 | HARB-T26 | Spec-07: Context Compaction (4단계: Truncate→Drop→Micro→Full) | `src/compaction/` | P0 | ✅ | C4-T09 |
+| 27 | HARB-T27 | Tools-A: Search/Explore (grep/glob/list/read/codebase/lsp) 완성 | `src/tools/search/` | P0 | ✅ | C1-T03 |
+| 28 | HARB-T28 | Tools-B: Edit/File (edit/write/delete/reapply/notebook/multiedit + Review UI) | `src/tools/edit/` | P0 | ✅ | C2-T02 |
+| 29 | HARB-T29 | Tools-C: Terminal/Process (run/background/await/kill) | `src/tools/terminal/` | P0 | ✅ | C2-T09 |
+| 30 | HARB-T30 | Tools-D: Web/Browser/Media (web_search/fetch/browser_*/generate_image/read_lints) | `src/tools/web/`, `src/tools/browser/` | P0 | ✅ | C7-T01 |
+| 31 | HARB-T31 | Tools-E: User/Session UX (ask_question/todo_write/fetch_rules/switch_mode) | `src/tools/session/` | P0 | ✅ | C1-T10 |
+| 32 | HARB-T32 | Tools-F: Orchestration/Extension (task/MCP/skill/worktree/git/gh) | `src/tools/orchestration/` | P0 | ✅ | C7-T17 |
+| 33 | HARB-T33 | Tools-G: Debug Tools (add_instrumentation/collect_logs/request_reproduce/remove_instrumentation) | `src/tools/debug/` | P0 | ✅ | C6-T03 |
+| 34 | HARB-T34 | Tool Registry 통합: A-G 모든 도구 등록 + Zod 스키마 + 카테고리/권한 메타 | `src/tools/registry.ts` | P0 | ✅ | HARB-T27 |
+| 35 | HARB-T35 | 벤치마크: Flash 모델 10회 연속 read_file/grep 안정 호출 | `tests/bench/flash-stability.bench.ts` | P0 | ✅ | HARB-T06 |
+| 36 | HARB-T36 | 벤치마크: 의도적 틀린 SEARCH 10건 → 전부 안전 거절 + 모델 재시도 성공 | `tests/bench/patch-rejection.bench.ts` | P0 | ✅ | C2-T05 |
+| 37 | HARB-T37 | 벤치마크: 50턴 세션 창 오버플로 없이 중요 @파일 항상 유지 | `tests/bench/context-budget.bench.ts` | P0 | ✅ | C4-T10 |
+| 38 | HARB-T38 | 문서화: 하네스 아키텍처 + Tier 정책 + 안티패턴 가이드 | `docs/harness-guide.md` | P2 | ✅ | HARB-T08 |
 
 ---
 
@@ -446,10 +445,12 @@ sed -i 's/| 1 | C0-T01 | .* | ☐ |/| 1 | C0-T01 | 확장 스캐폴드 생성 | 
 
 **C7 (Production Grade)** ✅ 완료 (42/46, P2 4개 제외)
 
-**HARB (Harness/Specs)** 가 다음 목표입니다:
-1. HARB-T01~T14: Tier 정책 + Verification First + Cursor Pattern + 하네스 의무
-2. HARB-T15~T19: Acceptance Criteria 4개 자동 테스트 스위트
-3. HARB-T20~T38: Spec 7개 + Tool Registry 통합 + 벤치마크 + 문서
+**HARB (Harness/Specs)** — ✅ **전체 완료** (38/38):
+1. ✅ HARB-T01~T14: Tier 정책 + Verification First + Cursor Pattern + 하네스 의무
+2. ✅ HARB-T15~T19: Acceptance Criteria 4개 자동 테스트 스위트
+3. ✅ HARB-T20~T26: Spec 7개 (Provider 3층, Patch, Budget, Terminal, Permission, Checkpoint, Compaction)
+4. ✅ HARB-T27~T34: Tools A~G + Registry 통합
+5. ✅ HARB-T35~T38: Bench 3종 + Docs
 
 ---
 

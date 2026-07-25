@@ -1,0 +1,44 @@
+{
+  "id": "RW-C57-01",
+  "severity": "P0",
+  "category": "wiring",
+  "title": "Tool/Mode 레지스트리·extension.activate 실배선 (C5–C7 공통 P0)",
+  "description": "기능 점검: AgentLoop non-read 도구가 `Tool X executed (stub)`로 통과. registerReadTools/registerEditTools 및 Plan/Debug/browser/MCP/task/switch_mode가 activate에서 미호출·미등록. ModeRegistry whitelist만 있고 실행 경로 없음. C5–C7 개별 기능 REWORK의 선행 조건.",
+  "relatedDoneIds": [
+    "C5-T01",
+    "C6-T01",
+    "C7-T01",
+    "C7-T05"
+  ],
+  "files": [
+    "src/extension.ts",
+    "src/tools/registry.ts",
+    "src/loop/AgentLoopController.ts",
+    "src/agent/modeRegistry.ts"
+  ],
+  "acceptanceCriteria": [
+    "activate에서 ToolRegistry 등록 호출",
+    "non-read 도구 stub 성공 제거(실실행 또는 명확 deny)",
+    "plan/debug/agent 모드별 스키마 필터 동작",
+    "package.json commands에 Plan/Debug/Review/Browser 최소 진입점"
+  ],
+  "estimatedHours": 8,
+  "tags": [
+    "wiring",
+    "registry",
+    "p0",
+    "c5-c7"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md",
+    "PRD-C6_Debug_Mode.md",
+    "PRD-C7_Production_Grade.md"
+  ],
+  "dependencies": [],
+  "status": "done",
+  "createdAt": "2026-07-25",
+  "source": "C5–C7 functional audit (scaffold≠wired; rubber-stamp DONE)",
+  "notes": "Severity P0: feature exists as files but not product-complete. Mark related DONE as rework until AC verified.",
+  "verifiedAt": "2026-07-25",
+  "verification": "Strict code audit PASS — moved to tasks_DONE"
+}

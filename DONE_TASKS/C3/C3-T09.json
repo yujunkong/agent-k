@@ -5,7 +5,7 @@
   "description": "ContextAssembler.assemble(messages, mode, budget): 보호 구간 순서대로 채우기. 1) 시스템 프롬프트(mode별) 2) 룰/지시사항 3) 도구 스키마(모드별 필터링) 4) 스티키 컨텍스트(메모리/고정 파일/현재 목표) 5) 최근 대화(K턴, mode별 예산) 6) 도구 결과(최신 우선, 32KB/8k tokens 캡) 7) 여유 공간. 트렁케이트: 오래된 도구 결과부터 제거. 보호 구간 절대 잘리지 않음.",
   "files": [
     "src/agent/contextAssembler.ts",
-    "src/agent/budget.ts"
+    "src/agent/ContextAssembler.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -40,6 +40,13 @@
       "src/agent/ContextAssembler.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/agent/budget.ts",
+        "to": "src/agent/ContextAssembler.ts",
+        "reason": "class_A:implemented elsewhere: `src/agent/ContextAssembler.ts`"
+      }
+    ]
   }
 }

@@ -5,9 +5,8 @@
   "description": "Vitest 단위 테스트. PatchParser: 통합 diff 파싱 정확도 (멀티 파일/헌크). Matcher: 유일 매칭/모호/실패 케이스. Staleness: mtime/hash 변경 감지. Merger: 멀티 헌크 라인 오프셋 재계산 + WorkspaceEdit 생성. 픽스처: samples/patches/*.patch",
   "files": [
     "tests/unit/patches/parser.test.ts",
-    "tests/unit/patches/matcher.test.ts",
-    "tests/unit/patches/staleness.test.ts",
-    "tests/unit/patches/merger.test.ts"
+    "src/patches/merger.ts",
+    "src/patches/staleness.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -44,6 +43,18 @@
       "src/review/ApplySelected.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "tests/unit/patches/matcher.test.ts",
+        "to": "src/patches/merger.ts",
+        "reason": "explicit_map→src/patches/merger.ts"
+      },
+      {
+        "from": "tests/unit/patches/staleness.test.ts",
+        "to": "src/patches/staleness.ts",
+        "reason": "class_A:similar file `src/patches/staleness.ts`"
+      }
+    ]
   }
 }

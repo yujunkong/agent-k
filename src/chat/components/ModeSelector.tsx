@@ -8,6 +8,10 @@ interface ModeSelectorProps {
   tooltips: Record<string, string>;
 }
 
+/**
+ * Mode dropdown (Ask / Agent / Plan / Debug).
+ * While streaming, select is disabled — show lock hint beside the control, never overlaid on the label.
+ */
 export function ModeSelector({ value, onChange, disabled, labels, tooltips }: ModeSelectorProps) {
   const modes = ['ask', 'agent', 'plan', 'debug'] as const;
 
@@ -15,10 +19,11 @@ export function ModeSelector({ value, onChange, disabled, labels, tooltips }: Mo
     <div className="mode-selector-wrapper">
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value as any)}
+        onChange={(e) => onChange(e.target.value as typeof modes[number])}
         disabled={disabled}
         className="mode-selector"
-        title="Select mode"
+        title={disabled ? 'Mode locked while streaming' : tooltips[value] || 'Select mode'}
+        aria-label="Agent mode"
       >
         {modes.map((mode) => (
           <option key={mode} value={mode} title={tooltips[mode]}>
@@ -26,7 +31,12 @@ export function ModeSelector({ value, onChange, disabled, labels, tooltips }: Mo
           </option>
         ))}
       </select>
-      {disabled && <span className="mode-locked">🔒 Streaming</span>}
+      {/* Beside the select — absolute overlay was covering "Agent" with "🔒 Streaming" */}
+      {disabled ? (
+        <span className="mode-locked" title="Mode locked while streaming" aria-live="polite">
+          🔒
+        </span>
+      ) : null}
     </div>
   );
 }

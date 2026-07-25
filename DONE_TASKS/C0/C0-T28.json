@@ -4,9 +4,7 @@
   "title": "i18n 준비 (영어/한국어 문자열 분리)",
   "description": "i18n 구조: src/chat/i18n/{en.json, ko.json}. 키 네이밍: chat.composer.placeholder, chat.mode.ask, chat.action.edit 등. useI18n 훅: vscode.env.language 감지 → 자동 로케일 선택. 문자열 인터폴레이션: {count} 파일, {time}초 전. 플러럴라이제이션: ICU MessageFormat 스타일. 향후 확장: package.nls.json 연동.",
   "files": [
-    "src/chat/i18n/en.json",
-    "src/chat/i18n/ko.json",
-    "src/chat/hooks/useI18n.ts"
+    "src/chat/i18n/strings.ts"
   ],
   "priority": "P2",
   "status": "done",
@@ -40,6 +38,13 @@
       "src/chat/i18n/strings.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/chat/i18n/en.json",
+        "to": "src/chat/i18n/strings.ts",
+        "reason": "explicit_map→src/chat/i18n/strings.ts"
+      }
+    ]
   }
 }

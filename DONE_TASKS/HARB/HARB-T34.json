@@ -1,0 +1,41 @@
+{
+  "id": "HARB-T34",
+  "phase": "HARB",
+  "title": "Tool Registry 통합: A-G 모든 도구 등록 + Zod 스키마 + 카테고리/권한 메타",
+  "description": "A–G 등록+Zod+permission.",
+  "files": [
+    "src/tools/registry.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "HARB-T27"
+  ],
+  "acceptanceCriteria": [
+    "레지스트리"
+  ],
+  "completedCriteria": [
+    "Tools A–G 전 도구 registry.ts 등록 완료",
+    "Zod 스키마 기반 입력 검증 적용",
+    "카테고리/권한 메타데이터 설정 완료"
+  ],
+  "actualHours": 2,
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Infra-04_Tool_Registry.md"
+  ],
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:00:00+09:00",
+    "filesModified": [
+      "src/tools/registry.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors); tools-registry-gapfill.spec.ts tests"
+  },
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

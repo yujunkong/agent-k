@@ -5,7 +5,7 @@
   "description": "VS Code Extension Generator(yo code)로 TypeScript + ESBuild + Webview(React) 템플릿 생성. package.json에 contributes.views, contributes.commands, contributes.configuration, contributes.keybindings 정의. agent-k.* 접두사 사용.",
   "files": ["package.json", "tsconfig.json", "esbuild.js", ".vscode/launch.json", ".vscode/tasks.json", ".vscode/extensions.json", ".vscode/settings.json", "resources/icon.svg", "vite.config.ts", "index.html", "src/vscode.d.ts"],
   "priority": "P0",
-  "status": "completed",
+  "status": "done",
   "completedAt": "2026-07-25T14:35:00",
   "commitHash": "initial-scaffold",
   "dependencies": [],

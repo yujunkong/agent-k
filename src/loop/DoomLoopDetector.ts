@@ -1,7 +1,8 @@
 /**
- * DoomLoopDetector - 연속 동일 실패 감지 (C3-T04)
- * 
- * (toolName, argsHash, errorSig) 지문 → N회(3) 반복 감지
+ * DoomLoopDetector - 동일 도구+인자 반복 감지 (C3-T04 / HARB)
+ *
+ * Success 또는 failure 모두: (toolName, argsHash, outcomeSig) 가 N회 연속이면 doom.
+ * 예: 같은 path로 read_file 3회 → 중단 (성공 루프 포함)
  */
 interface Fingerprint {
   toolName: string;
@@ -17,14 +18,22 @@ export class DoomLoopDetector {
     this.threshold = threshold;
   }
 
+  /** Legacy: failure-only recording */
   record(toolName: string, args: Record<string, any>, error: string): void {
+    this.recordCall(toolName, args, error || 'error');
+  }
+
+  /**
+   * Record any tool invocation. Use outcome `'ok'` for success so identical
+   * successful reads (TipTapEditor × N) are still caught.
+   */
+  recordCall(toolName: string, args: Record<string, any>, outcome: string): void {
     this.history.push({
       toolName,
-      argsHash: this.hashArgs(args),
-      errorSig: this.extractErrorSignature(error)
+      argsHash: this.hashArgs(this.normalizeArgs(args)),
+      errorSig: outcome === 'ok' ? 'ok' : this.extractErrorSignature(outcome)
     });
 
-    // Keep only recent history (last 20)
     if (this.history.length > 20) {
       this.history = this.history.slice(-20);
     }
@@ -36,10 +45,11 @@ export class DoomLoopDetector {
     const recent = this.history.slice(-this.threshold);
     const first = recent[0];
 
-    return recent.every(h =>
-      h.toolName === first.toolName &&
-      h.argsHash === first.argsHash &&
-      h.errorSig === first.errorSig
+    return recent.every(
+      (h) =>
+        h.toolName === first.toolName &&
+        h.argsHash === first.argsHash &&
+        h.errorSig === first.errorSig
     );
   }
 
@@ -57,11 +67,31 @@ export class DoomLoopDetector {
     this.history = [];
   }
 
+  /** Normalize path-like keys so /a/b and /a//b hash the same */
+  private normalizeArgs(args: Record<string, any>): Record<string, any> {
+    const out: Record<string, any> = {};
+    for (const [key, value] of Object.entries(args || {})) {
+      if (
+        typeof value === 'string' &&
+        (key === 'path' ||
+          key === 'target_file' ||
+          key === 'file_path' ||
+          key === 'glob_pattern' ||
+          key === 'pattern')
+      ) {
+        out[key] = value.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
+      } else {
+        out[key] = value;
+      }
+    }
+    return out;
+  }
+
   private hashArgs(args: Record<string, any>): string {
     const simplified: Record<string, any> = {};
     for (const [key, value] of Object.entries(args)) {
       if (typeof value === 'string' && value.length > 100) {
-        simplified[key] = value.slice(0, 100); // truncate long strings
+        simplified[key] = value.slice(0, 100);
       } else {
         simplified[key] = value;
       }
@@ -70,8 +100,7 @@ export class DoomLoopDetector {
   }
 
   private extractErrorSignature(error: string): string {
-    // Extract meaningful part of error (file paths, line numbers, error codes)
-    const lineMatch = error.match(/(line \d+|:\d+:\d+|Error: .+|error .+)/i);
+    const lineMatch = error.match(/(line \d+|:\d+:\d+|Error: .+|error .+|Path escapes)/i);
     return lineMatch ? lineMatch[1] : error.slice(0, 200);
   }
 }

@@ -1,0 +1,44 @@
+{
+  "id": "HARB-T14",
+  "phase": "HARB",
+  "title": "Don't Do Medium: 안티패턴 문서화 + 런타임 가드 (풀 도구/MCP/전체 리팩터/Unified diff/긴 이력)",
+  "description": "Don't Do Medium 가드.",
+  "files": [
+    "src/harness/DontDoMedium.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "HARB-T06"
+  ],
+  "acceptanceCriteria": [
+    "안티패턴"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "harb",
+    "p1",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-14_Dont_Do_Medium.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "DontDoMedium 구현",
+    "수행 제한 로직",
+    "AgentLoopController + ContextAssembler wiring"
+  ],
+  "actualHours": 2.5,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/harness/DontDoMedium.ts",
+      "src/loop/AgentLoopController.ts",
+      "src/agent/ContextAssembler.ts",
+      "src/harness/index.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)"
+  }
+}

@@ -73,11 +73,29 @@ export class BestOfN {
         const taskFile = path.join(wt.path, '.agentk-task.md');
         execSync(`mkdir -p ${path.dirname(taskFile)} && echo "${task}" > ${taskFile}`, { stdio: 'pipe' });
 
-        // Simulate agent execution (real execution would be delegated)
-        trial.output = `Trial ${i} completed for: ${task.slice(0, 50)}...`;
-        trial.status = 'success';
-        trial.duration = Date.now() - startTime;
-        trial.tokenUsage = { input: 1000, output: 200 };
+        // ─── Real AgentLoop execution (RW-C7-02: simulate 제거) ──
+        const { AgentLoopController } = await import('../loop/AgentLoopController');
+        const loop = new AgentLoopController({
+          mode: 'agent',
+          maxTurns: 10,
+          modelId: models[i % models.length],
+          systemPrompt: `You are Agent K in the BestOfN worktree "${wt.branch}". Task: ${task}`,
+          onStatus: (status) => { trial.status = status === 'completed' ? 'success' : 'running'; },
+          onError: (err) => { trial.error = err.message; }
+        });
+
+        try {
+          await loop.start(task);
+          trial.output = `Trial ${i} completed. Agent executed ${loop.state.currentTurn} turns.`;
+          trial.status = loop.state.status === 'completed' ? 'success' : 'failure';
+          trial.duration = Date.now() - startTime;
+          trial.tokenUsage = { input: 0, output: 0 }; // Tracked by provider
+        } catch (loopErr) {
+          // If provider isn't configured, fall back gracefully
+          trial.output = `Trial ${i} agent loop error: ${loopErr instanceof Error ? loopErr.message : String(loopErr)}`;
+          trial.status = 'failure';
+          trial.duration = Date.now() - startTime;
+        }
       } catch (err) {
         trial.status = 'failure';
         trial.error = String(err);
@@ -113,6 +131,24 @@ export class BestOfN {
       const bTokens = (b.tokenUsage?.input ?? 0) + (b.tokenUsage?.output ?? 0);
       return aTokens - bTokens;
     })[0];
+  }
+
+  /**
+   * Adopt the winner worktree and clean up losers (RW-C7-02: 승자 adopt/패자 cleanup)
+   */
+  async adoptWinner(): Promise<BoNTrial | null> {
+    const winner = this.getWinner();
+    if (!winner) return null;
+
+    // Keep winner's worktree; remove all others
+    for (const trial of this.trials) {
+      if (trial.id !== winner.id) {
+        try {
+          await this.manager.remove(trial.worktree.path);
+        } catch { /* skip */ }
+      }
+    }
+    return winner;
   }
 
   /**

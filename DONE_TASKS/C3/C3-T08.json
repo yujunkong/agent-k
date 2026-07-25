@@ -1,10 +1,10 @@
 {
   "id": "C3-T08",
   "phase": "C3",
-  "title": "Queue UI: Queued 뱃지, 드롭다운 재정렬, Apply now, Interrupted 타임라인",
-  "description": "채팅 Composer 하단 Queued:N 뱃지·드롭다운(↑↓ 편집 삭제 Clear). Apply now 버튼. Resynthesize 시 타임라인 Interrupted 노드 + 토스트. placeholder: Enter=stop&continue · Alt+Enter=queue.",
+  "title": "Queue UI: Queued 뱃지, 드롭다운 재정렬, Apply now, Interrupt & Resynthesize 타임라인",
+  "description": "채팅 Composer 하단 Queued:N 뱃지·드롭다운(↑↓ 편집 삭제 Clear). Apply now 버튼. Interrupt & Resynthesize 시 타임라인 Interrupted 노드 + 토스트. placeholder: Enter=Interrupt&Resynthesize · Alt+Enter=queue.",
   "files": [
-    "src/chat/components/QueueIndicator.tsx",
+    "src/chat/components/MessageQueueUI.tsx",
     "src/chat/components/Composer.tsx"
   ],
   "priority": "P0",
@@ -17,7 +17,7 @@
     "Queued 뱃지/드롭다운 동작",
     "드래그 또는 ↑↓ 재정렬",
     "Apply now 동작",
-    "Interrupted 타임라인 노드 표시"
+    "Interrupt & Resynthesize 시 Interrupted 타임라인 노드 표시"
   ],
   "estimatedHours": 3,
   "tags": [
@@ -26,7 +26,7 @@
     "prd-17"
   ],
   "completedCriteria": [
-    "✅ Queue UI: Queued 뱃지, 드롭다운 재정렬, Apply now, Interrupted 타임라인 implemented"
+    "✅ Queue UI: Queued 뱃지, 드롭다운 재정렬, Apply now, Interrupt & Resynthesize 타임라인 implemented"
   ],
   "actualHours": 3,
   "implementationNotes": {
@@ -35,6 +35,13 @@
       "src/chat/components/MessageQueueUI.tsx"
     ],
     "verification": "npm run compile 성공",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/chat/components/QueueIndicator.tsx",
+        "to": "src/chat/components/MessageQueueUI.tsx",
+        "reason": "explicit_map→src/chat/components/MessageQueueUI.tsx"
+      }
+    ]
   }
 }

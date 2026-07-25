@@ -1,0 +1,38 @@
+{
+  "id": "RW-C5-01",
+  "severity": "P0",
+  "category": "plan",
+  "title": "PlanModeController를 AgentLoop+Chat에 연결",
+  "description": "PlanModeController FSM은 있으나 LLM/루프/Chat 미연결. 제품 진입점 확보.",
+  "relatedDoneIds": [
+    "C5-T01",
+    "C5-T19"
+  ],
+  "files": [
+    "src/plan/PlanModeController.ts",
+    "src/loop/",
+    "src/chat/"
+  ],
+  "acceptanceCriteria": [
+    "Plan 모드 진입 시 컨트롤러 run 호출",
+    "단계 상태가 UI에 반영"
+  ],
+  "estimatedHours": 5,
+  "tags": [
+    "plan",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "dependencies": [
+    "RW-C57-01",
+    "RW-C57-02"
+  ],
+  "status": "done",
+  "createdAt": "2026-07-25",
+  "source": "C5–C7 functional audit (scaffold≠wired; rubber-stamp DONE)",
+  "notes": "Severity P0: feature exists as files but not product-complete. Mark related DONE as rework until AC verified.",
+  "verifiedAt": "2026-07-25",
+  "verification": "Strict code audit PASS — moved to tasks_DONE"
+}

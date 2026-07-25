@@ -35,6 +35,9 @@ export class LiteLLMProvider implements LLMProviderInterface {
   async *streamChat(options: StreamChatOptions): AsyncGenerator<StreamChunk> {
     const { messages, model, temperature = 0.7, maxTokens = 4096, signal, tools } = options;
     const modelName = model || this.config.model;
+    // Tool turns keep thinking ON for Thought UI, but AgentLoop truncates/nudges
+    // so Qwen does not get stuck in plan-only loops.
+    const enableThinking = options.enableThinking ?? true;
 
     try {
       const response = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
@@ -49,7 +52,8 @@ export class LiteLLMProvider implements LLMProviderInterface {
           stream: true,
           temperature,
           max_tokens: maxTokens,
-          ...(tools && tools.length > 0 ? { tools } : {})
+          enable_thinking: enableThinking,
+          ...(tools && tools.length > 0 ? { tools, tool_choice: 'auto' } : {})
         }),
         signal
       });
@@ -96,13 +100,21 @@ export class LiteLLMProvider implements LLMProviderInterface {
                 yield { content: delta.content };
               }
 
+              // Some local servers (exo/MLX Qwen) stream reasoning separately
+              if (delta?.reasoning_content) {
+                yield { reasoning_content: delta.reasoning_content } as StreamChunk;
+              }
+              if (delta?.reasoning) {
+                yield { reasoning_content: String(delta.reasoning) } as StreamChunk;
+              }
+
               if (delta?.tool_calls) {
                 yield { toolCalls: delta.tool_calls };
               }
 
+              // Usage alone must NOT end the stream — content may still follow on some servers
               if (usage) {
                 yield {
-                  done: true,
                   usage: {
                     promptTokens: usage.prompt_tokens,
                     completionTokens: usage.completion_tokens

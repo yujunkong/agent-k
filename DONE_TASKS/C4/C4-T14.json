@@ -4,7 +4,7 @@
   "title": "Full compact: 대화 요약 1블록 생성 후 히스토리 교체 (최후 수단)",
   "description": "FullCompactStage: 이전 모든 단계 적용 후에도 예산 초과 시 실행. 전체 대화(보호 구간 제외)를 Tier C 모델로 요약 → 단일 시스템 메시지 블록 생성: '## Conversation Summary (turns 1-45) ...'. 원본 메시지 배열 → [시스템, 룰, 보호구간 메시지들, 요약 블록, 최근 6턴]로 교체. metadata.fullCompacted=true, originalTurnCount=N. 되돌리기 불가(체크포인트와 별도).",
   "files": [
-    "src/compaction/FullCompact.ts"
+    "src/compaction/CompactionEngine.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -40,6 +40,13 @@
       "src/compaction/CompactionEngine.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/compaction/FullCompact.ts",
+        "to": "src/compaction/CompactionEngine.ts",
+        "reason": "class_A:implemented elsewhere: `src/compaction/CompactionEngine.ts`"
+      }
+    ]
   }
 }

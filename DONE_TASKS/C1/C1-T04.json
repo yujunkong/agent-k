@@ -4,7 +4,7 @@
   "title": "grep 도구 (ripgrep + child_process, 병렬 지원)",
   "description": "GrepTool: rg(ripgrep) 실행. 인자: pattern, path?, include?, exclude?, caseSensitive?, maxResults(기본 100). child_process.spawn으로 rg 실행, 스트리밍 파싱. 결과: {file, line, column, match, contextBefore[], contextAfter[]}. 병렬: p-limit(16)으로 다중 패턴/경로 동시 실행. 타임아웃 30초.",
   "files": [
-    "src/tools/search/GrepTool.ts"
+    "src/tools/readTools.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -38,6 +38,13 @@
       "src/tools/readTools.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/tools/search/GrepTool.ts",
+        "to": "src/tools/readTools.ts",
+        "reason": "explicit_map→src/tools/readTools.ts"
+      }
+    ]
   }
 }

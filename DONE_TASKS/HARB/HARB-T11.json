@@ -1,0 +1,42 @@
+{
+  "id": "HARB-T11",
+  "phase": "HARB",
+  "title": "Context Rules: 보호 구간 (시스템/룰/최근 K턴/현재 목표)",
+  "description": "Context rules 예산.",
+  "files": [
+    "src/harness/ContextRules.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C4-T10"
+  ],
+  "acceptanceCriteria": [
+    "예산"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-11_Context_Rules.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "ContextRules 모듈 구현",
+    "규칙 평가 엔진",
+    "프롬프트 조립 통합"
+  ],
+  "actualHours": 2.5,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/harness/ContextRules.ts",
+      "src/harness/index.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)"
+  }
+}

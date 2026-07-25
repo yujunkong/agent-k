@@ -1,101 +1,125 @@
 /**
- * C6-T19: E2E 테스트 — Debug 사이클 전체 검증
- * 
- * 전체 사이클: Hypothesis → Instrument → Reproduce → Analyze → Fix → Cleanup
+ * C6-T17: E2E — DebugModeController 실 API로 재작성 (RW-C57-03)
+ * C6-T19: E2E — Debug 사이클 hypothesis → instrument → reproduce → analyze → fix → cleanup
  */
 import * as assert from 'assert';
-import { DebugModeController, DebugState } from '../../../src/debug/DebugModeController';
-import { AddInstrumentationTool } from '../../../src/tools/debug/AddInstrumentationTool';
-import { RemoveInstrumentationTool } from '../../../src/tools/debug/RemoveInstrumentationTool';
-import { DebugLogServer } from '../../../src/debug/DebugLogServer';
-import { VerifyCleanup } from '../../../src/debug/VerifyCleanup';
-import { LogAnalyzer } from '../../../src/debug/LogAnalyzer';
+import { DebugModeController } from '../../src/debug/DebugModeController';
 
-suite('C6-T19: E2E — Debug Full Cycle', () => {
-  let controller: DebugModeController;
-  let addTool: AddInstrumentationTool;
-  let removeTool: RemoveInstrumentationTool;
-  let logServer: DebugLogServer;
-  let verifyCleanup: VerifyCleanup;
-
-  setup(() => {
-    controller = new DebugModeController();
-    addTool = new AddInstrumentationTool();
-    removeTool = new RemoveInstrumentationTool();
-    logServer = new DebugLogServer();
-    verifyCleanup = new VerifyCleanup();
+suite('E2E: Debug Cycle — Controller API (C6-T17)', () => {
+  test('DebugModeController 생성 및 초기 상태', () => {
+    const ctrl = new DebugModeController();
+    assert.strictEqual(ctrl.getStage(), 'hypothesis');
+    assert.strictEqual(ctrl.getHypotheses().length, 0);
+    assert.strictEqual(ctrl.getActiveHypothesis(), null);
   });
 
-  test('[1] Hypothesis — 가설 생성 후 active 가설 선택', () => {
-    const state = controller.enterDebugMode();
-    assert.strictEqual(state.stage, 'hypothesis');
+  test('[1] Hypothesis — 가설 생성', () => {
+    const ctrl = new DebugModeController();
+    ctrl.addHypothesis('Browser compat', 'Issue in login.js', ['src/login.js']);
+    ctrl.addHypothesis('CSS overlap', 'Safari-specific CSS', ['src/styles.css']);
 
-    // Generate hypotheses
-    controller.setError('Cannot read properties of null (reading user)');
-    const hypotheses = controller.getCurrentHypotheses();
-    assert.ok(hypotheses.length > 0, 'Must generate at least one hypothesis');
-
-    // Select first hypothesis
-    const updated = controller.selectHypothesis(hypotheses[0].id);
-    assert.strictEqual(updated.activeHypothesisId, hypotheses[0].id);
-    assert.strictEqual(updated.stage, 'hypothesis');
+    const hypotheses = ctrl.getHypotheses();
+    assert.strictEqual(hypotheses.length, 2);
+    assert.strictEqual(hypotheses[0].title, 'Browser compat');
+    assert.strictEqual(hypotheses[0].status, 'pending');
+    assert.strictEqual(hypotheses[0].files[0], 'src/login.js');
   });
 
-  test('[2] Instrument — 계측 마커 주입', () => {
-    const instrumentState = controller.enterDebugMode();
-    controller.selectHypothesis(instrumentState.hypotheses[0].id);
+  test('[2] Instrument — 가설 선택 후 instrument stage', () => {
+    const ctrl = new DebugModeController();
+    const h = ctrl.addHypothesis('Bug', 'Login fails', ['login.js']);
+    ctrl.selectHypothesis(h.id);
 
-    const request = {
-      filePath: 'src/auth.ts',
-      hypothesisId: instrumentState.hypotheses[0].id,
-      type: 'entry' as const,
-      variableName: 'user'
-    };
-
-    const code = addTool.generateInstrumentation(request);
-    assert.ok(code.includes('DEBUG_INSTRUMENT'));
-    assert.ok(code.includes(instrumentState.hypotheses[0].id));
+    // selectHypothesis sets stage to instrument
+    assert.strictEqual(ctrl.getStage(), 'instrument');
+    assert.strictEqual(ctrl.getActiveHypothesis()?.id, h.id);
+    assert.strictEqual(ctrl.getActiveHypothesis()?.status, 'investigating');
   });
 
-  test('[3] Reproduce — 재현 액션 기록', () => {
-    const reproduce = controller.enterDebugMode();
-    controller.selectHypothesis(reproduce.hypotheses[0].id);
-    const recordedId = controller.startRecording('Ref: Null at login');
-    assert.ok(recordedId);
+  test('[3] Reproduce — instrument → reproduce', () => {
+    const ctrl = new DebugModeController();
+    const h = ctrl.addHypothesis('Bug', 'Login fails', ['login.js']);
+    ctrl.selectHypothesis(h.id); // → instrument
+    ctrl.markInstrumented(); // → reproduce
+    assert.strictEqual(ctrl.getStage(), 'reproduce');
   });
 
-  test('[4] Analyze — 로그 수집 및 분석', () => {
-    // Ingest logs
-    logServer.ingest({ level: 'error', source: 'src/auth.ts', message: 'Null: user is null' });
-    logServer.ingest({ level: 'error', source: 'src/auth.ts', message: 'Null: user is null' });
-    logServer.ingest({ level: 'warn', source: 'src/db.ts', message: 'Slow query' });
+  test('[4] Analyze — 로그 추가 및 가설 확인', () => {
+    const ctrl = new DebugModeController();
+    const h = ctrl.addHypothesis('Bug', 'Login fails', ['login.js']);
+    ctrl.selectHypothesis(h.id); // → instrument
+    ctrl.markInstrumented();     // → reproduce
+    ctrl.markReproduced();       // → analyze
 
-    const analyzer = new LogAnalyzer();
-    const result = analyzer.analyze(logServer.query());
-    assert.ok(result.totalLogs >= 3);
-    assert.ok(result.anomalies.length > 0);
+    // Add logs
+    ctrl.addLog('Login button not visible on Safari');
+    ctrl.addLog('CSS -webkit-transform not applied');
+
+    // Confirm hypothesis with evidence
+    ctrl.confirmHypothesis(h.id, ['Login button missing -webkit prefix']);
+
+    const confirmed = ctrl.getHypotheses().find(hy => hy.id === h.id);
+    assert.ok(confirmed);
+    assert.strictEqual(confirmed?.status, 'confirmed');
+    assert.strictEqual(confirmed?.evidence.length, 1);
   });
 
-  test('[5] Fix — 타겟 픽스 생성', () => {
-    const controller = new DebugModeController();
-    const fixed = controller.applyNullCheckFix('src/auth.ts', 'user', 'user?.name');
-    assert.ok(fixed.patch.includes('user?.name'));
+  test('[5] Fix — fix 적용', () => {
+    const ctrl = new DebugModeController();
+    const h = ctrl.addHypothesis('Bug', 'Login fails', ['login.js']);
+    ctrl.selectHypothesis(h.id);
+    ctrl.markInstrumented();
+    ctrl.markReproduced();
+    ctrl.confirmHypothesis(h.id, ['evidence']);
+    ctrl.moveToFix(); // → fix
+    assert.strictEqual(ctrl.getStage(), 'fix');
+
+    ctrl.markFixApplied(); // → cleanup
+    assert.strictEqual(ctrl.getStage(), 'cleanup');
   });
 
-  test('[6] Cleanup & Verify — 마커 제거 및 검증', () => {
-    const content = `const x = 1;
-// DEBUG_INSTRUMENT: hyp-null
-console.log('instrumented');
-const y = 2;`;
+  test('[6] Cleanup — 마커 제거 및 검증', () => {
+    const ctrl = new DebugModeController();
+    const h = ctrl.addHypothesis('Bug', 'Login fails', ['login.js']);
+    ctrl.selectHypothesis(h.id);
+    ctrl.markInstrumented();
+    ctrl.markReproduced();
+    ctrl.confirmHypothesis(h.id, ['evidence']);
+    ctrl.moveToFix();
+    ctrl.markFixApplied(); // → cleanup
 
-    const removed = removeTool.generateRemoval('// DEBUG_INSTRUMENT: hyp-null\nconsole.log(\'instrumented\');');
-    
-    const result = removeTool.verifyClean(content, 'hyp-null');
-    assert.strictEqual(result.remaining, 1);
+    // markCleanupDone with 0 remaining markers
+    ctrl.markCleanupDone(0);
+    assert.strictEqual(ctrl.getStage(), 'hypothesis'); // reset after success
 
-    // After removal
-    const cleanedContent = content.replace(/\/\/ DEBUG_INSTRUMENT: hyp-null\nconsole\.log\('instrumented'\);\n?/, '');
-    const cleanResult = removeTool.verifyClean(cleanedContent, 'hyp-null');
-    assert.strictEqual(cleanResult.clean, true);
+    // remainingMarkers should be 0 after cleanup
+    assert.strictEqual(ctrl.remainingMarkers, 0);
+  });
+
+  test('전체 6단계 순서 보장', () => {
+    const stages: string[] = [];
+    const ctrl = new DebugModeController();
+    ctrl.onStageChangeCallback((stage) => { stages.push(stage); });
+
+    const h = ctrl.addHypothesis('Test', 'desc', ['file.ts']);
+    ctrl.selectHypothesis(h.id);  // → instrument
+    ctrl.markInstrumented();      // → reproduce
+    ctrl.markReproduced();        // → analyze
+    ctrl.confirmHypothesis(h.id, ['ev']);
+    ctrl.moveToFix();             // → fix
+    ctrl.markFixApplied();        // → cleanup
+    ctrl.markCleanupDone(0);      // → hypothesis (reset)
+
+    assert.deepStrictEqual(stages, [
+      'instrument', 'reproduce', 'analyze', 'fix', 'cleanup', 'hypothesis'
+    ]);
+  });
+
+  test('buildContextBlock() — 세션 요약 텍스트', () => {
+    const ctrl = new DebugModeController();
+    ctrl.addHypothesis('Test', 'desc', ['file.ts']);
+    const block = ctrl.buildContextBlock();
+    assert.ok(block.includes('Debug Session State'));
+    assert.ok(block.includes('hypothesis'));
   });
 });

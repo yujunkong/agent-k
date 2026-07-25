@@ -4,7 +4,7 @@
   "title": "ToolExecutor: 읽기 병렬 / 쓰기·터미널 직렬 (Infra-08 정책)",
   "description": "ToolExecutor.execute(toolCalls, mode): 도구 분류 → 읽기(grep/glob/read/list/codebase/lsp) 병렬 실행(ParallelExecutor 위임). 쓰기(edit/write/delete/apply_patch) + 터미널(run_terminal_cmd) 직렬 실행(SequentialExecutor). 순서 보장: 읽기 완료 후 쓰기/터미널 시작. 에러 격리: 개별 도구 실패 시 나머지 계속.",
   "files": [
-    "src/loop/ToolExecutor.ts"
+    "src/loop/StreamingToolExecutor.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -39,6 +39,13 @@
       "src/loop/ParallelExecutor.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/loop/ToolExecutor.ts",
+        "to": "src/loop/StreamingToolExecutor.ts",
+        "reason": "class_A:similar file `src/loop/StreamingToolExecutor.ts`"
+      }
+    ]
   }
 }

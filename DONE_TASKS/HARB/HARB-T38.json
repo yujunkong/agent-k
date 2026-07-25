@@ -1,0 +1,44 @@
+{
+  "id": "HARB-T38",
+  "phase": "HARB",
+  "title": "문서화: 하네스 아키텍처 + Tier 정책 + 안티패턴 가이드",
+  "description": "Tier A whitelist 스냅샷 테스트.",
+  "files": [
+    "docs/harness-guide.md"
+  ],
+  "priority": "P2",
+  "status": "done",
+  "dependencies": [
+    "HARB-T08"
+  ],
+  "acceptanceCriteria": [
+    "docs/harness-guide.md updated 2026-07-25"
+  ],
+  "completedCriteria": [
+    "하네스 아키텍처 문서화 완료",
+    "Tier 정책 및 안티패턴 가이드 포함",
+    "Tier A whitelist 스냅샷 테스트 검증 완료"
+  ],
+  "actualHours": 2,
+  "estimatedHours": 2,
+  "tags": [
+    "harb",
+    "p2",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-06_A_Tier_Whitelist.md"
+  ],
+  "implementationNotes": {
+    "completedAt": "2026-07-25T21:00:00+09:00",
+    "filesModified": [
+      "docs/harness-guide.md"
+    ],
+    "verification": "npm run compile 성공 (0 errors)"
+  },
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "verifiedAt": "2026-07-25",
+  "verification": "docs/harness-guide.md updated 2026-07-25",
+  "evidenceGate": "reverified-after-residual-fix"
+}

@@ -4,7 +4,7 @@
   "title": "Tool Result 상한: 32KB/8k tokens → 트렁케이트 + (truncated, path=...)",
   "description": "ToolResultTruncator: tool_result.content 길이 체크. 바이트 > 32KB 또는 tokens > 8000 → 뒤쪽에서 트렁케이트. 결과: content(트렁케이트됨) + metadata.truncated=true + metadata.originalPath=파일경로 + metadata.originalSize=원본크기. 모델에게 '출력이 잘렸습니다. read_file로 다시 읽으세요' 힌트 포함.",
   "files": [
-    "src/agent/toolResultTruncator.ts"
+    "src/providers/ToolResultFormatter.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -39,6 +39,13 @@
       "src/agent/ContextAssembler.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/agent/toolResultTruncator.ts",
+        "to": "src/providers/ToolResultFormatter.ts",
+        "reason": "class_A:similar file `src/providers/ToolResultFormatter.ts`"
+      }
+    ]
   }
 }

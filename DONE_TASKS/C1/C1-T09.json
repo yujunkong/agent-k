@@ -4,7 +4,7 @@
   "title": "LSP 도구: definition, references, diagnostics",
   "description": "LspTools: getDefinitions(uri, position), getReferences(uri, position), getDiagnostics(uri?). vscode.languages API 사용. 결과: {uri, range, kind}. 진단: severity(Error/Warning/Info/Hint) 필터. 캐싱: 동일 위치 5분 캐시.",
   "files": [
-    "src/tools/search/LspTools.ts"
+    "src/tools/readTools.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -40,6 +40,13 @@
       "src/tools/executors.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/tools/search/LspTools.ts",
+        "to": "src/tools/readTools.ts",
+        "reason": "explicit_map→src/tools/readTools.ts"
+      }
+    ]
   }
 }

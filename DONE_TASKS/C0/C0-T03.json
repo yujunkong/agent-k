@@ -5,7 +5,7 @@
   "description": "vite.config.ts: webview용 빌드 설정 (base: '', outDir: 'dist', rollupOptions: {input: 'src/chat/main.tsx'}). @vitejs/plugin-react. HMR: 웹뷰에서 websocket 연결로 핫 리로드. React 18 + TypeScript strict mode. 경로 별칭 @/ → src/.",
   "files": ["vite.config.ts", "src/chat/main.tsx", "src/chat/ChatApp.tsx", "index.html"],
   "priority": "P0",
-  "status": "completed",
+  "status": "done",
   "completedAt": "2026-07-25T14:38:00",
   "commitHash": "c0-t03-vite-setup",
   "dependencies": ["C0-T01"],

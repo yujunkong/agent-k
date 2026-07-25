@@ -86,7 +86,7 @@ export class ResearchPhase {
 
       const executor = executors[name];
       if (executor) return await executor(args);
-      return { success: true, data: { message: `Stub: ${name}`, args } };
+      return { success: false, error: `[Plan Mode Research] Unknown read tool: "${name}". Allowed: ${this.allowedTools.join(', ')}` };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

@@ -4,7 +4,7 @@
   "title": "Truncate: 오래된 tool result 본문 절단",
   "description": "TruncateStage: tool_result.content가 32KB/8k tokens 초과 시 앞뒤 25줄만 유지, 중간 '(truncated, N lines omitted, use read_file for full content)'. 트렁케이트된 tool_result에 metadata.truncated=true, metadata.omittedLines=N 추가. 여러 tool_result 대상: 가장 오래된 것부터 순차 적용.",
   "files": [
-    "src/compaction/Truncate.ts"
+    "src/compaction/CompactionEngine.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -40,6 +40,13 @@
       "src/compaction/CompactionEngine.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/compaction/Truncate.ts",
+        "to": "src/compaction/CompactionEngine.ts",
+        "reason": "class_A:implemented elsewhere: `src/compaction/CompactionEngine.ts`"
+      }
+    ]
   }
 }

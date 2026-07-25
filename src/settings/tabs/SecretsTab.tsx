@@ -1,7 +1,11 @@
 /**
  * SecretsTab - SecretStorage 관리 UI (C0-T37)
- * 
+ *
  * 암호화된 API 키 및 시크릿 관리
+ *
+ * RW-P0-07: Webview는 VS Code SecretStorage API에 직접 접근할 수 없음.
+ * Until extension-host bridge lands, API keys flow through configManager (in-memory / workspaceState).
+ * Do NOT treat settings.json as the long-term secret store — wire SecretManager in extension.ts next.
  */
 import React, { useState, useEffect } from 'react';
 import { configManager } from '../../core/ConfigManager';

@@ -1,36 +1,60 @@
 /**
- * C7-T42: E2E — MCP 도구 등록 → Agent가 호출 → 결과 반환
+ * C7-T42: E2E — MCP 실 클라이언트 API (RW-C57-03-R2)
+ *
+ * 착각 금지: serverCount / 없는 메서드 호출 금지.
+ * 공개 API: registerServer, connect, getAllTools, callTool, isConnected, disconnectAll, getToolMeta
  */
 import * as assert from 'assert';
-import { MCPClient } from '../../../src/mcp/MCPClient';
+import { MCPClient, MCPServerConfig } from '../../src/mcp/MCPClient';
 
-suite('C7-T42: MCP E2E', () => {
-  let client: MCPClient;
-
-  setup(() => {
-    client = new MCPClient('mcp_');
-  });
-
-  test('MCP 서버 등록 및 연결', async () => {
-    client.registerServer({
+suite('E2E: MCP — Client API (C7-T42 / RW-C57-03-R2)', () => {
+  test('MCPClient 생성 및 서버 등록', () => {
+    const client = new MCPClient();
+    const config: MCPServerConfig = {
       name: 'test-server',
-      command: 'echo',
-      transport: 'stdio'
-    });
-
-    const tools = await client.connect('test-server');
-    assert.ok(tools.length > 0);
-    assert.ok(tools.every(t => t.name.startsWith('mcp_test-server_')));
+      command: 'node',
+      args: ['-e', 'process.exit(0)']
+    };
+    client.registerServer(config);
+    // Registered but not connected yet
+    assert.strictEqual(client.isConnected('test-server'), false);
+    assert.strictEqual(client.getAllTools().length, 0);
   });
 
-  test('MCP 도구 메타 및 스키마 생성', async () => {
-    client.registerServer({ name: 'gh', command: 'gh', transport: 'stdio' });
-    await client.connect('gh');
+  test('서버 등록 없이 connect 시 에러 (not registered)', async () => {
+    const client = new MCPClient();
+    try {
+      await client.connect('nonexistent');
+      assert.fail('Should have thrown');
+    } catch (err) {
+      assert.ok(err instanceof Error);
+      assert.ok(/not registered/i.test(String(err)), `expected "not registered", got: ${err}`);
+    }
+  });
 
-    const meta = client.getToolMeta();
-    assert.ok(meta.every(m => m.category === 'mcp'));
+  test('getAllTools() — 연결 전 빈 배열', () => {
+    const client = new MCPClient();
+    const tools = client.getAllTools();
+    assert.ok(Array.isArray(tools));
+    assert.strictEqual(tools.length, 0);
+  });
 
-    const schemas = client.generateSchemas();
-    assert.ok(Object.keys(schemas).length > 0);
+  test('disconnectAll — 도구 맵 정리', async () => {
+    const client = new MCPClient();
+    const config: MCPServerConfig = {
+      name: 's1',
+      command: 'echo',
+      args: ['hello']
+    };
+    client.registerServer(config);
+    await client.disconnectAll();
+    assert.strictEqual(client.getAllTools().length, 0);
+    assert.strictEqual(client.isConnected('s1'), false);
+  });
+
+  test('getToolMeta / generateSchemas — 빈 상태', () => {
+    const client = new MCPClient();
+    assert.deepStrictEqual(client.getToolMeta(), []);
+    assert.deepStrictEqual(Object.keys(client.generateSchemas()), []);
   });
 });

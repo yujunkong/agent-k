@@ -1,0 +1,32 @@
+{
+  "id": "RW-C6-06",
+  "severity": "P1",
+  "category": "debug",
+  "title": "계측 마커 실파일 스캔/cleanup (더미 remainingMarkers 제거)",
+  "relatedDoneIds": [
+    "C6-T11",
+    "C6-T12"
+  ],
+  "description": "VerifyCleanup remainingMarkers=-1 더미. 워크스페이스 실스캔 후 100% 제거.",
+  "files": [
+    "src/debug/VerifyCleanup.ts",
+    "src/tools/debug/RemoveInstrumentationTool.ts"
+  ],
+  "acceptanceCriteria": [
+    "잔여 마커 0",
+    "실패 시 계측 유지"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "cleanup",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "dependencies": [],
+  "status": "done",
+  "createdAt": "2026-07-25",
+  "source": "C5–C7 functional audit (scaffold≠wired; rubber-stamp DONE)",
+  "notes": "Severity P1: feature exists as files but not product-complete. Mark related DONE as rework until AC verified."
+}

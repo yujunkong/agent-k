@@ -4,8 +4,7 @@
   "title": "UI: Ask 모드 배지 (🔒 Read-only) + 도구 패널 🔒 아이콘",
   "description": "ModeBadge 컴포넌트: Ask 모드 시 🔒 Read-only 배지 표시. 툴팁: 'Ask mode: Read-only exploration. No file edits.' ToolPanel: 각 도구 아이템에 mode 허용 여부 체크 → 미허용 도구 🔒 아이콘 + 비활성화 스타일. 호버 시 'Not available in Ask mode' 툴팁.",
   "files": [
-    "src/chat/components/ModeBadge.tsx",
-    "src/chat/components/ToolPanel.tsx"
+    "src/chat/components/ModeBadge.tsx"
   ],
   "priority": "P1",
   "status": "done",
@@ -40,6 +39,7 @@
       "src/chat/components/ModeBadge.tsx"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": []
   }
 }

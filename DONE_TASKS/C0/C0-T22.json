@@ -1,7 +1,29 @@
 {
-  "id": "C0-T22", "phase": "C0", "title": "Provider 설정 UI (등록/테스트/모델 선택)",
-  "status": "done", "files": ["src/settings/tabs/ModelsTab.tsx"],
-  "completedCriteria": ["✅ 프로바이더 5종류 추가/편집/삭제", "✅ 연결 테스트 /models → 모델 목록", "✅ 활성 프로바이더 1개", "✅ C0-T36에서 재사용 가능(import)"],
+  "id": "C0-T22",
+  "phase": "C0",
+  "title": "Provider 설정 UI (등록/테스트/모델 선택)",
+  "description": "Settings Hub Models 탭에서 프로바이더 추가·편집·삭제, /models 연결 테스트, 활성 프로바이더·모델 선택 UI를 제공한다.",
+  "status": "done",
+  "files": ["src/settings/tabs/ModelsTab.tsx"],
+  "acceptanceCriteria": [
+    "프로바이더 5종류 추가/편집/삭제",
+    "연결 테스트(/models) → 모델 목록 표시",
+    "활성 프로바이더 1개 제한",
+    "ConfigManager·ProviderRegistry와 동기화"
+  ],
+  "prdRefs": [
+    "PRDs/02_A_Tier_Production_Grade/PRD-29_Settings_Hub.md",
+    "PRDs/01_S_Tier_Immediate_Impact/PRD-02_Local_LLM_Provider.md"
+  ],
+  "completedCriteria": [
+    "✅ 프로바이더 5종류 추가/편집/삭제",
+    "✅ 연결 테스트 /models → 모델 목록",
+    "✅ 활성 프로바이더 1개",
+    "✅ C0-T36에서 재사용 가능(import)"
+  ],
   "actualHours": 1,
-  "implementationNotes": {"completedAt": "2026-07-25T16:00:00+09:00", "verification": "npm run compile 성공"}
+  "implementationNotes": {
+    "completedAt": "2026-07-25T16:00:00+09:00",
+    "verification": "npm run compile 성공"
+  }
 }

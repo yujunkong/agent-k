@@ -29,16 +29,23 @@ export interface LLMProviderInterface {
 }
 
 export interface StreamChatOptions {
-  messages: { role: string; content: string }[];
+  messages: Array<Record<string, unknown>>;
   model?: string;
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
   tools?: any[];
+  /**
+   * Qwen thinking. Default: false when tools are present (otherwise plans
+   * stay in reasoning_content with no tool_calls).
+   */
+  enableThinking?: boolean;
 }
 
 export interface StreamChunk {
   content?: string;
+  /** Qwen/exo thinking stream (optional) */
+  reasoning_content?: string;
   toolCalls?: any[];
   done?: boolean;
   error?: string;

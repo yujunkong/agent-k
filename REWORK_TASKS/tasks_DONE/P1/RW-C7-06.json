@@ -1,0 +1,39 @@
+{
+  "id": "RW-C7-06",
+  "severity": "P1",
+  "category": "review",
+  "title": "/review 명령 + FindingList + Accept Fix 세션 배선",
+  "relatedDoneIds": [
+    "C7-T11",
+    "C7-T12",
+    "C7-T13"
+  ],
+  "description": "AgentReviewLoop는 diff+힌트 수준. UI/명령/micro-agent 미배선.",
+  "files": [
+    "src/review/",
+    "src/extension.ts"
+  ],
+  "acceptanceCriteria": [
+    "/review 또는 명령",
+    "Finding UI",
+    "Accept Fix→edit+lint"
+  ],
+  "estimatedHours": 5,
+  "tags": [
+    "review",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-14_Agent_Review.md"
+  ],
+  "dependencies": [
+    "RW-C57-01"
+  ],
+  "status": "done",
+  "createdAt": "2026-07-25",
+  "source": "C5–C7 functional audit (scaffold≠wired; rubber-stamp DONE)",
+  "notes": "Severity P1: feature exists as files but not product-complete. Mark related DONE as rework until AC verified. | Anti-false-completion comment added 2026-07-25.",
+  "warning": "⛔ 이 큐는 아직 pending. C5–C7 “기능 완료” 착각과 별개로 미착수/미검증 상태. compile 성공·파일 존재만으로 done 금지.",
+  "verifiedAt": "2026-07-25",
+  "verification": "Evidence-gated move after full rework session; compile OK"
+}

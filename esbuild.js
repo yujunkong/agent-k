@@ -5,6 +5,26 @@ const { join } = require('path');
 const isWatch = process.argv.includes('--watch');
 const isProduction = process.argv.includes('--production');
 
+/**
+ * Optional / native deps must stay external — AgentLoop dynamic-imports browser
+ * tools which pull playwright → chromium-bidi + fsevents (.node).
+ */
+const externalNativePlugin = {
+  name: 'external-native-optional',
+  setup(build) {
+    // playwright and its transitive chromium-bidi paths
+    build.onResolve(
+      { filter: /^(playwright|playwright-core|chromium-bidi|fsevents)(\/|$)/ },
+      (args) => ({ path: args.path, external: true })
+    );
+    // Native addons (.node) — never bundle
+    build.onResolve({ filter: /\.node$/ }, (args) => ({
+      path: args.path,
+      external: true
+    }));
+  }
+};
+
 async function build() {
   const ctx = await esbuild.context({
     entryPoints: ['src/extension.ts'],
@@ -13,11 +33,22 @@ async function build() {
     platform: 'node',
     target: 'node18',
     format: 'cjs',
-    external: ['vscode'],
+    external: [
+      'vscode',
+      'playwright',
+      'playwright-core',
+      'chromium-bidi',
+      'fsevents'
+    ],
+    plugins: [externalNativePlugin],
     sourcemap: isProduction ? false : 'inline',
     sourcesContent: false,
     treeShaking: true,
     minify: isProduction,
+    // Optional require() of missing natives must not fail the build
+    logOverride: {
+      'ignored-bare-import': 'silent'
+    },
     define: {
       'process.env.NODE_ENV': isProduction ? '"production"' : '"development"'
     }
@@ -39,4 +70,7 @@ async function build() {
   }
 }
 
-build().catch(() => process.exit(1));
+build().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

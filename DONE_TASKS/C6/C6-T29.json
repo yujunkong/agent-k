@@ -7,7 +7,7 @@
     "src/debug/BrowserEvidence.ts"
   ],
   "priority": "P1",
-  "status": "done",
+  "status": "rework",
   "dependencies": [
     "C6-T01",
     "C7-T01"
@@ -42,5 +42,9 @@
     ],
     "verification": "npm run compile 성공 (0 errors)",
     "notes": "C6 Debug Mode 전 태스크 동시 구현 완료"
-  }
+  },
+  "reworkRefs": [
+    "RW-C6-03"
+  ],
+  "reworkReason": "C5–C7 functional audit 2026-07-25: scaffold/stub/unwired or false E2E"
 }

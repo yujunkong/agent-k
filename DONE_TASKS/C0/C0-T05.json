@@ -3,10 +3,15 @@
   "phase": "C0",
   "title": "VirtualList 구현 (100+ 메시지 60fps)",
   "description": "react-window 또는 커스텀 VirtualList: itemHeight 추정(기본 120px), overscan=5. 동적 높이: 메시지 렌더 후 실제 높이 측정 → 캐시 → 스크롤 위치 보정. 스크롤 이벤트 throttle(16ms). 1000개 메시지 시 DOM 노드 < 50개 유지.",
-  "files": ["src/chat/components/VirtualList.tsx", "src/chat/hooks/useVirtualList.ts", "src/chat/ChatApp.tsx"],
+  "files": [
+    "src/chat/components/VirtualList.tsx",
+    "src/chat/ChatApp.tsx"
+  ],
   "priority": "P0",
   "status": "done",
-  "dependencies": ["C0-T03"],
+  "dependencies": [
+    "C0-T03"
+  ],
   "acceptanceCriteria": [
     "500개 메시지 스크롤 60fps 유지",
     "DOM 노드 수 < 50개 (가시 영역 + overscan)",
@@ -25,6 +30,14 @@
   ],
   "estimatedHours": 4,
   "actualHours": 2,
-  "tags": ["virtualization", "performance", "react-window", "scroll"],
-  "notes": "기본 VirtualList 구현 완료. 동적 높이 측정(useVirtualList hook)과 스크롤 throttle, 위치 복원은 C0-T39(성능 최적화) 또는 별도 태스크로 이관 권장."
+  "tags": [
+    "virtualization",
+    "performance",
+    "react-window",
+    "scroll"
+  ],
+  "notes": "기본 VirtualList 구현 완료. 동적 높이 측정(useVirtualList hook)과 스크롤 throttle, 위치 복원은 C0-T39(성능 최적화) 또는 별도 태스크로 이관 권장.",
+  "implementationNotes": {
+    "pathFixAudit": []
+  }
 }

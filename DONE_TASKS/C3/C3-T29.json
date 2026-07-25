@@ -4,11 +4,9 @@
   "title": "리팩터링: AgentLoopController → Mode별 서브클래스 분리 (Ask/Agent/Plan/Debug)",
   "description": "AgentLoopController 추상 클래스 → AskLoopController, AgentLoopController, PlanLoopController, DebugLoopController 서브클래스. 공통: run(), assembleContext(), executeTools(), handleStop(). 모드별: 시스템 프롬프트, 허용 도구, 예산, 검증 정책, 특수 훅 오버라이드. 팩토리: LoopFactory.create(mode).",
   "files": [
-    "src/loop/AskLoopController.ts",
     "src/loop/AgentLoopController.ts",
-    "src/loop/PlanLoopController.ts",
-    "src/loop/DebugLoopController.ts",
-    "src/loop/LoopFactory.ts"
+    "src/plan/PlanModeController.ts",
+    "src/debug/DebugModeController.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -43,6 +41,23 @@
       "src/loop/"
     ],
     "verification": "npm run compile 성공",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/loop/AskLoopController.ts",
+        "to": "src/loop/AgentLoopController.ts",
+        "reason": "explicit_map→src/loop/AgentLoopController.ts"
+      },
+      {
+        "from": "src/loop/PlanLoopController.ts",
+        "to": "src/plan/PlanModeController.ts",
+        "reason": "explicit_map→src/plan/PlanModeController.ts"
+      },
+      {
+        "from": "src/loop/DebugLoopController.ts",
+        "to": "src/debug/DebugModeController.ts",
+        "reason": "explicit_map→src/debug/DebugModeController.ts"
+      }
+    ]
   }
 }

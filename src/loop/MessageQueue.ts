@@ -126,6 +126,49 @@ export class MessageQueue {
     this.notify();
   }
 
+  /**
+   * RW-P0-04: Apply now — promote a queued message to immediate resynthesize.
+   * Caller must abort + resynthesize; this only marks action and clears debounce.
+   */
+  applyNow(messageId: string): QueuedMessage | null {
+    const msg = this.queue.find(m => m.id === messageId && m.status === 'queued');
+    if (!msg) return null;
+    msg.action = 'resynthesize';
+    msg.status = 'processing';
+    this._isInterrupted = true;
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    this.notify();
+    return msg;
+  }
+
+  /**
+   * Drain all queued texts (Apply now empty-input path / resynth batch).
+   * Returns texts in enqueue order; marks those items completed.
+   */
+  drain(): string[] {
+    const texts: string[] = [];
+    for (const m of this.queue) {
+      if (m.status === 'queued') {
+        texts.push(m.text);
+        m.status = 'completed';
+      }
+    }
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    this.notify();
+    return texts;
+  }
+
+  /** Active queued messages (for QueueUI). */
+  getQueued(): QueuedMessage[] {
+    return this.queue.filter(m => m.status === 'queued' || m.status === 'processing');
+  }
+
   clear(): void {
     this.queue = [];
     this._isInterrupted = false;

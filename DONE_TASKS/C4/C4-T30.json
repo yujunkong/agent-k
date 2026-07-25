@@ -5,7 +5,7 @@
   "description": "ModelRouter: 라우팅 정책(Cost/Balance/Intelligence). Tier A(Flash): Ask/Plan/Debug 기본. Tier B(Pro): Agent 기본, 린트 2회 실패 시, JSON 3회 실패 시. Tier C(Base): 채팅만. ProviderAdapter: 3계층(Adapter/Parser/Formatter) 통합 인터페이스. getProvider(tier) → 최적 프로바이더 반환. 폴백: Tier B 실패 → Tier C 시도. 헬스체크 기반 가용성 필터링.",
   "files": [
     "src/providers/ModelRouter.ts",
-    "src/providers/ProviderAdapter.ts"
+    "src/providers/ProviderRegistry.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -40,6 +40,13 @@
       "src/providers/ModelRouter.ts"
     ],
     "verification": "npm run compile 성공",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/providers/ProviderAdapter.ts",
+        "to": "src/providers/ProviderRegistry.ts",
+        "reason": "class_A:similar file `src/providers/ProviderRegistry.ts`"
+      }
+    ]
   }
 }

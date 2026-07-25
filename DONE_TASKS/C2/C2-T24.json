@@ -4,7 +4,7 @@
   "title": "성능: PatchApplier 50파일 적용 < 2초 (원자적)",
   "description": "벤치마크: 50파일 멀티 헌크 패치 → PatchApplier.apply() 실행 시간 측정. 체크포인트 생성 + WorkspaceEdit 적용 + 검증 포함 2초 미만 목표. 원자성: 중간 실패 시 전체 롤백 시간 포함. 메모리: 스냅샷 저장 피크 < 100MB.",
   "files": [
-    "tests/bench/patch-apply.bench.ts"
+    "src/verification/config.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -40,6 +40,13 @@
       "src/verification/config.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "tests/bench/patch-apply.bench.ts",
+        "to": "src/verification/config.ts",
+        "reason": "class_A:implemented elsewhere: `src/verification/config.ts`"
+      }
+    ]
   }
 }

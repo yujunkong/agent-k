@@ -5,7 +5,7 @@
   "description": "MessageBubble 컴포넌트: 역할별(User/Assistant/Tool/System) 스타일링(user=우측 정렬/파란색, assistant=좌측/회색, tool=노란색 배경, system=회색 이탤릭). 아바타(이모지/아이콘), 타임스탬프(상대 시간: 2분 전). 내용: 마크다운 렌더링 위임. 상태 뱃지: streaming(스피너), complete(✓), error(✗).",
   "files": ["src/chat/components/MessageBubble.tsx", "src/chat/chat.css"],
   "priority": "P0",
-  "status": "completed",
+  "status": "done",
   "completedAt": "2026-07-25T14:40:00",
   "commitHash": "c0-t04-message-bubble",
   "dependencies": ["C0-T03"],

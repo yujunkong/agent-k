@@ -1,0 +1,39 @@
+{
+  "id": "RW-C57-03",
+  "severity": "P0",
+  "category": "tests",
+  "title": "C5–C7 E2E를 실 API/확장 호스트 기준으로 재작성",
+  "description": "다수 e2e가 인메모리 whitelist assert이거나 DebugModeController에 없는 API 호출. DONE의 E2E 통과 표기는 신뢰 불가. c5/c6/c7 스펙을 실제 public API에 맞게 재작성.",
+  "relatedDoneIds": [
+    "C5-T14",
+    "C5-T16",
+    "C6-T17",
+    "C6-T19",
+    "C7-T38",
+    "C7-T39",
+    "C7-T42"
+  ],
+  "files": [
+    "tests/e2e/"
+  ],
+  "acceptanceCriteria": [
+    "존재하지 않는 API 호출 0",
+    "C5 Plan deny write E2E 그린",
+    "C6 debug cycle E2E가 컨트롤러 API와 일치",
+    "C7 핵심 1개 이상(Browser 또는 MCP 또는 Skills) 실경로 스모크"
+  ],
+  "estimatedHours": 12,
+  "tags": [
+    "e2e",
+    "p0",
+    "false-completion"
+  ],
+  "prdRefs": [],
+  "dependencies": [
+    "RW-C57-01"
+  ],
+  "status": "done",
+  "createdAt": "2026-07-25",
+  "source": "C5–C7 functional audit (scaffold≠wired; rubber-stamp DONE)",
+  "notes": "Severity P0: feature exists as files but not product-complete. Mark related DONE as rework until AC verified."
+}

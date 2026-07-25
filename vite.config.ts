@@ -6,14 +6,34 @@ export default defineConfig({
   plugins: [react()],
   root: 'src/chat',
   base: '',
+  resolve: {
+    // Webview cannot import real vscode — stub for transitive extension-host imports
+    alias: {
+      vscode: resolve(__dirname, 'src/chat/vscode-shim.ts')
+    }
+  },
+  // Webview loads chat.js as a classic/non-module script — strip Vite/ESM env bits
+  define: {
+    'import.meta.env.DEV': 'false',
+    'import.meta.env.PROD': 'true',
+    'import.meta.env.MODE': JSON.stringify('production'),
+    // Mermaid loaders leave import.meta.url; classic scripts throw without this
+    'import.meta.url': JSON.stringify('')
+  },
   build: {
     outDir: '../../dist',
     emptyOutDir: false,
+    cssCodeSplit: false,
+    // IIFE so Extension Host <script src> works (no type=module / import.meta)
+    target: 'es2020',
     rollupOptions: {
       input: resolve(__dirname, 'src/chat/main.tsx'),
       output: {
+        format: 'iife',
+        name: 'AgentKChat',
+        // Single bundle — webview CSP cannot load hashed chunk scripts without nonce
+        inlineDynamicImports: true,
         entryFileNames: 'chat.js',
-        chunkFileNames: 'chat-[hash].js',
         assetFileNames: 'chat.css'
       }
     }

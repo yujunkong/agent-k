@@ -5,7 +5,7 @@
   "description": "PermissionGate 4단계: ask / accept_edits / auto / bypass. 제품 기본값=accept_edits (원본 Settings Hub / PRD-29 / Spec-05). ask는 보수 모드. accept_edits: edit 자동·delete/비허용 터미널은 ask. 설정 키: agent-k.permission.level (User/Workspace).",
   "files": [
     "src/permission/PermissionGate.ts",
-    "src/permission/types.ts"
+    "src/tools/types.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -47,6 +47,13 @@
       "src/permission/PermissionGate.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/permission/types.ts",
+        "to": "src/tools/types.ts",
+        "reason": "class_A:found 4 candidates (e.g. `src/tools/types.ts`)"
+      }
+    ]
   }
 }

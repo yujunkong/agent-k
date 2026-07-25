@@ -1,3 +1,9 @@
+/**
+ * Fixed-height virtual list. Do NOT use for chat bubbles with variable markdown/
+ * mermaid height — rows force `height: itemHeight` and stack via translateY, which
+ * causes overlapping messages. ChatApp uses a plain `.message-list` scroll instead.
+ * 가변 높이 채팅 버블에는 사용하지 말 것(겹침). 벤치/고정행 전용.
+ */
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 
 interface VirtualListProps<T> {

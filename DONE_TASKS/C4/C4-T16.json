@@ -4,7 +4,7 @@
   "title": "PreToolUse: 시크릿 스캔 (API 키, 패스워드 패턴) → 차단/마스킹",
   "description": "SecretScanHook: PreToolUse에서 toolCall.arguments 문자열 스캔. 패턴: API keys(sk-, pk_, ghp_, glpat_, xoxb-), 비밀번호(password=, pwd=), 토큰(token=, bearer), 프라이빗 키(-----BEGIN). 매칭 시: allow=false, reason='Secret detected in arguments: {pattern}'. 마스킹 모드: 값만 '***REDACTED***'로 치환 후 allow=true(설정 옵션). 로그: 보안 감사용 별도 저장(내용 마스킹).",
   "files": [
-    "src/hooks/SecretScanHook.ts"
+    "src/settings/tabs/SecretsTab.tsx"
   ],
   "priority": "P1",
   "status": "done",
@@ -41,6 +41,13 @@
       "src/hooks/HookSystem.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/hooks/SecretScanHook.ts",
+        "to": "src/settings/tabs/SecretsTab.tsx",
+        "reason": "class_A:similar file `src/settings/tabs/SecretsTab.tsx`"
+      }
+    ]
   }
 }

@@ -5,7 +5,7 @@
   "description": "PRD-17: Agent 실행 중 Enter/Send/Ctrl+Enter/Cmd+Enter → AbortController로 중단 → Queue.drain()+latest를 단일 user 종합 블록으로 synthesize → Tool Loop 재시작. Alt+Enter 또는 Queue 버튼 → enqueue만(Abort 없음). Apply now → 입력 없이도 drain 후 Resynthesize. Stop과 구분: Stop=종료+큐 keep/discard(agent-k.queue.onStop). 설정: agent-k.queue.onEnterWhileRunning=resynthesize|queue_only.",
   "files": [
     "src/loop/MessageQueue.ts",
-    "src/loop/AgentLoop.ts"
+    "src/loop/AgentLoopController.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -44,6 +44,13 @@
       "src/loop/MessageQueue.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/loop/AgentLoop.ts",
+        "to": "src/loop/AgentLoopController.ts",
+        "reason": "explicit_map→src/loop/AgentLoopController.ts"
+      }
+    ]
   }
 }

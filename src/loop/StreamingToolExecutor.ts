@@ -50,7 +50,15 @@ export class StreamingToolExecutor {
 
     // Execute
     try {
-      const { executeGrep, executeGlob, executeReadFile, executeListDir } = await import('../tools/executors');
+      const {
+        executeGrep,
+        executeGlob,
+        executeReadFile,
+        executeListDir,
+        executeCodebaseSearch,
+        executeLspDefinition,
+        executeLspReferences
+      } = await import('../tools/executors');
 
       const executors: Record<string, (input: ToolInput) => Promise<ToolOutput>> = {
         grep: executeGrep,
@@ -58,9 +66,9 @@ export class StreamingToolExecutor {
         read_file: executeReadFile,
         list_dir: executeListDir,
         file_search: executeGlob,
-        codebase_search: executeReadFile,
-        lsp_definition: executeReadFile,
-        lsp_references: executeReadFile
+        codebase_search: executeCodebaseSearch,
+        lsp_definition: executeLspDefinition,
+        lsp_references: executeLspReferences
       };
 
       const executor = executors[toolName];

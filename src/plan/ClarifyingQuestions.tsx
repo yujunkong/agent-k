@@ -56,10 +56,10 @@ export function ClarifyingQuestions({
       maxWidth: 640
     }}>
       <h3 style={{ margin: '0 0 12px', fontSize: '1.1em', fontWeight: 600 }}>
-        Clarifying Questions
+        Question
       </h3>
       <p style={{ fontSize: '0.85em', opacity: 0.7, marginBottom: 16 }}>
-        Answer these questions to help shape the implementation plan.
+        Answer to continue the agent. Choose an option or type a reply.
       </p>
 
       {questions.map(q => (

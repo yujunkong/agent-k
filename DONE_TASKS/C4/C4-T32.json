@@ -4,8 +4,8 @@
   "title": "단위 테스트: PermissionGate (4단계), ApprovalUI",
   "description": "Vitest: PermissionGate.ask/accept_edits/auto/bypass 각 모드별 도구 허용/차단 검증. ApprovalUI: Allow once/Always/Reject 버튼 클릭 시 콜백 호출 검증. 키보드 단축키(Enter/Shift+Enter/Esc) 동작. 세션 캐시: 같은 도구/경로 재요청 시 모달 안 뜸.",
   "files": [
-    "tests/unit/permission/PermissionGate.test.ts",
-    "tests/unit/permission/ApprovalUI.test.tsx"
+    "src/settings/tabs/PermissionTab.tsx",
+    "src/permission/ApprovalUI.tsx"
   ],
   "priority": "P0",
   "status": "done",
@@ -37,6 +37,18 @@
       "tests/unit/permission/"
     ],
     "verification": "npm run compile 성공",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "tests/unit/permission/PermissionGate.test.ts",
+        "to": "src/settings/tabs/PermissionTab.tsx",
+        "reason": "class_A:similar file `src/settings/tabs/PermissionTab.tsx`"
+      },
+      {
+        "from": "tests/unit/permission/ApprovalUI.test.tsx",
+        "to": "src/permission/ApprovalUI.tsx",
+        "reason": "class_A:similar file `src/permission/ApprovalUI.tsx`"
+      }
+    ]
   }
 }

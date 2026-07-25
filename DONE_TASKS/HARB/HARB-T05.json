@@ -1,0 +1,44 @@
+{
+  "id": "HARB-T05",
+  "phase": "HARB",
+  "title": "Design Slogans: 프롬프트에 \"탐색은 코드, 판단은 모델\" 등 주입",
+  "description": "Design slogans 반영.",
+  "files": [
+    "src/harness/DesignSlogans.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "HARB-T02"
+  ],
+  "acceptanceCriteria": [
+    "목록",
+    "주입"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "harb",
+    "p1",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-05_Design_Slogans.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "Design slogans 상수 정의",
+    "프롬프트 주입 로직",
+    "런타임 참조 구현"
+  ],
+  "actualHours": 2.0,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/harness/DesignSlogans.ts",
+      "src/agent/ContextAssembler.ts",
+      "src/harness/index.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)"
+  }
+}

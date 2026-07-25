@@ -4,7 +4,7 @@
   "title": "codebase_search 도구 (임베딩 인덱스 연동 - C7까지 스텁)",
   "description": "CodebaseSearchTool: query, maxResults → 현재는 스텁 구현 (C7에서 임베딩 인덱스 연동). 스텁: vscode.workspace.findFiles('**/*')로 전체 파일 검색 후 파일명/경로 매칭으로 폴백. 결과: {file, score, snippet}. C7에서 Vector DB 연동으로 교체 예정. 인터페이스 미리 정의.",
   "files": [
-    "src/tools/search/CodebaseSearchTool.ts"
+    "src/tools/readTools.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -37,6 +37,13 @@
       "src/tools/executors.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/tools/search/CodebaseSearchTool.ts",
+        "to": "src/tools/readTools.ts",
+        "reason": "explicit_map→src/tools/readTools.ts"
+      }
+    ]
   }
 }

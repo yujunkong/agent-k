@@ -4,7 +4,7 @@
   "title": "보호 구간: 시스템/룰/최근 K턴(6)/현재 목표 문장 보존",
   "description": "ProtectionZones: 컴팩션/트렁케이트 시 절대 건드리지 않는 구간. 1) 시스템 프롬프트(모드별). 2) 룰/지시사항(.agent-k/rules.md). 3) 스티키 컨텍스트(메모리/고정 파일/현재 목표). 4) 최근 6턴 대화(사용자+어시스턴트). 5) 현재 목표 문장(마지막 사용자 메시지 또는 계획). 예산 계산 시 보호 구간 토큰 선차감 → 나머지 예산에서 컴팩션 수행.",
   "files": [
-    "src/compaction/ProtectionZones.ts"
+    "src/compaction/CompactionEngine.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -42,6 +42,13 @@
       "src/compaction/CompactionEngine.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/compaction/ProtectionZones.ts",
+        "to": "src/compaction/CompactionEngine.ts",
+        "reason": "class_A:implemented elsewhere: `src/compaction/CompactionEngine.ts`"
+      }
+    ]
   }
 }

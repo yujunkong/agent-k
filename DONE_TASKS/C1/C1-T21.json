@@ -5,8 +5,8 @@
   "description": "Vitest 단위 테스트. ToolRegistry: getSchemas(mode) 각 모드별 도구 수/이름 검증. ParallelExecutor: 20개 도구 호출 → 16 동시성 준수, 순서 보장, 타임아웃, 에러 격리. PrefetchEngine: 멘션/스택/임포트 추출 정확도, 캐시 히트/미스, 컨텍스트 블록 포맷.",
   "files": [
     "tests/unit/tools/registry.test.ts",
-    "tests/unit/loop/ParallelExecutor.test.ts",
-    "tests/unit/prefetch/PrefetchEngine.test.ts"
+    "src/tools/search/ParallelSearch.ts",
+    "src/prefetch/PrefetchEngine.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -40,6 +40,18 @@
       "tests/unit/tools/registry.test.ts"
     ],
     "verification": "npm run compile 성공",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "tests/unit/loop/ParallelExecutor.test.ts",
+        "to": "src/tools/search/ParallelSearch.ts",
+        "reason": "class_A:similar file `src/tools/search/ParallelSearch.ts`"
+      },
+      {
+        "from": "tests/unit/prefetch/PrefetchEngine.test.ts",
+        "to": "src/prefetch/PrefetchEngine.ts",
+        "reason": "class_A:similar file `src/prefetch/PrefetchEngine.ts`"
+      }
+    ]
   }
 }

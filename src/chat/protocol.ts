@@ -12,6 +12,20 @@ export interface ChatMessagePayload {
   files?: { type: string; path: string; content?: string }[];
 }
 
+/** Webview → Host: Agent/Plan/Debug tool-mediated send */
+export interface ChatSendPayload {
+  requestId: string;
+  messages: { role: string; content: string }[];
+  mode: 'ask' | 'agent' | 'plan' | 'debug';
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+}
+
+export interface ChatStopPayload {
+  requestId?: string;
+}
+
 export interface StopStreamPayload {}
 export interface RegeneratePayload {}
 
@@ -80,7 +94,7 @@ export interface ToolResultPayload {
 
 export interface TimelineUpdatePayload {
   turnId: string;
-  status: 'thinking' | 'planning' | 'searching' | 'reading' | 'editing' | 'running' | 'browsing' | 'asking' | 'done';
+  status: 'thinking' | 'planning' | 'searching' | 'reading' | 'editing' | 'running' | 'browsing' | 'asking' | 'done' | 'error';
   detail?: string;
 }
 
@@ -106,6 +120,8 @@ export interface MentionResultsPayload {
 
 export type WebviewMessage =
   | { type: 'chat.message'; payload: ChatMessagePayload }
+  | { type: 'chat.send'; payload: ChatSendPayload }
+  | { type: 'chat.stop'; payload: ChatStopPayload }
   | { type: 'stop.stream'; payload: StopStreamPayload }
   | { type: 'regenerate'; payload: RegeneratePayload }
   | { type: 'edit.message'; payload: EditMessagePayload }
@@ -115,6 +131,25 @@ export type WebviewMessage =
   | { type: 'mention.request'; payload: MentionRequestPayload }
   | { type: 'settings.open'; payload: SettingsOpenPayload }
   | { type: 'focus.input'; payload: FocusInputPayload };
+
+/** Host → Webview stream events for chat.send tool loop */
+export interface ChatStreamEvent {
+  type: 'chat.stream';
+  requestId: string;
+  event: 'delta' | 'status' | 'tool.start' | 'tool.end' | 'timeline' | 'complete' | 'error';
+  content?: string;
+  status?: string;
+  toolName?: string;
+  toolArgs?: string;
+  toolResult?: string;
+  error?: string;
+  /** PRD-C0 §5.3 timeline fields (when event === 'timeline') */
+  kind?: string;
+  turn?: number;
+  label?: string;
+  detail?: string;
+  id?: string;
+}
 
 export type ExtensionMessage =
   | { type: 'stream.delta'; payload: StreamDeltaPayload }
@@ -128,6 +163,7 @@ export type ExtensionMessage =
   | { type: 'history.loaded'; payload: HistoryLoadedPayload }
   | { type: 'settings.loaded'; payload: SettingsLoadedPayload }
   | { type: 'mention.results'; payload: MentionResultsPayload }
+  | ChatStreamEvent
   | { type: 'session.new'; payload?: Record<string, never> }
   | { type: 'session.clear'; payload?: Record<string, never> }
   | { type: 'mode.switch'; payload?: Record<string, never> }
@@ -136,10 +172,10 @@ export type ExtensionMessage =
 // ─── 유틸리티 ──────────────────────────────────────────
 
 const VALID_TYPES = new Set<string>([
-  'chat.message', 'stop.stream', 'regenerate',
+  'chat.message', 'chat.send', 'chat.stop', 'stop.stream', 'regenerate',
   'edit.message', 'delete.message', 'pin.message',
   'switch.mode', 'mention.request', 'settings.open', 'focus.input',
-  'stream.delta', 'stream.complete', 'stream.error',
+  'stream.delta', 'stream.complete', 'stream.error', 'chat.stream',
   'tool.call.start', 'tool.call.end', 'tool.result',
   'timeline.update', 'mode.changed', 'history.loaded',
   'settings.loaded', 'mention.results',

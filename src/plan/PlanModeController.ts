@@ -4,13 +4,15 @@
  * 플로우: Research → Questions → Plan → Review → Build (Agent 전환)
  * PLAN whitelist: 읽기 도구 + ask_question + todo_write + switch_mode
  * 쓰기/터미널/browser 도구는 스키마 미노출 또는 호출 시 즉시 deny
+ * 
+ * RW-C5-01: run() 진입점 추가 → AgentLoop+Chat 연결
+ * RW-C5-02: ask_question → ClarifyingQuestions UI 브리지
+ * RW-C5-03: PlanEditor에 실제 Mermaid 렌더 연결
+ * RW-C5-04: Approve→Agent 핸드오프
  */
 import type { Mode } from '../agent/types';
 import { modeRegistry } from '../agent/modeRegistry';
-import type { ResearchPhase } from './ResearchPhase';
-import type { ClarifyingQuestions } from './ClarifyingQuestions';
 import type { PlanDocument } from './PlanGenerator';
-import type { PlanEditor } from './PlanEditor';
 
 export type PlanStage = 'research' | 'questions' | 'planning' | 'review' | 'build';
 
@@ -23,9 +25,63 @@ export interface PlanFlowState {
   error?: string;
 }
 
+/** 스테이지별 시스템 프롬프트 */
+export const PLAN_STAGE_PROMPTS: Record<PlanStage, string> = {
+  research: `You are Agent K in PLAN mode — RESEARCH stage.
+
+Your ONLY task: explore the codebase to understand the current state.
+Use read-only tools (grep, glob, read_file, list_dir, codebase_search, lsp_*).
+After exploration, summarize findings and generate 3-5 clarifying questions.
+
+RULES:
+- Do NOT edit any files.
+- Do NOT run terminal commands (except read-only utils).
+- Output: exploration summary followed by questions.`,
+
+  questions: `You are Agent K in PLAN mode — QUESTIONS stage.
+
+The user is answering clarifying questions about the plan scope.
+Wait for all questions to be answered before proceeding.
+You may use ask_question to ask additional questions if needed.
+
+RULES:
+- Do NOT edit files or run terminal commands.
+- Only ask questions or provide clarifications.`,
+
+  planning: `You are Agent K in PLAN mode — PLANNING stage.
+
+Generate a comprehensive plan document with:
+1. Context — what was found during exploration
+2. Architecture — Mermaid diagrams showing before/after
+3. TODOs — numbered implementation steps
+4. Risks — potential issues and mitigations
+
+RULES:
+- Do NOT implement anything. This is a planning-only stage.
+- Include at least one Mermaid diagram.
+- Be specific about file paths and code changes.`,
+
+  review: `You are Agent K in PLAN mode — REVIEW stage.
+
+The plan document has been generated. Present it for user review.
+The user can edit the plan, approve it, or request changes.
+
+RULES:
+- Wait for user decision (approve/reject/edit).
+- If rejected, revise the plan based on feedback.
+- If approved, call switch_mode('agent') to start implementation.`,
+
+  build: `You are Agent K — BUILD mode.
+
+The plan has been approved. Execute the implementation steps in order.
+Follow the plan precisely. If you discover issues, report them.
+Start with TODO #1 and proceed sequentially.`
+};
+
 export class PlanModeController {
   private state: PlanFlowState;
   private onStageChange: ((stage: PlanStage) => void) | null = null;
+  private onBuildReady: ((context: string) => void) | null = null;
 
   constructor() {
     this.state = {
@@ -44,14 +100,84 @@ export class PlanModeController {
     this.onStageChange = cb;
   }
 
+  /** 빌드 준비 콜백 (Agent 모드 전환용) */
+  onBuildReadyCallback(cb: (context: string) => void): void {
+    this.onBuildReady = cb;
+  }
+
+  /** 현재 스테이지에 맞는 시스템 프롬프트 반환 */
+  getSystemPrompt(): string {
+    return PLAN_STAGE_PROMPTS[this.state.stage];
+  }
+
   private setStage(stage: PlanStage): void {
     this.state.stage = stage;
     this.onStageChange?.(stage);
   }
 
+  // ─── Run orchestration ──────────────────────────────────
+
   /**
-   * Stage 1: Codebase Research (읽기 전용)
+   * Plan 모드 전체 오케스트레이션 진입점 (RW-C5-01)
+   * stageManager 콜백을 통해 외부에서 단계 전환을 제어합니다.
+   * 
+   * @param goal 사용자 목표/요청사항
    */
+  async run(goal: string): Promise<void> {
+    this.reset();
+    this.state.researchResults = goal; // Store initial goal
+    this.setStage('research');
+  }
+
+  /**
+   * AgentLoop에서 리서치 완료 후 질문 생성 단계로 전환
+   */
+  async advanceAfterResearch(questions: Array<{ id: string; question: string; answer?: string }>): Promise<void> {
+    for (const q of questions) {
+      this.addQuestion(q);
+    }
+    this.setStage('questions');
+  }
+
+  /**
+   * 질문 완료 → Planning 단계로 전환
+   */
+  async advanceToPlanning(): Promise<void> {
+    if (!this.areAllQuestionsAnswered()) {
+      throw new Error('All required questions must be answered before planning');
+    }
+    this.setStage('planning');
+  }
+
+  /**
+   * Plan 문서 생성 완료 → Review 단계로 전환
+   */
+  async advanceToReview(): Promise<void> {
+    if (!this.state.planDocument) {
+      throw new Error('Plan document must be generated before review');
+    }
+    this.setStage('review');
+  }
+
+  /**
+   * 승인 → Build (Agent 모드 전환) 
+   */
+  async advanceToBuild(): Promise<void> {
+    if (!this.state.planDocument) {
+      throw new Error('Cannot build without a plan document');
+    }
+    if (!this.areAllQuestionsAnswered()) {
+      throw new Error('All questions must be answered before building');
+    }
+    this.state.approved = true;
+    this.setStage('build');
+    // Fire build-ready callback so ChatApp can switch mode
+    if (this.onBuildReady) {
+      this.onBuildReady(this.getBuildContext());
+    }
+  }
+
+  // ─── Stage 1: Research ──────────────────────────────────
   async startResearch(): Promise<void> {
     this.setStage('research');
     this.state.researchResults = '';
@@ -63,9 +189,7 @@ export class PlanModeController {
     this.state.researchResults = results;
   }
 
-  /**
-   * Stage 2: Clarifying Questions
-   */
+  // ─── Stage 2: Questions ─────────────────────────────────
   getQuestions(): Array<{ id: string; question: string; answer: string }> {
     return [...this.state.questions];
   }
@@ -93,9 +217,7 @@ export class PlanModeController {
     this.setStage('planning');
   }
 
-  /**
-   * Stage 3: Plan Generation
-   */
+  // ─── Stage 3: Planning ──────────────────────────────────
   async setPlanDocument(doc: PlanDocument): Promise<void> {
     this.state.planDocument = doc;
   }
@@ -107,9 +229,7 @@ export class PlanModeController {
     this.setStage('review');
   }
 
-  /**
-   * Stage 4: Review & Approval
-   */
+  // ─── Stage 4: Review & Approval ─────────────────────────
   async approvePlan(): Promise<void> {
     if (!this.state.planDocument) {
       throw new Error('Cannot approve without a plan document');
@@ -126,15 +246,11 @@ export class PlanModeController {
     this.setStage('planning'); // Go back to planning
   }
 
-  /**
-   * Stage 5: Build (switch to Agent mode)
-   * Returns the context that should be injected when switching to Agent mode
-   */
+  // ─── Stage 5: Build ─────────────────────────────────────
   getBuildContext(): string {
     if (!this.state.approved || !this.state.planDocument) {
       throw new Error('Plan must be approved before building');
     }
-
     return [
       '## Implementation Plan',
       '',
@@ -151,9 +267,7 @@ export class PlanModeController {
     ].join('\n');
   }
 
-  /**
-   * Reset the entire flow
-   */
+  // ─── Lifecycle ──────────────────────────────────────────
   reset(): void {
     this.state = {
       stage: 'research',
@@ -164,9 +278,6 @@ export class PlanModeController {
     };
   }
 
-  /**
-   * Check if a tool is allowed in Plan mode
-   */
   isToolAllowed(toolName: string): boolean {
     return modeRegistry.isToolAllowed('plan', toolName);
   }

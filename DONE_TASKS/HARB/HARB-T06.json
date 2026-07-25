@@ -1,0 +1,50 @@
+{
+  "id": "HARB-T06",
+  "phase": "HARB",
+  "title": "A-Tier Whitelist: 코어 8 + ask/todo = 10 schemas (terminal=allowlist)",
+  "description": "Harness-06: TIER_A_CORE = grep, glob, list_dir, read_file, edit_file, write_file, run_terminal_cmd(allowlist만·전면 금지 아님), read_lints, ask_question, todo_write. C4+ optional: codebase_search, lsp_*, switch_mode, fetch_rules (기본 off). delete/browser/MCP/task/web_* 명시 deny.",
+  "files": [
+    "src/harness/AWhitelist.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C1-T02"
+  ],
+  "acceptanceCriteria": [
+    "기본 노출 스키마 정확히 10개",
+    "run_terminal_cmd 포함·실행 시 allowlist만",
+    "delete_file / browser_* / bulk mcp 미노출",
+    "optional 플래그 off 시 미노출"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "tier-a",
+    "whitelist",
+    "harness-06"
+  ],
+  "prdRefs": [
+    "PRD-Harness-06_A_Tier_Whitelist.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "A-Tier Whitelist 스키마 10개 정의",
+    "run_terminal_cmd allowlist 필터",
+    "deny 목록 구현",
+    "optional 플래그 처리"
+  ],
+  "actualHours": 3.0,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T18:00:00+09:00",
+    "filesModified": [
+      "src/harness/AWhitelist.ts",
+      "src/tools/registry.ts",
+      "src/harness/index.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)"
+  },
+  "verifiedAt": "2026-07-25",
+  "verification": "read_lints registered in readTools + executeReadLints; getSchemas tier A; test:harness AC-1",
+  "evidenceGate": "reverified-after-residual-fix"
+}

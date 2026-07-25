@@ -17,6 +17,8 @@ export interface ParsedNode {
   definition?: string;
   level?: number;
   items?: string[];
+  /** true → <ol>, false/undefined → <ul> */
+  ordered?: boolean;
   isComplete?: boolean;
   rows?: TableRow[];
 }
@@ -47,45 +49,68 @@ export function StreamingMarkdown({ content, isStreaming }: StreamingMarkdownPro
     <div className="markdown-body">
       {nodes.map((node) => (
         <React.Fragment key={node.id}>
-          {node.type === 'text' && <span>{node.text}</span>}
+          {node.type === 'text' && (
+            <div className="md-text">{renderInline(node.text || '')}</div>
+          )}
           {node.type === 'heading' && (
             <HeadingTag level={node.level || 1}>
-              {node.text}
+              {renderInline(node.text || '')}
               {isStreaming && !node.isComplete && (
                 <span dangerouslySetInnerHTML={{ __html: STREAMING_CURSOR }} />
               )}
             </HeadingTag>
           )}
           {node.type === 'list' && (
-            <ul>
-              {node.items?.map((item, i) => (
-                <li key={i}>
-                  {item}
-                  {i === (node.items?.length || 1) - 1 && isStreaming && !node.isComplete && (
-                    <span dangerouslySetInnerHTML={{ __html: STREAMING_CURSOR }} />
-                  )}
-                </li>
-              ))}
-            </ul>
+            node.ordered ? (
+              <ol>
+                {node.items?.map((item, i) => (
+                  <li key={i}>
+                    {renderInline(item)}
+                    {i === (node.items?.length || 1) - 1 && isStreaming && !node.isComplete && (
+                      <span dangerouslySetInnerHTML={{ __html: STREAMING_CURSOR }} />
+                    )}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <ul>
+                {node.items?.map((item, i) => (
+                  <li key={i}>
+                    {renderInline(item)}
+                    {i === (node.items?.length || 1) - 1 && isStreaming && !node.isComplete && (
+                      <span dangerouslySetInnerHTML={{ __html: STREAMING_CURSOR }} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )
           )}
           {node.type === 'blockquote' && (
             <blockquote>
-              {node.text}
+              {renderInline(node.text || '')}
               {isStreaming && !node.isComplete && (
                 <span dangerouslySetInnerHTML={{ __html: STREAMING_CURSOR }} />
               )}
             </blockquote>
           )}
           {node.type === 'table' && node.rows && (
-            <table>
-              {node.rows.map((row, ri) => (
-                <tr key={ri}>
-                  {row.cells.map((cell, ci) => (
-                    row.isHeader ? <th key={ci}>{cell}</th> : <td key={ci}>{cell}</td>
+            <div className="md-table-wrap">
+              <table>
+                <tbody>
+                  {node.rows.map((row, ri) => (
+                    <tr key={ri}>
+                      {row.cells.map((cell, ci) =>
+                        row.isHeader ? (
+                          <th key={ci}>{renderInline(cell)}</th>
+                        ) : (
+                          <td key={ci}>{renderInline(cell)}</td>
+                        )
+                      )}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-            </table>
+                </tbody>
+              </table>
+            </div>
           )}
           {node.type === 'code' && (
             <CodeBlock
@@ -110,6 +135,29 @@ function HeadingTag({ level, children }: { level: number; children: React.ReactN
   return <Tag>{children}</Tag>;
 }
 
+/** Minimal inline markdown: **bold**, `code` */
+function renderInline(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let key = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      parts.push(text.slice(last, m.index));
+    }
+    const token = m[0];
+    if (token.startsWith('**')) {
+      parts.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith('`')) {
+      parts.push(<code key={key++}>{token.slice(1, -1)}</code>);
+    }
+    last = m.index + token.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts.length ? parts : text;
+}
+
 class MarkdownParser {
   private state: 'text' | 'code' | 'math' | 'mermaid' | 'heading' | 'list' | 'blockquote' | 'table' = 'text';
   private buffer = '';
@@ -126,11 +174,24 @@ class MarkdownParser {
   }
 
   feed(input: string): ParsedNode[] {
-    // Only append new content
+    // Content shrank (new message / clear) — reset parser state
+    if (input.length < this.processedLength) {
+      this.processedLength = 0;
+      this.buffer = '';
+      this.nodes = [];
+      this.currentNode = {};
+      this.state = 'text';
+      this.codeLang = '';
+      this.codeContent = '';
+      this.mathBuffer = '';
+    }
+
+    // Only append the NEW suffix — appending full `input` causes Korean stutter
+    // e.g. "안"+"안녕"+"안녕하세요" → "안안녕하세요안녕하세요"
     const newContent = input.slice(this.processedLength);
     if (!newContent && this.processedLength > 0) return [...this.nodes];
-    
-    this.buffer += input;
+
+    this.buffer += newContent;
     this.processedLength = input.length;
     this.process();
     return [...this.nodes];
@@ -248,26 +309,31 @@ class MarkdownParser {
   private processList(i: number, remaining: string): number {
     const newlineIdx = remaining.indexOf('\n');
     const line = newlineIdx >= 0 ? remaining.slice(0, newlineIdx) : remaining;
-    const itemContent = line.replace(/^[*-]\s+/, '').trim();
-    
+    const ordered = this.currentNode.ordered === true;
+    const itemContent = ordered
+      ? line.replace(/^\d+\.\s+/, '').trim()
+      : line.replace(/^[*-]\s+/, '').trim();
+
     if (!this.currentNode.items) {
       this.currentNode.items = [];
     }
-    
+
     if (newlineIdx >= 0) {
       this.currentNode.items.push(itemContent);
       const nextLine = remaining.slice(newlineIdx + 1).trimStart();
-      
-      if (nextLine.startsWith('- ') || nextLine.startsWith('* ')) {
-        // Continue list with position at start of next line
+      const cont = ordered
+        ? /^\d+\.\s/.test(nextLine)
+        : nextLine.startsWith('- ') || nextLine.startsWith('* ');
+
+      if (cont) {
         this.state = 'list';
         return i + newlineIdx + 1 + (remaining.slice(newlineIdx + 1).length - nextLine.length);
       }
-      
-      // End of list
+
       this.finalizeNode({
         id: nextId('list'),
         type: 'list',
+        ordered,
         items: [...this.currentNode.items],
         isComplete: true
       });
@@ -275,8 +341,7 @@ class MarkdownParser {
       this.state = 'text';
       return i + newlineIdx + 1;
     }
-    
-    // Streaming: last item might be incomplete
+
     this.currentNode.items.push(itemContent);
     return i + remaining.length;
   }
@@ -324,7 +389,7 @@ class MarkdownParser {
     
     if (newlineIdx >= 0) {
       const nextLine = remaining.slice(newlineIdx + 1).trimStart();
-      if (nextLine.includes('|')) {
+      if (nextLine.match(/^\s*\|/)) {
         this.state = 'table';
         return i + newlineIdx + 1;
       }
@@ -372,36 +437,39 @@ class MarkdownParser {
       return i + level + 1;
     }
     
-    // Check for list
+    // Check for unordered / ordered list
     if (/^[*-]\s/.test(remaining)) {
-      this.currentNode = { type: 'list', items: [] };
+      this.currentNode = { type: 'list', items: [], ordered: false };
       this.state = 'list';
       return i;
     }
-    
+    if (/^\d+\.\s/.test(remaining)) {
+      this.currentNode = { type: 'list', items: [], ordered: true };
+      this.state = 'list';
+      return i;
+    }
+
     // Check for blockquote
     if (remaining.startsWith('> ')) {
       this.currentNode = { type: 'blockquote', text: '' };
       this.state = 'blockquote';
       return i + 2;
     }
-    
-    // Check for table
-    if (remaining.includes('|')) {
+
+    // GFM table: line must start with |
+    if (/^\s*\|.+\|/.test(remaining)) {
       this.state = 'table';
       this.currentNode = { type: 'table', rows: [] };
       return i;
     }
-    
+
     // Regular text
     const newlineIdx = remaining.indexOf('\n');
     const lineEnd = newlineIdx >= 0 ? newlineIdx : remaining.length;
     const textSegment = remaining.slice(0, lineEnd);
-    
-    // Append to existing text node or create new
+
     const lastNode = this.nodes[this.nodes.length - 1];
     if (lastNode?.type === 'text' && lastNode.isComplete !== false) {
-      // Append to existing text node
       lastNode.text = (lastNode.text || '') + textSegment + (newlineIdx >= 0 ? '\n' : '');
       lastNode.isComplete = !this.streaming;
     } else {
@@ -412,7 +480,7 @@ class MarkdownParser {
         isComplete: !this.streaming
       });
     }
-    
+
     if (newlineIdx >= 0) {
       return i + newlineIdx + 1;
     }

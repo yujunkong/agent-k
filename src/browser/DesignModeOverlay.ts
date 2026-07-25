@@ -77,6 +77,23 @@ export class DesignModeOverlay {
   }
 
   /**
+   * RW-C7-05: local stub snapshot when Playwright session is not attached
+   */
+  ensureLocalSnapshot(url = 'design://local', title = 'Design Mode'): DesignSnapshot {
+    if (!this.lastSnapshot) {
+      this.lastSnapshot = {
+        screenshot: '',
+        viewport: { width: 1280, height: 720 },
+        annotations: [],
+        url,
+        title,
+        timestamp: Date.now()
+      };
+    }
+    return this.lastSnapshot;
+  }
+
+  /**
    * Get last snapshot
    */
   getLastSnapshot(): DesignSnapshot | null {

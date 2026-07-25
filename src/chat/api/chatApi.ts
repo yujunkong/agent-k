@@ -2,8 +2,8 @@ import type { ProviderConfig, StreamDelta, ChatMessage, Mode, Attachment, ToolCa
 
 let currentProvider: ProviderConfig = {
   type: 'litellm',
-  baseUrl: 'http://localhost:4000',
-  model: 'gemma-2-27b'
+  baseUrl: 'http://127.0.0.1:4000',
+  model: 'qwen3.6-35b-a3b'
 };
 
 export function setProvider(config: Partial<ProviderConfig>) {

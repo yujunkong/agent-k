@@ -4,10 +4,10 @@
   "title": "성능: Browser 세션 시작 < 3s, 스크린샷 < 500ms",
   "description": "벤치 browser start/screenshot.",
   "files": [
-    "tests/bench/browser.bench.ts"
+    "src/tools/browser/BrowserToolGroup.ts"
   ],
   "priority": "P1",
-  "status": "done",
+  "status": "rework",
   "dependencies": [
     "C7-T01"
   ],
@@ -37,6 +37,18 @@
       "tests/bench/browser.bench.ts"
     ],
     "verification": "npm run compile 성공 (0 errors)",
-    "notes": "C7 Production Grade 전 태스크 동시 구현 완료 (P2 4개 제외)"
-  }
+    "notes": "C7 Production Grade 전 태스크 동시 구현 완료 (P2 4개 제외)",
+    "pathFixAudit": [
+      {
+        "from": "tests/bench/browser.bench.ts",
+        "to": "src/tools/browser/BrowserToolGroup.ts",
+        "reason": "class_A:similar file `src/tools/browser/BrowserToolGroup.ts`"
+      }
+    ]
+  },
+  "reworkReason": "Rubber-stamp DONE cluster; pending functional rework queue",
+  "reworkRefs": [
+    "RW-C57-01",
+    "RW-C57-03"
+  ]
 }

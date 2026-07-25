@@ -4,8 +4,7 @@
   "title": "glob/file_search 도구 (vscode.workspace.findFiles)",
   "description": "GlobTool: pattern(glob), maxResults → vscode.workspace.findFiles(pattern, exclude, maxResults). FileSearchTool: query(텍스트), maxResults → findFiles로 후보 추린 후 grep으로 필터링. 결과: {uri, relativePath, size, mtime}. exclude 패턴: node_modules, .git, dist, build 등 기본 제외.",
   "files": [
-    "src/tools/search/GlobTool.ts",
-    "src/tools/search/FileSearchTool.ts"
+    "src/tools/readTools.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -38,6 +37,13 @@
       "src/tools/readTools.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/tools/search/GlobTool.ts",
+        "to": "src/tools/readTools.ts",
+        "reason": "explicit_map→src/tools/readTools.ts"
+      }
+    ]
   }
 }

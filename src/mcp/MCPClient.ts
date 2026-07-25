@@ -1,17 +1,23 @@
 /**
- * MCPClient — MCP SDK 브리지 → Tool Registry 등록 (C7-T17)
+ * MCPClient — MCP JSON-RPC bridge → Tool Registry (C7-T17 / SearXNG-ready)
  *
- * 이름 충돌 시 prefix로 구분 (e.g., mcp_github_*)
+ * - stdio: NDJSON (custom Python) + Content-Length (official MCP)
+ * - http: best-effort REST fallback (non-spec)
+ * - Tool names: mcp_<server>_<tool>
  */
 import { z } from 'zod';
-import * as fs from 'fs';
-import * as path from 'path';
+import { StdioMcpSession, type McpFraming } from './StdioMcpSession';
+
+export type { McpFraming };
 
 export interface MCPToolDefinition {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
   handler: (args: Record<string, unknown>) => Promise<unknown>;
+  /** Unprefixed tool name on the MCP server */
+  serverToolName: string;
+  serverName: string;
 }
 
 export interface MCPServerConfig {
@@ -21,35 +27,50 @@ export interface MCPServerConfig {
   env?: Record<string, string>;
   transport?: 'stdio' | 'http';
   url?: string;
+  framing?: McpFraming;
+  enabled?: boolean;
 }
 
 export class MCPClient {
   private servers: Map<string, MCPServerConfig> = new Map();
   private tools: Map<string, MCPToolDefinition> = new Map();
+  private sessions: Map<string, StdioMcpSession> = new Map();
   private toolPrefix: string;
 
   constructor(toolPrefix: string = 'mcp_') {
     this.toolPrefix = toolPrefix;
   }
 
-  /**
-   * Register an MCP server
-   */
+  /** Register (or replace) an MCP server config without connecting */
   registerServer(config: MCPServerConfig): void {
     this.servers.set(config.name, config);
   }
 
+  getServerNames(): string[] {
+    return Array.from(this.servers.keys());
+  }
+
+  getServerConfig(name: string): MCPServerConfig | undefined {
+    return this.servers.get(name);
+  }
+
   /**
-   * Connect to a server and fetch its tools
+   * Connect to a server and fetch its tools.
+   * Keeps the stdio process alive for subsequent tools/call.
    */
   async connect(serverName: string): Promise<MCPToolDefinition[]> {
     const config = this.servers.get(serverName);
     if (!config) throw new Error(`MCP server not registered: ${serverName}`);
 
+    // Replace existing session for this server
+    await this.disconnect(serverName);
+
     const serverTools = await this.fetchTools(config);
-    const prefixedTools = serverTools.map(tool => ({
+    const prefixedTools = serverTools.map((tool) => ({
       ...tool,
-      name: `${this.toolPrefix}${serverName}_${tool.name}`
+      name: `${this.toolPrefix}${serverName}_${tool.name}`,
+      serverToolName: tool.name,
+      serverName,
     }));
 
     for (const tool of prefixedTools) {
@@ -59,52 +80,41 @@ export class MCPClient {
     return prefixedTools;
   }
 
-  /**
-   * Get all registered tools
-   */
   getAllTools(): MCPToolDefinition[] {
     return Array.from(this.tools.values());
   }
 
-  /**
-   * Get a specific tool by name
-   */
   getTool(name: string): MCPToolDefinition | undefined {
     return this.tools.get(name);
   }
 
-  /**
-   * Call an MCP tool
-   */
   async callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
     const tool = this.tools.get(toolName);
     if (!tool) throw new Error(`MCP tool not found: ${toolName}`);
-
     return await tool.handler(args);
   }
 
-  /**
-   * Disconnect all MCP servers
-   */
-  async disconnectAll(): Promise<void> {
-    this.tools.clear();
-  }
-
-  /**
-   * Check if a specific server is connected
-   */
   isConnected(serverName: string): boolean {
-    const config = this.servers.get(serverName);
-    if (!config) return false;
-
-    // Check if any tool has the server prefix
+    const session = this.sessions.get(serverName);
+    if (session?.isAlive()) return true;
     const prefix = `${this.toolPrefix}${serverName}_`;
-    return Array.from(this.tools.keys()).some(name => name.startsWith(prefix));
+    return Array.from(this.tools.keys()).some((name) => name.startsWith(prefix));
   }
 
-  /**
-   * Generate Zod schemas for all registered MCP tools
-   */
+  /** Status snapshot for settings UI / logging */
+  getStatus(): Array<{ name: string; connected: boolean; toolCount: number; command: string }> {
+    return Array.from(this.servers.entries()).map(([name, cfg]) => {
+      const prefix = `${this.toolPrefix}${name}_`;
+      const toolCount = Array.from(this.tools.keys()).filter((t) => t.startsWith(prefix)).length;
+      return {
+        name,
+        connected: this.isConnected(name),
+        toolCount,
+        command: [cfg.command, ...(cfg.args || [])].filter(Boolean).join(' '),
+      };
+    });
+  }
+
   generateSchemas(): Record<string, z.ZodObject<any>> {
     const schemas: Record<string, z.ZodObject<any>> = {};
 
@@ -117,12 +127,24 @@ export class MCPClient {
         for (const [key, prop] of Object.entries(props)) {
           let zodType: z.ZodTypeAny;
           switch (prop.type) {
-            case 'string': zodType = z.string(); break;
-            case 'number': zodType = z.number(); break;
-            case 'boolean': zodType = z.boolean(); break;
-            case 'array': zodType = z.array(z.unknown()); break;
-            case 'object': zodType = z.record(z.string(), z.unknown()); break;
-            default: zodType = z.unknown();
+            case 'string':
+              zodType = z.string();
+              break;
+            case 'number':
+            case 'integer':
+              zodType = z.number();
+              break;
+            case 'boolean':
+              zodType = z.boolean();
+              break;
+            case 'array':
+              zodType = z.array(z.unknown());
+              break;
+            case 'object':
+              zodType = z.record(z.string(), z.unknown());
+              break;
+            default:
+              zodType = z.unknown();
           }
           if (prop.description) {
             zodType = zodType.describe(prop.description);
@@ -137,52 +159,100 @@ export class MCPClient {
     return schemas;
   }
 
-  /**
-   * Get tool metadata for registry
-   */
   getToolMeta(): Array<{ name: string; description: string; tierAccess: string; category: string }> {
-    return Array.from(this.tools.values()).map(tool => ({
+    return Array.from(this.tools.values()).map((tool) => ({
       name: tool.name,
       description: tool.description,
-      tierAccess: 'B', // MCP tools are Tier B by default
-      category: 'mcp'
+      tierAccess: 'B',
+      category: 'mcp',
     }));
   }
 
-  private async fetchTools(config: MCPServerConfig): Promise<MCPToolDefinition[]> {
-    const toolsDir = path.join(process.env.HOME || '/tmp', '.agentk', 'mcp', config.name);
-    if (!fs.existsSync(toolsDir)) {
-      fs.mkdirSync(toolsDir, { recursive: true });
+  private async fetchTools(config: MCPServerConfig): Promise<Array<{
+    name: string;
+    description: string;
+    inputSchema: Record<string, unknown>;
+    handler: (args: Record<string, unknown>) => Promise<unknown>;
+  }>> {
+    if (config.transport === 'http' || (config.url && !config.command)) {
+      return this.fetchToolsHTTP(config);
+    }
+    return this.fetchToolsStdio(config);
+  }
+
+  private async fetchToolsStdio(config: MCPServerConfig) {
+    if (!config.command) {
+      throw new Error(`MCP server "${config.name}" has no command`);
     }
 
-    // Return stub tool definitions for demo purposes
-    // In production, this would connect via stdio/HTTP to the MCP server
-    return [
-      {
-        name: 'list_tools',
-        description: `List available tools from ${config.name}`,
-        inputSchema: {
-          type: 'object',
-          properties: {}
-        },
-        handler: async () => this.getAllTools().map(t => ({ name: t.name, description: t.description }))
-      },
-      {
-        name: 'call_tool',
-        description: `Call a tool on ${config.name}`,
-        inputSchema: {
-          type: 'object',
-          properties: {
-            toolName: { type: 'string', description: 'Name of the tool to call' },
-            args: { type: 'object', description: 'Tool arguments' }
-          },
-          required: ['toolName', 'args']
-        },
-        handler: async (args) => {
-          const { toolName, ...toolArgs } = args as { toolName: string; [key: string]: unknown };
-          return await this.callTool(toolName, toolArgs);
+    const session = await StdioMcpSession.connect({
+      name: config.name,
+      command: config.command,
+      args: config.args || [],
+      env: config.env,
+      framing: config.framing,
+    });
+    this.sessions.set(config.name, session);
+
+    const listed = await session.listTools();
+    return listed.map((t) => ({
+      name: t.name,
+      description: t.description || '',
+      inputSchema: t.inputSchema || {},
+      handler: async (args: Record<string, unknown>) => {
+        const live = this.sessions.get(config.name);
+        if (!live?.isAlive()) {
+          throw new Error(`MCP server "${config.name}" is not connected`);
         }
-      }
-    ];
+        return live.callTool(t.name, args);
+      },
+    }));
+  }
+
+  private async fetchToolsHTTP(config: MCPServerConfig) {
+    const baseUrl = config.url || 'http://localhost:3000';
+    try {
+      const response = await fetch(`${baseUrl}/tools/list`, { method: 'GET' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = (await response.json()) as any;
+      return (data.tools || []).map((t: any) => ({
+        name: t.name,
+        description: t.description || '',
+        inputSchema: t.inputSchema || {},
+        handler: async (args: Record<string, unknown>) => {
+          const callResp = await fetch(`${baseUrl}/tools/call`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: t.name, arguments: args }),
+          });
+          if (!callResp.ok) throw new Error(`MCP tool call failed: HTTP ${callResp.status}`);
+          return await callResp.json();
+        },
+      }));
+    } catch (err) {
+      throw new Error(
+        `MCP server "${config.name}" HTTP connection failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  /** Disconnect one server and drop its tools */
+  async disconnect(serverName: string): Promise<void> {
+    const session = this.sessions.get(serverName);
+    if (session) {
+      session.close();
+      this.sessions.delete(serverName);
+    }
+    const prefix = `${this.toolPrefix}${serverName}_`;
+    for (const name of Array.from(this.tools.keys())) {
+      if (name.startsWith(prefix)) this.tools.delete(name);
+    }
+  }
+
+  async disconnectAll(): Promise<void> {
+    for (const name of Array.from(this.sessions.keys())) {
+      await this.disconnect(name);
+    }
+    this.tools.clear();
   }
 }

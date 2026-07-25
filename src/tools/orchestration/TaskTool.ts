@@ -97,32 +97,57 @@ export class TaskTool {
     params: z.infer<typeof taskSchema>,
     signal: AbortSignal
   ): Promise<{ summary: string; details?: string }> {
-    // Simulate sub-agent execution
-    // Real implementation would:
-    // 1. Create a new agent session with fresh context
-    // 2. Set appropriate tool access based on type
-    // 3. Run the agent loop with the prompt
-    // 4. Collect the result
-    // 5. Return only the summary (to avoid parent context pollution)
+    // ─── Real AgentLoop execution (RW-C7-04: setTimeout simulate 제거) ──
+    // Map 'type' to mode
+    const subMode = params.type === 'search' ? 'ask' : params.type === 'debug' ? 'debug' : 'agent';
 
+    const { AgentLoopController } = await import('../../loop/AgentLoopController');
+    const loop = new AgentLoopController({
+      mode: subMode,
+      maxTurns: 5,
+      modelId: 'sub-agent',
+      systemPrompt: `You are a sub-agent. Task: ${params.description}\n\n${params.prompt}\n\nComplete the task and report back a concise summary.`,
+      onStatus: () => {},
+      onError: () => {}
+    });
+
+    // Wrap in a promise that respects timeout + abort
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
+        loop.stop();
         reject(new DOMException('Timeout', 'AbortError'));
       }, params.timeout);
 
-      signal.addEventListener('abort', () => {
+      // Nested abort: parent cancels → child stops
+      const abortHandler = () => {
         clearTimeout(timeout);
+        loop.stop();
         reject(new DOMException('Cancelled', 'AbortError'));
-      });
+      };
+      signal.addEventListener('abort', abortHandler, { once: true });
 
-      // Simulate async work
-      setTimeout(() => {
+      // Run the sub-agent loop
+      loop.start(params.prompt).then(() => {
         clearTimeout(timeout);
+        signal.removeEventListener('abort', abortHandler);
+        const turnCount = loop.state.currentTurn;
+        const status = loop.state.status;
         resolve({
-          summary: `[${params.type}] Completed task: ${params.description}`,
-          details: `Sub-agent type: ${params.type}\nTask: ${params.prompt.slice(0, 100)}...`
+          summary: `[${params.type}/${status}] ${params.description} (${turnCount} turns)`,
+          details: `Sub-agent mode: ${subMode}\nTurns: ${turnCount}\nStatus: ${status}\nTask: ${params.prompt.slice(0, 200)}`
         });
-      }, 500);
+      }).catch((err: Error) => {
+        clearTimeout(timeout);
+        signal.removeEventListener('abort', abortHandler);
+        if (err.name === 'AbortError') {
+          reject(new DOMException('Cancelled', 'AbortError'));
+        } else {
+          resolve({
+            summary: `[${params.type}/error] ${params.description}: ${err.message}`,
+            details: `Error: ${err.message}\nTask: ${params.prompt.slice(0, 200)}`
+          });
+        }
+      });
     });
   }
 }
@@ -132,3 +157,10 @@ export class TaskTool {
 export const TASK_TOOL_META = {
   task: { name: 'task', description: 'Spawn a sub-agent with a separate context to execute a task in parallel', tierAccess: 'B', category: 'orchestration' }
 };
+
+/** Singleton TaskTool instance for AgentLoop dispatch (RW-C7-04-R2) */
+let _taskTool: TaskTool | null = null;
+export function getTaskTool(): TaskTool {
+  if (!_taskTool) _taskTool = new TaskTool();
+  return _taskTool;
+}

@@ -3,7 +3,7 @@
 > **Source**: PRD Implementation Runbook + Phase PRDs (C0-C7) + 90 PRD Documents
 > **Generated**: 2026-07-25
 > **Total Phases**: 8 (C0-C7) + HARB | **Task format**: `tasks/<PHASE>/<ID>.json` (~314) + master index  
-> **Related**: C0–C4 완료 표시는 `DONE_TASKS/` · 감사 재작업은 `REWORK_TASKS/` (P0→P2)
+> **Related**: 완료/rework JSON은 [`DONE_TASKS/`](../DONE_TASKS/README.md) · 감사 재작업은 [`REWORK_TASKS/`](../REWORK_TASKS/README.md) (**P0→P2**)
 
 ---
 
@@ -145,6 +145,7 @@ grep -c "☐" TODO_TASKS/MASTER_TASK_INDEX.md   # 남은 태스크 수
 | v1.3 | 2026-07-25 | **C5–HARB thin stub 전수 enrich** (thin 130→0) · `ask_question`/`.agentk/plans` 정합 · C6-T29 browser evidence 추가 · `scripts/enrich_c5_harb.py` |
 | v1.3 | 2026-07-25 | C0-T07 완료 (Stop/Regenerate + 키보드 단축키) · C0-T05/T06 status 정정 · README에 태스크 완료 워크플로우 추가 |
 | v1.4 | 2026-07-25 | C0 Bulk: T08(StreamingMarkdownParser) · T09(Shiki CodeBlock) · T10(Mermaid) · T17(ProviderRegistry) · T18(LiteLLMProvider) · T19(ToolCallParser) · T20(ToolResultFormatter) · T21(SecretManager) · T22(ProviderSettings UI) · T23(HealthCheck) · T24(Protocol types) · T26(Theme) · T33(ConfigManager) · T35(SettingsPanel) · T36(ModelsTab) · T38(QueueTab) 완료. 남은 태스크 12개. |
+| v1.5 | 2026-07-25 | **RW-P0-01**: `sync-master-index.py --update-index` — MASTER 대시보드 DONE 실측(277) · C0=39 · C5–C7 rework 87 · 상세 ✅/🔄는 DONE ID만 갱신 |
 
 *각 태스크 JSON은 PRD Implementation Checklist + Runbook + 최신 PRD(PRD-17/29 등)를 기준으로 유지합니다.*
 
@@ -210,8 +211,15 @@ grep -c "☐" TODO_TASKS/MASTER_TASK_INDEX.md   # 남은 태스크 수
 - [ ] `npm run package` 성공 (프로덕션 번들 생성)
 - [ ] 관련 테스트 통과 (단위/통합)
 - [ ] 구현 노트(`implementationNotes`) 작성 완료
-- [ ] `MASTER_TASK_INDEX.md` 진행률 업데이트
+- [ ] **증빙 1개 이상**: grep proof · test log · commitHash (SHA 또는 `N/A`+사유) — [`REWORK_TASKS/reports/rubber-stamp-policy.md`](../REWORK_TASKS/reports/rubber-stamp-policy.md)
+- [ ] `MASTER_TASK_INDEX.md` 동기화: `python3 REWORK_TASKS/scripts/sync-master-index.py --update-index`
 
----
+### 우선순위 · 이동 (P0→P2)
 
-*Changelog는 하단 참조*
+| Queue | 경로 | 용도 |
+|-------|------|------|
+| TODO | `TODO_TASKS/tasks/` | 미착수 |
+| DONE | `DONE_TASKS/` | 착수 완료 표시 (`done` / `rework`) |
+| REWORK | `REWORK_TASKS/tasks/P0|P1|P2/` | 감사·정합 재작업 |
+
+REWORK 완료 시 `tasks_DONE/`으로 이동; DONE만 고칠 때도 REWORK AC와 동일 증빙 규칙 적용.

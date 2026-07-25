@@ -4,7 +4,7 @@
   "title": "단위 테스트: DoomLoopDetector (지문 생성, 임계값, 다양한 에러)",
   "description": "DoomLoopDetector: 지문 = hash(toolName + JSON.stringify(args) + errorSignature). 연속 3회 동일 지문 → 감지. 테스트: 동일 grep 4회 실패 → 감지. 다른 에러 메시지 → 다른 지문. 임계값 설정 가능(기본 3). 지문 TTL: 10턴.",
   "files": [
-    "tests/unit/loop/DoomLoopDetector.test.ts"
+    "src/loop/DoomLoopHandler.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -37,6 +37,13 @@
       "tests/unit/loop/DoomLoopDetector.test.ts"
     ],
     "verification": "npm run compile 성공",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "tests/unit/loop/DoomLoopDetector.test.ts",
+        "to": "src/loop/DoomLoopHandler.ts",
+        "reason": "class_A:similar file `src/loop/DoomLoopHandler.ts`"
+      }
+    ]
   }
 }

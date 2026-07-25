@@ -4,12 +4,8 @@
   "title": "AgentLoop에 mode 주입 + 시스템 프롬프트 자동 주입",
   "description": "AgentLoopController.run(mode): ModeRegistry에서 modeConfig 조회 → 시스템 프롬프트 선택(Ask/Agent/Plan/Debug) → ContextAssembler에 mode 전달. 시스템 프롬프트: 역할, 허용 도구, 제약사항, 출력 형식. 모드별 프롬프트 파일: prompts/ask.md, prompts/agent.md, prompts/plan.md, prompts/debug.md.",
   "files": [
-    "src/agent/loop.ts",
-    "src/agent/modeRegistry.ts",
-    "prompts/ask.md",
-    "prompts/agent.md",
-    "prompts/plan.md",
-    "prompts/debug.md"
+    "src/loop/AgentLoopController.ts",
+    "src/agent/modeRegistry.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -42,6 +38,13 @@
       "src/loop/AgentLoopController.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/agent/loop.ts",
+        "to": "src/loop/AgentLoopController.ts",
+        "reason": "explicit_map→src/loop/AgentLoopController.ts"
+      }
+    ]
   }
 }

@@ -4,8 +4,7 @@
   "title": "Extension Lifecycle: activate/deactivate, 설정 마이그레이션",
   "description": "extension.ts activate(): ProviderRegistry 초기화, SecretManager 초기화, CheckpointManager 초기화, TelemetryCollector 시작, BudgetGuard 시작, 설정 마이그레이션 실행. deactivate(): TelemetryCollector flush, BudgetGuard 저장, 활성 셸 프로세스 종료, 체크포인트 저장. 설정 마이그레이션: 버전 체크 → v1→v2 마이그레이션 함수 배열 순차 실행 → workspaceState/globalState 업데이트. 스키마 버전: configuration.version.",
   "files": [
-    "src/extension.ts",
-    "src/config/migration.ts"
+    "src/extension.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -39,6 +38,7 @@
       "src/extension.ts"
     ],
     "verification": "npm run compile 성공",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": []
   }
 }

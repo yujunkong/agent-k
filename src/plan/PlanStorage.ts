@@ -1,11 +1,11 @@
 /**
- * PlanStorage - 계획 문서 저장/로드 (C5-T09)
- * 
- * 기본 경로: `.agentk/plans/PLAN-<slug>.md`
- * 설정 오버라이드 가능
- * 로드/리스트 API
+ * PlanStorage - 계획 문서 저장/로드 (C5-T09 / RW-C5-06-R2)
+ *
+ * 착각 금지: .agentk/plans 경로 문자열만으로는 미완료.
+ * ExtensionContext.workspaceState는 activate → RuntimeServices로 실주입 (fake exports 제거).
  */
 import * as vscode from 'vscode';
+import { RuntimeServices } from '../core/RuntimeServices';
 
 export interface StoredPlan {
   slug: string;
@@ -20,6 +20,13 @@ export class PlanStorage {
   private static readonly DEFAULT_DIR = '.agentk/plans';
   private static readonly RECENT_KEY = 'agent-k.recentPlans';
   private static readonly MAX_RECENT = 10;
+
+  /**
+   * Optional direct inject (tests). Prefer RuntimeServices from activate.
+   */
+  static setExtensionContext(context: vscode.ExtensionContext): void {
+    RuntimeServices.setWorkspaceState(context.workspaceState);
+  }
 
   /**
    * Get the plan storage directory URI
@@ -109,7 +116,7 @@ export class PlanStorage {
   }
 
   /**
-   * Get recent plans from workspaceState
+   * Get recent plans from injected workspaceState (max 10)
    */
   static getRecentPlans(): StoredPlan[] {
     const state = this.getWorkspaceState();
@@ -121,13 +128,22 @@ export class PlanStorage {
     const recent = state.get<StoredPlan[]>(this.RECENT_KEY, []);
     const filtered = recent.filter(p => p.slug !== plan.slug);
     filtered.unshift(plan);
-    if (filtered.length > this.MAX_RECENT) filtered.pop();
+    // Keep only the 10 most recent plans (AC)
+    if (filtered.length > this.MAX_RECENT) filtered.length = this.MAX_RECENT;
     await state.update(this.RECENT_KEY, filtered);
   }
 
+  /**
+   * RW-C5-06-R2: Use RuntimeServices Memento — never extension.exports fake
+   */
   private static getWorkspaceState(): vscode.Memento {
-    // Accessed via extension context
-    return (vscode.extensions.getExtension('agent-k.extension')?.exports as any)?.workspaceState;
+    const state = RuntimeServices.getWorkspaceState();
+    if (!state) {
+      throw new Error(
+        'PlanStorage not initialized. Call RuntimeServices.setWorkspaceState(context.workspaceState) from extension.activate().'
+      );
+    }
+    return state;
   }
 
   private static extractTitle(content: string): string {

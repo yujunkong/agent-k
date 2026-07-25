@@ -36,9 +36,17 @@ export class DoomLoopHandler {
 
   private generateSuggestions(toolName: string, error: string): string[] {
     const suggestions: string[] = [];
-    suggestions.push(`Try a different approach instead of "${toolName}"`);
-    suggestions.push('Read the relevant files first to understand the context');
+    if (error === 'ok') {
+      suggestions.push(`Do not call "${toolName}" again with the same path — summarize what you already have`);
+      suggestions.push('Use grep/glob to find other files, or answer from context already read');
+    } else {
+      suggestions.push(`Try a different approach instead of "${toolName}"`);
+    }
 
+    if (error.includes('escapes') || error.includes('workspace')) {
+      suggestions.push('Open the correct workspace folder, or use paths inside the current workspace');
+      suggestions.push('Use glob / list_dir from the workspace root first');
+    }
     if (error.includes('not found') || error.includes('No such')) {
       suggestions.push('Check if the file path is correct');
       suggestions.push('Use glob or list_dir to discover the correct path');
@@ -49,25 +57,25 @@ export class DoomLoopHandler {
     }
 
     suggestions.push('Switch to Plan mode to design a different approach');
-    suggestions.push('Consider using a different model provider');
-
     return suggestions;
   }
 
   formatAlertMessage(alert: DoomLoopAlert): string {
     const lines: string[] = [];
-    lines.push('<system_note type="doom_loop_detected">');
-    lines.push(`Tool "${alert.toolName}" failed ${alert.attemptCount} consecutive times with the same error.`);
-    lines.push(`Last error: ${alert.lastError}`);
+    const sameOk = alert.lastError === 'ok';
+    lines.push(
+      sameOk
+        ? `Stopped: \`${alert.toolName}\` was called ${alert.attemptCount} times with the same arguments (no progress).`
+        : `Stopped: \`${alert.toolName}\` failed ${alert.attemptCount} times with the same error.`
+    );
+    if (!sameOk) {
+      lines.push(`Last error: ${alert.lastError}`);
+    }
     lines.push('');
-    lines.push('Suggestions:');
-    for (const suggestion of alert.suggestions) {
+    lines.push('Next steps:');
+    for (const suggestion of alert.suggestions.slice(0, 3)) {
       lines.push(`- ${suggestion}`);
     }
-    lines.push('</system_note>');
-    lines.push('');
-    lines.push('Please ask the user how they would like to proceed.');
-
     return lines.join('\n');
   }
 

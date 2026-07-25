@@ -1,0 +1,40 @@
+{
+  "id": "RW-P1-01",
+  "severity": "P1",
+  "category": "policy-conflict",
+  "title": "Stop 시 큐 정책 기본값 keep으로 DONE/코드 통일",
+  "description": "C3-T03 등 일부 DONE은 Stop 시 큐 discard 기본. C4-T21/C3-T28/PRD-29는 keep 기본. 문서·DONE·런타임 단일화.",
+  "relatedDoneIds": [
+    "C3-T03",
+    "C3-T28",
+    "C4-T21"
+  ],
+  "files": [
+    "src/loop/",
+    "DONE_TASKS/C3/C3-T03.json",
+    "DONE_TASKS/C4/C4-T21.json"
+  ],
+  "status": "done",
+  "acceptanceCriteria": [
+    "기본 onStop=keep",
+    "C3-T03 DONE 문구 discard 기본 삭제/정정",
+    "동작 스모크: Stop 후 큐 보존"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "onStop",
+    "prd-17",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-17_Message_Queue.md",
+    "PRD-29_Settings_Hub.md"
+  ],
+  "dependencies": [],
+  "createdAt": "2026-07-25",
+  "source": "DONE_TASKS audit (false-completion / PRD-code drift)",
+  "notes": "Severity P1: created from DONE_TASKS audit. Do not mark done without evidence (test/SHA/checklist). | Anti-false-completion comment added 2026-07-25.",
+  "warning": "⛔ 이 큐는 아직 pending. C5–C7 “기능 완료” 착각과 별개로 미착수/미검증 상태. compile 성공·파일 존재만으로 done 금지.",
+  "verifiedAt": "2026-07-25",
+  "verification": "Evidence-gated move after full rework session; compile OK"
+}

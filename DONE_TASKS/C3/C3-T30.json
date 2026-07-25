@@ -5,8 +5,7 @@
   "description": "ToolCall, ToolResult, ToolDefinition 타입에 Zod 스키마 적용 → 런타임 검증 + TypeScript 타입 추론(z.infer). ToolRegistry.registerTool(zodSchema) → 스키마 저장 → 실행 시 입력 검증 → 출력 검증. 에러 시 상세 경로 포함 메시지. strict mode: unknown 필드 거부. 모든 도구 마이그레이션.",
   "files": [
     "src/tools/registry.ts",
-    "src/tools/types.ts",
-    "src/tools/validation.ts"
+    "src/tools/types.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -42,6 +41,7 @@
       "src/tools/registry.ts"
     ],
     "verification": "npm run compile 성공",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": []
   }
 }

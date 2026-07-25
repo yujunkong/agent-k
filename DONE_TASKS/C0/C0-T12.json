@@ -4,8 +4,7 @@
   "title": "@멘션 트리거 + 자동완성 (파일/폴더/심볼/코드베이스)",
   "description": "MentionTrigger 컴포넌트: @ 입력 시 드롭다운 표시. 4가지 트리거: @file:, @folder:, @symbol:, @codebase:. 파일/폴더: vscode.workspace.findFiles + quickPick. 심볼: LSP documentSymbol. 코드베이스: 임베딩 검색(C7까지 스텁). 선택 시 '@file:src/auth.ts' 형식으로 삽입. Composer textarea 내 커서 위치 기준 드롭다운 포지셔닝.",
   "files": [
-    "src/chat/components/MentionTrigger.tsx",
-    "src/chat/mentions/MentionProvider.ts"
+    "src/chat/components/MentionTrigger.tsx"
   ],
   "priority": "P0",
   "status": "done",
@@ -40,6 +39,7 @@
       "src/chat/protocol.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": []
   }
 }

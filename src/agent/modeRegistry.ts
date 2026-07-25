@@ -11,11 +11,13 @@ const MODE_PROMPTS: Record<Mode, string> = {
   ask: `You are Agent K in ASK mode. You can only read files and search the codebase.
 You CANNOT edit files, run terminal commands, or make any changes.
 Provide clear, concise answers with relevant code references.
-Always explain your reasoning before showing results.`,
+Put internal reasoning in the model's thinking channel when available; the visible answer should be structured findings only.
+Format answers with clean Markdown: ## / ### headings, numbered or - bullet lists, and GFM tables (| col | col |). Never align columns with spaces.`,
   agent: `You are Agent K in AGENT mode. You have full access to read, edit, and execute commands.
 Follow the user's instructions carefully. Verify your changes work correctly.
 Read relevant files first to understand context before making edits.
-After editing, verify the result compiles/runs correctly.`,
+After editing, verify the result compiles/runs correctly.
+Final answers: clean Markdown only — ## headings, - or 1. lists, GFM | tables |. Do not use space-padded columns.`,
   plan: `You are Agent K in PLAN mode. You are a senior architect.
 
 YOUR ROLE: You design, never implement.
@@ -53,16 +55,29 @@ RULES:
 };
 
 const ASK_WHITELIST = [
-  'grep', 'glob', 'file_search', 'list_dir', 'read_file',
+  'grep', 'glob', 'file_search', 'list_dir', 'read_file', 'read_lints',
   'codebase_search', 'lsp_definition', 'lsp_references',
   'ask_question', 'todo_write'
 ];
 
 const AGENT_WHITELIST = [
   ...ASK_WHITELIST,
+  // C2: 편집/터미널
   'edit_file', 'write_file', 'run_terminal_cmd',
+  'terminal_output', 'process_list',
+  // C3: checkpoint
   'checkpoint_create', 'checkpoint_restore',
-  'terminal_output', 'process_list'
+  // C5: 모드 전환
+  'switch_mode',
+  // C7: browser
+  'browser_navigate', 'browser_click', 'browser_screenshot',
+  'browser_evaluate', 'browser_console', 'browser_network',
+  'browser_scroll', 'browser_wait',
+  // C7: orchestration
+  'task_run', 'skill_run',
+  // C7: MCP + web (SearXNG alias; dynamic mcp_<server>_<tool> via isToolAllowed)
+  'mcp_call_tool', 'mcp_list_tools',
+  'web_search', 'web_fetch',
 ];
 
 const PLAN_WHITELIST = [
@@ -74,9 +89,20 @@ const DEBUG_WHITELIST = [
   ...ASK_WHITELIST,
   'run_terminal_cmd', 'terminal_output',
   'edit_file',
+  // C3: checkpoint
   'checkpoint_create', 'checkpoint_restore',
+  // C6: debug instrumentation
   'add_instrumentation', 'collect_runtime_logs',
-  'request_reproduce', 'remove_instrumentation'
+  'request_reproduce', 'remove_instrumentation',
+  // C7: browser (읽기/검증 용도)
+  'browser_navigate', 'browser_click', 'browser_screenshot',
+  'browser_evaluate', 'browser_console', 'browser_network',
+  'browser_scroll', 'browser_wait',
+  // C7: orchestration
+  'task_run', 'skill_run',
+  // C7: MCP + web
+  'mcp_call_tool', 'mcp_list_tools',
+  'web_search', 'web_fetch',
 ];
 
 const MODE_CONFIGS: Record<Mode, ModeConfig> = {
@@ -128,7 +154,17 @@ export class ModeRegistry {
   }
 
   isToolAllowed(mode: Mode, toolName: string): boolean {
-    return MODE_CONFIGS[mode].allowedTools.includes(toolName);
+    if (MODE_CONFIGS[mode].allowedTools.includes(toolName)) return true;
+    // Runtime MCP tools: mcp_<server>_<tool> (registered on connect)
+    if (
+      (mode === 'agent' || mode === 'debug') &&
+      toolName.startsWith('mcp_') &&
+      toolName !== 'mcp_call_tool' &&
+      toolName !== 'mcp_list_tools'
+    ) {
+      return true;
+    }
+    return false;
   }
 
   getSystemPrompt(mode: Mode): string {

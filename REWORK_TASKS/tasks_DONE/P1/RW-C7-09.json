@@ -1,0 +1,36 @@
+{
+  "id": "RW-C7-09",
+  "severity": "P1",
+  "category": "memories",
+  "title": "MemoryStore activate 초기화 + 턴당 주입",
+  "relatedDoneIds": [
+    "C7-T14",
+    "C7-T41"
+  ],
+  "description": "스토어 구현 수준이나 activate/주입 미확인.",
+  "files": [
+    "src/memories/MemoryStore.ts",
+    "src/extension.ts"
+  ],
+  "acceptanceCriteria": [
+    "activate 초기화",
+    "턴당 주입",
+    "재시작 유지"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "memories",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-15_Memories.md"
+  ],
+  "dependencies": [],
+  "status": "done",
+  "createdAt": "2026-07-25",
+  "source": "C5–C7 functional audit (scaffold≠wired; rubber-stamp DONE)",
+  "notes": "Severity P1: feature exists as files but not product-complete. Mark related DONE as rework until AC verified. | Anti-false-completion comment added 2026-07-25.",
+  "warning": "⛔ 이 큐는 아직 pending. C5–C7 “기능 완료” 착각과 별개로 미착수/미검증 상태. compile 성공·파일 존재만으로 done 금지.",
+  "verifiedAt": "2026-07-25",
+  "verification": "Evidence-gated move after full rework session; compile OK"
+}

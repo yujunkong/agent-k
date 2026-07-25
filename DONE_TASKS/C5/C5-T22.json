@@ -7,7 +7,7 @@
     "src/plan/PlanHistory.tsx"
   ],
   "priority": "P2",
-  "status": "done",
+  "status": "rework",
   "dependencies": [
     "C5-T09"
   ],
@@ -35,5 +35,9 @@
     ],
     "verification": "npm run compile 성공 (0 errors)",
     "notes": ""
-  }
+  },
+  "reworkRefs": [
+    "RW-C5-06"
+  ],
+  "reworkReason": "C5–C7 functional audit 2026-07-25: scaffold/stub/unwired or false E2E"
 }

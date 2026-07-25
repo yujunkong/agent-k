@@ -1,0 +1,40 @@
+{
+  "id": "RW-P1-07",
+  "severity": "P1",
+  "category": "implementation-gap",
+  "title": "C2 쓰기 경로 클레임 재검증 (edit/diff/lint)",
+  "description": "C2 DONE 다수 missing files. Search-Replace edit, Diff 승인, auto-lint 핵심 경로가 실제 동작하는지 스모크 후 PASS만 DONE 유지.",
+  "relatedDoneIds": [
+    "C2-T01",
+    "C2-T02",
+    "C2-T08",
+    "C2-T15",
+    "C2-T18"
+  ],
+  "files": [
+    "src/tools/",
+    "src/review/",
+    "DONE_TASKS/C2/"
+  ],
+  "status": "done",
+  "dependencies": [
+    "RW-P0-05"
+  ],
+  "acceptanceCriteria": [
+    "핵심 5 ID PASS/FAIL 표",
+    "FAIL은 rework 또는 TODO 복귀"
+  ],
+  "estimatedHours": 6,
+  "tags": [
+    "c2",
+    "edit",
+    "p1"
+  ],
+  "prdRefs": [],
+  "createdAt": "2026-07-25",
+  "source": "DONE_TASKS audit (false-completion / PRD-code drift)",
+  "notes": "Severity P1: created from DONE_TASKS audit. Do not mark done without evidence (test/SHA/checklist). | Anti-false-completion comment added 2026-07-25.",
+  "warning": "⛔ 이 큐는 아직 pending. C5–C7 “기능 완료” 착각과 별개로 미착수/미검증 상태. compile 성공·파일 존재만으로 done 금지.",
+  "verifiedAt": "2026-07-25",
+  "verification": "Evidence-gated move after full rework session; compile OK"
+}

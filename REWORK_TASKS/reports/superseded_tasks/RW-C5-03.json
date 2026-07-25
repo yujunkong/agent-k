@@ -1,0 +1,31 @@
+{
+  "id": "RW-C5-03",
+  "severity": "P0",
+  "category": "plan",
+  "title": "PlanEditor에 실제 Mermaid 렌더 연결",
+  "description": "PlanEditor가 Mermaid를 모노스페이스 텍스트로만 표시. MermaidDiagram 컴포넌트 재사용.",
+  "relatedDoneIds": [
+    "C5-T05"
+  ],
+  "files": [
+    "src/plan/PlanEditor.tsx",
+    "src/chat/components/MermaidDiagram.tsx"
+  ],
+  "acceptanceCriteria": [
+    "mermaid.render 기반 프리뷰",
+    "편집 시 갱신"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "mermaid",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "dependencies": [],
+  "status": "done",
+  "createdAt": "2026-07-25",
+  "source": "C5–C7 functional audit (scaffold≠wired; rubber-stamp DONE)",
+  "notes": "Severity P0: feature exists as files but not product-complete. Mark related DONE as rework until AC verified."
+}

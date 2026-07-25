@@ -1,0 +1,39 @@
+{
+  "id": "RW-C7-02",
+  "severity": "P0",
+  "category": "worktree",
+  "title": "BestOfN에서 worktree별 실 AgentLoop 실행 (simulate 제거)",
+  "description": "BestOfN이 `Trial N completed` simulate. WorktreeManager git은 실동작.",
+  "relatedDoneIds": [
+    "C7-T07",
+    "C7-T08",
+    "C7-T10"
+  ],
+  "files": [
+    "src/worktree/BestOfN.ts",
+    "src/worktree/WorktreeManager.ts"
+  ],
+  "acceptanceCriteria": [
+    "worktree당 실 루프",
+    "실패 isolation",
+    "승자 adopt/패자 cleanup"
+  ],
+  "estimatedHours": 8,
+  "tags": [
+    "bon",
+    "stub",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-13_Worktree_BestOfN.md"
+  ],
+  "dependencies": [
+    "RW-C57-01"
+  ],
+  "status": "done",
+  "createdAt": "2026-07-25",
+  "source": "C5–C7 functional audit (scaffold≠wired; rubber-stamp DONE)",
+  "notes": "Severity P0: feature exists as files but not product-complete. Mark related DONE as rework until AC verified.",
+  "verifiedAt": "2026-07-25",
+  "verification": "Strict code audit PASS — moved to tasks_DONE"
+}

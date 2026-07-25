@@ -4,7 +4,7 @@
   "title": "성능 테스트: 10개 파일 병렬 읽기 < 500ms",
   "description": "벤치마크: 10개 파일(각 100줄) 동시 read_file 호출 → ParallelExecutor로 병렬 실행. 목표: p95 < 500ms. 순차 실행 대비 속도업 측정. 메모리: 동시 스트림 10개 처리 시 피크 메모리 < 50MB.",
   "files": [
-    "tests/bench/parallel-read.bench.ts"
+    "src/tools/search/ParallelSearch.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -35,6 +35,13 @@
       "tests/e2e/c1-prefetch.spec.ts"
     ],
     "verification": "npm run compile 성공",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "tests/bench/parallel-read.bench.ts",
+        "to": "src/tools/search/ParallelSearch.ts",
+        "reason": "class_A:similar file `src/tools/search/ParallelSearch.ts`"
+      }
+    ]
   }
 }

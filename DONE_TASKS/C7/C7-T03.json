@@ -4,10 +4,10 @@
   "title": "Design Mode: 스크린샷 오버레이 + 요소 클릭 → 주석/좌표",
   "description": "Design Mode 오버레이: 클릭→주석/좌표/셀렉터.",
   "files": [
-    "src/browser/DesignModeOverlay.tsx"
+    "src/browser/DesignModePanel.tsx"
   ],
   "priority": "P0",
-  "status": "done",
+  "status": "rework",
   "dependencies": [
     "C7-T01"
   ],
@@ -38,6 +38,17 @@
       "src/browser/DesignModeOverlay.tsx"
     ],
     "verification": "npm run compile 성공 (0 errors)",
-    "notes": "C7 Production Grade 전 태스크 동시 구현 완료 (P2 4개 제외)"
-  }
+    "notes": "C7 Production Grade 전 태스크 동시 구현 완료 (P2 4개 제외)",
+    "pathFixAudit": [
+      {
+        "from": "src/browser/DesignModeOverlay.tsx",
+        "to": "src/browser/DesignModePanel.tsx",
+        "reason": "explicit_map→src/browser/DesignModePanel.tsx"
+      }
+    ]
+  },
+  "reworkRefs": [
+    "RW-C7-05"
+  ],
+  "reworkReason": "C5–C7 functional audit 2026-07-25: scaffold/stub/unwired or false E2E"
 }

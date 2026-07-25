@@ -1,0 +1,35 @@
+{
+  "id": "RW-C6-03",
+  "severity": "P0",
+  "category": "debug",
+  "title": "BrowserEvidence stub 제거 → Playwright 래퍼",
+  "description": "BrowserEvidence가 screenshot/console/network stub 문자열 반환. DONE C6-T29는 E2E 통과로 허위 마감.",
+  "relatedDoneIds": [
+    "C6-T29"
+  ],
+  "files": [
+    "src/debug/BrowserEvidence.ts",
+    "src/browser/BrowserTools.ts"
+  ],
+  "acceptanceCriteria": [
+    "실 캡처 또는 C7 BrowserSession 위임",
+    "stub 문자열 제거",
+    "debug 타임라인 첨부"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "browser-evidence",
+    "stub",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "dependencies": [
+    "RW-C7-01"
+  ],
+  "status": "done",
+  "createdAt": "2026-07-25",
+  "source": "C5–C7 functional audit (scaffold≠wired; rubber-stamp DONE)",
+  "notes": "Severity P0: feature exists as files but not product-complete. Mark related DONE as rework until AC verified."
+}

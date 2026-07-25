@@ -5,7 +5,7 @@
   "description": "PRD-17 NFR-03: 동시 Enter 연타는 debounce 300ms, 한 번에 하나의 Resynthesize만. running lock으로 중첩 재시작 금지. agent-k.queue.resynthesizeDebounceMs 설정 가능.",
   "files": [
     "src/loop/MessageQueue.ts",
-    "src/loop/AgentLoop.ts"
+    "src/loop/AgentLoopController.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -38,6 +38,13 @@
       "src/loop/MessageQueue.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/loop/AgentLoop.ts",
+        "to": "src/loop/AgentLoopController.ts",
+        "reason": "explicit_map→src/loop/AgentLoopController.ts"
+      }
+    ]
   }
 }

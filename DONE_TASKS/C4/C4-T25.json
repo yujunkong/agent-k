@@ -5,7 +5,7 @@
   "description": "TelemetryCollector: 이벤트 기반 수집. 이벤트: turn_start, turn_end, tool_call_start, tool_call_end, tool_call_error, token_usage, compaction, checkpoint_create, checkpoint_restore. 필드: sessionId, turnNumber, mode, model, durationMs, tokens{input,output}, tools[], errors[]. 저장: 메모리 링 버퍼(최근 1000 이벤트) + 주기적 파일 덤프(JSONL). 설정: telemetry.enabled, telemetry.intervalMs.",
   "files": [
     "src/telemetry/TelemetryCollector.ts",
-    "src/telemetry/types.ts"
+    "src/tools/types.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -43,6 +43,13 @@
       "src/telemetry/TelemetryCollector.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/telemetry/types.ts",
+        "to": "src/tools/types.ts",
+        "reason": "class_A:found 4 candidates (e.g. `src/tools/types.ts`)"
+      }
+    ]
   }
 }

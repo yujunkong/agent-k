@@ -4,10 +4,10 @@
   "title": "browser_* 도구 그룹: 네비게이트/클릭/스크롤/대기/스크린샷/평가",
   "description": "browser_* ToolRegistry 등록 (Tools-D).",
   "files": [
-    "src/tools/browser/"
+    "src/tools/browser/BrowserToolGroup.ts"
   ],
   "priority": "P0",
-  "status": "done",
+  "status": "rework",
   "dependencies": [
     "C7-T01"
   ],
@@ -38,6 +38,12 @@
       "src/tools/browser/"
     ],
     "verification": "npm run compile 성공 (0 errors)",
-    "notes": "C7 Production Grade 전 태스크 동시 구현 완료 (P2 4개 제외)"
-  }
+    "notes": "C7 Production Grade 전 태스크 동시 구현 완료 (P2 4개 제외)",
+    "pathFixAudit": []
+  },
+  "reworkRefs": [
+    "RW-C57-01",
+    "RW-C7-01"
+  ],
+  "reworkReason": "C5–C7 functional audit 2026-07-25: scaffold/stub/unwired or false E2E"
 }

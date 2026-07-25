@@ -2,16 +2,19 @@
   "name": "agent-k",
   "displayName": "Agent K",
   "description": "AI Coding Agent with local model harness (Flash-tier reliable via verification loops)",
-  "version": "0.0.1",
+  "version": "0.0.2",
+  "publisher": "agent-k",
   "engines": {
-    "vscode": "^1.125.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "AI",
     "Machine Learning"
   ],
   "activationEvents": [
-    "onView:agent-k.chat"
+    "onView:agent-k.chat",
+    "onStartupFinished",
+    "onCommand:agent-k.openSettings"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -27,8 +30,10 @@
     "views": {
       "agent-k": [
         {
+          "type": "webview",
           "id": "agent-k.chat",
-          "name": "Chat"
+          "name": "Chat",
+          "visibility": "visible"
         }
       ]
     },
@@ -57,6 +62,46 @@
         "command": "agent-k.mode.switch",
         "title": "Switch Mode",
         "icon": "$(symbol-method)"
+      },
+      {
+        "command": "agent-k.plan.open",
+        "title": "Plan Mode: Create Plan",
+        "icon": "$(book)"
+      },
+      {
+        "command": "agent-k.debug.open",
+        "title": "Debug Mode: Start Debugging",
+        "icon": "$(bug)"
+      },
+      {
+        "command": "agent-k.review.open",
+        "title": "Review: Code Review Session",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "agent-k.browser.open",
+        "title": "Browser: Open Browser Session",
+        "icon": "$(browser)"
+      },
+      {
+        "command": "agent-k.artifacts.open",
+        "title": "Artifacts: Open Gallery",
+        "icon": "$(file-media)"
+      },
+      {
+        "command": "agent-k.mcp.reload",
+        "title": "MCP: Reload Servers",
+        "icon": "$(debug-reconnect)"
+      },
+      {
+        "command": "agent-k.mcp.connect",
+        "title": "MCP: Connect Server",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "agent-k.mcp.disconnect",
+        "title": "MCP: Disconnect All",
+        "icon": "$(debug-disconnect)"
       }
     ],
     "configuration": {
@@ -76,17 +121,18 @@
         },
         "agent-k.provider.baseUrl": {
           "type": "string",
-          "default": "http://localhost:4000",
-          "description": "Base URL for OpenAI-compatible API (LiteLLM proxy)"
+          "default": "http://127.0.0.1:4000",
+          "description": "Base URL for OpenAI-compatible API (LiteLLM proxy → MLX)"
         },
         "agent-k.provider.model": {
           "type": "string",
-          "default": "gemma-2-27b",
-          "description": "Model name/identifier"
+          "default": "qwen3.6-35b-a3b",
+          "description": "Model name/identifier (LiteLLM alias or mlx-community/Qwen3.6-35B-A3B-4bit)"
         },
         "agent-k.provider.apiKey": {
           "type": "string",
-          "description": "API key (stored in SecretStorage)",
+          "default": "sk-agent-k-local",
+          "description": "API key (LiteLLM master_key or empty for direct MLX)",
           "secret": true
         },
         "agent-k.mode.default": {
@@ -115,8 +161,33 @@
             "auto",
             "bypass"
           ],
-          "default": "ask",
-          "description": "Permission gate level"
+          "default": "accept_edits",
+          "description": "Permission gate level (product default: accept_edits per PRD-29)"
+        },
+        "agent-k.queue.onEnterWhileRunning": {
+          "type": "string",
+          "enum": [
+            "resynthesize",
+            "queue_only"
+          ],
+          "default": "resynthesize",
+          "description": "Enter while agent running: Interrupt & Resynthesize (default) or queue only"
+        },
+        "agent-k.queue.onStop": {
+          "type": "string",
+          "enum": [
+            "keep",
+            "discard"
+          ],
+          "default": "keep",
+          "description": "Queue policy when user hits Stop"
+        },
+        "agent-k.queue.resynthesizeDebounceMs": {
+          "type": "integer",
+          "default": 300,
+          "minimum": 0,
+          "maximum": 5000,
+          "description": "Debounce for Interrupt & Resynthesize (PRD-17 NFR-03)"
         },
         "agent-k.context.budget": {
           "type": "integer",
@@ -137,6 +208,74 @@
           "type": "integer",
           "default": 100000000,
           "description": "Monthly token budget"
+        },
+        "agent-k.mcp.servers": {
+          "type": "object",
+          "description": "MCP servers (Continue/OpenCode-style map). Each key is the server id; command may be a full argv array.",
+          "default": {
+            "searxng": {
+              "type": "local",
+              "command": [
+                "python3",
+                "/Users/kong-yujun/mcp-servers/searxng_mcp_server.py"
+              ],
+              "enabled": true
+            },
+            "sequential-thinking": {
+              "type": "local",
+              "command": [
+                "npx",
+                "-y",
+                "@modelcontextprotocol/server-sequential-thinking"
+              ],
+              "enabled": true
+            }
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "local | remote (informational)"
+              },
+              "command": {
+                "description": "Executable + args as array, or command string with separate args",
+                "oneOf": [
+                  { "type": "string" },
+                  {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                ]
+              },
+              "args": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": { "type": "string" }
+              },
+              "enabled": {
+                "type": "boolean",
+                "default": true
+              },
+              "transport": {
+                "type": "string",
+                "enum": ["stdio", "http"],
+                "default": "stdio"
+              },
+              "url": {
+                "type": "string"
+              },
+              "framing": {
+                "type": "string",
+                "enum": ["auto", "ndjson", "content-length"],
+                "default": "auto",
+                "description": "stdio framing (default ndjson; set content-length for SDK-strict servers)"
+              }
+            }
+          }
         }
       }
     },
@@ -200,17 +339,20 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
-    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "compile": "npm run check-types && npm run lint && node esbuild.js && npm run build:webview",
+    "build:webview": "vite build",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "watch:webview": "vite build --watch",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production && npm run build:webview",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vscode-test",
+    "test:harness": "node --import tsx ./node_modules/mocha/bin/mocha.js --ui tdd --extension ts 'tests/acceptance/harness/ac*.spec.ts'",
     "dev:webview": "vite"
   },
   "devDependencies": {
@@ -227,6 +369,7 @@
     "npm-run-all": "^4.1.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "tsx": "^4.23.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.1",
     "vite": "^5.4.21"
@@ -234,6 +377,9 @@
   "overrides": {
     "diff": "^8.0.4",
     "serialize-javascript": "^7.0.6"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.52.0"
   },
   "dependencies": {
     "@types/mermaid": "^9.1.0",

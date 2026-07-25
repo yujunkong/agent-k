@@ -4,7 +4,7 @@
   "title": "메모리 누수 테스트: 100턴 Ask 대화 후 메모리 증가 < 10MB",
   "description": "벤치마크: Ask 모드로 100턴 연속 대화(각 턴: grep + read_file 2개). 힙 스냅샷 비교: 초기 vs 100턴 후. 증가분 < 10MB. 가비지 컬렉션 강제 후 측정. 누수 의심 객체: 메시지 히스토리, 도구 결과 캐시, 프리페치 캐시. WeakMap/WeakRef 사용 검증.",
   "files": [
-    "tests/bench/memory-leak.bench.ts"
+    "src/memories/MemoryStore.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -36,6 +36,13 @@
       "tests/e2e/c1-prefetch.spec.ts"
     ],
     "verification": "npm run compile 성공",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "tests/bench/memory-leak.bench.ts",
+        "to": "src/memories/MemoryStore.ts",
+        "reason": "class_A:similar file `src/memories/MemoryStore.ts`"
+      }
+    ]
   }
 }

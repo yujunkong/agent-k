@@ -7,7 +7,7 @@
     "src/debug/MultiFileDebug.ts"
   ],
   "priority": "P2",
-  "status": "done",
+  "status": "rework",
   "dependencies": [
     "C6-T09"
   ],
@@ -38,5 +38,10 @@
     ],
     "verification": "npm run compile 성공 (0 errors)",
     "notes": "C6 Debug Mode 전 태스크 동시 구현 완료"
-  }
+  },
+  "reworkReason": "Rubber-stamp DONE cluster; pending functional rework queue",
+  "reworkRefs": [
+    "RW-C57-01",
+    "RW-C57-03"
+  ]
 }

@@ -5,7 +5,7 @@
   "description": "CheckpointManager.createCheckpoint(trigger): 트리거 조건 4가지. 1) 첫 쓰기 도구 호출 전. 2) 단일 턴 5파일 이상 변경 시. 3) 사용자 수동 요청(Ctrl+S 또는 명령). 4) 위험 도구(run_terminal_cmd rm/sudo 등) 직전. 스냅샷: 대상 파일 전체 내용 + mtime + hash. 저장소: workspaceState (JSON 직렬화). 체크포인트 ID: uuid + 타임스탬프.",
   "files": [
     "src/checkpoint/CheckpointManager.ts",
-    "src/checkpoint/types.ts"
+    "src/tools/types.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -40,6 +40,13 @@
       "src/checkpoint/CheckpointManager.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/checkpoint/types.ts",
+        "to": "src/tools/types.ts",
+        "reason": "class_A:found 4 candidates (e.g. `src/tools/types.ts`)"
+      }
+    ]
   }
 }

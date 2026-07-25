@@ -2,8 +2,19 @@
   "id": "C0-T10",
   "phase": "C0",
   "title": "Mermaid 다이어그램 렌더링",
+  "description": "스트리밍 Markdown 내 ```mermaid 펜스를 감지해 mermaid.js로 다이어그램을 렌더링한다. 스트리밍 중 정의 변경은 debounce 후 재렌더하며, 파싱 실패 시 원문 코드와 에러를 표시한다.",
   "status": "done",
   "files": ["src/chat/components/MermaidDiagram.tsx"],
+  "acceptanceCriteria": [
+    "mermaid.js 통합 및 ```mermaid 블록 자동 렌더",
+    "스트리밍 중 정의 변경 시 debounce(≈150ms) 후 재렌더",
+    "렌더 에러 시 원본 코드 + 에러 메시지 폴백",
+    "VS Code 다크 테마에 맞는 Mermaid themeVariables"
+  ],
+  "prdRefs": [
+    "PRDs/01_S_Tier_Immediate_Impact/PRD-02_Local_LLM_Provider.md",
+    "PRDs/08_Advanced_Specs/PRD-Spec-01_Provider_ToolJSON.md"
+  ],
   "completedCriteria": [
     "✅ mermaid.js 라이브러리 통합",
     "✅ ```mermaid 블록 감지 시 자동 렌더링",

@@ -7,7 +7,7 @@
     "src/browser/BrowserSession.ts"
   ],
   "priority": "P0",
-  "status": "done",
+  "status": "rework",
   "dependencies": [
     "C7-T01"
   ],
@@ -40,5 +40,9 @@
     ],
     "verification": "npm run compile 성공 (0 errors)",
     "notes": "C7 Production Grade 전 태스크 동시 구현 완료 (P2 4개 제외)"
-  }
+  },
+  "reworkRefs": [
+    "RW-C7-01"
+  ],
+  "reworkReason": "C5–C7 functional audit 2026-07-25: scaffold/stub/unwired or false E2E"
 }

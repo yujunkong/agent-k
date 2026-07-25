@@ -4,7 +4,7 @@
   "title": "체크포인트 저장: 변경 파일 before 스냅샷 (내용 해시) → workspaceState",
   "description": "SnapshotStore: save(checkpointId, files[]) → workspaceState.checkpoints[checkpointId] = {files: {path: {content, hash, mtime}}, timestamp}. load(checkpointId) → files 복원. deleteOldest() → 50개 초과 시 가장 오래된 삭제. 압축: 큰 파일은 gzip 후 base64 저장.",
   "files": [
-    "src/checkpoint/SnapshotStore.ts"
+    "src/checkpoint/CheckpointManager.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -41,6 +41,13 @@
       "src/checkpoint/CheckpointManager.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/checkpoint/SnapshotStore.ts",
+        "to": "src/checkpoint/CheckpointManager.ts",
+        "reason": "class_A:implemented elsewhere: `src/checkpoint/CheckpointManager.ts`"
+      }
+    ]
   }
 }

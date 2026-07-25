@@ -17,6 +17,7 @@ import { FeaturesTab } from './tabs/FeaturesTab';
 
 interface SettingsPanelProps {
   onClose?: () => void;
+  initialTab?: TabId;
 }
 
 type TabId = 'models' | 'secrets' | 'permission' | 'queue' | 'harness' | 'context' | 'mcp' | 'features' | 'privacy';
@@ -39,8 +40,8 @@ const TABS: TabInfo[] = [
   { id: 'privacy', label: 'Privacy', icon: '🔐' }
 ];
 
-export function SettingsPanel({ onClose }: SettingsPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('models');
+export function SettingsPanel({ onClose, initialTab = 'models' }: SettingsPanelProps) {
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
 
   const renderTab = () => {
     switch (activeTab) {

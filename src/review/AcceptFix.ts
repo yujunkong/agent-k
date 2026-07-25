@@ -2,6 +2,7 @@
  * AcceptFix — Finding 선택 수정 마이크로 Agent 실행 (C7-T13)
  */
 import type { ReviewFinding } from './AgentReviewLoop';
+import { LintRunner } from '../verification/LintRunner';
 
 export interface AcceptFixResult {
   findingId: string;
@@ -13,6 +14,8 @@ export interface AcceptFixResult {
 }
 
 export class AcceptFix {
+  private lintRunner = new LintRunner();
+
   /**
    * Accept a single finding and generate a fix
    */
@@ -21,12 +24,18 @@ export class AcceptFix {
       const patch = this.generateFix(finding);
       const applied = patch !== null;
 
+      let lintPassed: boolean | undefined;
+      if (applied && finding.file) {
+        const lintErrors = await this.lintRunner.runLint([finding.file]);
+        lintPassed = lintErrors.filter(e => e.severity === 'error').length === 0;
+      }
+
       return {
         findingId: finding.id,
         file: finding.file,
         applied,
         patch: patch ?? undefined,
-        lintPassed: applied ? true : false
+        lintPassed: applied ? lintPassed : false
       };
     } catch (err) {
       return {

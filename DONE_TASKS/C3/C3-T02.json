@@ -4,7 +4,7 @@
   "title": "턴 카운터 + maxTurns 가드 (기본 20, 설정 가능)",
   "description": "MaxTurnsGuard: maxTurns 설정(기본 20, 설정으로 5-100). AgentLoop 각 턴 시작 시 체크 → 초과 시 루프 중단 + '최대 턴 수({maxTurns}) 도달. 계속하려면 새 메시지를 보내세요.' tool_result 반환. 설정: agent.maxTurns.",
   "files": [
-    "src/loop/MaxTurnsGuard.ts"
+    "src/loop/AgentLoopController.ts"
   ],
   "priority": "P0",
   "status": "done",
@@ -38,6 +38,13 @@
       "src/loop/AgentLoopController.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": [
+      {
+        "from": "src/loop/MaxTurnsGuard.ts",
+        "to": "src/loop/AgentLoopController.ts",
+        "reason": "explicit_map→src/loop/AgentLoopController.ts"
+      }
+    ]
   }
 }

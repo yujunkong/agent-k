@@ -4,8 +4,7 @@
   "title": "CostTracker/BudgetGuard: 일/월 토큰 예산, 초과 시 알림/자동 전환",
   "description": "CostTracker: 일/월 토큰 사용량 누적(input+output). 모델별 단가표(USD/1M tokens) 내장. BudgetGuard: 일일 한도(기본 10M), 월 한도(기본 100M). 임계값: 50%(경고 토스트), 80%(경고+자동 Tier A 강제), 100%(차단+알림). 자동 전환: Budget 초과 시 ModelRouter.setForcedTier('A'). 일일 자정 리셋, 월 1일 리셋. UI: 설정에서 예산 조회/변경, 사용량 그래프.",
   "files": [
-    "src/telemetry/CostTracker.ts",
-    "src/telemetry/BudgetGuard.ts"
+    "src/telemetry/CostTracker.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -45,6 +44,7 @@
       "src/telemetry/CostTracker.ts"
     ],
     "verification": "npm run compile 성공 (tsc --noEmit, eslint, esbuild 번들링)",
-    "notes": ""
+    "notes": "",
+    "pathFixAudit": []
   }
 }

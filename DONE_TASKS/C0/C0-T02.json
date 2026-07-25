@@ -5,7 +5,7 @@
   "description": "vscode.window.createWebviewViewProvider('agent-k.chat', provider) 등록. ChatViewProvider 클래스: resolveWebviewView, getHtml(webview), handleMessage(msg). 양방향 통신: webview.onDidReceiveMessage, webview.postMessage. CSP nonce 설정.",
   "files": ["src/extension.ts", "src/chat/ChatViewProvider.ts"],
   "priority": "P0",
-  "status": "completed",
+  "status": "done",
   "completedAt": "2026-07-25T14:42:00",
   "commitHash": "c0-t02-viewprovider",
   "dependencies": ["C0-T01"],

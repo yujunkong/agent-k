@@ -4,6 +4,7 @@
  * ConfigManager와 동기화. 각 기능의 on/off 토글.
  */
 import React, { useState, useEffect } from 'react';
+import { configManager } from '../../core/ConfigManager';
 
 interface FeatureToggle {
   id: string;
@@ -31,6 +32,16 @@ export function FeaturesTab() {
   const [features, setFeatures] = useState<FeatureToggle[]>(DEFAULT_FEATURES);
   const [dirty, setDirty] = useState(false);
 
+  // ConfigManager에서 초기 토글 로드 (RW-C7-08)
+  useEffect(() => {
+    setFeatures(
+      DEFAULT_FEATURES.map(f => ({
+        ...f,
+        enabled: configManager.get(`agent-k.features.${f.id}`) ?? f.enabled
+      }))
+    );
+  }, []);
+
   const toggleFeature = (id: string) => {
     setFeatures(prev =>
       prev.map(f => f.id === id ? { ...f, enabled: !f.enabled } : f)
@@ -39,8 +50,11 @@ export function FeaturesTab() {
   };
 
   const saveSettings = () => {
-    // In production, sync to ConfigManager
-    // configManager.set('features', features);
+    const updates: Record<string, boolean> = {};
+    for (const f of features) {
+      updates[`agent-k.features.${f.id}`] = f.enabled;
+    }
+    configManager.update(updates);
     setDirty(false);
   };
 

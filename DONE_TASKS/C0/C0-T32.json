@@ -4,8 +4,7 @@
   "title": "성능 벤치마크: 50토큰/sec 렌더링 60fps 유지",
   "description": "벤치마크 스크립트: 가상 스트림 생성기(50토큰/초) → useChatStream → VirtualList 렌더링. Chrome DevTools Performance 패널로 FPS 측정. 메모리: 10분 스트리밍 후 힙 스냅샷 비교. 번들 크기: dist/chat.js gzip < 500KB 확인. 지표: TTFT(Time to First Token), 렌더링 지연, 메모리 증가율.",
   "files": [
-    "tests/bench/rendering.bench.ts",
-    "bench/stream-generator.ts"
+    "tests/bench/rendering.bench.ts"
   ],
   "priority": "P1",
   "status": "done",
@@ -43,6 +42,7 @@
       "bench/stream-generator.ts"
     ],
     "verification": "npm run compile 성공",
-    "notes": "Unit tests use mocha+assert patterns matching vscode-test framework. E2E tests include mock SSE server. Benchmark measures token rate, TTFT, memory, and bundle size."
+    "notes": "Unit tests use mocha+assert patterns matching vscode-test framework. E2E tests include mock SSE server. Benchmark measures token rate, TTFT, memory, and bundle size.",
+    "pathFixAudit": []
   }
 }

@@ -6,6 +6,7 @@
  */
 import React, { useState, useCallback } from 'react';
 import type { PlanDocument } from './PlanGenerator';
+import { MermaidDiagram } from '../chat/components/MermaidDiagram';
 
 interface PlanEditorProps {
   document: PlanDocument;
@@ -86,10 +87,9 @@ export function PlanEditor({ document, onSave, onCancel, readOnly }: PlanEditorP
                     padding: 12, marginBottom: 8, borderRadius: 6,
                     background: 'rgba(255,255,255,0.03)',
                     border: '1px dashed var(--vscode-panel-border, #555)',
-                    fontFamily: 'monospace', fontSize: '0.8em',
-                    whiteSpace: 'pre-wrap', overflow: 'auto'
+                    overflow: 'auto'
                   }}>
-                    {block}
+                    <MermaidDiagram definition={block} />
                   </div>
                 ))}
               </div>
