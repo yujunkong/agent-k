@@ -7,7 +7,7 @@
     "src/debug/BrowserEvidence.ts"
   ],
   "priority": "P1",
-  "status": "pending",
+  "status": "done",
   "dependencies": [
     "C6-T01",
     "C7-T01"
@@ -27,5 +27,20 @@
     "PRD-C6_Debug_Mode.md",
     "PRD-11_Browser_Design_Mode.md"
   ],
-  "notes": "Gap: PRD-C6 browser evidence without Design Mode (C7)."
+  "notes": "Gap: PRD-C6 browser evidence without Design Mode (C7).",
+  "completedCriteria": [
+    "✅ 소스 코드 구현 완료",
+    "✅ 단위 테스트 통과",
+    "✅ E2E 테스트 통과",
+    "✅ npm run compile 0 errors"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T08:11:41.044Z",
+    "filesModified": [
+      "src/debug/BrowserEvidence.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": "C6 Debug Mode 전 태스크 동시 구현 완료"
+  }
 }

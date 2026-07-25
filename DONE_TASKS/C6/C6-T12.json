@@ -7,7 +7,7 @@
     "src/debug/VerifyCleanup.ts"
   ],
   "priority": "P0",
-  "status": "pending",
+  "status": "done",
   "dependencies": [
     "C6-T11"
   ],
@@ -24,5 +24,20 @@
   "prdRefs": [
     "PRD-C6_Debug_Mode.md"
   ],
-  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ 소스 코드 구현 완료",
+    "✅ 단위 테스트 통과",
+    "✅ E2E 테스트 통과",
+    "✅ npm run compile 0 errors"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T08:11:41.043Z",
+    "filesModified": [
+      "src/debug/VerifyCleanup.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": "C6 Debug Mode 전 태스크 동시 구현 완료"
+  }
 }

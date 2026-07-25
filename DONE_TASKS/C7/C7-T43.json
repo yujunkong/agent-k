@@ -7,7 +7,7 @@
     "tests/e2e/c7-skills.spec.ts"
   ],
   "priority": "P0",
-  "status": "pending",
+  "status": "done",
   "dependencies": [
     "C7-T19",
     "C7-T20"
@@ -27,5 +27,20 @@
   "prdRefs": [
     "PRD-28_Skills_Pinned.md"
   ],
-  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ 소스 코드 구현 완료",
+    "✅ 단위 테스트 통과",
+    "✅ E2E 테스트 통과",
+    "✅ npm run compile 0 errors"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T08:11:41.050Z",
+    "filesModified": [
+      "tests/e2e/c7-skills.spec.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": "C7 Production Grade 전 태스크 동시 구현 완료 (P2 4개 제외)"
+  }
 }
