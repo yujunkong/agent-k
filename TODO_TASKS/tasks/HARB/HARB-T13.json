@@ -2,7 +2,7 @@
   "id": "HARB-T13",
   "phase": "HARB",
   "title": "UX for Medium: todo 단계 쪼개기 표시, Diff 승인 기본 on, 막힘 시 버튼(프리페치/도구축소/Pro재실행)",
-  "description": "UX for Medium: todo 단계 쪼개기 표시, Diff 승인 기본 on, 막힘 시 버튼(프리페치/도구축소/Pro재실행). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "UX for Medium 버튼.",
   "files": [
     "src/harness/UXForMedium.tsx"
   ],
@@ -12,12 +12,17 @@
     "HARB-T06"
   ],
   "acceptanceCriteria": [
-    "Implements: UX for Medium: todo 단계 쪼개기 표시, Diff 승인 기본 on, 막힘 시 버튼(프리페치/도구축소/Pro재실행)",
-    "Matches PRD acceptance for this phase"
+    "3종"
   ],
   "estimatedHours": 2,
   "tags": [
     "harb",
-    "p1"
-  ]
+    "p1",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-13_UX_For_Medium.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

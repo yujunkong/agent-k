@@ -2,7 +2,7 @@
   "id": "HARB-T23",
   "phase": "HARB",
   "title": "Spec-04: Terminal Execution (세션별 셸, cwd/env 유지, 타임아웃 30s/10m)",
-  "description": "Spec-04: Terminal Execution (세션별 셸, cwd/env 유지, 타임아웃 30s/10m). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Spec-04 Terminal allowlist.",
   "files": [
     "src/tools/terminal/"
   ],
@@ -12,12 +12,18 @@
     "C2-T09"
   ],
   "acceptanceCriteria": [
-    "Implements: Spec-04: Terminal Execution (세션별 셸, cwd/env 유지, 타임아웃 30s/10m)",
-    "Matches PRD acceptance for this phase"
+    "allowlist",
+    "deny"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Spec-04_Terminal_Execution.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

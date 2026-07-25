@@ -1,0 +1,28 @@
+{
+  "id": "C7-T28",
+  "phase": "C7",
+  "title": "Selection → Diff Apply: Ctrl+K 대체 (Commands + WorkspaceEdit + DiffEditor)",
+  "description": "Selection Diff Apply.",
+  "files": [
+    "src/selection/SelectionDiffApply.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C2-T02"
+  ],
+  "acceptanceCriteria": [
+    "DiffEditor",
+    "WorkspaceEdit"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-C7_Production_Grade.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

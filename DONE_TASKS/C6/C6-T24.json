@@ -1,0 +1,27 @@
+{
+  "id": "C6-T24",
+  "phase": "C6",
+  "title": "재현 단계 자동 기록 (사용자 액션 → 재현 스크립트 생성)",
+  "description": "재현 액션→스크립트 초안.",
+  "files": [
+    "src/debug/ReproduceRecorder.ts"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C6-T07"
+  ],
+  "acceptanceCriteria": [
+    "기록",
+    "export"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c6",
+    "p2"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

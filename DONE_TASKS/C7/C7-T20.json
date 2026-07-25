@@ -1,0 +1,31 @@
+{
+  "id": "C7-T20",
+  "phase": "C7",
+  "title": "skill 도구: 목록/본문 로드 → 프롬프트·워크플로 주입 (PRD-28 FR-05)",
+  "description": "Tools-F `skill` 도구: 모델이 스킬 이름 호출 시 레지스트리에서 본문·허용 도구 힌트 로드 후 컨텍스트 주입. 핀된 스킬과 Memories(사실) 역할 구분. 본문 truncate(~2k tokens/스킬).",
+  "files": [
+    "src/tools/orchestration/SkillTool.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C7-T19",
+    "C1-T02"
+  ],
+  "acceptanceCriteria": [
+    "skill 도구 스키마 등록 (Tier B/C7)",
+    "이름 조회 실패 시 명확 에러",
+    "본문 truncate 적용",
+    "핀 스킬과 중복 주입 시 예산 준수"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "skill-tool",
+    "prd-28",
+    "tools-f"
+  ],
+  "prdRefs": [
+    "PRD-28_Skills_Pinned.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

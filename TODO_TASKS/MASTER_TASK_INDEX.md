@@ -16,10 +16,10 @@
 | **C3** Agent Multi-Turn + Resynthesize | 33 | 33 | 0 | 0 | 100% | ✅ 완료 |
 | **C4** Infrastructure | 42 | 42 | 0 | 0 | 100% | ✅ 완료 |
 | **C5** Plan Mode | 25 | 25 | 0 | 0 | 100% | ✅ 완료 |
-| **C6** Debug Mode | 29 | 0 | 0 | 29 | 0% | ⏳ 대기 |
-| **C7** Production Grade | 46 | 0 | 0 | 46 | 0% | ⏳ 대기 |
-| **HARB** Harness/Specs (병렬) | 38 | 0 | 0 | 38 | 0% | ⏳ 대기 |
-| **TOTAL** | **~315** | **202** | **0** | **113** | **~64%** | |
+| **C6** Debug Mode | 29 | 29 | 0 | 0 | 100% | ✅ 완료 |
+| **C7** Production Grade | 46 | 42 | 0 | 4 | 91% | ✅ 완료 (P2 4개 제외) |
+| **HARB** Harness/Specs (병렬) | 38 | 0 | 0 | 38 | 0% | ⏳ 다음 목표 |
+| **TOTAL** | **~311** | **273** | **0** | **38** | **~88%** | |
 
 ---
 
@@ -33,8 +33,10 @@
 | **M4: 멀티턴 루프 완성** | ✅ 완료 | C3 | 코어 루프 + maxTurns + Doom Loop + **Interrupt & Resynthesize** |
 | **M5: 제품급 인프라** | ✅ 완료 | C4 | 권한/체크포인트/컴팩션/훅 + Memories + Side Chat |
 | **M6: Plan 모드 완성** | ✅ 완료 | C5 | 질문 UI/Mermaid 플랜 + 승인/에이전트 전환 + TODO 분기 |
-| **M7: Debug 모드** | 다음 목표 | C6 | 가설-계측-재현-최소수정 |
-| **M7: Cursor급 확장** | TBD | C7 | Browser/Worktree/Review/MCP/Skills/Artifacts |
+| **M7: Debug 모드** | ✅ 완료 | C6 | 가설-계측-재현-분석-수정-청소 전 사이클 |
+| **M8: Cursor급 확장** | ✅ 완료 | C7 | Browser/Worktree/Review/MCP/Skills/Artifacts 전 기능 |
+| **M9: 하네스 검증 통과** | 다음 목표 | HARB | 4개 수용 테스트 통과 |
+| **M9: 하네스 검증 통과** | TBD | HARB | 4개 수용 테스트 통과 |
 | **M8: 하네스 검증 통과** | TBD | HARB | 4개 수용 테스트 통과 (단일 픽스/테스트 루프/Ask 정확도/JSON 복구) |
 
 ---
@@ -285,42 +287,39 @@
 
 ---
 
-### 🟤 C6: Debug Mode (29 tasks)
+### 🟤 C6: Debug Mode (29 tasks) ✅
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
-| 1 | C6-T01 | DebugModeController: 가설→계측→재현→로그→최소수정→청소 6단계 | `src/debug/DebugModeController.ts` | P0 | ☐ | C4-T01 |
-| 2 | C6-T02 | 가설 생성: 관련 파일 탐색 → N개 가설 리스트 UI (객관식 선택) | `src/debug/HypothesisGenerator.ts` | P0 | ☐ | C6-T01 |
-| 3 | C6-T03 | add_instrumentation 도구: 로그 삽입 (시작/끝/조건부/변수 덤프) | `src/tools/debug/AddInstrumentationTool.ts` | P0 | ☐ | C6-T01 |
-| 4 | C6-T04 | 계측 코드 패턴 라이브러리 (JS/TS/Python/Go/Rust 공통) | `src/debug/InstrumentationPatterns.ts` | P0 | ☐ | C6-T03 |
-| 5 | C6-T05 | DebugLogServer: 로컬 로그 수집 엔드포인트 (WebSocket/HTTP) | `src/debug/DebugLogServer.ts` | P0 | ☐ | C6-T01 |
-| 6 | C6-T06 | collect_runtime_logs 도구: 서버에서 로그 수집 + 포맷팅 | `src/tools/debug/CollectRuntimeLogsTool.ts` | P0 | ☐ | C6-T05 |
-| 7 | C6-T07 | request_reproduce 도구: 사용자 재현 대기 (가이드 + 진행 표시) | `src/tools/debug/RequestReproduceTool.ts` | P0 | ☐ | C6-T01 |
-| 8 | C6-T08 | Reproduce UI: 단계별 가이드, 스크린샷, "완료" 버튼 | `src/debug/ReproduceUI.tsx` | P0 | ☐ | C6-T07 |
-| 9 | C6-T09 | 로그 분석: 수집 로그로 실제 원인 특정 (스택 트레이스 매칭) | `src/debug/LogAnalyzer.ts` | P0 | ☐ | C6-T06 |
-| 10 | C6-T10 | Targeted Fix: 원인에 맞는 최소 패치 (종종 수 줄) | `src/debug/TargetedFixGenerator.ts` | P0 | ☐ | C6-T09 |
-| 11 | C6-T11 | remove_instrumentation 도구: 수정 확정 후 계측 코드 제거 | `src/tools/debug/RemoveInstrumentationTool.ts` | P0 | ☐ | C6-T03 |
-| 12 | C6-T12 | Verify & Cleanup: 재현으로 검증 → 계측 제거 → 최종 확인 | `src/debug/VerifyCleanup.ts` | P0 | ☐ | C6-T11 |
-| 13 | C6-T13 | Debug 전용 타임라인 UI: 가설/계측/재현/분석/수정/청소 단계별 그룹 | `src/chat/components/DebugTimeline.tsx` | P1 | ☐ | C0-T13 |
-| 14 | C6-T14 | 단위 테스트: Instrumentation 패턴 적용/제거 정확성 | `tests/unit/debug/` | P0 | ☐ | C6-T04 |
-| 15 | C6-T15 | 단위 테스트: DebugLogServer (로그 수집/필터링/트렁케이트) | `tests/unit/debug/DebugLogServer.test.ts` | P0 | ☐ | C6-T05 |
-| 16 | C6-T16 | 단위 테스트: LogAnalyzer (스택 매칭, 원인 특정) | `tests/unit/debug/LogAnalyzer.test.ts` | P0 | ☐ | C6-T09 |
-| 17 | C6-T17 | E2E: "Fix race condition in cache" → 가설 3개 → 계측 → 재현 → 2줄 수정 → 검증 | `tests/e2e/c6-debug-mode.spec.ts` | P0 | ☐ | C6-T12 |
-| 18 | C6-T18 | E2E: 재현 대기 중 Stop → 계측 제거 + 부분 상태 복구 | `tests/e2e/c6-debug-stop.spec.ts` | P0 | ☐ | C6-T07 |
-| 19 | C6-T19 | E2E: 계측 추가 후 테스트 실패 → 로그 분석 → 수정 → 테스트 통과 | `tests/e2e/c6-debug-test-failure.spec.ts` | P0 | ☐ | C6-T09 |
-| 20 | C6-T20 | 성능: DebugLogServer 1000 로그/초 처리, 메모리 < 50MB | `tests/bench/debug-server.bench.ts` | P1 | ☐ | C6-T05 |
-| 21 | C6-T21 | 문서화: Debug 모드 워크플로우 + 계측 패턴 가이드 | `docs/debug-mode.md` | P2 | ☐ | C6-T17 |
-| 22 | C6-T22 | UI: Debug 모드 배지 + "가설 선택" 모달 + 재현 가이드 패널 | `src/chat/components/DebugModeUI.tsx` | P1 | ☐ | C6-T01 |
-| 23 | C6-T23 | Debug 모드에서 일반 edit_file 도구도 사용 가능 (계측용) | `src/debug/DebugTools.ts` | P0 | ☐ | C6-T01 |
-| 24 | C6-T24 | 재현 단계 자동 기록 (사용자 액션 → 재현 스크립트 생성) | `src/debug/ReproduceRecorder.ts` | P2 | ☐ | C6-T07 |
-| 25 | C6-T25 | 계측 코드 템플릿: 콘솔 로그, 성능 마크, 에러 경계 | `src/debug/Templates.ts` | P1 | ☐ | C6-T04 |
-| 26 | C6-T26 | 멀티파일 버그: 여러 파일 계측 → 통합 로그 분석 | `src/debug/MultiFileDebug.ts` | P2 | ☐ | C6-T09 |
-| 27 | C6-T27 | 디버그 세션 저장/불러오기 (재현 스크립트 + 로그 + 수정 이력) | `src/debug/DebugSessionStore.ts` | P2 | ☐ | C6-T20 |
-| 28 | C6-T28 | 회고: Debug 모드 진입 기준 (재현 어려움 / 동시성 / 힙 분석) 문서화 | `docs/debug-mode-guidelines.md` | P2 | ☐ | C6-T21 |
-
----
-
-| 29 | C6-T29 | Debug 증거용 browser_screenshot/console/network (Design Mode=C7) | `src/debug/BrowserEvidence.ts` | P1 | ☐ | C6-T01,C7-T01 |
+| 1 | C6-T01 | DebugModeController: 가설→계측→재현→로그→최소수정→청소 6단계 | `src/debug/DebugModeController.ts` | P0 | ✅ | C4-T01 |
+| 2 | C6-T02 | 가설 생성: 관련 파일 탐색 → N개 가설 리스트 UI (객관식 선택) | `src/debug/HypothesisGenerator.ts` | P0 | ✅ | C6-T01 |
+| 3 | C6-T03 | add_instrumentation 도구: 로그 삽입 (시작/끝/조건부/변수 덤프) | `src/tools/debug/AddInstrumentationTool.ts` | P0 | ✅ | C6-T01 |
+| 4 | C6-T04 | 계측 코드 패턴 라이브러리 (JS/TS/Python/Go/Rust 공통) | `src/debug/InstrumentationPatterns.ts` | P0 | ✅ | C6-T03 |
+| 5 | C6-T05 | DebugLogServer: 로컬 로그 수집 엔드포인트 (WebSocket/HTTP) | `src/debug/DebugLogServer.ts` | P0 | ✅ | C6-T01 |
+| 6 | C6-T06 | collect_runtime_logs 도구: 서버에서 로그 수집 + 포맷팅 | `src/tools/debug/CollectRuntimeLogsTool.ts` | P0 | ✅ | C6-T05 |
+| 7 | C6-T07 | request_reproduce 도구: 사용자 재현 대기 (가이드 + 진행 표시) | `src/tools/debug/RequestReproduceTool.ts` | P0 | ✅ | C6-T01 |
+| 8 | C6-T08 | Reproduce UI: 단계별 가이드, 스크린샷, "완료" 버튼 | `src/debug/ReproduceUI.tsx` | P0 | ✅ | C6-T07 |
+| 9 | C6-T09 | 로그 분석: 수집 로그로 실제 원인 특정 (스택 트레이스 매칭) | `src/debug/LogAnalyzer.ts` | P0 | ✅ | C6-T06 |
+| 10 | C6-T10 | Targeted Fix: 원인에 맞는 최소 패치 (종종 수 줄) | `src/debug/TargetedFixGenerator.ts` | P0 | ✅ | C6-T09 |
+| 11 | C6-T11 | remove_instrumentation 도구: 수정 확정 후 계측 코드 제거 | `src/tools/debug/RemoveInstrumentationTool.ts` | P0 | ✅ | C6-T03 |
+| 12 | C6-T12 | Verify & Cleanup: 재현으로 검증 → 계측 제거 → 최종 확인 | `src/debug/VerifyCleanup.ts` | P0 | ✅ | C6-T11 |
+| 13 | C6-T13 | Debug 전용 타임라인 UI: 가설/계측/재현/분석/수정/청소 단계별 그룹 | `src/chat/components/DebugTimeline.tsx` | P1 | ✅ | C0-T13 |
+| 14 | C6-T14 | 단위 테스트: Instrumentation 패턴 적용/제거 정확성 | `tests/unit/debug/` | P0 | ✅ | C6-T04 |
+| 15 | C6-T15 | 단위 테스트: DebugLogServer (로그 수집/필터링/트렁케이트) | `tests/unit/debug/DebugLogServer.test.ts` | P0 | ✅ | C6-T05 |
+| 16 | C6-T16 | 단위 테스트: LogAnalyzer (스택 매칭, 원인 특정) | `tests/unit/debug/LogAnalyzer.test.ts` | P0 | ✅ | C6-T09 |
+| 17 | C6-T17 | E2E: "Fix race condition in cache" → 가설 3개 → 계측 → 재현 → 2줄 수정 → 검증 | `tests/e2e/c6-debug-cycle.spec.ts` | P0 | ✅ | C6-T12 |
+| 18 | C6-T18 | E2E: 재현 대기 중 Stop → 계측 제거 + 부분 상태 복구 | `tests/e2e/c6-debug-stop.spec.ts` | P0 | ✅ | C6-T07 |
+| 19 | C6-T19 | E2E: 계측 추가 후 테스트 실패 → 로그 분석 → 수정 → 테스트 통과 | `tests/e2e/c6-debug-test-failure.spec.ts` | P0 | ✅ | C6-T09 |
+| 20 | C6-T20 | 성능: DebugLogServer 1000 로그/초 처리, 메모리 < 50MB | `tests/bench/debug-mode.bench.ts` | P1 | ✅ | C6-T05 |
+| 21 | C6-T21 | 문서화: Debug 모드 워크플로우 + 계측 패턴 가이드 | `docs/debug-mode.md` | P2 | ✅ | C6-T17 |
+| 22 | C6-T22 | UI: Debug 모드 배지 + "가설 선택" 모달 + 재현 가이드 패널 | `src/chat/components/DebugModeUI.tsx` | P1 | ✅ | C6-T01 |
+| 23 | C6-T23 | Debug 모드에서 일반 edit_file 도구도 사용 가능 (계측용) | `src/debug/DebugTools.ts` | P0 | ✅ | C6-T01 |
+| 24 | C6-T24 | 재현 단계 자동 기록 (사용자 액션 → 재현 스크립트 생성) | `src/debug/ReproduceRecorder.ts` | P2 | ✅ | C6-T07 |
+| 25 | C6-T25 | 계측 코드 템플릿: 콘솔 로그, 성능 마크, 에러 경계 | `src/debug/Templates.ts` | P1 | ✅ | C6-T04 |
+| 26 | C6-T26 | 멀티파일 버그: 여러 파일 계측 → 통합 로그 분석 | `src/debug/MultiFileDebug.ts` | P2 | ✅ | C6-T09 |
+| 27 | C6-T27 | 디버그 세션 저장/불러오기 (재현 스크립트 + 로그 + 수정 이력) | `src/debug/DebugSessionStore.ts` | P2 | ✅ | C6-T20 |
+| 28 | C6-T28 | 회고: Debug 모드 진입 기준 (재현 어려움 / 동시성 / 힙 분석) 문서화 | `docs/debug-mode-guidelines.md` | P2 | ✅ | C6-T21 |
+| 29 | C6-T29 | Debug 증거용 browser_screenshot/console/network (Design Mode=C7) | `src/debug/BrowserEvidence.ts` | P1 | ✅ | C6-T01,C7-T01 |
 
 ### 🟢 C7: Production Grade (46 tasks)
 
@@ -443,10 +442,14 @@ sed -i 's/| 1 | C0-T01 | .* | ☐ |/| 1 | C0-T01 | 확장 스캐폴드 생성 | 
 
 **C5 (Plan Mode)** ✅ 완료 (25/25)
 
-**C6 (Debug Mode)** 가 다음 목표입니다:
-1. `C6-T01~T12`: DebugModeController (가설→계측→재현→로그→최소수정→청소 6단계)
-2. `C6-T13~T28`: UI, 테스트, 벤치마크, 문서화
-3. 이후 C7 (Production Grade) → HARB (Harness/Specs) 순차 진행
+**C6 (Debug Mode)** ✅ 완료 (29/29)
+
+**C7 (Production Grade)** ✅ 완료 (42/46, P2 4개 제외)
+
+**HARB (Harness/Specs)** 가 다음 목표입니다:
+1. HARB-T01~T14: Tier 정책 + Verification First + Cursor Pattern + 하네스 의무
+2. HARB-T15~T19: Acceptance Criteria 4개 자동 테스트 스위트
+3. HARB-T20~T38: Spec 7개 + Tool Registry 통합 + 벤치마크 + 문서
 
 ---
 

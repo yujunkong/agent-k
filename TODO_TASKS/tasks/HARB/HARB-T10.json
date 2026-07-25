@@ -2,7 +2,7 @@
   "id": "HARB-T10",
   "phase": "HARB",
   "title": "Verification Micro-Loop 완성: edit 후 자동 lint/test → 주입 → 재시도",
-  "description": "Verification Micro-Loop 완성: edit 후 자동 lint/test → 주입 → 재시도. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Verification micro-loop 게이트(C2 중복=완성).",
   "files": [
     "src/hooks/autoVerificationHook.ts"
   ],
@@ -12,12 +12,18 @@
     "C2-T18"
   ],
   "acceptanceCriteria": [
-    "Implements: Verification Micro-Loop 완성: edit 후 자동 lint/test → 주입 → 재시도",
-    "Matches PRD acceptance for this phase"
+    "재시도",
+    "max"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-10_Verification_MicroLoop.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

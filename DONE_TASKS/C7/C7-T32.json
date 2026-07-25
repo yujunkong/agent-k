@@ -1,0 +1,28 @@
+{
+  "id": "C7-T32",
+  "phase": "C7",
+  "title": "DGX/vLLM/TRT-LLM 원클릭 프로바이더: 엔드포인트/모델 카탈로그만",
+  "description": "DGX/vLLM 프로바이더 카탈로그.",
+  "files": [
+    "src/providers/DGXProvider.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C0-T18"
+  ],
+  "acceptanceCriteria": [
+    "등록",
+    "연결 테스트"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-02_Provider_Adapters.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

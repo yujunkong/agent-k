@@ -1,0 +1,29 @@
+{
+  "id": "C7-T26",
+  "phase": "C7",
+  "title": "Secrets/Config Vault UI: SecretStorage 관리 + 환경별 프로파일",
+  "description": "Secrets Vault UI SecretStorage only.",
+  "files": [
+    "src/secrets/SecretsVault.tsx"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C0-T21"
+  ],
+  "acceptanceCriteria": [
+    "평문 금지",
+    "프로파일"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-21_Secrets.md",
+    "PRD-29_Settings_Hub.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

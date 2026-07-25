@@ -2,7 +2,7 @@
   "id": "HARB-T36",
   "phase": "HARB",
   "title": "벤치마크: 의도적 틀린 SEARCH 10건 → 전부 안전 거절 + 모델 재시도 성공",
-  "description": "벤치마크: 의도적 틀린 SEARCH 10건 → 전부 안전 거절 + 모델 재시도 성공. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "하네스 통합 스모크.",
   "files": [
     "tests/bench/patch-rejection.bench.ts"
   ],
@@ -12,12 +12,17 @@
     "C2-T05"
   ],
   "acceptanceCriteria": [
-    "Implements: 벤치마크: 의도적 틀린 SEARCH 10건 → 전부 안전 거절 + 모델 재시도 성공",
-    "Matches PRD acceptance for this phase"
+    "게이트"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-15_Acceptance_Criteria.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

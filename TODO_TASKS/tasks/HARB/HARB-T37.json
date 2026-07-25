@@ -2,7 +2,7 @@
   "id": "HARB-T37",
   "phase": "HARB",
   "title": "벤치마크: 50턴 세션 창 오버플로 없이 중요 @파일 항상 유지",
-  "description": "벤치마크: 50턴 세션 창 오버플로 없이 중요 @파일 항상 유지. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "하네스 문서 인덱스.",
   "files": [
     "tests/bench/context-budget.bench.ts"
   ],
@@ -12,12 +12,17 @@
     "C4-T10"
   ],
   "acceptanceCriteria": [
-    "Implements: 벤치마크: 50턴 세션 창 오버플로 없이 중요 @파일 항상 유지",
-    "Matches PRD acceptance for this phase"
+    "링크"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-01_Model_Tiers.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

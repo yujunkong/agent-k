@@ -28,5 +28,6 @@
   "prdRefs": [
     "PRD-Spec-05_Permission_Autorun.md",
     "PRD-29_Settings_Hub.md"
-  ]
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

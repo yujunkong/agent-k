@@ -2,22 +2,30 @@
   "id": "HARB-T32",
   "phase": "HARB",
   "title": "Tools-F: Orchestration/Extension (task/MCP/skill/worktree/git/gh)",
-  "description": "Tools-F: Orchestration/Extension (task/MCP/skill/worktree/git/gh). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Tools-F + PRD-28 skill/task.",
   "files": [
     "src/tools/orchestration/"
   ],
   "priority": "P0",
   "status": "pending",
   "dependencies": [
-    "C7-T17"
+    "C7-T19",
+    "HARB-T06"
   ],
   "acceptanceCriteria": [
-    "Implements: Tools-F: Orchestration/Extension (task/MCP/skill/worktree/git/gh)",
-    "Matches PRD acceptance for this phase"
+    "skill",
+    "task"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Tools-F_Orchestration_Extension.md",
+    "PRD-28_Skills_Pinned.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

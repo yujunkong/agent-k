@@ -2,22 +2,29 @@
   "id": "HARB-T33",
   "phase": "HARB",
   "title": "Tools-G: Debug Tools (add_instrumentation/collect_logs/request_reproduce/remove_instrumentation)",
-  "description": "Tools-G: Debug Tools (add_instrumentation/collect_logs/request_reproduce/remove_instrumentation). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Tools-G Debug, C6 deps.",
   "files": [
     "src/tools/debug/"
   ],
   "priority": "P0",
   "status": "pending",
   "dependencies": [
-    "C6-T03"
+    "C6-T03",
+    "HARB-T06"
   ],
   "acceptanceCriteria": [
-    "Implements: Tools-G: Debug Tools (add_instrumentation/collect_logs/request_reproduce/remove_instrumentation)",
-    "Matches PRD acceptance for this phase"
+    "4 tools",
+    "collect_runtime_logs"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Tools-G_Debug_Tools.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

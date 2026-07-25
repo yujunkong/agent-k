@@ -2,7 +2,7 @@
   "id": "HARB-T09",
   "phase": "HARB",
   "title": "PrefetchEngine 완성: 메시지/스택/심볼 → 모델 호출 전 조사 블록 주입",
-  "description": "PrefetchEngine 완성: 메시지/스택/심볼 → 모델 호출 전 조사 블록 주입. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Prefetch 패턴 게이트.",
   "files": [
     "src/prefetch/PrefetchEngine.ts"
   ],
@@ -12,12 +12,17 @@
     "C1-T14"
   ],
   "acceptanceCriteria": [
-    "Implements: PrefetchEngine 완성: 메시지/스택/심볼 → 모델 호출 전 조사 블록 주입",
-    "Matches PRD acceptance for this phase"
+    "멘션/스택"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-09_Prefetch_Pattern.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

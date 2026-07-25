@@ -1,0 +1,28 @@
+{
+  "id": "C7-T08",
+  "phase": "C7",
+  "title": "Best-of-N: N개 worktree에서 병렬 Agent 실행 (모델/프롬프트 다르게)",
+  "description": "Best-of-N 병렬 Agent.",
+  "files": [
+    "src/worktree/BestOfN.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C7-T07"
+  ],
+  "acceptanceCriteria": [
+    "N병렬",
+    "실패 isolation"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c7",
+    "p0",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-13_Worktree_BestOfN.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

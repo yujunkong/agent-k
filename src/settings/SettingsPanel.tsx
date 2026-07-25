@@ -13,12 +13,13 @@ import { HarnessTab } from './tabs/HarnessTab';
 import { ContextTab } from './tabs/ContextTab';
 import { McpTab } from './tabs/McpTab';
 import { PrivacyTab } from './tabs/PrivacyTab';
+import { FeaturesTab } from './tabs/FeaturesTab';
 
 interface SettingsPanelProps {
   onClose?: () => void;
 }
 
-type TabId = 'models' | 'secrets' | 'permission' | 'queue' | 'harness' | 'context' | 'mcp' | 'privacy';
+type TabId = 'models' | 'secrets' | 'permission' | 'queue' | 'harness' | 'context' | 'mcp' | 'features' | 'privacy';
 
 interface TabInfo {
   id: TabId;
@@ -30,10 +31,11 @@ const TABS: TabInfo[] = [
   { id: 'models', label: 'Models', icon: '🤖' },
   { id: 'secrets', label: 'Secrets', icon: '🔑' },
   { id: 'permission', label: 'Permission', icon: '🔒' },
-  { id: 'queue', label: 'Queue', icon: '📋' },
+  { id: 'features', label: 'Features', icon: '⚙️' },
   { id: 'harness', label: 'Harness', icon: '🧪' },
   { id: 'context', label: 'Context', icon: '📚' },
   { id: 'mcp', label: 'MCP', icon: '🔌' },
+  { id: 'queue', label: 'Queue', icon: '📋' },
   { id: 'privacy', label: 'Privacy', icon: '🔐' }
 ];
 
@@ -49,6 +51,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
       case 'harness': return <HarnessTab />;
       case 'context': return <ContextTab />;
       case 'mcp': return <McpTab />;
+      case 'features': return <FeaturesTab />;
       case 'privacy': return <PrivacyTab />;
       default: return <ModelsTab />;
     }

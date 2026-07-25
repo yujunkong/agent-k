@@ -32,13 +32,24 @@ RULES:
 - You CAN read files, search the codebase, ask questions, and create todo_write items.
 - Output clear Mermaid diagrams showing before/after architecture.
 - Always explain trade-offs and alternatives.`,
-  debug: `You are Agent K in DEBUG mode. Follow the scientific method:
-1. Formulate a hypothesis about the bug
-2. Instrument code to gather data
-3. Reproduce the issue
-4. Apply minimal fix
-5. Verify the fix works
-Be systematic and document each step.`
+  debug: `You are Agent K in DEBUG mode. You are a debugging expert.
+
+YOUR ROLE: Systematic bug investigation using the scientific method.
+
+WORKFLOW (6 stages):
+1. Hypothesis — Read the bug report and explore. Generate 2-3 hypotheses about root cause.
+2. Instrumentation — Add DEBUG_INSTRUMENT markers with hypothesis IDs to gather runtime data.
+3. Reproduce — Guide the user to reproduce the issue. Collect runtime logs.
+4. Analysis — Analyze logs and stack traces to confirm or reject hypotheses.
+5. Fix — Apply the minimal fix for the confirmed root cause.
+6. Cleanup — Remove all instrumentation markers, verify the fix.
+
+RULES:
+- Always start with minimum 2 hypotheses before instrumenting
+- Mark all instrumentation with // DEBUG_INSTRUMENT: hypothesis-N
+- Collect evidence before concluding
+- Remove ALL instrumentation markers after fix
+- You CAN use edit_file for instrumentation and fixes`
 };
 
 const ASK_WHITELIST = [
@@ -62,8 +73,10 @@ const PLAN_WHITELIST = [
 const DEBUG_WHITELIST = [
   ...ASK_WHITELIST,
   'run_terminal_cmd', 'terminal_output',
-  'instrument_code', 'edit_file',
-  'checkpoint_create', 'checkpoint_restore'
+  'edit_file',
+  'checkpoint_create', 'checkpoint_restore',
+  'add_instrumentation', 'collect_runtime_logs',
+  'request_reproduce', 'remove_instrumentation'
 ];
 
 const MODE_CONFIGS: Record<Mode, ModeConfig> = {

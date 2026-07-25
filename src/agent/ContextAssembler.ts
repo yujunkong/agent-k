@@ -8,6 +8,7 @@
 import type { Mode } from './types';
 import { modeRegistry } from './modeRegistry';
 import { MemoryStore } from '../memories/MemoryStore';
+import * as vscode from 'vscode';
 
 export interface ContextSlot {
   name: string;
@@ -29,7 +30,11 @@ export class ContextAssembler {
   private memoryStore: MemoryStore;
 
   constructor(memoryStore?: MemoryStore) {
-    this.memoryStore = memoryStore || new MemoryStore();
+    // Use a minimal mock if no SecretStorage available
+    this.memoryStore = memoryStore || new MemoryStore(
+      { get: async () => undefined, store: async () => {}, delete: async () => {} } as any,
+      { subscriptions: [], workspaces: [] } as any
+    );
   }
 
   assemble(
@@ -73,7 +78,7 @@ export class ContextAssembler {
       {
         name: 'memories',
         budgetPercent: 2,
-        content: this.memoryStore.getContextBlock(Math.floor(this.maxTokens * 0.02)),
+        content: this.memoryStore.injectMemoriesIntoPrompt('', Math.floor(this.maxTokens * 0.02)).trim() || '(no memories)',
         priority: 70,
         protected_: false
       },

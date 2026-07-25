@@ -1,0 +1,28 @@
+{
+  "id": "C7-T14",
+  "phase": "C7",
+  "title": "Memories 고도화: SecretStorage 영구 저장 + UI 편집 + 자동 주입",
+  "description": "Memories 고도화 영구+UI+주입.",
+  "files": [
+    "src/memories/MemoryStore.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C4-T18"
+  ],
+  "acceptanceCriteria": [
+    "재시작 유지",
+    "슬롯"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c7",
+    "p0",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-15_Memories.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

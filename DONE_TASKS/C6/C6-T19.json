@@ -1,0 +1,27 @@
+{
+  "id": "C6-T19",
+  "phase": "C6",
+  "title": "E2E: 계측 추가 후 테스트 실패 → 로그 분석 → 수정 → 테스트 통과",
+  "description": "E2E 계측→테스트실패→수정→통과.",
+  "files": [
+    "tests/e2e/c6-debug-test-failure.spec.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C6-T09"
+  ],
+  "acceptanceCriteria": [
+    "로그 수집",
+    "그린"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c6",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

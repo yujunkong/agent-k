@@ -1,0 +1,27 @@
+{
+  "id": "C6-T25",
+  "phase": "C6",
+  "title": "계측 코드 템플릿: 콘솔 로그, 성능 마크, 에러 경계",
+  "description": "템플릿 console/perf mark/error boundary.",
+  "files": [
+    "src/debug/Templates.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C6-T04"
+  ],
+  "acceptanceCriteria": [
+    "템플릿 3+",
+    "라이브러리 연동"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c6",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

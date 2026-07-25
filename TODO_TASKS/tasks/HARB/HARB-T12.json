@@ -2,7 +2,7 @@
   "id": "HARB-T12",
   "phase": "HARB",
   "title": "Routing Heuristics: Plan 승인 대형작업→Pro 실행, 린트 2회 실패→Pro, JSON 3회 실패→세션 중단",
-  "description": "Routing Heuristics: Plan 승인 대형작업→Pro 실행, 린트 2회 실패→Pro, JSON 3회 실패→세션 중단. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Routing heuristics.",
   "files": [
     "src/providers/RoutingHeuristics.ts"
   ],
@@ -12,12 +12,17 @@
     "HARB-T01"
   ],
   "acceptanceCriteria": [
-    "Implements: Routing Heuristics: Plan 승인 대형작업→Pro 실행, 린트 2회 실패→Pro, JSON 3회 실패→세션 중단",
-    "Matches PRD acceptance for this phase"
+    "함수"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-12_Routing_Heuristics.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

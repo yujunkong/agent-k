@@ -2,7 +2,7 @@
   "id": "HARB-T14",
   "phase": "HARB",
   "title": "Don't Do Medium: 안티패턴 문서화 + 런타임 가드 (풀 도구/MCP/전체 리팩터/Unified diff/긴 이력)",
-  "description": "Don't Do Medium: 안티패턴 문서화 + 런타임 가드 (풀 도구/MCP/전체 리팩터/Unified diff/긴 이력). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Don't Do Medium 가드.",
   "files": [
     "src/harness/DontDoMedium.ts"
   ],
@@ -12,12 +12,17 @@
     "HARB-T06"
   ],
   "acceptanceCriteria": [
-    "Implements: Don't Do Medium: 안티패턴 문서화 + 런타임 가드 (풀 도구/MCP/전체 리팩터/Unified diff/긴 이력)",
-    "Matches PRD acceptance for this phase"
+    "안티패턴"
   ],
   "estimatedHours": 2,
   "tags": [
     "harb",
-    "p1"
-  ]
+    "p1",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-14_Dont_Do_Medium.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

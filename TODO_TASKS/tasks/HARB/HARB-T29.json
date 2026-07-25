@@ -2,7 +2,7 @@
   "id": "HARB-T29",
   "phase": "HARB",
   "title": "Tools-C: Terminal/Process (run/background/await/kill)",
-  "description": "Tools-C: Terminal/Process (run/background/await/kill). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Tools-C 갭필.",
   "files": [
     "src/tools/terminal/"
   ],
@@ -12,12 +12,17 @@
     "C2-T09"
   ],
   "acceptanceCriteria": [
-    "Implements: Tools-C: Terminal/Process (run/background/await/kill)",
-    "Matches PRD acceptance for this phase"
+    "allowlist terminal"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Tools-C_Terminal.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

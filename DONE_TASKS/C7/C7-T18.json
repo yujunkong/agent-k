@@ -1,0 +1,29 @@
+{
+  "id": "C7-T18",
+  "phase": "C7",
+  "title": "MCP 도구 지연 로드: ToolSearch로 스키마 폭증 방지",
+  "description": "MCP deferred + tool_search.",
+  "files": [
+    "src/mcp/DeferredMCPTools.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C7-T17"
+  ],
+  "acceptanceCriteria": [
+    "지연 로드",
+    "검색 후 스키마"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-10_MCP.md",
+    "PRD-Tools-F_Orchestration_Extension.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

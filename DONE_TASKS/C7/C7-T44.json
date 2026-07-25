@@ -1,0 +1,27 @@
+{
+  "id": "C7-T44",
+  "phase": "C7",
+  "title": "성능: Browser 세션 시작 < 3s, 스크린샷 < 500ms",
+  "description": "벤치 browser start/screenshot.",
+  "files": [
+    "tests/bench/browser.bench.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C7-T01"
+  ],
+  "acceptanceCriteria": [
+    "벤치 기록"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-11_Browser_Design_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

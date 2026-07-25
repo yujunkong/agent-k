@@ -1,0 +1,26 @@
+{
+  "id": "C6-T28",
+  "phase": "C6",
+  "title": "회고: Debug 모드 진입 기준 (재현 어려움 / 동시성 / 힙 분석) 문서화",
+  "description": "Debug 진입 기준 문서.",
+  "files": [
+    "docs/debug-mode-guidelines.md"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C6-T21"
+  ],
+  "acceptanceCriteria": [
+    "docs 존재"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c6",
+    "p2"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

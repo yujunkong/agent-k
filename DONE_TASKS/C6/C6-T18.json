@@ -1,0 +1,27 @@
+{
+  "id": "C6-T18",
+  "phase": "C6",
+  "title": "E2E: 재현 대기 중 Stop → 계측 제거 + 부분 상태 복구",
+  "description": "E2E Stop 중 계측 롤백.",
+  "files": [
+    "tests/e2e/c6-debug-stop.spec.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C6-T07"
+  ],
+  "acceptanceCriteria": [
+    "계측 제거/Pending 정합",
+    "서버 정리"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c6",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

@@ -1,0 +1,27 @@
+{
+  "id": "C6-T26",
+  "phase": "C6",
+  "title": "멀티파일 버그: 여러 파일 계측 → 통합 로그 분석",
+  "description": "멀티파일 계측→통합 분석.",
+  "files": [
+    "src/debug/MultiFileDebug.ts"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C6-T09"
+  ],
+  "acceptanceCriteria": [
+    "다중 path",
+    "타임스탬프 상관"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c6",
+    "p2"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

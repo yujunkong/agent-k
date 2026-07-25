@@ -1,0 +1,28 @@
+{
+  "id": "C7-T33",
+  "phase": "C7",
+  "title": "Model Router: Cost/Balance/Intelligence + A/B 티어 라우팅",
+  "description": "Model Router Cost/Balance/Intel.",
+  "files": [
+    "src/providers/ModelRouter.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C4-T30"
+  ],
+  "acceptanceCriteria": [
+    "라우팅",
+    "오버라이드"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-Harness-12_Routing_Heuristics.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

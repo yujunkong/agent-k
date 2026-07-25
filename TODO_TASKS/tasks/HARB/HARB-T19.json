@@ -2,7 +2,7 @@
   "id": "HARB-T19",
   "phase": "HARB",
   "title": "AC-4: 고의로 깨진 tool JSON 10건 중 ≥8건 복구 또는 안전 에러",
-  "description": "AC-4: 고의로 깨진 tool JSON 10건 중 ≥8건 복구 또는 안전 에러. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Harness-15 리포트.",
   "files": [
     "tests/acceptance/harness/ac4-json-recovery.spec.ts"
   ],
@@ -12,12 +12,17 @@
     "HARB-T15"
   ],
   "acceptanceCriteria": [
-    "Implements: AC-4: 고의로 깨진 tool JSON 10건 중 ≥8건 복구 또는 안전 에러",
-    "Matches PRD acceptance for this phase"
+    "산출"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-15_Acceptance_Criteria.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

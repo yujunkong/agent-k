@@ -1,0 +1,28 @@
+{
+  "id": "C7-T24",
+  "phase": "C7",
+  "title": "Commit Message / PR Description 생성: SCM API + LM",
+  "description": "커밋/PR 설명 생성.",
+  "files": [
+    "src/scm/CommitMessageGenerator.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C7-T23"
+  ],
+  "acceptanceCriteria": [
+    "생성",
+    "편집 후 적용"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-C7_Production_Grade.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

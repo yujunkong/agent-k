@@ -1,0 +1,28 @@
+{
+  "id": "C6-T12",
+  "phase": "C6",
+  "title": "Verify & Cleanup: 재현으로 검증 → 계측 제거 → 최종 확인",
+  "description": "Verify & Cleanup: 재현→통과→계측 제거.",
+  "files": [
+    "src/debug/VerifyCleanup.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C6-T11"
+  ],
+  "acceptanceCriteria": [
+    "실패 시 계측 유지",
+    "성공 cleanup",
+    "타임라인"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c6",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

@@ -1,0 +1,27 @@
+{
+  "id": "C7-T31",
+  "phase": "C7",
+  "title": "Semantic Search: 벡터 DB (선택) 또는 ripgrep만으로 시작",
+  "description": "Semantic search 또는 rg 폴백.",
+  "files": [
+    "src/indexing/SemanticSearch.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C7-T30"
+  ],
+  "acceptanceCriteria": [
+    "없으면 grep 유도"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-08_Codebase_Indexing.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

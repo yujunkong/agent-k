@@ -1,0 +1,26 @@
+{
+  "id": "C6-T21",
+  "phase": "C6",
+  "title": "문서화: Debug 모드 워크플로우 + 계측 패턴 가이드",
+  "description": "docs/debug-mode.md.",
+  "files": [
+    "docs/debug-mode.md"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C6-T17"
+  ],
+  "acceptanceCriteria": [
+    "가이드 완성"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c6",
+    "p2"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

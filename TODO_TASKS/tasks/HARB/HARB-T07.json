@@ -2,7 +2,7 @@
   "id": "HARB-T07",
   "phase": "HARB",
   "title": "Prompt/Turn Structure: 도구 최대 N개, 읽기 위주, 수정 전 read 필수",
-  "description": "Prompt/Turn Structure: 도구 최대 N개, 읽기 위주, 수정 전 read 필수. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "턴 도구 캡·read-before-edit.",
   "files": [
     "src/harness/PromptTurnStructure.ts"
   ],
@@ -12,12 +12,18 @@
     "HARB-T01"
   ],
   "acceptanceCriteria": [
-    "Implements: Prompt/Turn Structure: 도구 최대 N개, 읽기 위주, 수정 전 read 필수",
-    "Matches PRD acceptance for this phase"
+    "캡 deny",
+    "read-before-edit"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-07_Prompt_Turn_Structure.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

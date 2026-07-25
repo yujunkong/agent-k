@@ -2,7 +2,7 @@
   "id": "HARB-T15",
   "phase": "HARB",
   "title": "Acceptance Criteria (4개) 자동 테스트 스위트",
-  "description": "Acceptance Criteria (4개) 자동 테스트 스위트. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Harness-15 AC-1.",
   "files": [
     "tests/acceptance/harness/"
   ],
@@ -12,12 +12,17 @@
     "HARB-T01"
   ],
   "acceptanceCriteria": [
-    "Implements: Acceptance Criteria (4개) 자동 테스트 스위트",
-    "Matches PRD acceptance for this phase"
+    "테스트"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-15_Acceptance_Criteria.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

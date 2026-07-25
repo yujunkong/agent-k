@@ -1,0 +1,27 @@
+{
+  "id": "C6-T13",
+  "phase": "C6",
+  "title": "Debug 전용 타임라인 UI: 가설/계측/재현/분석/수정/청소 단계별 그룹",
+  "description": "Debug 타임라인 단계 그룹.",
+  "files": [
+    "src/chat/components/DebugTimeline.tsx"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C0-T13"
+  ],
+  "acceptanceCriteria": [
+    "단계 노드",
+    "접기"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c6",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

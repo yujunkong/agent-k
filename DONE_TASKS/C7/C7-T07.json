@@ -1,0 +1,28 @@
+{
+  "id": "C7-T07",
+  "phase": "C7",
+  "title": "WorktreeManager: git worktree 생성/삭제/리스트",
+  "description": "git worktree CRUD/list.",
+  "files": [
+    "src/worktree/WorktreeManager.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C4-T27"
+  ],
+  "acceptanceCriteria": [
+    "create/list/delete",
+    "경로 격리"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c7",
+    "p0",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-13_Worktree_BestOfN.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

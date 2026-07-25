@@ -2,7 +2,7 @@
   "id": "HARB-T02",
   "phase": "HARB",
   "title": "Verification First 철학: 시스템 프롬프트에 검증 우선 문구 주입",
-  "description": "Verification First 철학: 시스템 프롬프트에 검증 우선 문구 주입. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Verification-First 프롬프트.",
   "files": [
     "src/harness/VerificationFirstPrompt.ts"
   ],
@@ -12,12 +12,18 @@
     "HARB-T01"
   ],
   "acceptanceCriteria": [
-    "Implements: Verification First 철학: 시스템 프롬프트에 검증 우선 문구 주입",
-    "Matches PRD acceptance for this phase"
+    "문구",
+    "티어별"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-02_Verification_First.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

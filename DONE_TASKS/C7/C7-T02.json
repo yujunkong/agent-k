@@ -1,0 +1,29 @@
+{
+  "id": "C7-T02",
+  "phase": "C7",
+  "title": "Browser 세션 관리: 영구 컨텍스트, 쿠키/스토리지 유지",
+  "description": "세션 풀 max3 LRU, 쿠키/스토리지, total mem <800MB.",
+  "files": [
+    "src/browser/BrowserSession.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C7-T01"
+  ],
+  "acceptanceCriteria": [
+    "max3",
+    "LRU",
+    "쿠키 유지"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c7",
+    "p0",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-11_Browser_Design_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

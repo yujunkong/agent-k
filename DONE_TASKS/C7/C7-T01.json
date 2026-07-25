@@ -1,0 +1,31 @@
+{
+  "id": "C7-T01",
+  "phase": "C7",
+  "title": "BrowserTools: Playwright 연동 (navigate, click, screenshot, evaluate)",
+  "description": "Playwright: navigate/click/scroll/wait/screenshot/evaluate + console/network. Tier A deny.",
+  "files": [
+    "src/browser/BrowserTools.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C4-T27"
+  ],
+  "acceptanceCriteria": [
+    "핵심 API 동작",
+    "Tier A 미노출",
+    "에러 시 세션 정리"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c7",
+    "p0",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-C7_Production_Grade.md",
+    "PRD-11_Browser_Design_Mode.md",
+    "PRD-Tools-D_Web_Browser_Media.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

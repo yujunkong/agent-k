@@ -1,0 +1,28 @@
+{
+  "id": "C7-T06",
+  "phase": "C7",
+  "title": "Webview에서 브라우저 미리보기 (iframe 또는 캔버스 스트리밍)",
+  "description": "Webview 브라우저 프리뷰.",
+  "files": [
+    "src/browser/BrowserPreview.tsx"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C7-T01"
+  ],
+  "acceptanceCriteria": [
+    "프리뷰",
+    "세션 연결"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-11_Browser_Design_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

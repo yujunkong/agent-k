@@ -1,0 +1,32 @@
+{
+  "id": "RW-P2-01",
+  "severity": "P2",
+  "category": "schema",
+  "title": "DONE status 값 정규화 (done | rework | completed→done)",
+  "description": "status가 done(173)과 completed(4) 혼재. completed→done 통일, 미검증은 rework 도입. 스키마 필드 가이드를 REWORK/DONE README에 명시.",
+  "relatedDoneIds": [
+    "C0-T01",
+    "C0-T02",
+    "C0-T03",
+    "C0-T04"
+  ],
+  "files": [
+    "DONE_TASKS/",
+    "REWORK_TASKS/README.md"
+  ],
+  "status": "pending",
+  "acceptanceCriteria": [
+    "completed 잔여 0",
+    "허용 status: done | rework 문서화"
+  ],
+  "estimatedHours": 1,
+  "tags": [
+    "schema",
+    "p2"
+  ],
+  "prdRefs": [],
+  "dependencies": [],
+  "createdAt": "2026-07-25",
+  "source": "DONE_TASKS audit (false-completion / PRD-code drift)",
+  "notes": "Severity P2: created from DONE_TASKS audit. Do not mark done without evidence (test/SHA/checklist)."
+}

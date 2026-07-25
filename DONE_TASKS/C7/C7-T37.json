@@ -1,0 +1,28 @@
+{
+  "id": "C7-T37",
+  "phase": "C7",
+  "title": "Serial Monitor Panel: Serialport + Webview",
+  "description": "Serial Monitor(B).",
+  "files": [
+    "src/serial/SerialMonitor.tsx"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C4-T27"
+  ],
+  "acceptanceCriteria": [
+    "포트",
+    "로그"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p2",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-C7_Production_Grade.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

@@ -1,0 +1,27 @@
+{
+  "id": "RW-P2-03",
+  "severity": "P2",
+  "category": "schema",
+  "title": "DONE JSON 필수 필드 가이드 (description/AC/prdRefs)",
+  "description": "description·acceptanceCriteria 누락 다수. 최소 스키마 체크 스크립트 scripts/validate-done-tasks.py 추가 권장.",
+  "relatedDoneIds": [],
+  "files": [
+    "REWORK_TASKS/scripts/validate-done-tasks.py",
+    "DONE_TASKS/"
+  ],
+  "status": "pending",
+  "acceptanceCriteria": [
+    "검증 스크립트가 누락 필드 ID 목록 출력",
+    "README에 실행법 기재"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "validation",
+    "p2"
+  ],
+  "prdRefs": [],
+  "dependencies": [],
+  "createdAt": "2026-07-25",
+  "source": "DONE_TASKS audit (false-completion / PRD-code drift)",
+  "notes": "Severity P2: created from DONE_TASKS audit. Do not mark done without evidence (test/SHA/checklist)."
+}

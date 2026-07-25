@@ -1,0 +1,31 @@
+{
+  "id": "RW-P1-03",
+  "severity": "P1",
+  "category": "path-drift",
+  "title": "DONE files[] 경로를 실제 모듈 경로로 보정 (샘플→전수)",
+  "description": "예: C2-T02가 EditFileTool.ts를 클레임하나 실제는 editTools.ts 등. RW-P0-05 분류 A(경로만 오류)를 일괄 패치.",
+  "relatedDoneIds": [
+    "C2-T02"
+  ],
+  "files": [
+    "DONE_TASKS/"
+  ],
+  "status": "pending",
+  "dependencies": [
+    "RW-P0-05"
+  ],
+  "acceptanceCriteria": [
+    "분류 A 전건 files[]가 존재하는 경로만 가리킴",
+    "샘플 10건 수동 스팟체크 통과"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "path-fix",
+    "done-metadata",
+    "p1"
+  ],
+  "prdRefs": [],
+  "createdAt": "2026-07-25",
+  "source": "DONE_TASKS audit (false-completion / PRD-code drift)",
+  "notes": "Severity P1: created from DONE_TASKS audit. Do not mark done without evidence (test/SHA/checklist)."
+}

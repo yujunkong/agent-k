@@ -1,0 +1,28 @@
+{
+  "id": "C7-T30",
+  "phase": "C7",
+  "title": "Codebase Indexing: 자체 임베딩/청크 + Files API + @codebase 검색",
+  "description": "Codebase indexing.",
+  "files": [
+    "src/indexing/CodebaseIndexer.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C4-T28"
+  ],
+  "acceptanceCriteria": [
+    "빌드",
+    "@codebase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-08_Codebase_Indexing.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

@@ -2,7 +2,7 @@
   "id": "HARB-T31",
   "phase": "HARB",
   "title": "Tools-E: User/Session UX (ask_question/todo_write/fetch_rules/switch_mode)",
-  "description": "Tools-E: User/Session UX (ask_question/todo_write/fetch_rules/switch_mode). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Tools-E Session UX.",
   "files": [
     "src/tools/session/"
   ],
@@ -12,12 +12,17 @@
     "C1-T10"
   ],
   "acceptanceCriteria": [
-    "Implements: Tools-E: User/Session UX (ask_question/todo_write/fetch_rules/switch_mode)",
-    "Matches PRD acceptance for this phase"
+    "ask/todo/switch"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Tools-E_Session_UX.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

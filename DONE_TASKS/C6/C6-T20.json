@@ -1,0 +1,27 @@
+{
+  "id": "C6-T20",
+  "phase": "C6",
+  "title": "성능: DebugLogServer 1000 로그/초 처리, 메모리 < 50MB",
+  "description": "벤치 1000 logs/s, mem<50MB.",
+  "files": [
+    "tests/bench/debug-server.bench.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C6-T05"
+  ],
+  "acceptanceCriteria": [
+    "벤치",
+    "결과 기록"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c6",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-C6_Debug_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

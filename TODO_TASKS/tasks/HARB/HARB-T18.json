@@ -2,7 +2,7 @@
   "id": "HARB-T18",
   "phase": "HARB",
   "title": "AC-3: Ask 모드 (쓰기 0, 인용 코드 실제 파일과 일치)",
-  "description": "AC-3: Ask 모드 (쓰기 0, 인용 코드 실제 파일과 일치). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Harness-15 AC-4.",
   "files": [
     "tests/acceptance/harness/ac3-ask-accuracy.spec.ts"
   ],
@@ -12,12 +12,17 @@
     "HARB-T15"
   ],
   "acceptanceCriteria": [
-    "Implements: AC-3: Ask 모드 (쓰기 0, 인용 코드 실제 파일과 일치)",
-    "Matches PRD acceptance for this phase"
+    "테스트"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-15_Acceptance_Criteria.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

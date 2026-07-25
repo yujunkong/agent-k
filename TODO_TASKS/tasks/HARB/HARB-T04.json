@@ -2,7 +2,7 @@
   "id": "HARB-T04",
   "phase": "HARB",
   "title": "Memories Minimal: workspaceState key-value + 예산 1-2%",
-  "description": "Memories Minimal: workspaceState key-value + 예산 1-2%. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Memories minimal 게이트(C4 연동).",
   "files": [
     "src/harness/MinimalMemories.ts"
   ],
@@ -12,12 +12,18 @@
     "C4-T18"
   ],
   "acceptanceCriteria": [
-    "Implements: Memories Minimal: workspaceState key-value + 예산 1-2%",
-    "Matches PRD acceptance for this phase"
+    "예산",
+    "CRUD"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Harness-04_Memories_Minimal.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

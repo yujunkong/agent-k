@@ -1,0 +1,29 @@
+{
+  "id": "C7-T45",
+  "phase": "C7",
+  "title": "문서화: Production 기능 전체 가이드 (Browser/Worktree/Review/MCP/Skills)",
+  "description": "Production 가이드(Browser/Worktree/Review/MCP/Skills).",
+  "files": [
+    "docs/production-features.md"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C7-T38"
+  ],
+  "acceptanceCriteria": [
+    "docs",
+    "Skills=PRD-28"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p2",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-C7_Production_Grade.md",
+    "PRD-28_Skills_Pinned.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

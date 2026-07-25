@@ -1,0 +1,29 @@
+{
+  "id": "RW-P2-04",
+  "severity": "P2",
+  "category": "docs",
+  "title": "DONE↔TODO↔REWORK 워크플로 문서화",
+  "description": "완료 시 TODO→DONE, 감사 실패 시 DONE→REWORK 또는 status=rework. MASTER 갱신 규칙 포함.",
+  "relatedDoneIds": [],
+  "files": [
+    "REWORK_TASKS/README.md",
+    "TODO_TASKS/README.md",
+    "DONE_TASKS/README.md"
+  ],
+  "status": "pending",
+  "acceptanceCriteria": [
+    "3개 README에 상호 링크와 이동 규칙",
+    "심각도 P0→P2 처리 우선순위 명시"
+  ],
+  "estimatedHours": 1,
+  "tags": [
+    "docs",
+    "workflow",
+    "p2"
+  ],
+  "prdRefs": [],
+  "dependencies": [],
+  "createdAt": "2026-07-25",
+  "source": "DONE_TASKS audit (false-completion / PRD-code drift)",
+  "notes": "Severity P2: created from DONE_TASKS audit. Do not mark done without evidence (test/SHA/checklist)."
+}

@@ -1,0 +1,28 @@
+{
+  "id": "C7-T12",
+  "phase": "C7",
+  "title": "Finding 리스트 UI: 파일·줄·심각도·제안 + Accept Fix / Dismiss",
+  "description": "Finding UI Accept/Dismiss.",
+  "files": [
+    "src/review/FindingList.tsx"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C7-T11"
+  ],
+  "acceptanceCriteria": [
+    "리스트",
+    "Dismiss"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c7",
+    "p0",
+    "enriched"
+  ],
+  "prdRefs": [
+    "PRD-14_Agent_Review.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
+}

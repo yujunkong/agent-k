@@ -2,7 +2,7 @@
   "id": "HARB-T21",
   "phase": "HARB",
   "title": "Spec-02: Patch Format (Search-Replace) 파서 + 유일 매칭 + Staleness",
-  "description": "Spec-02: Patch Format (Search-Replace) 파서 + 유일 매칭 + Staleness. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Spec-02 Patch format.",
   "files": [
     "src/patches/"
   ],
@@ -12,12 +12,17 @@
     "C2-T04"
   ],
   "acceptanceCriteria": [
-    "Implements: Spec-02: Patch Format (Search-Replace) 파서 + 유일 매칭 + Staleness",
-    "Matches PRD acceptance for this phase"
+    "검증"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Spec-02_Patch_Format.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }

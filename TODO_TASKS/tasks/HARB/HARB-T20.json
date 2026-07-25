@@ -2,7 +2,7 @@
   "id": "HARB-T20",
   "phase": "HARB",
   "title": "Spec-01: Provider Adapter 3계층 (Adapter/Parser/Formatter) 구현 완료",
-  "description": "Spec-01: Provider Adapter 3계층 (Adapter/Parser/Formatter) 구현 완료. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "description": "Spec-01 Provider/Tool JSON.",
   "files": [
     "src/providers/"
   ],
@@ -12,12 +12,17 @@
     "C0-T19"
   ],
   "acceptanceCriteria": [
-    "Implements: Spec-01: Provider Adapter 3계층 (Adapter/Parser/Formatter) 구현 완료",
-    "Matches PRD acceptance for this phase"
+    "3계층"
   ],
   "estimatedHours": 3,
   "tags": [
     "harb",
-    "p0"
-  ]
+    "p0",
+    "enriched",
+    "gap-fill"
+  ],
+  "prdRefs": [
+    "PRD-Spec-01_Provider_ToolJSON.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff."
 }
