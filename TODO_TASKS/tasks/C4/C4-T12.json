@@ -1,0 +1,20 @@
+{
+  "id": "C4-T12",
+  "phase": "C4",
+  "title": "Drop: 중복 read/grep 결과 제거",
+  "description": "DropDuplicatesStage: 동일한 파일 경로(read_file) 또는 동일한 쿼리(grep/glob/codebase_search)의 tool_result 중복 탐지. 기준: filePath + contentHash(첫 100자) 또는 query + argsHash. 최신 것만 유지, 이전 것 완전 제거(메타데이터만 'dropped: true, keptIndex=X'로 남김). 보호 구간 내 결과 제외.",
+  "files": ["src/compaction/DropDuplicates.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C4-T09"],
+  "acceptanceCriteria": [
+    "동일 파일 경로 read_file 중복 탐지",
+    "동일 쿼리 grep/glob/codebase_search 중복 탐지",
+    "contentHash(첫 100자) 또는 argsHash로 비교",
+    "최신 1개만 유지, 이전 완전 제거",
+    "메타데이터: dropped=true, keptIndex=X",
+    "보호 구간 제외"
+  ],
+  "estimatedHours": 2,
+  "tags": ["drop", "duplicates", "read-file", "grep", "content-hash", "args-hash", "deduplication"]
+}

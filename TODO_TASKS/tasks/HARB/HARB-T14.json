@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T14",
+  "phase": "HARB",
+  "title": "Don't Do Medium: 안티패턴 문서화 + 런타임 가드 (풀 도구/MCP/전체 리팩터/Unified diff/긴 이력)",
+  "description": "Don't Do Medium: 안티패턴 문서화 + 런타임 가드 (풀 도구/MCP/전체 리팩터/Unified diff/긴 이력). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/harness/DontDoMedium.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "HARB-T06"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Don't Do Medium: 안티패턴 문서화 + 런타임 가드 (풀 도구/MCP/전체 리팩터/Unified diff/긴 이력)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "harb",
+    "p1"
+  ]
+}

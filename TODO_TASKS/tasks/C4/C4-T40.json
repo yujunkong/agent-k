@@ -1,0 +1,21 @@
+{
+  "id": "C4-T40",
+  "phase": "C4",
+  "title": "E2E: 100턴 세션 → 컴팩션 후에도 현재 파일/에러/목표 기억",
+  "description": "Playwright E2E: 100턴 긴 대화(각 턴: grep+read_file+edit_file) → 토큰 예산 초과로 4단계 컴팩션 트리거 → 컴팩션 후: @file: 멘션된 파일 3개 내용 유지, 마지막 에러 스택 트레이스 유지, 현재 목표('Implement auth') 유지, 시스템/룰/최근 6턴 보호 구간 유지. 메모리: 100턴 후 < 200MB.",
+  "files": ["tests/e2e/c4-compaction.spec.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C4-T14"],
+  "acceptanceCriteria": [
+    "100턴으로 예산 초과 유도",
+    "4단계 컴팩션 순차 적용",
+    "@file: 멘션 3개 파일 내용 보호",
+    "에러 스택 트레이스 보호",
+    "현재 목표 문장 보호",
+    "시스템/룰/최근 6턴 절대 삭제 안 됨",
+    "메모리 100턴 후 < 200MB"
+  ],
+  "estimatedHours": 5,
+  "tags": ["e2e", "compaction", "100-turns", "protection-zones", "mention", "error-stack", "current-goal", "memory"]
+}

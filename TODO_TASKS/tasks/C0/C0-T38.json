@@ -1,0 +1,25 @@
+{
+  "id": "C0-T38",
+  "phase": "C0",
+  "title": "Queue 설정 탭: onEnterWhileRunning / onStop / debounce (PRD-17)",
+  "description": "Settings Queue 탭에서 resynthesize(기본) vs queue_only, Stop 시 keep/discard, debounce ms 설정. C3 구현 전 설정만 저장·표시.",
+  "files": [
+    "src/settings/tabs/QueueTab.tsx"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C0-T35"
+  ],
+  "acceptanceCriteria": [
+    "기본 resynthesize 표시",
+    "설정 변경이 ConfigManager에 반영",
+    "C3-T07이 이 값을 읽도록 문서/타입 공유"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "queue-settings",
+    "prd-17",
+    "prd-29"
+  ]
+}

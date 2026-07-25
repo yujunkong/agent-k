@@ -1,0 +1,19 @@
+{
+  "id": "C0-T21",
+  "phase": "C0",
+  "title": "SecretStorage 연동 (API Key 저장/조회)",
+  "description": "SecretManager 클래스: vscode.SecretsStorage 래퍼. store(providerId, key, value), get(providerId, key), delete(providerId, key). 키 네이밍: agent-k.{providerId}.{keyName}. 평문 settings.json 저장 금지 (설정 스키마에 secret: true). 시크릿 변경 시 ProviderRegistry 알림 → 재인증.",
+  "files": ["src/providers/SecretManager.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C0-T01"],
+  "acceptanceCriteria": [
+    "API 키 SecretStorage에 암호화 저장",
+    "settings.json에 평문 키 없음 (secret: true 검증)",
+    "저장/조회/삭제 모두 작동",
+    "프로바이더 변경 시 시크릿 자동 연동",
+    "다중 프로바이더 키 격리 저장"
+  ],
+  "estimatedHours": 2,
+  "tags": ["secret", "storage", "apikey", "security", "vscode-api"]
+}

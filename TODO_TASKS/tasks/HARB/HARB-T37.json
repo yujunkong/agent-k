@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T37",
+  "phase": "HARB",
+  "title": "벤치마크: 50턴 세션 창 오버플로 없이 중요 @파일 항상 유지",
+  "description": "벤치마크: 50턴 세션 창 오버플로 없이 중요 @파일 항상 유지. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "tests/bench/context-budget.bench.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C4-T10"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 벤치마크: 50턴 세션 창 오버플로 없이 중요 @파일 항상 유지",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

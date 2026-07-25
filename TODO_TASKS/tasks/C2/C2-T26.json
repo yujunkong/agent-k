@@ -1,0 +1,19 @@
+{
+  "id": "C2-T26",
+  "phase": "C2",
+  "title": "단위 테스트: PatchParser, Matcher, Staleness, Merger",
+  "description": "Vitest 단위 테스트. PatchParser: Begin/End Patch, 멀티 파일, 멀티 헌크, 엣지 케이스(빈 헌크, 라인 번호 없음). Matcher: 유일 매칭/NotFound/Ambiguous, 퍼지 매칭, xxhash64. Staleness: mtime/hash 변경/미변경, 외부 편집 감지. Merger: 멀티 헌크 라인 오프셋 재계산, WorkspaceEdit 생성 정확성.",
+  "files": ["tests/unit/patches/parser.test.ts", "tests/unit/patches/matcher.test.ts", "tests/unit/patches/staleness.test.ts", "tests/unit/patches/merger.test.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C2-T08"],
+  "acceptanceCriteria": [
+    "PatchParser: 모든 포맷 변형 파싱 성공",
+    "Matcher: 3가지 결과(성공/NotFound/Ambiguous) 모두 테스트",
+    "Staleness: 변경/미변경/외부편집 시나리오",
+    "Merger: 라인 오프셋 재계산 정확성",
+    "커버리지 85% 이상"
+  ],
+  "estimatedHours": 5,
+  "tags": ["testing", "vitest", "unit-test", "patch", "parser", "matcher", "staleness", "merger"]
+}

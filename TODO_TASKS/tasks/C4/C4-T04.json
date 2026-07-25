@@ -1,0 +1,19 @@
+{
+  "id": "C4-T04",
+  "phase": "C4",
+  "title": "체크포인트 저장: 변경 파일 before 스냅샷 (내용 해시) → workspaceState",
+  "description": "SnapshotStore: save(checkpointId, files[]) → workspaceState.checkpoints[checkpointId] = {files: {path: {content, hash, mtime}}, timestamp}. load(checkpointId) → files 복원. deleteOldest() → 50개 초과 시 가장 오래된 삭제. 압축: 큰 파일은 gzip 후 base64 저장.",
+  "files": ["src/checkpoint/SnapshotStore.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C4-T03"],
+  "acceptanceCriteria": [
+    "파일 내용 + hash + mtime 저장",
+    "workspaceState에 JSON 직렬화",
+    "로드 시 원본 복원",
+    "50개 초과 시 LRU 삭제",
+    "대용량 파일 gzip 압축 저장"
+  ],
+  "estimatedHours": 3,
+  "tags": ["snapshot", "store", "hash", "mtime", "workspace-state", "lru", "gzip", "compression"]
+}

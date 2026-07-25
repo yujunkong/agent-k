@@ -1,0 +1,19 @@
+{
+  "id": "C4-T20",
+  "phase": "C4",
+  "title": "모델이 \"기억해\" / 반복 선호 감지 → 자동 저장 제안",
+  "description": "AutoMemoryDetector: 어시스턴트 메시지 스트리밍 중 패턴 매칭. 패턴: '기억해', 'remember', '저장해', 'save this', '앞으로', 'from now on', '선호', 'prefer'. 감지 시: UI 토스트 '이 내용을 메모리에 저장할까요?' + 저장 버튼. 클릭 시 MemoryStore.set(key, value) 자동 실행. 키 자동 생성: 'auto-{timestamp}-{hash}'. 중복 방지: 유사 키 존재 시 업데이트 제안.",
+  "files": ["src/memories/AutoMemoryDetector.ts"],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": ["C4-T18"],
+  "acceptanceCriteria": [
+    "패턴: 기억해/remember/저장해/save/앞으로/from now on/선호/prefer",
+    "스트리밍 중 실시간 감지",
+    "UI 토스트 + 저장 버튼",
+    "키 자동 생성: auto-{timestamp}-{hash}",
+    "유사 키 중복 방지 → 업데이트 제안"
+  ],
+  "estimatedHours": 3,
+  "tags": ["auto-memory", "detector", "pattern-matching", "streaming", "toast", "auto-key", "dedup"]
+}

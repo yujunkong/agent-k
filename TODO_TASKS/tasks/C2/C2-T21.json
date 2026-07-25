@@ -1,0 +1,19 @@
+{
+  "id": "C2-T21",
+  "phase": "C2",
+  "title": "E2E: Stale 파일 감지 → \"파일 변경됨\" 에러 → 재읽기 유도",
+  "description": "Playwright E2E: Agent 모드 → read_file로 파일 읽기 → 외부 에디터로 파일 수정 (mtime 변경) → edit_file 시도 → StalenessChecker 감지 → 'File modified since last read (mtime/hash mismatch). Re-read file first.' 에러 반환 → 모델 read_file 재실행 → 최신 내용으로 edit_file 재시도 → 성공.",
+  "files": ["tests/e2e/c2-staleness.spec.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C2-T06"],
+  "acceptanceCriteria": [
+    "외부 수정으로 mtime/hash 변경",
+    "StalenessChecker 감지 → 명확한 에러 메시지",
+    "모델이 read_file 재실행",
+    "최신 내용으로 edit_file 성공",
+    "해시/타임스탬프 에러 메시지에 포함"
+  ],
+  "estimatedHours": 4,
+  "tags": ["e2e", "staleness", "mtime", "hash", "re-read", "external-edit"]
+}

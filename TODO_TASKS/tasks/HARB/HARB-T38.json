@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T38",
+  "phase": "HARB",
+  "title": "문서화: 하네스 아키텍처 + Tier 정책 + 안티패턴 가이드",
+  "description": "문서화: 하네스 아키텍처 + Tier 정책 + 안티패턴 가이드. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "docs/harness-guide.md"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "HARB-T08"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 문서화: 하네스 아키텍처 + Tier 정책 + 안티패턴 가이드",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "harb",
+    "p2"
+  ]
+}

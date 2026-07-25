@@ -1,0 +1,23 @@
+{
+  "id": "C7-T36",
+  "phase": "C7",
+  "title": "MISRA/Lint AI 설명: Diagnostics + LM → 수정 제안",
+  "description": "MISRA/Lint AI 설명: Diagnostics + LM → 수정 제안. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/compliance/MISRAExplainer.ts"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C2-T19"
+  ],
+  "acceptanceCriteria": [
+    "Implements: MISRA/Lint AI 설명: Diagnostics + LM → 수정 제안",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p2"
+  ]
+}

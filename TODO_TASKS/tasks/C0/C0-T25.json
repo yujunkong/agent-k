@@ -1,0 +1,19 @@
+{
+  "id": "C0-T25",
+  "phase": "C0",
+  "title": "CSP 설정 (nonce + 웹뷰 리소스)",
+  "description": "ChatViewProvider.getHtml(): CSP nonce 생성 → script-src 'nonce-{nonce}', style-src 'nonce-{nonce}', font-src vscode-resource:, img-src vscode-resource: data:. 웹뷰 리소스: webview.asWebviewUri로 dist/chat.js, dist/chat.css 매핑. 인라인 스크립트/스타일 금지. 개발 모드: 'unsafe-eval' 허용 (HMR용).",
+  "files": ["src/chat/ChatViewProvider.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C0-T02"],
+  "acceptanceCriteria": [
+    "CSP 헤더에 nonce 포함",
+    "스크립트/스타일 nonce로만 실행",
+    "웹뷰 리소스(vscode-resource:)만 로드 허용",
+    "개발 모드 HMR 작동 (unsafe-eval)",
+    "프로덕션 빌드: unsafe-eval 없음"
+  ],
+  "estimatedHours": 1,
+  "tags": ["csp", "security", "nonce", "webview", "content-security-policy"]
+}

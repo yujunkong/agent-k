@@ -1,0 +1,23 @@
+{
+  "id": "C6-T28",
+  "phase": "C6",
+  "title": "회고: Debug 모드 진입 기준 (재현 어려움 / 동시성 / 힙 분석) 문서화",
+  "description": "회고: Debug 모드 진입 기준 (재현 어려움 / 동시성 / 힙 분석) 문서화. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "docs/debug-mode-guidelines.md"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C6-T21"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 회고: Debug 모드 진입 기준 (재현 어려움 / 동시성 / 힙 분석) 문서화",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c6",
+    "p2"
+  ]
+}

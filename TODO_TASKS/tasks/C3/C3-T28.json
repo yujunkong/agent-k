@@ -1,0 +1,32 @@
+{
+  "id": "C3-T28",
+  "phase": "C3",
+  "title": "문서화: 코어 루프 + Interrupt & Resynthesize + 중단 조건",
+  "description": "docs/agent-loop.md: 코어 루프 Mermaid, 중단 조건(Stop/maxTurns/Doom Loop/치명 에러/사용자 Interrupt). 큐 정책: Enter=abort+synthesize+restart · Alt+Enter=queue-only · Apply now · onStop keep(기본)/discard · debounce 300ms. Stop≠Resynthesize 명시. 에러 복구·Doom Loop 시퀀스.",
+  "files": [
+    "docs/agent-loop.md"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C3-T22",
+    "C3-T07"
+  ],
+  "acceptanceCriteria": [
+    "코어 루프 플로우차트(Mermaid)",
+    "Interrupt & Resynthesize vs Stop vs Queue-only 구분표",
+    "onStop keep 기본·debounce 300ms 문서화",
+    "에러 복구: 회복가능 vs 치명적 분류표",
+    "Doom Loop 시퀀스 다이어그램"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "docs",
+    "agent-loop",
+    "resynthesize",
+    "prd-17"
+  ],
+  "prdRefs": [
+    "PRD-17_Message_Queue.md"
+  ]
+}

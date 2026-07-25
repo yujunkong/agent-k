@@ -1,0 +1,23 @@
+{
+  "id": "C6-T02",
+  "phase": "C6",
+  "title": "가설 생성: 관련 파일 탐색 → N개 가설 리스트 UI (객관식 선택)",
+  "description": "가설 생성: 관련 파일 탐색 → N개 가설 리스트 UI (객관식 선택). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/debug/HypothesisGenerator.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C6-T01"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 가설 생성: 관련 파일 탐색 → N개 가설 리스트 UI (객관식 선택)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c6",
+    "p0"
+  ]
+}

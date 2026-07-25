@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T02",
+  "phase": "HARB",
+  "title": "Verification First 철학: 시스템 프롬프트에 검증 우선 문구 주입",
+  "description": "Verification First 철학: 시스템 프롬프트에 검증 우선 문구 주입. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/harness/VerificationFirstPrompt.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "HARB-T01"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Verification First 철학: 시스템 프롬프트에 검증 우선 문구 주입",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

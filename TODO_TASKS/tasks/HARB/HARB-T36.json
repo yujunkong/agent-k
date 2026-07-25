@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T36",
+  "phase": "HARB",
+  "title": "벤치마크: 의도적 틀린 SEARCH 10건 → 전부 안전 거절 + 모델 재시도 성공",
+  "description": "벤치마크: 의도적 틀린 SEARCH 10건 → 전부 안전 거절 + 모델 재시도 성공. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "tests/bench/patch-rejection.bench.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C2-T05"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 벤치마크: 의도적 틀린 SEARCH 10건 → 전부 안전 거절 + 모델 재시도 성공",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

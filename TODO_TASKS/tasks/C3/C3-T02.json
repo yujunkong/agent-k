@@ -1,0 +1,19 @@
+{
+  "id": "C3-T02",
+  "phase": "C3",
+  "title": "턴 카운터 + maxTurns 가드 (기본 20, 설정 가능)",
+  "description": "MaxTurnsGuard: maxTurns 설정(기본 20, 설정으로 5-100). AgentLoop 각 턴 시작 시 체크 → 초과 시 루프 중단 + '최대 턴 수({maxTurns}) 도달. 계속하려면 새 메시지를 보내세요.' tool_result 반환. 설정: agent.maxTurns.",
+  "files": ["src/loop/MaxTurnsGuard.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C3-T01"],
+  "acceptanceCriteria": [
+    "기본 maxTurns=20",
+    "설정으로 5-100 범위 변경 가능",
+    "턴 시작 시 체크 → 초과 시 루프 중단",
+    "명확한 중단 메시지 반환",
+    "설정: agent.maxTurns"
+  ],
+  "estimatedHours": 2,
+  "tags": ["max-turns", "guard", "config", "loop", "limit"]
+}

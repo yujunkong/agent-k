@@ -1,0 +1,29 @@
+{
+  "id": "C0-T06",
+  "phase": "C0",
+  "title": "스트리밍 파이프라인 (AbortController + 토큰 단위 렌더링)",
+  "description": "useChatStream 훅: sendMessage → AbortController 생성 → API 스트리밍 호출 → for await (delta) setMessages 증분 업데이트. Stop: abortController.abort() → 스트림 중단. Regenerate: 동일 프롬프트로 재호출. 키보드 단축키: 실행 중 Enter/Ctrl+Enter/Cmd+Enter = Interrupt & Resynthesize, Alt+Enter = Queue-only.",
+  "files": ["src/chat/hooks/useChatStream.ts", "src/chat/api/chatApi.ts"],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": ["C0-T03"],
+  "acceptanceCriteria": [
+    "토큰 단위 실시간 렌더링 (문자 단위 아님, 청크 단위)",
+    "Stop 버튼 클릭 시 즉시 스트림 중단 (< 100ms)",
+    "Regenerate 클릭 시 동일 프롬프트로 재시작",
+    "에러 시 스트리밍 상태 정리 (streaming=false)"
+  ],
+  "estimatedHours": 4,
+  "actualHours": 3,
+  "tags": ["streaming", "abortcontroller", "async-iterator", "hooks"],
+  "implementationNotes": {
+    "completedAt": "2026-07-25T14:57:00+09:00",
+    "filesModified": [
+      "src/chat/types.ts (StreamDelta에 toolCalls 추가, ProviderConfig에 type 필수 추가)",
+      "src/chat/api/chatApi.ts (provider config 타입 수정: provider string 시 currentProvider merge)",
+      "src/chat/hooks/useChatStream.ts (전면 재작성: TypeScript 타입 안전성, sendMessage/stop/regenerate 시그니처 통일)"
+    ],
+    "verification": "npm run compile 성공 (TypeScript 타입 검사 통과, ESLint 통과, esbuild 번들링 성공)",
+    "notes": "ChatApp.tsx의 regenerate 콜백을 Composer의 onRegenerate 시그니처(인자 없는 함수)에 맞춰 래퍼 함수로 수정. useChatStream의 regenerate는 messages, mode, callbacks를 인자로 받음."
+  }
+}

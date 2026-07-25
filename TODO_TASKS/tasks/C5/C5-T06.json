@@ -1,0 +1,23 @@
+{
+  "id": "C5-T06",
+  "phase": "C5",
+  "title": "사용자 리뷰: 직접 md 편집, 불필요 스텝 삭제, 승인 버튼",
+  "description": "사용자 리뷰: 직접 md 편집, 불필요 스텝 삭제, 승인 버튼. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/plan/PlanReview.tsx"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C5-T05"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 사용자 리뷰: 직접 md 편집, 불필요 스텝 삭제, 승인 버튼",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c5",
+    "p0"
+  ]
+}

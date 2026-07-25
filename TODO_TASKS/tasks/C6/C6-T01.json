@@ -1,0 +1,23 @@
+{
+  "id": "C6-T01",
+  "phase": "C6",
+  "title": "DebugModeController: 가설→계측→재현→로그→최소수정→청소 6단계",
+  "description": "DebugModeController: 가설→계측→재현→로그→최소수정→청소 6단계. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/debug/DebugModeController.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C4-T01"
+  ],
+  "acceptanceCriteria": [
+    "Implements: DebugModeController: 가설→계측→재현→로그→최소수정→청소 6단계",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c6",
+    "p0"
+  ]
+}

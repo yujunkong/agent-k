@@ -1,0 +1,30 @@
+{
+  "id": "C0-T35",
+  "phase": "C0",
+  "title": "Settings Hub Webview 뼈대 (카테고리 탭 셸)",
+  "description": "Settings Webview: Models / Permission / Queue / Harness / Context / MCP / Privacy 탭 셸. 값은 ConfigManager와 양방향 동기화. C0에서는 Models+Secrets+Queue 기본값 표시 우선.",
+  "files": [
+    "src/settings/SettingsPanel.tsx",
+    "src/settings/SettingsViewProvider.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C0-T33",
+    "C0-T34"
+  ],
+  "acceptanceCriteria": [
+    "탭 UI 렌더",
+    "Webview ↔ Settings UI 동일 값",
+    "시크릿 필드 평문 미표시"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "settings-hub",
+    "webview",
+    "prd-29"
+  ],
+  "prdRefs": [
+    "PRD-29_Settings_Hub.md"
+  ]
+}

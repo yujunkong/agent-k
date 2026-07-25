@@ -1,0 +1,23 @@
+{
+  "id": "C6-T21",
+  "phase": "C6",
+  "title": "문서화: Debug 모드 워크플로우 + 계측 패턴 가이드",
+  "description": "문서화: Debug 모드 워크플로우 + 계측 패턴 가이드. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "docs/debug-mode.md"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C6-T17"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 문서화: Debug 모드 워크플로우 + 계측 패턴 가이드",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c6",
+    "p2"
+  ]
+}

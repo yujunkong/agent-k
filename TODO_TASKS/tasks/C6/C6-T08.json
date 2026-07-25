@@ -1,0 +1,23 @@
+{
+  "id": "C6-T08",
+  "phase": "C6",
+  "title": "Reproduce UI: 단계별 가이드, 스크린샷, \"완료\" 버튼",
+  "description": "Reproduce UI: 단계별 가이드, 스크린샷, \"완료\" 버튼. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/debug/ReproduceUI.tsx"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C6-T07"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Reproduce UI: 단계별 가이드, 스크린샷, \"완료\" 버튼",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c6",
+    "p0"
+  ]
+}

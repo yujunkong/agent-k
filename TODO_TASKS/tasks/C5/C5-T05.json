@@ -1,0 +1,23 @@
+{
+  "id": "C5-T05",
+  "phase": "C5",
+  "title": "Plan Webview: 계획 문서 편집 + Mermaid 실시간 렌더링",
+  "description": "Plan Webview: 계획 문서 편집 + Mermaid 실시간 렌더링. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/plan/PlanEditor.tsx"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C5-T04"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Plan Webview: 계획 문서 편집 + Mermaid 실시간 렌더링",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c5",
+    "p0"
+  ]
+}

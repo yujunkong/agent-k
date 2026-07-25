@@ -1,0 +1,19 @@
+{
+  "id": "C1-T14",
+  "phase": "C1",
+  "title": "PrefetchEngine: 메시지에서 경로/심볼/에러 스택 추출 → 선독",
+  "description": "PrefetchEngine 클래스: prefetch(messages, mode) → 미리 읽을 파일/심볼 집합 도출 → ParallelExecutor로 병렬 읽기 → ContextBlock으로 포맷 → 시스템 프롬프트에 주입. 추출기: MentionExtractor(@file:, @folder:, @symbol:, @codebase:), StackTraceParser(에러 스택에서 파일:라인 ±N), ImportScanner(import 문에서 의존 파일). 캐시: 최근 5분 내 읽은 파일 재읽기 스킵.",
+  "files": ["src/prefetch/PrefetchEngine.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C1-T03"],
+  "acceptanceCriteria": [
+    "메시지 분석 → 프리페치 대상 도출",
+    "ParallelExecutor로 병렬 읽기 실행",
+    "결과를 '이미 조사된 컨텍스트' 블록으로 시스템 프롬프트 주입",
+    "캐시로 중복 읽기 방지 (5분 TTL)",
+    "모드별 프리페치 전략 차별화 (Ask: 적극적, Agent: 선택적)"
+  ],
+  "estimatedHours": 5,
+  "tags": ["prefetch", "parallel", "context-injection", "cache", "mention-extractor"]
+}

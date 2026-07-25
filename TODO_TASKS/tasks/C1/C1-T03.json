@@ -1,0 +1,19 @@
+{
+  "id": "C1-T03",
+  "phase": "C1",
+  "title": "읽기 도구 8개 구현: grep, glob, file_search, list_dir, read_file, codebase_search, lsp_definition, lsp_references",
+  "description": "검색/읽기 도구 8개 구현. 각 도구: ToolDefinition 구현, execute(args) → ToolResult. 공통: 경로 정규화, 워크스페이스 루트 상대 경로, 에러 처리(존재하지 않음/권한/너무 큼). 실행 시간/토큰 사용량 측정 반환.",
+  "files": ["src/tools/search/", "src/tools/search/index.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C1-T02"],
+  "acceptanceCriteria": [
+    "8개 도구 모두 ToolDefinition 구현",
+    "execute() → ToolResult {content, metadata, error?} 반환",
+    "경로 보안: 워크스페이스 외부 접근 차단",
+    "에러 시 ToolResult.error 필드에 상세 정보",
+    "실행 메타데이터: durationMs, tokensEstimated 포함"
+  ],
+  "estimatedHours": 8,
+  "tags": ["tools", "search", "read", "grep", "glob", "lsp", "codebase"]
+}

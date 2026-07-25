@@ -1,0 +1,23 @@
+{
+  "id": "C7-T33",
+  "phase": "C7",
+  "title": "Model Router: Cost/Balance/Intelligence + A/B 티어 라우팅",
+  "description": "Model Router: Cost/Balance/Intelligence + A/B 티어 라우팅. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/providers/ModelRouter.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C4-T30"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Model Router: Cost/Balance/Intelligence + A/B 티어 라우팅",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1"
+  ]
+}

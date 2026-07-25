@@ -1,0 +1,23 @@
+{
+  "id": "C7-T29",
+  "phase": "C7",
+  "title": "Parallel File Search/Read: findFiles + Promise.all + concurrency 큐",
+  "description": "Parallel File Search/Read: findFiles + Promise.all + concurrency 큐. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/tools/search/ParallelSearch.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C1-T13"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Parallel File Search/Read: findFiles + Promise.all + concurrency 큐",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c7",
+    "p0"
+  ]
+}

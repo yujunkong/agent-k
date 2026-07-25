@@ -1,0 +1,23 @@
+{
+  "id": "C5-T24",
+  "phase": "C5",
+  "title": "Agent 모드 실행 중 계획 참조: \"Per plan step 3...\" 컨텍스트 주입",
+  "description": "Agent 모드 실행 중 계획 참조: \"Per plan step 3...\" 컨텍스트 주입. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/plan/PlanContextInjection.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C5-T07"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Agent 모드 실행 중 계획 참조: \"Per plan step 3...\" 컨텍스트 주입",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c5",
+    "p1"
+  ]
+}

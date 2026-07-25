@@ -1,0 +1,23 @@
+{
+  "id": "C6-T09",
+  "phase": "C6",
+  "title": "로그 분석: 수집 로그로 실제 원인 특정 (스택 트레이스 매칭)",
+  "description": "로그 분석: 수집 로그로 실제 원인 특정 (스택 트레이스 매칭). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/debug/LogAnalyzer.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C6-T06"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 로그 분석: 수집 로그로 실제 원인 특정 (스택 트레이스 매칭)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c6",
+    "p0"
+  ]
+}

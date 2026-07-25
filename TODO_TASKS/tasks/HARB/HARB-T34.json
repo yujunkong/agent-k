@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T34",
+  "phase": "HARB",
+  "title": "Tool Registry 통합: A-G 모든 도구 등록 + Zod 스키마 + 카테고리/권한 메타",
+  "description": "Tool Registry 통합: A-G 모든 도구 등록 + Zod 스키마 + 카테고리/권한 메타. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/tools/registry.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "HARB-T27"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Tool Registry 통합: A-G 모든 도구 등록 + Zod 스키마 + 카테고리/권한 메타",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "id": "C3-T20",
+  "phase": "C3",
+  "title": "단위 테스트: MessageQueue (resynthesize/queue-only/drain/Stop 정책)",
+  "description": "enqueue, drain, synthesizeInstructions, interrupt debounce, onStop keep/discard 단위 테스트.",
+  "files": [
+    "tests/unit/loop/MessageQueue.test.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C3-T07",
+    "C3-T33"
+  ],
+  "acceptanceCriteria": [
+    "resynthesize drain 후 큐 비움",
+    "queue_only는 abort 없음",
+    "debounce 연타 1회만",
+    "onStop keep/discard"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "testing",
+    "message-queue",
+    "urgent",
+    "reorder",
+    "stop",
+    "concurrency"
+  ],
+  "prdRefs": [
+    "PRD-17_Message_Queue.md"
+  ]
+}

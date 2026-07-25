@@ -1,0 +1,19 @@
+{
+  "id": "C3-T22",
+  "phase": "C3",
+  "title": "E2E: 멀티턴 이슈 해결 (예: \"Implement login feature\" → 5+ 턴 도구로 완료)",
+  "description": "Playwright E2E: Agent 모드 → 'Implement login feature with JWT' → 모델: grep로 auth 파일 탐색 → read_file로 기존 코드 읽기 → edit_file로 로그인 함수 추가 → write_file로 테스트 생성 → run_terminal_cmd로 테스트 실행 → 린트 통과 → 완료. 5+ 턴 전체 플로우 검증. 타임라인 UI에 각 턴 상태 표시 확인.",
+  "files": ["tests/e2e/c3-multi-turn.spec.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C3-T01"],
+  "acceptanceCriteria": [
+    "5+ 턴 멀티턴 루프 완료",
+    "각 턴: 탐색 → 읽기 → 편집 → 테스트 → 검증",
+    "타임라인 UI에 각 턴 상태(Thinking/Searching/Editing/Running/Done) 표시",
+    "최종 결과: 로그인 기능 구현 + 테스트 통과",
+    "체크포인트 생성/롤백 없음(정상 완료)"
+  ],
+  "estimatedHours": 5,
+  "tags": ["e2e", "multi-turn", "login-feature", "jwt", "timeline-ui", "full-flow"]
+}

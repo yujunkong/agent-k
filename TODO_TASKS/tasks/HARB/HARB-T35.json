@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T35",
+  "phase": "HARB",
+  "title": "벤치마크: Flash 모델 10회 연속 read_file/grep 안정 호출",
+  "description": "벤치마크: Flash 모델 10회 연속 read_file/grep 안정 호출. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "tests/bench/flash-stability.bench.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "HARB-T06"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 벤치마크: Flash 모델 10회 연속 read_file/grep 안정 호출",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

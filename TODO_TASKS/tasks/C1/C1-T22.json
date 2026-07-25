@@ -1,0 +1,19 @@
+{
+  "id": "C1-T22",
+  "phase": "C1",
+  "title": "단위 테스트: ModeRegistry 화이트리스트 정확성",
+  "description": "ModeRegistry 테스트: ASK_WHITELIST 10개 도구 정확히 매칭. isToolAllowed('ask', 'edit_file')=false, isToolAllowed('ask', 'grep')=true. AGENT_WHITELIST 전체 도구. PLAN_WHITELIST 읽기+계획 도구. DEBUG_WHITELIST 디버그+읽기 도구. 모드 간 격리 검증.",
+  "files": ["tests/unit/agent/modeRegistry.test.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C1-T01"],
+  "acceptanceCriteria": [
+    "ASK_WHITELIST 10개 도구 정확히 매칭",
+    "isToolAllowed ask/edit_file=false, ask/grep=true",
+    "AGENT_WHITELIST 전체 도구 허용",
+    "PLAN/DEBUG 모드별 화이트리스트 정확",
+    "모드 간 도구 격리 검증"
+  ],
+  "estimatedHours": 2,
+  "tags": ["testing", "mode-registry", "whitelist", "unit-test"]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "C0-T18",
+  "phase": "C0",
+  "title": "LiteLLM/OpenAI-compatible Provider Adapter",
+  "description": "LiteLLMProvider 클래스: OpenAI 호환 API 구현. baseUrl + apiKey로 요청 구성. streamChat: POST /chat/completions, stream=true, SSE 파싱. listModels: GET /models. 에러 처리: 401/429/5xx 재시도(지수 백오프). 헤더: Authorization, Content-Type, Accept: text/event-stream. 타임아웃: 연결 10초, 응답 120초.",
+  "files": ["src/providers/LiteLLMProvider.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C0-T01"],
+  "acceptanceCriteria": [
+    "LiteLLM 프록시 연결 성공 (로컬/원격)",
+    "스트리밍 SSE 파싱: data: {choices:[{delta:{content:'...'}}]}",
+    "모델 목록 조회 작동",
+    "에러 코드별 적절한 재시도/에러 메시지",
+    "인증 헤더 올바르게 전송"
+  ],
+  "estimatedHours": 3,
+  "tags": ["provider", "litellm", "openai-compatible", "sse", "streaming"]
+}

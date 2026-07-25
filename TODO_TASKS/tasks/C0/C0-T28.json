@@ -1,0 +1,19 @@
+{
+  "id": "C0-T28",
+  "phase": "C0",
+  "title": "i18n 준비 (영어/한국어 문자열 분리)",
+  "description": "i18n 구조: src/chat/i18n/{en.json, ko.json}. 키 네이밍: chat.composer.placeholder, chat.mode.ask, chat.action.edit 등. useI18n 훅: vscode.env.language 감지 → 자동 로케일 선택. 문자열 인터폴레이션: {count} 파일, {time}초 전. 플러럴라이제이션: ICU MessageFormat 스타일. 향후 확장: package.nls.json 연동.",
+  "files": ["src/chat/i18n/en.json", "src/chat/i18n/ko.json", "src/chat/hooks/useI18n.ts"],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": ["C0-T03"],
+  "acceptanceCriteria": [
+    "영어/한국어 JSON 파일 분리",
+    "useI18n 훅으로 현재 언어 자동 감지",
+    "인터폴레이션/플러럴라이제이션 작동",
+    "하드코딩된 문자열 0개 (grep로 검증)",
+    "VS Code 언어 변경 시 즉시 반영"
+  ],
+  "estimatedHours": 2,
+  "tags": ["i18n", "localization", "korean", "english", "hooks"]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "C3-T26",
+  "phase": "C3",
+  "title": "E2E: 50턴 긴 대화 → 컴팩션 트리거 → 중요 컨텍스트(@파일/에러) 유지 확인",
+  "description": "Playwright E2E: 50턴 긴 대화 세션 → 토큰 예산 초과로 컴팩션 트리거(4단계: Truncate→Drop→Micro-summary→Full) → 컴팩션 후: @file: 멘션된 파일 내용 유지, 에러 스택 트레이스 유지, 현재 목표 문장 유지, 시스템/룰/최근 6턴 보호 구간 유지 확인. 토큰 사용량 로그 검증.",
+  "files": ["tests/e2e/c3-compaction.spec.ts"],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": ["C4-T10*"],
+  "acceptanceCriteria": [
+    "50턴 대화로 예산 초과 유도",
+    "4단계 컴팩션 순차 적용(Truncate→Drop→Micro→Full)",
+    "@file: 멘션 파일 내용 보호 구간 유지",
+    "에러 스택 트레이스 유지",
+    "현재 목표 문장 유지",
+    "시스템/룰/최근 6턴 절대 삭제 안 됨"
+  ],
+  "estimatedHours": 5,
+  "tags": ["e2e", "compaction", "50-turns", "token-budget", "protection-zones", "mention", "error-stack"]
+}

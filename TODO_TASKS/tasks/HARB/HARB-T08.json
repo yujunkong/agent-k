@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T08",
+  "phase": "HARB",
+  "title": "Harness Duties (9가지): 검증/프리페치/컴팩션/둠루프/권한/체크포인트/에러복구/비용/텔레메트리",
+  "description": "Harness Duties (9가지): 검증/프리페치/컴팩션/둠루프/권한/체크포인트/에러복구/비용/텔레메트리. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/harness/HarnessDuties.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "HARB-T01"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Harness Duties (9가지): 검증/프리페치/컴팩션/둠루프/권한/체크포인트/에러복구/비용/텔레메트리",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

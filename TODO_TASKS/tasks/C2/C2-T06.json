@@ -1,0 +1,19 @@
+{
+  "id": "C2-T06",
+  "phase": "C2",
+  "title": "Staleness 체크: mtime + xxhash64 (마지막 read 이후 변경 감지)",
+  "description": "StalenessChecker: check(path, expectedHash, expectedMtime) → {stale: boolean, currentHash, currentMtime}. read_file 실행 시 mtime + xxhash64(content) 저장. edit_file/write_file 실행 전 체크 → stale=true면 에러: 'File modified since last read (mtime/hash mismatch). Re-read file first.' 자동 재읽기 유도.",
+  "files": ["src/patches/staleness.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C2-T05"],
+  "acceptanceCriteria": [
+    "mtime + xxhash64 조합으로 변경 감지",
+    "read_file 시 해시/타임스탬프 저장",
+    "쓰기 전 체크 → stale 시 명확한 에러 메시지",
+    "에러에 현재/기대 해시/타임스탬프 포함",
+    "재읽기 유도 메시지 포함"
+  ],
+  "estimatedHours": 2,
+  "tags": ["staleness", "mtime", "xxhash", "hash", "cache-invalidation"]
+}

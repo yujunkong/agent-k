@@ -1,0 +1,19 @@
+{
+  "id": "C3-T12",
+  "phase": "C3",
+  "title": "이미지: Vision 모델만, 해상도/장수 캡",
+  "description": "ImageHandler: 메시지에 이미지 첨부 시 처리. Vision 모델(gpt-4o, claude-3, gemini-pro-vision)만 허용. 다운샘플링: 최대 1024x1024. 장수 제한: 턴당 최대 5장. Base64 인코딩 → 멀티모달 메시지 포맷(OpenAI: image_url, Anthropic: image). 비Vision 모델 시 에러: 'Current model does not support vision'.",
+  "files": ["src/tools/web/ImageHandler.ts"],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": ["C3-T09"],
+  "acceptanceCriteria": [
+    "Vision 모델만 이미지 허용",
+    "최대 1024x1024 다운샘플링",
+    "턴당 최대 5장 제한",
+    "OpenAI/Anthropic 멀티모달 포맷 변환",
+    "비Vision 모델 시 명확한 에러 메시지"
+  ],
+  "estimatedHours": 3,
+  "tags": ["image", "vision", "multimodal", "downsample", "cap", "model-check"]
+}

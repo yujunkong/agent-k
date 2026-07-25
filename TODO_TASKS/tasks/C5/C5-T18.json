@@ -1,0 +1,23 @@
+{
+  "id": "C5-T18",
+  "phase": "C5",
+  "title": "문서화: Plan 모드 워크플로우 + Mermaid 템플릿",
+  "description": "문서화: Plan 모드 워크플로우 + Mermaid 템플릿. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "docs/plan-mode.md"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C5-T14"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 문서화: Plan 모드 워크플로우 + Mermaid 템플릿",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c5",
+    "p2"
+  ]
+}

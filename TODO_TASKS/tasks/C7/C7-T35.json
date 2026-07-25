@@ -1,0 +1,23 @@
+{
+  "id": "C7-T35",
+  "phase": "C7",
+  "title": "Legacy Scan → Report: 언어별 파서 + Webview 리포트",
+  "description": "Legacy Scan → Report: 언어별 파서 + Webview 리포트. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/legacy/LegacyScanner.ts"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C4-T27"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Legacy Scan → Report: 언어별 파서 + Webview 리포트",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p2"
+  ]
+}

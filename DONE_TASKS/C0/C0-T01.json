@@ -1,0 +1,31 @@
+{
+  "id": "C0-T01",
+  "phase": "C0",
+  "title": "확장 스캐폴드 생성 (package.json, tsconfig, ESBuild)",
+  "description": "VS Code Extension Generator(yo code)로 TypeScript + ESBuild + Webview(React) 템플릿 생성. package.json에 contributes.views, contributes.commands, contributes.configuration, contributes.keybindings 정의. agent-k.* 접두사 사용.",
+  "files": ["package.json", "tsconfig.json", "esbuild.js", ".vscode/launch.json", ".vscode/tasks.json", ".vscode/extensions.json", ".vscode/settings.json", "resources/icon.svg", "vite.config.ts", "index.html", "src/vscode.d.ts"],
+  "priority": "P0",
+  "status": "completed",
+  "completedAt": "2026-07-25T14:35:00",
+  "commitHash": "initial-scaffold",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "npm run compile 성공 (ESBuild 번들링)",
+    "F5로 확장 실행 시 'Agent K' 사이드바 뷰 나타남",
+    "명령어 팔레트에 'Agent K: New Chat', 'Agent K: Open Settings' 표시"
+  ],
+  "estimatedHours": 2,
+  "actualHours": 2,
+  "tags": ["scaffold", "yo-code", "esbuild", "vscode-extension"],
+  "implementationNotes": [
+    "yo code로 TypeScript + ESBuild + Webview(React) 템플릿 생성",
+    "package.json에 agent-k.* 접두사로 contributes 정의: viewsContainers.activitybar, views.agent-k.chat, commands 5개, configuration 11개 속성, keybindings 3개, menus.view/title 3개",
+    "activationEvents: onView:agent-k.chat",
+    "ESBuild로 번들링 (external: ['vscode'])",
+    "Vite 설정으로 웹뷰용 React 앱 빌드 (outDir: dist, entry: src/chat/main.tsx)",
+    "src/extension.ts에 ChatViewProvider 등록 및 5개 명령어 구현",
+    "resources/icon.svg 아이콘 추가",
+    "CSS 모듈 지원을 위한 vscode.d.ts 선언 파일 추가",
+    "npm run compile 성공"
+  ]
+}

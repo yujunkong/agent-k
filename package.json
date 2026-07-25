@@ -1,0 +1,225 @@
+{
+  "name": "agent-k",
+  "displayName": "Agent K",
+  "description": "AI Coding Agent with local model harness (Flash-tier reliable via verification loops)",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.125.0"
+  },
+  "categories": [
+    "AI",
+    "Machine Learning"
+  ],
+  "activationEvents": [
+    "onView:agent-k.chat"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agent-k",
+          "title": "Agent K",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agent-k": [
+        {
+          "id": "agent-k.chat",
+          "name": "Chat",
+          "when": "agent-k.chat.visible"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "agent-k.chat.new",
+        "title": "New Chat",
+        "icon": "$(add)"
+      },
+      {
+        "command": "agent-k.chat.clear",
+        "title": "Clear History",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "agent-k.openSettings",
+        "title": "Open Settings",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "agent-k.provider.add",
+        "title": "Add Provider",
+        "icon": "$(cloud-add)"
+      },
+      {
+        "command": "agent-k.mode.switch",
+        "title": "Switch Mode",
+        "icon": "$(symbol-method)"
+      }
+    ],
+    "configuration": {
+      "title": "Agent K",
+      "properties": {
+        "agent-k.provider.type": {
+          "type": "string",
+          "enum": [
+            "litellm",
+            "openai",
+            "anthropic",
+            "ollama",
+            "lmstudio"
+          ],
+          "default": "litellm",
+          "description": "LLM provider type"
+        },
+        "agent-k.provider.baseUrl": {
+          "type": "string",
+          "default": "http://localhost:4000",
+          "description": "Base URL for OpenAI-compatible API (LiteLLM proxy)"
+        },
+        "agent-k.provider.model": {
+          "type": "string",
+          "default": "gemma-2-27b",
+          "description": "Model name/identifier"
+        },
+        "agent-k.provider.apiKey": {
+          "type": "string",
+          "description": "API key (stored in SecretStorage)",
+          "secret": true
+        },
+        "agent-k.mode.default": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "agent",
+            "plan",
+            "debug"
+          ],
+          "default": "agent",
+          "description": "Default chat mode"
+        },
+        "agent-k.maxTurns": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 5,
+          "maximum": 100,
+          "description": "Maximum agent loop turns"
+        },
+        "agent-k.permission.level": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "accept_edits",
+            "auto",
+            "bypass"
+          ],
+          "default": "ask",
+          "description": "Permission gate level"
+        },
+        "agent-k.context.budget": {
+          "type": "integer",
+          "default": 100000,
+          "description": "Token budget for agent mode"
+        },
+        "agent-k.telemetry.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable telemetry collection"
+        },
+        "agent-k.budget.dailyTokens": {
+          "type": "integer",
+          "default": 10000000,
+          "description": "Daily token budget"
+        },
+        "agent-k.budget.monthlyTokens": {
+          "type": "integer",
+          "default": 100000000,
+          "description": "Monthly token budget"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "agent-k.chat.new",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n",
+        "when": "view == agent-k.chat"
+      },
+      {
+        "command": "agent-k.chat.clear",
+        "key": "ctrl+shift+delete",
+        "mac": "cmd+shift+delete",
+        "when": "view == agent-k.chat"
+      },
+      {
+        "command": "agent-k.openSettings",
+        "key": "ctrl+,",
+        "mac": "cmd+,",
+        "when": "view == agent-k.chat"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "agent-k.chat.new",
+          "when": "view == agent-k.chat",
+          "group": "navigation"
+        },
+        {
+          "command": "agent-k.chat.clear",
+          "when": "view == agent-k.chat",
+          "group": "navigation"
+        },
+        {
+          "command": "agent-k.openSettings",
+          "when": "view == agent-k.chat",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "dev:webview": "vite"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@types/vscode": "^1.125.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.0.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.5.0",
+    "npm-run-all": "^4.1.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
+    "vite": "^5.4.21"
+  },
+  "overrides": {
+    "diff": "^8.0.4",
+    "serialize-javascript": "^7.0.6"
+  },
+  "dependencies": {
+    "@types/uuid": "^10.0.0",
+    "uuid": "^14.0.1"
+  }
+}

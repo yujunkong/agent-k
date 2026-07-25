@@ -1,0 +1,21 @@
+{
+  "id": "C3-T05",
+  "phase": "C3",
+  "title": "Doom Loop 감지 시: 루프 중단 + UI 알림 + 모델 변경/Plan 제안",
+  "description": "DoomLoopHandler: 감지 시 AgentLoop 중단. UI 알림: '동일 작업({toolName})이 3회 연속 실패했습니다.' + 옵션: [1] 모델 업그레이드(Pro로 재시도) [2] Plan 모드로 전환 [3] 수동 개입 [4] 중단. 선택 1: ModelRouter.upgradeTier() 후 재시도. 선택 2: PlanModeController 진입. 선택 3: ask_question으로 사용자 가이드 요청.",
+  "files": ["src/loop/DoomLoopHandler.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C3-T04"],
+  "acceptanceCriteria": [
+    "감지 시 루프 즉시 중단",
+    "UI 알림에 실패 도구명 표시",
+    "4가지 옵션 제시",
+    "옵션 1: ModelRouter 업그레이드 후 재시도",
+    "옵션 2: Plan 모드 전환",
+    "옵션 3: ask_question으로 사용자 개입",
+    "옵션 4: 완전 중단"
+  ],
+  "estimatedHours": 3,
+  "tags": ["doom-loop", "handler", "ui", "model-upgrade", "plan-mode", "ask-question", "recovery"]
+}

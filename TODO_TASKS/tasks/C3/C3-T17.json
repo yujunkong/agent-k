@@ -1,0 +1,19 @@
+{
+  "id": "C3-T17",
+  "phase": "C3",
+  "title": "Provider Adapter 스트리밍 중 tool_calls 누적 파싱",
+  "description": "ToolCallParser 스트리밍 모드: SSE 청크 누적 → tool_calls 배열 구성. OpenAI: delta.tool_calls[].function.arguments 누적 파싱(불완전 JSON 허용). Anthropic: delta.partial_json 누적. 완료 시: ToolCall[] 반환(id, name, arguments 파싱됨). 불완전 인수: 파싱 대기 후 완료 시 검증.",
+  "files": ["src/providers/ToolCallParser.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C0-T19"],
+  "acceptanceCriteria": [
+    "SSE 청크 누적으로 tool_calls 구성",
+    "OpenAI: delta.tool_calls[].function.arguments 누적 파싱",
+    "Anthropic: delta.partial_json 누적",
+    "불완전 JSON 허용 → 완료 시 검증",
+    "ToolCall[] {id, name, arguments} 반환"
+  ],
+  "estimatedHours": 3,
+  "tags": ["tool-call-parser", "streaming", "sse", "openai", "anthropic", "partial-json", "accumulation"]
+}

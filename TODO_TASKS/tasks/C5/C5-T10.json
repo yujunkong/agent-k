@@ -1,0 +1,23 @@
+{
+  "id": "C5-T10",
+  "phase": "C5",
+  "title": "복잡도 휴리스틱: 파일≥3, \"리팩터/마이그레이션\" 키워드 → Plan 모드 강제 제안",
+  "description": "복잡도 휴리스틱: 파일≥3, \"리팩터/마이그레이션\" 키워드 → Plan 모드 강제 제안. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/plan/ComplexityHeuristic.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C5-T01"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 복잡도 휴리스틱: 파일≥3, \"리팩터/마이그레이션\" 키워드 → Plan 모드 강제 제안",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c5",
+    "p1"
+  ]
+}

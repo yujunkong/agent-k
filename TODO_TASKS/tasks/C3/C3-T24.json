@@ -1,0 +1,19 @@
+{
+  "id": "C3-T24",
+  "phase": "C3",
+  "title": "E2E: Doom Loop 유도 (동일 grep 4회 실패) → 감지 → 중단 + UI 알림",
+  "description": "Playwright E2E: Agent 모드 → 존재하지 않는 패턴으로 grep 4회 연속 호출 유도(모델 프롬프트 조작) → DoomLoopDetector 감지(3회 임계값) → 루프 중단 → UI 알림: 'grep이 3회 연속 실패했습니다' + 옵션 4가지 표시 → 옵션 1(모델 업그레이드) 선택 → Pro 모델로 재시도 → 성공.",
+  "files": ["tests/e2e/c3-doom-loop.spec.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C3-T05"],
+  "acceptanceCriteria": [
+    "동일 grep 4회 연속 실패 유도",
+    "3회째 DoomLoopDetector 감지 → 루프 중단",
+    "UI 알림에 실패 도구명(grep) 표시",
+    "4가지 옵션 모두 표시",
+    "옵션 1 선택 → Pro 모델 업그레이드 → 재시도 성공"
+  ],
+  "estimatedHours": 4,
+  "tags": ["e2e", "doom-loop", "grep", "detection", "ui-alert", "model-upgrade", "retry"]
+}

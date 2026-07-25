@@ -1,0 +1,23 @@
+{
+  "id": "C5-T19",
+  "phase": "C5",
+  "title": "UI: Plan 모드 헤더 배지 + 진행 단계 표시 (Research → Plan → Review → Build)",
+  "description": "UI: Plan 모드 헤더 배지 + 진행 단계 표시 (Research → Plan → Review → Build). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/chat/components/PlanModeHeader.tsx"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C5-T01"
+  ],
+  "acceptanceCriteria": [
+    "Implements: UI: Plan 모드 헤더 배지 + 진행 단계 표시 (Research → Plan → Review → Build)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c5",
+    "p1"
+  ]
+}

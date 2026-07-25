@@ -1,0 +1,23 @@
+{
+  "id": "C7-T45",
+  "phase": "C7",
+  "title": "문서화: Production 기능 전체 가이드 (Browser/Worktree/Review/MCP/Skills)",
+  "description": "문서화: Production 기능 전체 가이드 (Browser/Worktree/Review/MCP/Skills). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "docs/production-features.md"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": [
+    "C7-T38"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 문서화: Production 기능 전체 가이드 (Browser/Worktree/Review/MCP/Skills)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p2"
+  ]
+}

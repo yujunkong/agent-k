@@ -1,0 +1,30 @@
+{
+  "id": "C3-T25",
+  "phase": "C3",
+  "title": "E2E: 실행 중 Enter → Interrupt & Resynthesize, Alt+Enter → 큐만",
+  "description": "Agent 실행 중 후속 지시 Enter → 중단·종합·재시작. Alt+Enter 2회 후 Apply now → 합쳐 재시작.",
+  "files": [
+    "tests/e2e/c3-message-queue.spec.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C3-T07"
+  ],
+  "acceptanceCriteria": [
+    "Enter 시 Interrupted 토스트/타임라인",
+    "종합 지시에 큐+latest 포함",
+    "Alt+Enter 시 Agent 미중단",
+    "Apply now E2E 통과"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "e2e",
+    "message-queue",
+    "enter",
+    "cmd-enter",
+    "sequential",
+    "interrupt",
+    "queue-ui"
+  ]
+}

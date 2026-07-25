@@ -1,0 +1,23 @@
+{
+  "id": "C6-T12",
+  "phase": "C6",
+  "title": "Verify & Cleanup: 재현으로 검증 → 계측 제거 → 최종 확인",
+  "description": "Verify & Cleanup: 재현으로 검증 → 계측 제거 → 최종 확인. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/debug/VerifyCleanup.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C6-T11"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Verify & Cleanup: 재현으로 검증 → 계측 제거 → 최종 확인",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c6",
+    "p0"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "C4-T06",
+  "phase": "C4",
+  "title": "Restore: 스냅샷 파일만 복구 (untracked 삭제 정책 명시)",
+  "description": "Restore.execute(checkpointId): 스냅샷의 각 파일 → vscode.workspace.fs.writeFile로 원본 내용 복구. Untracked 파일(체크포인트 이후 신규 생성): 옵션으로 삭제/유지 선택(기본: 유지). 복구 후: 타임라인에 'Restored from checkpoint {id}' 기록. 현재 체크포인트 포인터 이동. Redo 스택 초기화.",
+  "files": ["src/checkpoint/Restore.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C4-T04"],
+  "acceptanceCriteria": [
+    "스냅샷 파일 원본 내용으로 복구",
+    "vscode.workspace.fs.writeFile 사용",
+    "Untracked 파일: 삭제/유지 옵션(기본 유지)",
+    "타임라인에 복구 기록 추가",
+    "Redo 스택 초기화"
+  ],
+  "estimatedHours": 3,
+  "tags": ["restore", "snapshot", "writeFile", "untracked", "timeline", "redo-stack"]
+}

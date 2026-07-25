@@ -1,0 +1,23 @@
+{
+  "id": "C5-T23",
+  "phase": "C5",
+  "title": "TodoWrite 도구: Plan 모드에서 todo 생성 → Agent 모드에서 이어받기",
+  "description": "TodoWrite 도구: Plan 모드에서 todo 생성 → Agent 모드에서 이어받기. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/tools/session/TodoWriteTool.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C5-T08"
+  ],
+  "acceptanceCriteria": [
+    "Implements: TodoWrite 도구: Plan 모드에서 todo 생성 → Agent 모드에서 이어받기",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c5",
+    "p0"
+  ]
+}

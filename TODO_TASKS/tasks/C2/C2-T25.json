@@ -1,0 +1,19 @@
+{
+  "id": "C2-T25",
+  "phase": "C2",
+  "title": "문서화: Search-Replace 포맷 가이드 + Diff UI 사용법",
+  "description": "docs/patch-format.md: Search-Replace 포맷 상세 (oldText/newText, 유일 매칭, 줄끝/공백). docs/diff-review.md: Diff Preview UI 사용법 (파일 트리, 헌크 네비게이션 n/p, 체크박스 동기화, 단축키 Ctrl+Enter/Ctrl+Shift+Enter/Esc, Undo/Redo). 스크린샷 포함.",
+  "files": ["docs/patch-format.md", "docs/diff-review.md"],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": ["C2-T29"],
+  "acceptanceCriteria": [
+    "Search-Replace 포맷 완전 문서화",
+    "유일 매칭 규칙 설명 + 예시",
+    "Diff UI 전체 기능 가이드",
+    "단축키 치트시트",
+    "스크린샷으로 시각적 설명"
+  ],
+  "estimatedHours": 3,
+  "tags": ["docs", "patch-format", "diff-review", "guide", "shortcuts", "screenshots"]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T17",
+  "phase": "HARB",
+  "title": "AC-2: \"테스트 실패 고쳐줘\" (실패 로그 → 수정 → 같은 테스트 재실행 루프)",
+  "description": "AC-2: \"테스트 실패 고쳐줘\" (실패 로그 → 수정 → 같은 테스트 재실행 루프). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "tests/acceptance/harness/ac2-test-loop.spec.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "HARB-T15"
+  ],
+  "acceptanceCriteria": [
+    "Implements: AC-2: \"테스트 실패 고쳐줘\" (실패 로그 → 수정 → 같은 테스트 재실행 루프)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

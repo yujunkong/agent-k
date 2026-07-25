@@ -1,0 +1,20 @@
+{
+  "id": "C4-T14",
+  "phase": "C4",
+  "title": "Full compact: 대화 요약 1블록 생성 후 히스토리 교체 (최후 수단)",
+  "description": "FullCompactStage: 이전 모든 단계 적용 후에도 예산 초과 시 실행. 전체 대화(보호 구간 제외)를 Tier C 모델로 요약 → 단일 시스템 메시지 블록 생성: '## Conversation Summary (turns 1-45) ...'. 원본 메시지 배열 → [시스템, 룰, 보호구간 메시지들, 요약 블록, 최근 6턴]로 교체. metadata.fullCompacted=true, originalTurnCount=N. 되돌리기 불가(체크포인트와 별도).",
+  "files": ["src/compaction/FullCompact.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C4-T09"],
+  "acceptanceCriteria": [
+    "이전 단계 후에도 예산 초과 시에만 실행",
+    "Tier C 모델로 전체 대화 요약",
+    "단일 시스템 메시지 블록 생성",
+    "메시지 배열 교체: 시스템/룰/보호구간/요약/최근 6턴",
+    "metadata: fullCompacted=true, originalTurnCount=N",
+    "되돌리기 불가(체크포인트 별도)"
+  ],
+  "estimatedHours": 3,
+  "tags": ["full-compact", "last-resort", "tier-c", "summary-block", "history-replacement", "irreversible"]
+}

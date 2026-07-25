@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T28",
+  "phase": "HARB",
+  "title": "Tools-B: Edit/File (edit/write/delete/reapply/notebook/multiedit + Review UI)",
+  "description": "Tools-B: Edit/File (edit/write/delete/reapply/notebook/multiedit + Review UI). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/tools/edit/"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C2-T02"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Tools-B: Edit/File (edit/write/delete/reapply/notebook/multiedit + Review UI)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T26",
+  "phase": "HARB",
+  "title": "Spec-07: Context Compaction (4단계: Truncate→Drop→Micro→Full)",
+  "description": "Spec-07: Context Compaction (4단계: Truncate→Drop→Micro→Full). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/compaction/"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C4-T09"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Spec-07: Context Compaction (4단계: Truncate→Drop→Micro→Full)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

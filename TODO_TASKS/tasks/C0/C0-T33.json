@@ -1,0 +1,32 @@
+{
+  "id": "C0-T33",
+  "phase": "C0",
+  "title": "ConfigManager + agent-k.* configuration 스키마 등록 (Infra-17)",
+  "description": "ConfigManager: get/update/onChange. package.json contributes.configuration에 modelTier, permission.level(default accept_edits), queue.*, harness.*, context.readMaxLines, maxTurns.A/B 등록. PRD-29 / Infra-17.",
+  "files": [
+    "src/core/ConfigManager.ts",
+    "package.json"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C0-T01"
+  ],
+  "acceptanceCriteria": [
+    "VS Code Settings에서 agent-k 검색 시 키 노출",
+    "permission.level 기본 accept_edits",
+    "queue.onEnterWhileRunning 기본 resynthesize",
+    "onDidChangeConfiguration 구독 동작"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "settings",
+    "config",
+    "prd-29",
+    "infra-17"
+  ],
+  "prdRefs": [
+    "PRD-29_Settings_Hub.md",
+    "PRD-Infra-17_Extension_Lifecycle_Config.md"
+  ]
+}

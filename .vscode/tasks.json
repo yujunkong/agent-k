@@ -1,0 +1,38 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "npm:compile",
+      "type": "npm",
+      "script": "compile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [
+        "$tsc",
+        "$esbuild"
+      ],
+      "detail": "Compile TypeScript with ESBuild"
+    },
+    {
+      "label": "npm:watch",
+      "type": "npm",
+      "script": "watch",
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher: [
+        "$tsc-watch",
+        "$esbuild-watch"
+      ],
+      "detail": "Watch for changes and rebuild"
+    },
+    {
+      "label": "npm:pretest",
+      "type": "npm",
+      "script": "pretest",
+      "group": "test",
+      "detail": "Compile tests and extension"
+    }
+  ]
+}

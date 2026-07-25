@@ -1,0 +1,23 @@
+{
+  "id": "C7-T09",
+  "phase": "C7",
+  "title": "결과 비교 UI: Diff 요약 + 테스트 결과 + 토큰/비용 카드",
+  "description": "결과 비교 UI: Diff 요약 + 테스트 결과 + 토큰/비용 카드. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/worktree/ComparisonUI.tsx"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C7-T08"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 결과 비교 UI: Diff 요약 + 테스트 결과 + 토큰/비용 카드",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c7",
+    "p0"
+  ]
+}

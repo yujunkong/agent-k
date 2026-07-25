@@ -1,0 +1,19 @@
+{
+  "id": "C1-T01",
+  "phase": "C1",
+  "title": "ModeRegistry: ModeConfig 타입 + ASK_WHITELIST (10 tools)",
+  "description": "ModeRegistry 클래스: ModeConfig 타입 정의(name, systemPrompt, allowedTools, contextBudget). ASK_WHITELIST = [grep, glob, file_search, list_dir, read_file, codebase_search, lsp_definition, lsp_references, ask_question, todo_write]. Mode별 설정 레지스트리 관리. getModeConfig(mode), isToolAllowed(mode, toolName) 메서드.",
+  "files": ["src/agent/modeRegistry.ts", "src/agent/types.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C0-T11"],
+  "acceptanceCriteria": [
+    "ModeConfig 타입 완전 정의",
+    "ASK_WHITELIST 10개 도구 정확히 매칭",
+    "getModeConfig('ask') → 허용 도구 10개 반환",
+    "isToolAllowed('ask', 'edit_file') → false",
+    "isToolAllowed('ask', 'grep') → true"
+  ],
+  "estimatedHours": 2,
+  "tags": ["mode", "registry", "whitelist", "ask-mode", "types"]
+}

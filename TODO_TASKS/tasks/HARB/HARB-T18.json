@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T18",
+  "phase": "HARB",
+  "title": "AC-3: Ask 모드 (쓰기 0, 인용 코드 실제 파일과 일치)",
+  "description": "AC-3: Ask 모드 (쓰기 0, 인용 코드 실제 파일과 일치). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "tests/acceptance/harness/ac3-ask-accuracy.spec.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "HARB-T15"
+  ],
+  "acceptanceCriteria": [
+    "Implements: AC-3: Ask 모드 (쓰기 0, 인용 코드 실제 파일과 일치)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

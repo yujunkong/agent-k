@@ -1,0 +1,19 @@
+{
+  "id": "C2-T23",
+  "phase": "C2",
+  "title": "성능: 50파일 Diff 렌더링 < 500ms",
+  "description": "벤치마크: 50파일, 각 200줄, 평균 5헌크/파일 → ReviewUIProvider 렌더링 시간 측정. 가상화(react-window) + 메모이제이션으로 500ms 미만 목표. 초기 렌더 + 스크롤 60fps. 메모리: DOM 노드 < 100개. 번들 크기 영향 측정.",
+  "files": ["tests/bench/diff-render.bench.ts"],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": ["C2-T11"],
+  "acceptanceCriteria": [
+    "50파일 Diff 렌더링 < 500ms",
+    "스크롤 60fps 유지",
+    "DOM 노드 < 100개 (가상화)",
+    "초기 렌더 + 인터랙션 모두 측정",
+    "메모리 누수 없음 (10분 테스트)"
+  ],
+  "estimatedHours": 2,
+  "tags": ["benchmark", "diff", "render", "performance", "virtualization", "500ms", "60fps"]
+}

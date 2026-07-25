@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T07",
+  "phase": "HARB",
+  "title": "Prompt/Turn Structure: 도구 최대 N개, 읽기 위주, 수정 전 read 필수",
+  "description": "Prompt/Turn Structure: 도구 최대 N개, 읽기 위주, 수정 전 read 필수. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/harness/PromptTurnStructure.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "HARB-T01"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Prompt/Turn Structure: 도구 최대 N개, 읽기 위주, 수정 전 read 필수",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

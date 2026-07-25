@@ -1,0 +1,31 @@
+{
+  "id": "C0-T22",
+  "phase": "C0",
+  "title": "Provider 설정 UI (등록/테스트/모델 선택)",
+  "description": "Provider 등록/테스트/모델 선택 **도메인 로직·컴포넌트** (ProviderSettings). C0 Day-1에는 채팅에서 직접 열 수 있으나, Settings Hub Models 탭(C0-T36)이 정식 진입점. T36은 이 컴포넌트를 재사용·위임한다 (중복 UI 금지). API Key는 SecretStorage만.",
+  "files": [
+    "src/chat/components/ProviderSettings.tsx"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C0-T17",
+    "C0-T18",
+    "C0-T21"
+  ],
+  "acceptanceCriteria": [
+    "프로바이더 5종류 추가/편집/삭제",
+    "연결 테스트 /models → 모델 목록",
+    "API Key SecretStorage만 (마스킹)",
+    "활성 프로바이더 1개",
+    "C0-T36에서 재사용 가능한 export (중복 구현 금지 주석/문서)"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "provider",
+    "settings",
+    "ui",
+    "webview",
+    "shared-with-c0-t36"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "C1-T10",
+  "phase": "C1",
+  "title": "ask_question, todo_write 도구 (세션 UX)",
+  "description": "AskQuestionTool: question, options(string[]) → 사용자 선택 대기. UI: 모달 드롭다운/라디오. TodoWriteTool: todos[{id, content, status(pending/in_progress/completed)}] → 사이드바 Todo 패널 연동. 상태 변경 시 실시간 동기화.",
+  "files": ["src/tools/session/AskQuestionTool.ts", "src/tools/session/TodoWriteTool.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C1-T02"],
+  "acceptanceCriteria": [
+    "ask_question: 질문 + 선택지 → 사용자 선택 반환",
+    "UI: 모달 드롭다운/라디오 버튼",
+    "todo_write: Todo 리스트 생성/수정/상태 변경",
+    "Todo 패널 실시간 동기화",
+    "세션 간 Todo 지속성 (workspaceState)"
+  ],
+  "estimatedHours": 4,
+  "tags": ["ask-question", "todo-write", "session", "ux", "modal", "sidebar"]
+}

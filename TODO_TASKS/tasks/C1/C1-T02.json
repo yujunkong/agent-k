@@ -1,0 +1,19 @@
+{
+  "id": "C1-T02",
+  "phase": "C1",
+  "title": "ToolRegistry.getSchemas(mode) 필터링 구현",
+  "description": "ToolRegistry 클래스: registerTool(tool), getSchemas(mode) → mode 허용 도구만 필터링하여 OpenAI function calling 스키마 배열 반환. ToolDefinition: name, description, parameters(ZodSchema), modeAllowlist(string[]). 카테고리: search, edit, terminal, web, session, orchestration, debug. 메타데이터: uiGroup, requiresApproval, destructive.",
+  "files": ["src/tools/registry.ts", "src/tools/types.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C0-T19"],
+  "acceptanceCriteria": [
+    "registerTool로 도구 등록 작동",
+    "getSchemas('ask') → 10개 스키마만 반환",
+    "getSchemas('agent') → 전체 도구 반환",
+    "Zod 스키마 → JSON Schema 변환 정확",
+    "카테고리/메타데이터 포함"
+  ],
+  "estimatedHours": 3,
+  "tags": ["tool", "registry", "schema", "zod", "filtering", "mode"]
+}

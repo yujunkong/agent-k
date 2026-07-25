@@ -1,0 +1,19 @@
+{
+  "id": "C4-T31",
+  "phase": "C4",
+  "title": "Multi-Workspace / Remote: 다중 루트 워크스페이스 지원",
+  "description": "MultiWorkspace: vscode.workspace.workspaceFolders 다중 루트 처리. 각 폴더별: 독립 인덱스, 독립 체크포인트, 독립 메모리. 원격(SSH/WSL/Dev Containers): vscode.remote 권한 확인 → 원격 파일 시스템 API 사용. 워크스페이스 간 컨텍스트 공유 옵션: 공유 안 함(기본) / 메모리만 공유 / 전체 공유. UI: 워크스페이스 선택 드롭다운(멀티 루트 시).",
+  "files": ["src/infrastructure/MultiWorkspace.ts"],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": ["C4-T27"],
+  "acceptanceCriteria": [
+    "다중 workspaceFolders 각각 독립 상태",
+    "원격 환경에서 파일 시스템 API 정상 작동",
+    "워크스페이스 간 공유 옵션 3가지",
+    "멀티 루트 시 워크스페이스 선택 드롭다운",
+    "각 폴더별 인덱스/체크포인트/메모리 격리"
+  ],
+  "estimatedHours": 4,
+  "tags": ["multi-workspace", "remote", "ssh", "wsl", "dev-containers", "workspace-folders", "isolation", "sharing"]
+}

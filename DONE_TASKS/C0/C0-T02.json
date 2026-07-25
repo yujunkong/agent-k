@@ -1,0 +1,27 @@
+{
+  "id": "C0-T02",
+  "phase": "C0",
+  "title": "Webview ViewProvider 등록 (agent-k.chat)",
+  "description": "vscode.window.createWebviewViewProvider('agent-k.chat', provider) 등록. ChatViewProvider 클래스: resolveWebviewView, getHtml(webview), handleMessage(msg). 양방향 통신: webview.onDidReceiveMessage, webview.postMessage. CSP nonce 설정.",
+  "files": ["src/extension.ts", "src/chat/ChatViewProvider.ts"],
+  "priority": "P0",
+  "status": "completed",
+  "completedAt": "2026-07-25T14:42:00",
+  "commitHash": "c0-t02-viewprovider",
+  "dependencies": ["C0-T01"],
+  "acceptanceCriteria": [
+    "사이드바에 'Agent K' 뷰 등록됨",
+    "Webview 로드 시 콘솔 에러 없음",
+    "Extension <-> Webview postMessage/onDidReceiveMessage 양방향 통신 작동"
+  ],
+  "estimatedHours": 2,
+  "actualHours": 1,
+  "tags": ["webview", "viewprovider", "vscode-api"],
+  "implementationNotes": [
+    "ChatViewProvider 클래스 구현: resolveWebviewView, getHtml, handleMessage",
+    "CSP nonce 설정으로 보안 강화",
+    "webview.onDidReceiveMessage로 양방향 통신",
+    "webview.postMessage로 Extension -> Webview 메시지 전송",
+    "commands: agent-k.chat.new, agent-k.chat.clear, agent-k.openSettings, agent-k.provider.add, agent-k.mode.switch 등록"
+  ]
+}

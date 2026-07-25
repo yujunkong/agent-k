@@ -1,0 +1,19 @@
+{
+  "id": "C1-T16",
+  "phase": "C1",
+  "title": "Prefetch: 에러 스택 트레이스 파싱 (파일:라인 ±N)",
+  "description": "StackTraceParser: 에러 메시지/로그에서 스택 트레이스 추출. 패턴: at function (file.ts:123:45), file.ts:123, /path/to/file.ts:123. 언어별 패턴: JS/TS, Python, Go, Rust, Java. 추출된 파일:라인 ±3줄 범위로 read_file 예약. 중복 제거. 최대 20개 파일.",
+  "files": ["src/prefetch/StackTraceParser.ts"],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": ["C1-T14"],
+  "acceptanceCriteria": [
+    "다국어 스택 트레이스 패턴 매칭 (JS/TS/Python/Go/Rust/Java)",
+    "파일:라인 추출 정확도 > 95%",
+    "±3줄 컨텍스트로 read_file 예약",
+    "최대 20개 파일 제한",
+    "중복 파일 중복 제거"
+  ],
+  "estimatedHours": 3,
+  "tags": ["stack-trace", "parser", "error", "prefetch", "multi-language"]
+}

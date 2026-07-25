@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T16",
+  "phase": "HARB",
+  "title": "AC-1: 단일 파일 버그픽스 (prefetch + edit + lint auto → 사람 Diff 승인 1회)",
+  "description": "AC-1: 단일 파일 버그픽스 (prefetch + edit + lint auto → 사람 Diff 승인 1회). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "tests/acceptance/harness/ac1-single-fix.spec.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "HARB-T15"
+  ],
+  "acceptanceCriteria": [
+    "Implements: AC-1: 단일 파일 버그픽스 (prefetch + edit + lint auto → 사람 Diff 승인 1회)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

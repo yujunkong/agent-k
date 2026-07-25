@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T22",
+  "phase": "HARB",
+  "title": "Spec-03: Context Budget (128k 슬롯: 시스템5%/룰5%/도구8%/스티키12%/대화60%/여유10%)",
+  "description": "Spec-03: Context Budget (128k 슬롯: 시스템5%/룰5%/도구8%/스티키12%/대화60%/여유10%). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/agent/ContextAssembler.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C3-T09"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Spec-03: Context Budget (128k 슬롯: 시스템5%/룰5%/도구8%/스티키12%/대화60%/여유10%)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

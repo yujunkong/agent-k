@@ -1,0 +1,24 @@
+{
+  "id": "HARB-T30",
+  "phase": "HARB",
+  "title": "Tools-D: Web/Browser/Media (web_search/fetch/browser_*/generate_image/read_lints)",
+  "description": "Tools-D: Web/Browser/Media (web_search/fetch/browser_*/generate_image/read_lints). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/tools/web/",
+    "src/tools/browser/"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C7-T01"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Tools-D: Web/Browser/Media (web_search/fetch/browser_*/generate_image/read_lints)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

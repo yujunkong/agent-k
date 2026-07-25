@@ -1,0 +1,19 @@
+{
+  "id": "C4-T41",
+  "phase": "C4",
+  "title": "E2E: Side Chat으로 탐색 → 메인에 @side-결과 인용 → 구현 이어가기",
+  "description": "Playwright E2E: Agent 모드에서 복잡한 리팩터링 필요 → '/side'로 Side Chat 시작 → 'Find all usages of UserService' → Side Chat: grep+read_file로 탐색 → '/side 결과'로 메인에 요약 주입 → 메인 Agent: 주입된 컨텍스트로 즉시 edit_file 시작 → Side Chat 종료 → 메인에서 구현 완료.",
+  "files": ["tests/e2e/c4-side-chat.spec.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C4-T24"],
+  "acceptanceCriteria": [
+    "/side 명령으로 Side Chat 시작",
+    "Side Chat에서 grep/read_file 탐색",
+    "/side 결과로 메인에 요약 주입",
+    "메인 Agent가 주입된 컨텍스트로 즉시 편집 시작",
+    "Side Chat 종료 후 메인에서 구현 완료"
+  ],
+  "estimatedHours": 4,
+  "tags": ["e2e", "side-chat", "grep", "read-file", "merge", "context-injection", "parallel"]
+}

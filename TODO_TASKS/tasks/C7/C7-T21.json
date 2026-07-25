@@ -1,0 +1,23 @@
+{
+  "id": "C7-T21",
+  "phase": "C7",
+  "title": "병렬 서브에이전트: task 도구로 별도 컨텍스트 위임 (탐색/일반/디버그)",
+  "description": "병렬 서브에이전트: task 도구로 별도 컨텍스트 위임 (탐색/일반/디버그). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/tools/orchestration/TaskTool.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C4-T27"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 병렬 서브에이전트: task 도구로 별도 컨텍스트 위임 (탐색/일반/디버그)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c7",
+    "p0"
+  ]
+}

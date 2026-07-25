@@ -1,0 +1,19 @@
+{
+  "id": "C2-T17",
+  "phase": "C2",
+  "title": "단위 테스트: DiffView 렌더링, 체크박스 동기화, 키보드 핸들러",
+  "description": "DiffView: 통합/사이드바이사이드 토글, 헌크 네비게이션(n/p). CheckboxSync: 파일 체크 → 전체 헌크 토글, 헌크 개별 체크 → 파일 부분 체크(삼상태). KeyboardHandler: Ctrl+Enter(전체적용), Ctrl+Shift+Enter(선택적용), Esc(취소). React Testing Library로 렌더링/상호작용 테스트.",
+  "files": ["tests/unit/review/DiffView.test.tsx", "tests/unit/review/CheckboxSync.test.ts", "tests/unit/review/KeyboardHandler.test.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C2-T14"],
+  "acceptanceCriteria": [
+    "DiffView: unified/side-by-side 토글 작동",
+    "헌크 네비게이션 n/p 키 작동",
+    "CheckboxSync: 파일/헌크 삼상태 동기화",
+    "KeyboardHandler: 3가지 단축키 모두 작동",
+    "React Testing Library로 UI 상호작용 검증"
+  ],
+  "estimatedHours": 4,
+  "tags": ["testing", "diff-view", "checkbox", "keyboard", "react-testing-library", "review"]
+}

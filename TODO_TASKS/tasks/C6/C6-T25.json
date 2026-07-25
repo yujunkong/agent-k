@@ -1,0 +1,23 @@
+{
+  "id": "C6-T25",
+  "phase": "C6",
+  "title": "계측 코드 템플릿: 콘솔 로그, 성능 마크, 에러 경계",
+  "description": "계측 코드 템플릿: 콘솔 로그, 성능 마크, 에러 경계. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/debug/Templates.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C6-T04"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 계측 코드 템플릿: 콘솔 로그, 성능 마크, 에러 경계",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c6",
+    "p1"
+  ]
+}

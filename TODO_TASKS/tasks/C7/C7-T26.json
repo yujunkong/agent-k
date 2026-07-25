@@ -1,0 +1,23 @@
+{
+  "id": "C7-T26",
+  "phase": "C7",
+  "title": "Secrets/Config Vault UI: SecretStorage 관리 + 환경별 프로파일",
+  "description": "Secrets/Config Vault UI: SecretStorage 관리 + 환경별 프로파일. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/secrets/SecretsVault.tsx"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C0-T21"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Secrets/Config Vault UI: SecretStorage 관리 + 환경별 프로파일",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1"
+  ]
+}

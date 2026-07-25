@@ -1,0 +1,23 @@
+{
+  "id": "C7-T31",
+  "phase": "C7",
+  "title": "Semantic Search: 벡터 DB (선택) 또는 ripgrep만으로 시작",
+  "description": "Semantic Search: 벡터 DB (선택) 또는 ripgrep만으로 시작. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/indexing/SemanticSearch.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C7-T30"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Semantic Search: 벡터 DB (선택) 또는 ripgrep만으로 시작",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c7",
+    "p1"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "C2-T14",
+  "phase": "C2",
+  "title": "재시도 루프: 모델이 린트 에러 보고 재편집 → 재검증 (최대 N회)",
+  "description": "AgentLoopController: tool_result에 verificationInjected && retryCount < maxRetries → 루프 지속 (모델 재호출). 시스템 프롬프트에 '이전 시도의 린트 에러를 수정하세요' 컨텍스트 추가. 재시도 시: 동일 파일 재편집 유도. 재시도 횟수 메타데이터로 모델에게 알림.",
+  "files": ["src/loop/AgentLoopController.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C2-T20"],
+  "acceptanceCriteria": [
+    "verificationInjected && retryCount < maxRetries → 루프 지속",
+    "시스템 프롬프트에 린트 에러 수정 지시 추가",
+    "동일 파일 재편집 유도",
+    "재시도 횟수 모델에게 전달",
+    "최대 재시도 도달 시 루프 중단"
+  ],
+  "estimatedHours": 3,
+  "tags": ["retry", "loop", "agent-loop", "verification", "retry-count", "system-prompt"]
+}

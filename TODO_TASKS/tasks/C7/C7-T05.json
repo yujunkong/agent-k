@@ -1,0 +1,23 @@
+{
+  "id": "C7-T05",
+  "phase": "C7",
+  "title": "browser_* 도구 그룹: 네비게이트/클릭/스크롤/대기/스크린샷/평가",
+  "description": "browser_* 도구 그룹: 네비게이트/클릭/스크롤/대기/스크린샷/평가. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/tools/browser/"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C7-T01"
+  ],
+  "acceptanceCriteria": [
+    "Implements: browser_* 도구 그룹: 네비게이트/클릭/스크롤/대기/스크린샷/평가",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c7",
+    "p0"
+  ]
+}

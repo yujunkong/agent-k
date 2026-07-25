@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T05",
+  "phase": "HARB",
+  "title": "Design Slogans: 프롬프트에 \"탐색은 코드, 판단은 모델\" 등 주입",
+  "description": "Design Slogans: 프롬프트에 \"탐색은 코드, 판단은 모델\" 등 주입. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/harness/DesignSlogans.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "HARB-T02"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Design Slogans: 프롬프트에 \"탐색은 코드, 판단은 모델\" 등 주입",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "harb",
+    "p1"
+  ]
+}

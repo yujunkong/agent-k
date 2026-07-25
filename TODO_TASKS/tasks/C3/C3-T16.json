@@ -1,0 +1,19 @@
+{
+  "id": "C3-T16",
+  "phase": "C3",
+  "title": "StreamingToolExecutor: tool_call 도착 즉시 읽기 도구 선실행 (지연↓)",
+  "description": "StreamingToolExecutor: Provider 스트리밍 중 tool_call 청크 수신 → 완료 대기 안 하고 읽기 도구 즉시 실행 시작. 쓰기/터미널은 tool_call 완료 후 실행. 버퍼: 미완료 tool_call 누적. 완료 시: 읽기 결과 준비됨 → 즉시 모델 다음 턴용 컨텍스트 구성. 지연 감소: 모델 응답 대기 중 읽기 I/O 병렬 수행.",
+  "files": ["src/loop/StreamingToolExecutor.ts"],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": ["C3-T15"],
+  "acceptanceCriteria": [
+    "스트리밍 중 tool_call 청크 수신 시 읽기 도구 즉시 실행",
+    "쓰기/터미널은 tool_call 완료 후 실행",
+    "미완료 tool_call 버퍼링",
+    "읽기 결과 미리 준비 → 다음 턴 지연 감소",
+    "도구 호출 파싱과 병렬 실행 파이프라인 연결"
+  ],
+  "estimatedHours": 4,
+  "tags": ["streaming-tool-executor", "prefetch", "tool-call-streaming", "latency-reduction", "pipeline"]
+}

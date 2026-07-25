@@ -1,0 +1,20 @@
+{
+  "id": "C2-T15",
+  "phase": "C2",
+  "title": "최대 재시도 초과 시 ask_question으로 사용자 개입 유도",
+  "description": "MaxRetriesExceededHook: retryCount >= maxRetries 시 → ask_question 도구 호출: '자동 수정이 {maxRetries}회 실패했습니다. 어떻게 진행할까요? [1] 직접 수정 안내 [2] Plan 모드로 전환 [3] Debug 모드로 전환 [4] 중단'. 사용자 선택에 따라 분기: 1) 힌트 추가 후 재시도, 2) PlanModeController 전환, 3) DebugModeController 전환, 4) 루프 중단.",
+  "files": ["src/hooks/askOnMaxRetries.ts", "src/tools/session/AskQuestionTool.ts"],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": ["C2-T14"],
+  "acceptanceCriteria": [
+    "최대 재시도 도달 시 ask_question 호출",
+    "4가지 선택지 제시",
+    "선택 1: 힌트 추가 후 재시도",
+    "선택 2: Plan 모드 전환",
+    "선택 3: Debug 모드 전환",
+    "선택 4: 루프 중단"
+  ],
+  "estimatedHours": 3,
+  "tags": ["max-retries", "ask-question", "user-intervention", "plan-mode", "debug-mode", "hook"]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "HARB-T01",
+  "phase": "HARB",
+  "title": "Model Tiers (A/B/C) 타입 + 라우팅 정책",
+  "description": "Model Tiers (A/B/C) 타입 + 라우팅 정책. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/harness/ModelTiers.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "Implements: Model Tiers (A/B/C) 타입 + 라우팅 정책",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

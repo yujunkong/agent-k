@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T27",
+  "phase": "HARB",
+  "title": "Tools-A: Search/Explore (grep/glob/list/read/codebase/lsp) 완성",
+  "description": "Tools-A: Search/Explore (grep/glob/list/read/codebase/lsp) 완성. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/tools/search/"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C1-T03"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Tools-A: Search/Explore (grep/glob/list/read/codebase/lsp) 완성",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

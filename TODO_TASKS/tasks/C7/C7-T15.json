@@ -1,0 +1,23 @@
+{
+  "id": "C7-T15",
+  "phase": "C7",
+  "title": "Chat Search: 로컬 인덱스 (대화/아티팩트/diff) + 검색 웹뷰",
+  "description": "Chat Search: 로컬 인덱스 (대화/아티팩트/diff) + 검색 웹뷰. Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/search/ChatSearchIndex.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C4-T27"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Chat Search: 로컬 인덱스 (대화/아티팩트/diff) + 검색 웹뷰",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c7",
+    "p0"
+  ]
+}

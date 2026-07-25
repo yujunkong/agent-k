@@ -1,0 +1,19 @@
+{
+  "id": "C3-T03",
+  "phase": "C3",
+  "title": "Stop 신호 처리: AbortController → HTTP/셸 취소 → 큐 정책 적용",
+  "description": "StopHandler: AbortController 생성 → stop() 시 abort(). HTTP 스트림: fetch abort. 셸 프로세스: child_process.kill(SIGTERM) → 2초 후 SIGKILL. MessageQueue 정책: stop 시 큐 비우기(기본) / 유지(옵션). UI: 정지 버튼 → 100ms 내 스트림 중단. 부분 Review/체크포인트 유지.",
+  "files": ["src/loop/StopHandler.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C3-T01"],
+  "acceptanceCriteria": [
+    "AbortController로 HTTP 스트림 즉시 중단",
+    "셸 프로세스 SIGTERM → SIGKILL 강제 종료",
+    "MessageQueue: 중단 시 비우기/유지 옵션",
+    "UI 정지 버튼 → 100ms 내 중단",
+    "부분 Review/체크포인트 보존"
+  ],
+  "estimatedHours": 3,
+  "tags": ["stop", "abortcontroller", "http", "shell", "message-queue", "checkpoint", "review"]
+}

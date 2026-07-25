@@ -1,0 +1,26 @@
+{
+  "id": "C0-T39",
+  "phase": "C0",
+  "title": "E2E: Open Settings → Models 테스트 → Secrets 저장 → Queue 기본값 확인",
+  "description": "C0 Settings Hub 뼈대 E2E. agent-k.openSettings, 연결 테스트, 시크릿 미평문, queue 기본 resynthesize.",
+  "files": [
+    "tests/e2e/c0-settings-hub.spec.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C0-T36",
+    "C0-T37",
+    "C0-T38"
+  ],
+  "acceptanceCriteria": [
+    "E2E 그린",
+    "시크릿 settings.json 미포함 assert"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "e2e",
+    "settings",
+    "prd-29"
+  ]
+}

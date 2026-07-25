@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T31",
+  "phase": "HARB",
+  "title": "Tools-E: User/Session UX (ask_question/todo_write/fetch_rules/switch_mode)",
+  "description": "Tools-E: User/Session UX (ask_question/todo_write/fetch_rules/switch_mode). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/tools/session/"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C1-T10"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Tools-E: User/Session UX (ask_question/todo_write/fetch_rules/switch_mode)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

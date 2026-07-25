@@ -1,0 +1,19 @@
+{
+  "id": "C2-T24",
+  "phase": "C2",
+  "title": "성능: PatchApplier 50파일 적용 < 2초 (원자적)",
+  "description": "벤치마크: 50파일 멀티 헌크 패치 → PatchApplier.apply() 실행 시간 측정. 체크포인트 생성 + WorkspaceEdit 적용 + 검증 포함 2초 미만 목표. 원자성: 중간 실패 시 전체 롤백 시간 포함. 메모리: 스냅샷 저장 피크 < 100MB.",
+  "files": ["tests/bench/patch-apply.bench.ts"],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": ["C2-T08"],
+  "acceptanceCriteria": [
+    "50파일 패치 적용 < 2초 (체크포인트+적용+검증)",
+    "원자적: 실패 시 전체 롤백",
+    "롤백 시간 포함",
+    "메모리 피크 < 100MB",
+    "부분 실패 시나리오 테스트"
+  ],
+  "estimatedHours": 2,
+  "tags": ["benchmark", "patch", "apply", "atomic", "rollback", "2-seconds", "50-files"]
+}

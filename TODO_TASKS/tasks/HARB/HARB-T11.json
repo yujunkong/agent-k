@@ -1,0 +1,23 @@
+{
+  "id": "HARB-T11",
+  "phase": "HARB",
+  "title": "Context Rules: 보호 구간 (시스템/룰/최근 K턴/현재 목표)",
+  "description": "Context Rules: 보호 구간 (시스템/룰/최근 K턴/현재 목표). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/harness/ContextRules.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": [
+    "C4-T10"
+  ],
+  "acceptanceCriteria": [
+    "Implements: Context Rules: 보호 구간 (시스템/룰/최근 K턴/현재 목표)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "harb",
+    "p0"
+  ]
+}

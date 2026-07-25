@@ -1,0 +1,18 @@
+{
+  "id": "C0-T11",
+  "phase": "C0",
+  "title": "모드 드롭다운 (Ask/Agent/Plan/Debug) + 세션 리셋",
+  "description": "ModeSelector 컴포넌트: 드롭다운 버튼 4개 모드. 모드 변경 시: 세션 리셋(메시지 히스토리 클리어), 시스템 프롬프트 교체, ContextAssembler 예산 재계산. 모드별 툴팁: Ask(읽기 전용), Agent(자율 구현), Plan(설계 우선), Debug(가설-계측-재현). 상태: 스트리밍 중 비활성화.",
+  "files": ["src/chat/components/ModeSelector.tsx", "src/agent/modeRegistry.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C0-T03"],
+  "acceptanceCriteria": [
+    "4개 모드 드롭다운에서 선택 가능",
+    "모드 전환 시 히스토리 완전 초기화",
+    "시스템 프롬프트 즉시 변경",
+    "스트리밍 중 모드 변경 불가 (비활성화)"
+  ],
+  "estimatedHours": 3,
+  "tags": ["mode", "selector", "session-reset", "system-prompt"]
+}

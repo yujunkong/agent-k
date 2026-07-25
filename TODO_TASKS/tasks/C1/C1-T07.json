@@ -1,0 +1,19 @@
+{
+  "id": "C1-T07",
+  "phase": "C1",
+  "title": "read_file 도구 (offset/limit 필수, 250줄 캡)",
+  "description": "ReadFileTool: path, offset(0부터), limit(기본 250, 최대 2000) 필수. vscode.workspace.fs.readFile → UTF-8 디코딩. 줄 번호 계산: offset 라인부터 limit 줄 반환. 결과: {content, lines: {start, end, total}, encoding}. 전체 파일 읽기 금지: limit 미지정 시 에러. 큰 파일(>1MB) 경고.",
+  "files": ["src/tools/search/ReadFileTool.ts"],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["C1-T03"],
+  "acceptanceCriteria": [
+    "offset/limit 파라미터 필수 검증",
+    "기본 250줄, 최대 2000줄 제한",
+    "결과에 lines.start, lines.end, lines.total 포함",
+    "limit 미지정 시 에러 반환 (전체 덤프 방지)",
+    "인코딩 자동 감지/UTF-8 강제"
+  ],
+  "estimatedHours": 2,
+  "tags": ["read-file", "offset", "limit", "line-cap", "pagination"]
+}

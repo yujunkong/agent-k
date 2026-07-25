@@ -1,0 +1,23 @@
+{
+  "id": "C5-T11",
+  "phase": "C5",
+  "title": "실패 시: 변경 revert → 계획 다듬기 → 재승인 (Cursor 권장 플로우)",
+  "description": "실패 시: 변경 revert → 계획 다듬기 → 재승인 (Cursor 권장 플로우). Details: MASTER_TASK_INDEX.md / related PRD.",
+  "files": [
+    "src/plan/FailureRecovery.ts"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": [
+    "C5-T07"
+  ],
+  "acceptanceCriteria": [
+    "Implements: 실패 시: 변경 revert → 계획 다듬기 → 재승인 (Cursor 권장 플로우)",
+    "Matches PRD acceptance for this phase"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c5",
+    "p1"
+  ]
+}
