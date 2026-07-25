@@ -1,0 +1,39 @@
+{
+  "id": "C5-T19",
+  "phase": "C5",
+  "title": "UI: Plan 모드 헤더 배지 + 진행 단계 표시 (Research → Plan → Review → Build)",
+  "description": "헤더 배지 + Research→Plan→Review→Build.",
+  "files": [
+    "src/chat/components/PlanModeHeader.tsx"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "C5-T01"
+  ],
+  "acceptanceCriteria": [
+    "단계 하이라이트",
+    "Plan 배지"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c5",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ UI: Plan 모드 헤더 배지 + 진행 단계 표시 (Research → Plan → Review → Build) 구현 완료"
+  ],
+  "actualHours": 2,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "src/chat/components/PlanModeHeader.tsx"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}

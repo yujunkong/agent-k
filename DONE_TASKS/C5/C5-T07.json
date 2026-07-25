@@ -1,0 +1,40 @@
+{
+  "id": "C5-T07",
+  "phase": "C5",
+  "title": "승인 시 Agent 모드로 전환 실행 (쓰기 도구 활성화)",
+  "description": "승인 시 switch_mode('agent') + Q&A/Mermaid/TODO 컨텍스트 주입. 쓰기 도구 on.",
+  "files": [
+    "src/plan/PlanToAgent.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C5-T06"
+  ],
+  "acceptanceCriteria": [
+    "모드 agent 전환",
+    "plan 컨텍스트 주입",
+    "edit_file 스키마 노출"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c5",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ 승인 시 Agent 모드로 전환 실행 (쓰기 도구 활성화) 구현 완료"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "src/plan/PlanToAgent.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}

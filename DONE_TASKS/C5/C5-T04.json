@@ -1,0 +1,41 @@
+{
+  "id": "C5-T04",
+  "phase": "C5",
+  "title": "Implementation Plan 생성: Markdown + Mermaid + Todo 리스트",
+  "description": "계획 문서: Context/Questions/Mermaid/TODOs/Risks/Approval. 경로 `.agentk/plans/PLAN-<slug>.md` (PRD-C5 §2.3).",
+  "files": [
+    "src/plan/PlanGenerator.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C5-T03"
+  ],
+  "acceptanceCriteria": [
+    "스키마 6섹션 생성",
+    "유효한 Mermaid 블록",
+    "TODO 체크리스트 ≥1",
+    "slug 파일명 안전문자"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c5",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ Implementation Plan 생성: Markdown + Mermaid + Todo 리스트 구현 완료"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "src/plan/PlanGenerator.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}

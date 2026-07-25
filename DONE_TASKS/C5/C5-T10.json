@@ -1,0 +1,40 @@
+{
+  "id": "C5-T10",
+  "phase": "C5",
+  "title": "복잡도 휴리스틱: 파일≥3, \"리팩터/마이그레이션\" 키워드 → Plan 모드 강제 제안",
+  "description": "파일≥3 또는 리팩터/마이그레이션 키워드 → Plan 강제 제안.",
+  "files": [
+    "src/plan/ComplexityHeuristic.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "C5-T01"
+  ],
+  "acceptanceCriteria": [
+    "임계 설정 가능",
+    "제안 UI",
+    "무시 가능"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c5",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ 복잡도 휴리스틱: 파일≥3, \"리팩터/마이그레이션\" 키워드 → Plan 모드 강제 제안 구현 완료"
+  ],
+  "actualHours": 2,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "src/plan/ComplexityHeuristic.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}

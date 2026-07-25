@@ -1,0 +1,39 @@
+{
+  "id": "C5-T18",
+  "phase": "C5",
+  "title": "문서화: Plan 모드 워크플로우 + Mermaid 템플릿",
+  "description": "docs/plan-mode.md + Mermaid 템플릿 + `.agentk/plans`.",
+  "files": [
+    "docs/plan-mode.md"
+  ],
+  "priority": "P2",
+  "status": "done",
+  "dependencies": [
+    "C5-T14"
+  ],
+  "acceptanceCriteria": [
+    "가이드 완성",
+    "템플릿 예시"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c5",
+    "p2"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ 문서화: Plan 모드 워크플로우 + Mermaid 템플릿 구현 완료"
+  ],
+  "actualHours": 2,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "docs/plan-mode.md"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}

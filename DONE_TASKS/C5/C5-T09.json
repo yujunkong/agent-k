@@ -1,0 +1,40 @@
+{
+  "id": "C5-T09",
+  "phase": "C5",
+  "title": "계획 문서 저장: `.agentk/plans/` (설정 오버라이드 가능)",
+  "description": "기본 `.agentk/plans/`. 구경로 `.agent-k/plans` 금지.",
+  "files": [
+    "src/plan/PlanStorage.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "C5-T04"
+  ],
+  "acceptanceCriteria": [
+    "기본 `.agentk/plans/PLAN-*.md`",
+    "설정 오버라이드",
+    "로드/리스트 API"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c5",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ 계획 문서 저장: `.agentk/plans/` (설정 오버라이드 가능) 구현 완료"
+  ],
+  "actualHours": 2,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "src/plan/PlanStorage.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}

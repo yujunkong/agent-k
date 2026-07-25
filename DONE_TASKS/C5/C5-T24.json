@@ -1,0 +1,39 @@
+{
+  "id": "C5-T24",
+  "phase": "C5",
+  "title": "Agent 모드 실행 중 계획 참조: \"Per plan step 3...\" 컨텍스트 주입",
+  "description": "Agent 중 Per plan step N 컨텍스트 주입.",
+  "files": [
+    "src/plan/PlanContextInjection.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [
+    "C5-T07"
+  ],
+  "acceptanceCriteria": [
+    "현재 스텝 주입",
+    "컴팩션 시 plan 보호"
+  ],
+  "estimatedHours": 2,
+  "tags": [
+    "c5",
+    "p1"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ Agent 모드 실행 중 계획 참조: \"Per plan step 3...\" 컨텍스트 주입 구현 완료"
+  ],
+  "actualHours": 2,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "src/plan/PlanContextInjection.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}

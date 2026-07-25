@@ -1,0 +1,46 @@
+{
+  "id": "C5-T02",
+  "phase": "C5",
+  "title": "Clarifying Questions: 객관식 UI (ask_question 도구)",
+  "description": "PRD-C5 §2.4: ask_question으로 단일/다중/자유텍스트. UI=모달+옵션+'기타'. 필수 미답 시 계획 저장 불가. 답변 → ## Questions. 구명칭 AskUserQuestion 금지.",
+  "files": [
+    "src/plan/ClarifyingQuestions.tsx",
+    "src/tools/session/AskQuestionTool.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C5-T01"
+  ],
+  "acceptanceCriteria": [
+    "single/multiple/text 타입 지원",
+    "필수 미답 시 저장/다음 단계 차단",
+    "답변이 Plan ## Questions에 기록",
+    "취소 시 Plan 플로우 cancelled"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c5",
+    "p0",
+    "ask_question",
+    "plan-ui",
+    "prd-c5"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ Clarifying Questions: 객관식 UI (ask_question 도구) 구현 완료"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "src/plan/ClarifyingQuestions.tsx",
+      "src/tools/session/AskQuestionTool.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}

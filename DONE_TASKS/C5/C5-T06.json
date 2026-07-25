@@ -1,0 +1,41 @@
+{
+  "id": "C5-T06",
+  "phase": "C5",
+  "title": "사용자 리뷰: 직접 md 편집, 불필요 스텝 삭제, 승인 버튼",
+  "description": "리뷰 UI: md 편집/스텝 삭제/[Approve & Execute]. 승인 전 소스 쓰기 0.",
+  "files": [
+    "src/plan/PlanReview.tsx"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C5-T05"
+  ],
+  "acceptanceCriteria": [
+    "Approve & Execute 버튼",
+    "스텝 삭제 가능",
+    "승인 전 소스 파일 변경 0",
+    "필수 질문 미답 시 승인 불가"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c5",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ 사용자 리뷰: 직접 md 편집, 불필요 스텝 삭제, 승인 버튼 구현 완료"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "src/plan/PlanReview.tsx"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}

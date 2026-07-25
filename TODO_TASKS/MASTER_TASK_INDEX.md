@@ -15,11 +15,11 @@
 | **C2** Agent Single Turn | 35 | 35 | 0 | 0 | 100% | ✅ 완료 |
 | **C3** Agent Multi-Turn + Resynthesize | 33 | 33 | 0 | 0 | 100% | ✅ 완료 |
 | **C4** Infrastructure | 42 | 42 | 0 | 0 | 100% | ✅ 완료 |
-| **C5** Plan Mode | 25 | 0 | 0 | 25 | 0% | ⏳ 대기 |
-| **C6** Debug Mode | 28 | 0 | 0 | 28 | 0% | ⏳ 대기 |
+| **C5** Plan Mode | 25 | 25 | 0 | 0 | 100% | ✅ 완료 |
+| **C6** Debug Mode | 29 | 0 | 0 | 29 | 0% | ⏳ 대기 |
 | **C7** Production Grade | 46 | 0 | 0 | 46 | 0% | ⏳ 대기 |
 | **HARB** Harness/Specs (병렬) | 38 | 0 | 0 | 38 | 0% | ⏳ 대기 |
-| **TOTAL** | **~307** | **170** | **0** | **137** | **55%** | |
+| **TOTAL** | **~315** | **202** | **0** | **113** | **~64%** | |
 
 ---
 
@@ -32,7 +32,8 @@
 | **M3: 첫 쓰기 성공** | ✅ 완료 | C2 | Search-Replace edit + Diff 승인 + 자동 린트 검증 |
 | **M4: 멀티턴 루프 완성** | ✅ 완료 | C3 | 코어 루프 + maxTurns + Doom Loop + **Interrupt & Resynthesize** |
 | **M5: 제품급 인프라** | ✅ 완료 | C4 | 권한/체크포인트/컴팩션/훅 + Memories + Side Chat |
-| **M6: Plan/Debug 모드** | 다음 목표 | C5+C6 | 질문 UI/Mermaid 플랜 + 가설-계측-재현-최소수정 |
+| **M6: Plan 모드 완성** | ✅ 완료 | C5 | 질문 UI/Mermaid 플랜 + 승인/에이전트 전환 + TODO 분기 |
+| **M7: Debug 모드** | 다음 목표 | C6 | 가설-계측-재현-최소수정 |
 | **M7: Cursor급 확장** | TBD | C7 | Browser/Worktree/Review/MCP/Skills/Artifacts |
 | **M8: 하네스 검증 통과** | TBD | HARB | 4개 수용 테스트 통과 (단일 픽스/테스트 루프/Ask 정확도/JSON 복구) |
 
@@ -256,35 +257,35 @@
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
-| 1 | C5-T01 | PlanModeController: 읽기 전용 루프 + 계획 생성 플로우 | `src/plan/PlanModeController.ts` | P0 | ☐ | C4-T01 |
-| 2 | C5-T02 | Clarifying Questions: 객관식 UI (AskUserQuestion 도구) | `src/plan/ClarifyingQuestions.tsx` | P0 | ☐ | C5-T01 |
-| 3 | C5-T03 | Codebase Research: Ask 모드와 유사한 읽기·검색 루프 | `src/plan/ResearchPhase.ts` | P0 | ☐ | C5-T01 |
-| 4 | C5-T04 | Implementation Plan 생성: Markdown + Mermaid + Todo 리스트 | `src/plan/PlanGenerator.ts` | P0 | ☐ | C5-T03 |
-| 5 | C5-T05 | Plan Webview: 계획 문서 편집 + Mermaid 실시간 렌더링 | `src/plan/PlanEditor.tsx` | P0 | ☐ | C5-T04 |
-| 6 | C5-T06 | 사용자 리뷰: 직접 md 편집, 불필요 스텝 삭제, 승인 버튼 | `src/plan/PlanReview.tsx` | P0 | ☐ | C5-T05 |
-| 7 | C5-T07 | 승인 시 Agent 모드로 전환 실행 (쓰기 도구 활성화) | `src/plan/PlanToAgent.ts` | P0 | ☐ | C5-T06 |
-| 8 | C5-T08 | Todo 분기: 일부만 새 Agent 세션으로 분기 (선택) | `src/plan/TodoBranching.ts` | P1 | ☐ | C5-T07 |
-| 9 | C5-T09 | 계획 문서 저장: `.agent-k/plans/` 또는 워크스페이스 설정 경로 | `src/plan/PlanStorage.ts` | P1 | ☐ | C5-T04 |
-| 10 | C5-T10 | 복잡도 휴리스틱: 파일≥3, "리팩터/마이그레이션" 키워드 → Plan 모드 강제 제안 | `src/plan/ComplexityHeuristic.ts` | P1 | ☐ | C5-T01 |
-| 11 | C5-T11 | 실패 시: 변경 revert → 계획 다듬기 → 재승인 (Cursor 권장 플로우) | `src/plan/FailureRecovery.ts` | P1 | ☐ | C5-T07 |
-| 12 | C5-T12 | 단위 테스트: PlanGenerator (Mermaid/Todo 파싱) | `tests/unit/plan/` | P0 | ☐ | C5-T04 |
-| 13 | C5-T13 | 단위 테스트: ComplexityHeuristic (키워드/파일 수 임계값) | `tests/unit/plan/ComplexityHeuristic.test.ts` | P0 | ☐ | C5-T10 |
-| 14 | C5-T14 | E2E: "Refactor auth module" → Plan 모드 진입 → 질문 → 계획 → 승인 → 구현 | `tests/e2e/c5-plan-mode.spec.ts` | P0 | ☐ | C5-T07 |
-| 15 | C5-T15 | E2E: 계획 승인 후 Agent 모드에서 todo_write로 진행 상황 표시 | `tests/e2e/c5-todo-integration.spec.ts` | P0 | ☐ | C5-T08 |
-| 16 | C5-T16 | E2E: Plan 모드에서 쓰기 도구 완전 차단 확인 | `tests/e2e/c5-plan-readonly.spec.ts` | P0 | ☐ | C5-T01 |
-| 17 | C5-T17 | Mermaid 렌더링 성능: 50개 다이어그램 < 300ms | `tests/bench/mermaid-render.bench.ts` | P1 | ☐ | C5-T05 |
-| 18 | C5-T18 | 문서화: Plan 모드 워크플로우 + Mermaid 템플릿 | `docs/plan-mode.md` | P2 | ☐ | C5-T14 |
-| 19 | C5-T19 | UI: Plan 모드 헤더 배지 + 진행 단계 표시 (Research → Plan → Review → Build) | `src/chat/components/PlanModeHeader.tsx` | P1 | ☐ | C5-T01 |
-| 20 | C5-T20 | Plan 모드 진입/이탈 시 세션 리셋 확인 | `src/plan/SessionReset.ts` | P0 | ☐ | C5-T01 |
-| 21 | C5-T21 | Plan 모드에서 `@codebase` / `@file:` 멘션 정상 작동 | `src/plan/PlanMentions.ts` | P0 | ☐ | C5-T03 |
-| 22 | C5-T22 | Plan 저장/불러오기 UI (최근 계획 10개) | `src/plan/PlanHistory.tsx` | P2 | ☐ | C5-T09 |
-| 23 | C5-T23 | TodoWrite 도구: Plan 모드에서 todo 생성 → Agent 모드에서 이어받기 | `src/tools/session/TodoWriteTool.ts` | P0 | ☐ | C5-T08 |
-| 24 | C5-T24 | Agent 모드 실행 중 계획 참조: "Per plan step 3..." 컨텍스트 주입 | `src/plan/PlanContextInjection.ts` | P1 | ☐ | C5-T07 |
-| 25 | C5-T25 | 회고: Plan 없이 코드 작성 시도 시 경고 + Plan 모드 제안 | `src/plan/PlanEnforcement.ts` | P1 | ☐ | C5-T01 |
+| 1 | C5-T01 | PlanModeController: 읽기 전용 루프 + 계획 생성 플로우 | `src/plan/PlanModeController.ts` | P0 | ✅ | C4-T01 |
+| 2 | C5-T02 | Clarifying Questions: 객관식 UI (ask_question 도구) | `src/plan/ClarifyingQuestions.tsx` | P0 | ✅ | C5-T01 |
+| 3 | C5-T03 | Codebase Research: Ask 모드와 유사한 읽기·검색 루프 | `src/plan/ResearchPhase.ts` | P0 | ✅ | C5-T01 |
+| 4 | C5-T04 | Implementation Plan 생성: Markdown + Mermaid + Todo 리스트 | `src/plan/PlanGenerator.ts` | P0 | ✅ | C5-T03 |
+| 5 | C5-T05 | Plan Webview: 계획 문서 편집 + Mermaid 실시간 렌더링 | `src/plan/PlanEditor.tsx` | P0 | ✅ | C5-T04 |
+| 6 | C5-T06 | 사용자 리뷰: 직접 md 편집, 불필요 스텝 삭제, 승인 버튼 | `src/plan/PlanReview.tsx` | P0 | ✅ | C5-T05 |
+| 7 | C5-T07 | 승인 시 Agent 모드로 전환 실행 (쓰기 도구 활성화) | `src/plan/PlanToAgent.ts` | P0 | ✅ | C5-T06 |
+| 8 | C5-T08 | Todo 분기: 일부만 새 Agent 세션으로 분기 (선택) | `src/plan/TodoBranching.ts` | P1 | ✅ | C5-T07 |
+| 9 | C5-T09 | 계획 문서 저장: `.agentk/plans/` (설정 오버라이드 가능) | `src/plan/PlanStorage.ts` | P1 | ✅ | C5-T04 |
+| 10 | C5-T10 | 복잡도 휴리스틱: 파일≥3, "리팩터/마이그레이션" 키워드 → Plan 모드 강제 제안 | `src/plan/ComplexityHeuristic.ts` | P1 | ✅ | C5-T01 |
+| 11 | C5-T11 | 실패 시: 변경 revert → 계획 다듬기 → 재승인 (Cursor 권장 플로우) | `src/plan/FailureRecovery.ts` | P1 | ✅ | C5-T07 |
+| 12 | C5-T12 | 단위 테스트: PlanGenerator (Mermaid/Todo 파싱) | `tests/unit/plan/` | P0 | ✅ | C5-T04 |
+| 13 | C5-T13 | 단위 테스트: ComplexityHeuristic (키워드/파일 수 임계값) | `tests/unit/plan/ComplexityHeuristic.test.ts` | P0 | ✅ | C5-T10 |
+| 14 | C5-T14 | E2E: "Refactor auth module" → Plan 모드 진입 → 질문 → 계획 → 승인 → 구현 | `tests/e2e/c5-plan-mode.spec.ts` | P0 | ✅ | C5-T07 |
+| 15 | C5-T15 | E2E: 계획 승인 후 Agent 모드에서 todo_write로 진행 상황 표시 | `tests/e2e/c5-todo-integration.spec.ts` | P0 | ✅ | C5-T08 |
+| 16 | C5-T16 | E2E: Plan 모드에서 쓰기 도구 완전 차단 확인 | `tests/e2e/c5-plan-readonly.spec.ts` | P0 | ✅ | C5-T01 |
+| 17 | C5-T17 | Mermaid 렌더링 성능: 50개 다이어그램 < 300ms | `tests/bench/mermaid-render.bench.ts` | P1 | ✅ | C5-T05 |
+| 18 | C5-T18 | 문서화: Plan 모드 워크플로우 + Mermaid 템플릿 | `docs/plan-mode.md` | P2 | ✅ | C5-T14 |
+| 19 | C5-T19 | UI: Plan 모드 헤더 배지 + 진행 단계 표시 (Research → Plan → Review → Build) | `src/chat/components/PlanModeHeader.tsx` | P1 | ✅ | C5-T01 |
+| 20 | C5-T20 | Plan 모드 진입/이탈 시 세션 리셋 확인 | `src/plan/SessionReset.ts` | P0 | ✅ | C5-T01 |
+| 21 | C5-T21 | Plan 모드에서 `@codebase` / `@file:` 멘션 정상 작동 | `src/plan/PlanMentions.ts` | P0 | ✅ | C5-T03 |
+| 22 | C5-T22 | Plan 저장/불러오기 UI (최근 계획 10개) | `src/plan/PlanHistory.tsx` | P2 | ✅ | C5-T09 |
+| 23 | C5-T23 | TodoWrite 도구: Plan 모드에서 todo 생성 → Agent 모드에서 이어받기 | `src/tools/session/TodoWriteTool.ts` | P0 | ✅ | C5-T08 |
+| 24 | C5-T24 | Agent 모드 실행 중 계획 참조: "Per plan step 3..." 컨텍스트 주입 | `src/plan/PlanContextInjection.ts` | P1 | ✅ | C5-T07 |
+| 25 | C5-T25 | 회고: Plan 없이 코드 작성 시도 시 경고 + Plan 모드 제안 | `src/plan/PlanEnforcement.ts` | P1 | ✅ | C5-T01 |
 
 ---
 
-### 🟤 C6: Debug Mode (28 tasks)
+### 🟤 C6: Debug Mode (29 tasks)
 
 | # | Task ID | 제목 | 파일/모듈 | 우선순위 | 상태 | 의존성 |
 |---|---------|------|-----------|----------|------|--------|
@@ -318,6 +319,8 @@
 | 28 | C6-T28 | 회고: Debug 모드 진입 기준 (재현 어려움 / 동시성 / 힙 분석) 문서화 | `docs/debug-mode-guidelines.md` | P2 | ☐ | C6-T21 |
 
 ---
+
+| 29 | C6-T29 | Debug 증거용 browser_screenshot/console/network (Design Mode=C7) | `src/debug/BrowserEvidence.ts` | P1 | ☐ | C6-T01,C7-T01 |
 
 ### 🟢 C7: Production Grade (46 tasks)
 
@@ -438,10 +441,12 @@ sed -i 's/| 1 | C0-T01 | .* | ☐ |/| 1 | C0-T01 | 확장 스캐폴드 생성 | 
 
 ### C0-C4 ✅ 모두 완료 (170/307 = 55%)
 
-**C5 (Plan Mode)** 가 다음 목표입니다:
-1. `C5-T01~T07`: PlanModeController + Clarifying Questions + Research + Plan Generation + Plan Editor + Plan Review + Agent Transition
-2. `C5-T12~T18`: 단위 테스트, E2E 테스트, 벤치마크, 문서화
-3. 이후 C6 (Debug Mode) → C7 (Production Grade) → HARB (Harness/Specs) 순차 진행
+**C5 (Plan Mode)** ✅ 완료 (25/25)
+
+**C6 (Debug Mode)** 가 다음 목표입니다:
+1. `C6-T01~T12`: DebugModeController (가설→계측→재현→로그→최소수정→청소 6단계)
+2. `C6-T13~T28`: UI, 테스트, 벤치마크, 문서화
+3. 이후 C7 (Production Grade) → HARB (Harness/Specs) 순차 진행
 
 ---
 

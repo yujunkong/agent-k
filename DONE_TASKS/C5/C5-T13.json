@@ -1,0 +1,39 @@
+{
+  "id": "C5-T13",
+  "phase": "C5",
+  "title": "단위 테스트: ComplexityHeuristic (키워드/파일 수 임계값)",
+  "description": "ComplexityHeuristic 단위: 임계/키워드.",
+  "files": [
+    "tests/unit/plan/ComplexityHeuristic.test.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C5-T10"
+  ],
+  "acceptanceCriteria": [
+    "경계값 테스트",
+    "한/영 키워드"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c5",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ 단위 테스트: ComplexityHeuristic (키워드/파일 수 임계값) 구현 완료"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "tests/unit/plan/ComplexityHeuristic.test.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}

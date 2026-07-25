@@ -1,0 +1,39 @@
+{
+  "id": "C5-T15",
+  "phase": "C5",
+  "title": "E2E: 계획 승인 후 Agent 모드에서 todo_write로 진행 상황 표시",
+  "description": "E2E: 승인 후 todo_write로 Plan TODO 진행.",
+  "files": [
+    "tests/e2e/c5-todo-integration.spec.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C5-T08"
+  ],
+  "acceptanceCriteria": [
+    "todo Plan 동기",
+    "UI 갱신"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c5",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ E2E: 계획 승인 후 Agent 모드에서 todo_write로 진행 상황 표시 구현 완료"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "tests/e2e/c5-todo-integration.spec.ts"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}

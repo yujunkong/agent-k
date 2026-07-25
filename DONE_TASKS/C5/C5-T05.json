@@ -1,0 +1,40 @@
+{
+  "id": "C5-T05",
+  "phase": "C5",
+  "title": "Plan Webview: 계획 문서 편집 + Mermaid 실시간 렌더링",
+  "description": "Plan Webview: MD 편집 + mermaid.js 실시간 프리뷰. Cancel→draft 저장.",
+  "files": [
+    "src/plan/PlanEditor.tsx"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "C5-T04"
+  ],
+  "acceptanceCriteria": [
+    "MD 편집 반영",
+    "Mermaid 실시간 렌더",
+    "Cancel 시 draft 유지"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "c5",
+    "p0"
+  ],
+  "prdRefs": [
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "notes": "Enriched 2026-07-25 from phase PRD for C5–HARB coding kickoff.",
+  "completedCriteria": [
+    "✅ Plan Webview: 계획 문서 편집 + Mermaid 실시간 렌더링 구현 완료"
+  ],
+  "actualHours": 3,
+  "implementationNotes": {
+    "completedAt": "2026-07-25T20:30:00+09:00",
+    "filesModified": [
+      "src/plan/PlanEditor.tsx"
+    ],
+    "verification": "npm run compile 성공 (0 errors)",
+    "notes": ""
+  }
+}
