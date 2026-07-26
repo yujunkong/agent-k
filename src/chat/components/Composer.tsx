@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, KeyboardEvent, useCallback } from 'react';
-import type { Attachment } from '../types';
+import type { Attachment, Mode } from '../types';
+import { ModeSelector } from './ModeSelector';
 
 interface ComposerProps {
   onSend: (text: string, files: Attachment[]) => void;
@@ -16,6 +17,22 @@ interface ComposerProps {
   isStreaming: boolean;
   /** Host blocked on ask_question — show Waiting… instead of Streaming… */
   isAwaitingUser?: boolean;
+  /** Mode pill (Cursor: left of model) */
+  mode: Mode;
+  onModeChange: (mode: Mode) => void;
+  modeLabels: Record<string, string>;
+  modeTooltips: Record<string, string>;
+  /** Short model label next to mode */
+  modelLabel: string;
+  /** Full model id (for select value) */
+  modelId?: string;
+  /** Registered models only (not full /v1/models catalog) */
+  modelOptions?: string[];
+  /** User picked a model from the composer dropdown */
+  onModelChange?: (modelId: string) => void;
+  /** 0–100 estimated context fill */
+  contextUsagePercent?: number;
+  contextUsageLabel?: string;
 }
 
 function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
@@ -46,7 +63,6 @@ function collectUrisFromDataTransfer(dt: DataTransfer): string[] {
     }
   }
 
-  // VS Code explorer custom mime
   try {
     const resourceUrls = dt.getData('resourceurls');
     if (resourceUrls) {
@@ -87,7 +103,6 @@ function uriToFsPath(uri: string): string {
     try {
       const u = new URL(uri);
       let p = decodeURIComponent(u.pathname);
-      // Windows: /C:/Users/... → C:/Users/...
       if (/^\/[A-Za-z]:\//.test(p)) p = p.slice(1);
       return p;
     } catch {
@@ -98,7 +113,7 @@ function uriToFsPath(uri: string): string {
 }
 
 /**
- * Composer — IME-safe send + Cursor-like drag/drop attachment chips.
+ * Composer — Cursor-like: mode+model left, attach/send|stop right, usage under box.
  */
 export function Composer({
   onSend,
@@ -108,31 +123,37 @@ export function Composer({
   onQueueMessage,
   onResynthesize,
   isStreaming,
-  isAwaitingUser = false
+  isAwaitingUser = false,
+  mode,
+  onModeChange,
+  modeLabels,
+  modeTooltips,
+  modelLabel,
+  modelId,
+  modelOptions = [],
+  onModelChange,
+  contextUsagePercent = 0,
+  contextUsageLabel
 }: ComposerProps) {
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [height, setHeight] = useState(44);
-  /** true while Hangul/CJK IME composition is active */
+  const [height, setHeight] = useState(52);
   const composingRef = useRef(false);
-  /** After send/clear, IME may re-insert the last syllable via compositionend — drop it */
   const suppressCommitRef = useRef(false);
-  /** Last submitted text + time — ignore residual syllable re-send */
   const lastSubmitRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
   const dragDepthRef = useRef(0);
 
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      const newHeight = Math.min(textareaRef.current.scrollHeight, 200);
+      const newHeight = Math.min(Math.max(textareaRef.current.scrollHeight, 52), 200);
       setHeight(newHeight);
       textareaRef.current.style.height = `${newHeight}px`;
     }
   }, [text]);
 
-  /** Drop IME leftover that is just the last syllable of what we already sent */
   const isImeResidual = (candidate: string): boolean => {
     const trimmed = candidate.trim();
     if (!trimmed) return true;
@@ -167,9 +188,7 @@ export function Composer({
   }, []);
 
   const applyResolvedResults = useCallback(
-    (
-      results: Array<{ path?: string; type?: string }>
-    ) => {
+    (results: Array<{ path?: string; type?: string }>) => {
       if (!results.length) return;
       setAttachments((prev) => {
         const byPath = new Map(prev.map((a) => [a.path, a]));
@@ -186,19 +205,13 @@ export function Composer({
     []
   );
 
-  /** Resolve URIs via Extension Host (file vs folder) */
   const resolveAndAdd = useCallback(
     (uris: string[]) => {
       if (!uris.length) return;
-
-      // Optimistic chips from URI → path (file default)
       const optimistic: Attachment[] = uris.map((u) => {
         const path = uriToFsPath(u);
         const isFolderHint = /\/$/.test(u) || /\/$/.test(path);
-        return {
-          type: isFolderHint ? 'folder' : 'file',
-          path
-        };
+        return { type: isFolderHint ? 'folder' : 'file', path };
       });
       addAttachments(optimistic);
 
@@ -221,7 +234,6 @@ export function Composer({
     [addAttachments, applyResolvedResults]
   );
 
-  /** Paperclip: host showOpenDialog (no Shift required) */
   const pickAttachments = useCallback(() => {
     const api = getVsCodeApi();
     if (!api) return;
@@ -273,33 +285,47 @@ export function Composer({
     }
   };
 
+  const submitQueue = (raw: string) => {
+    const value = raw.trim();
+    if (!onQueueMessage) return;
+    if (!value && !attachments.length) return;
+    if (value && isImeResidual(value) && !attachments.length) return;
+    // Queue must work while streaming even if disabled=true (idle-send lock)
+    if (disabled && !isStreaming) return;
+    onQueueMessage(value);
+    clearAfterSubmit(value || attachments.map((a) => a.path).join(','));
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229 || composingRef.current) {
       return;
     }
 
-    const isEnter = e.key === 'Enter' && !e.shiftKey;
-    const isAltEnter = e.key === 'Enter' && e.altKey && !e.shiftKey;
-    const isCtrlEnter = e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey;
+    const isEnterKey = e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter';
+    if (!isEnterKey || e.shiftKey) return;
 
-    if (isAltEnter) {
+    // Alt/Option+Enter → always queue (also works idle)
+    if (e.altKey) {
       e.preventDefault();
-      const value = text.trim();
-      if ((value || attachments.length) && !disabled && onQueueMessage) {
-        if (value && isImeResidual(value) && !attachments.length) return;
-        onQueueMessage(value);
-        clearAfterSubmit(value);
-      }
+      e.stopPropagation();
+      submitQueue(text);
       return;
     }
 
-    if (isEnter || isCtrlEnter) {
-      e.preventDefault();
-      if (isStreaming) {
+    const isCtrlEnter = e.ctrlKey || e.metaKey;
+    e.preventDefault();
+    if (isStreaming) {
+      // Cursor-like: Enter queues (stays above composer, not in chat).
+      // Cmd/Ctrl+Enter = interrupt & merge into current turn.
+      if (isCtrlEnter) {
         submitResynth(text);
+      } else if (onQueueMessage) {
+        submitQueue(text);
       } else {
-        submitIdle(text);
+        submitResynth(text);
       }
+    } else if (!disabled) {
+      submitIdle(text);
     }
   };
 
@@ -326,12 +352,10 @@ export function Composer({
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    // File paths pasted as uri-list / plain paths → chips
     const dt = e.clipboardData;
     if (!dt) return;
     const uris = collectUrisFromDataTransfer(dt as unknown as DataTransfer);
     if (uris.length && (dt.files?.length || dt.types.includes('text/uri-list'))) {
-      // Only intercept when it's clearly file drop/paste, not normal text
       if (dt.files?.length || dt.types.includes('text/uri-list')) {
         e.preventDefault();
         resolveAndAdd(uris);
@@ -370,26 +394,27 @@ export function Composer({
 
   const getPlaceholder = () => {
     if (isAwaitingUser) {
-      return 'Waiting for your answer above… (Stop cancels the question)';
+      return 'Waiting for your answer above…';
     }
     if (isStreaming) {
-      return 'Streaming… (Enter: Interrupt & Resynthesize, Alt+Enter: Queue-only, Stop: keep/discard queue)';
+      return 'Streaming… (Enter: queue · ⌘/Ctrl+Enter: interrupt)';
     }
     if (attachments.length) {
-      return 'Add a message, or Send with attached files/folders…';
+      return 'Add a message, or Send with attachments…';
     }
-    return 'Type a message… (📎 Attach · or hold Shift and drop files)';
+    return 'Plan, Build, @ for context…';
   };
+
+  const usagePct = Math.max(0, Math.min(100, Math.round(contextUsagePercent)));
 
   return (
     <div
-      className={`composer${dragOver ? ' drag-over' : ''}`}
+      className={`composer composer--cursor${dragOver ? ' drag-over' : ''}`}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Cursor-style attachment pills */}
       {attachments.length > 0 ? (
         <div className="composer-chips" aria-label="Attached files">
           {attachments.map((a) => (
@@ -422,52 +447,137 @@ export function Composer({
         </div>
       ) : null}
 
-      <textarea
-        ref={textareaRef}
-        value={text}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
-        onPaste={handlePaste}
-        placeholder={getPlaceholder()}
-        disabled={disabled && !isStreaming}
-        rows={1}
-        style={{ height: `${height}px`, minHeight: '44px', maxHeight: '200px' }}
-      />
-      <div className="composer-actions">
-        {isStreaming ? (
-          <button onClick={onStop} className="stop-btn" title="Stop (does not Resynthesize)">
-            ⏹ Stop
-          </button>
-        ) : (
-          <>
+      <div className="composer-box">
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
+          onPaste={handlePaste}
+          placeholder={getPlaceholder()}
+          disabled={disabled && !isStreaming}
+          rows={1}
+          style={{ height: `${height}px`, minHeight: '52px', maxHeight: '200px' }}
+        />
+
+        <div className="composer-toolbar">
+          <div className="composer-toolbar__left">
+            <ModeSelector
+              value={mode}
+              onChange={onModeChange}
+              disabled={isStreaming}
+              labels={modeLabels}
+              tooltips={modeTooltips}
+            />
+            {onModelChange && (modelOptions.length > 0 || modelId) ? (
+              <select
+                className="composer-model composer-model-select"
+                value={modelId || modelOptions[0] || ''}
+                onChange={(e) => onModelChange(e.target.value)}
+                disabled={isStreaming}
+                title={modelId || modelLabel}
+                aria-label="Model"
+              >
+                {(modelOptions.includes(modelId || '')
+                  ? modelOptions
+                  : modelId
+                    ? [modelId, ...modelOptions]
+                    : modelOptions
+                ).map((id) => {
+                  const short = id.split('/').pop() || id;
+                  const label = short.length > 32 ? `${short.slice(0, 30)}…` : short;
+                  return (
+                    <option key={id} value={id} title={id}>
+                      {label}
+                    </option>
+                  );
+                })}
+              </select>
+            ) : (
+              <span className="composer-model" title={modelLabel}>
+                {modelLabel}
+              </span>
+            )}
+          </div>
+
+          <div className="composer-toolbar__right">
             <button
               type="button"
               onClick={pickAttachments}
-              disabled={disabled}
-              className="attach-btn"
+              disabled={disabled && !isStreaming}
+              className="composer-icon-btn"
               title="Attach files or folders"
+              aria-label="Attach"
             >
-              📎 Attach
+              📎
             </button>
-            <button
-              onClick={onRegenerate}
-              disabled={disabled}
-              className="regenerate-btn"
-              title="Regenerate last response"
-            >
-              ↻ Regenerate
-            </button>
-            <button
-              onClick={() => submitIdle(text)}
-              disabled={disabled || !canSend}
-              className="send-btn"
-            >
-              Send
-            </button>
-          </>
-        )}
+            {isStreaming ? (
+              <>
+                {onQueueMessage ? (
+                  <button
+                    type="button"
+                    onClick={() => submitQueue(text)}
+                    disabled={!canSend}
+                    className="composer-icon-btn composer-icon-btn--queue"
+                    title="Queue (Enter) — send after current turn finishes"
+                    aria-label="Queue"
+                  >
+                    Queue
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => submitResynth(text)}
+                  className="composer-icon-btn"
+                  title="Interrupt & merge (⌘/Ctrl+Enter)"
+                  aria-label="Interrupt and resynthesize"
+                >
+                  ⏎
+                </button>
+                <button
+                  type="button"
+                  onClick={onStop}
+                  className="composer-icon-btn composer-icon-btn--stop"
+                  title="Stop"
+                  aria-label="Stop"
+                >
+                  <span className="composer-stop-square" aria-hidden />
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => submitIdle(text)}
+                disabled={disabled || !canSend}
+                className="composer-icon-btn composer-icon-btn--send"
+                title="Send"
+                aria-label="Send"
+              >
+                ▲
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="composer-usage" title={contextUsageLabel || 'Context usage'}>
+        <span className="composer-usage__icon" aria-hidden>
+          ◔
+        </span>
+        <span className="composer-usage__text">
+          {contextUsageLabel || `Context: ${usagePct}% used`}
+        </span>
+        <button
+          type="button"
+          className="composer-usage__regen"
+          onClick={onRegenerate}
+          disabled={disabled || isStreaming}
+          title="Regenerate last response"
+        >
+          ↻
+        </button>
       </div>
     </div>
   );

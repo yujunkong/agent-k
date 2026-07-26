@@ -20,7 +20,7 @@ type StringKey =
   | 'planning.idle' | 'mention.file' | 'mention.folder' | 'mention.symbol' | 'mention.codebase'
   | 'mention.searching' | 'secrets.title' | 'secrets.description' | 'secrets.save'
   | 'secrets.saved' | 'secrets.stored' | 'secrets.clear' | 'secrets.show' | 'secrets.hide'
-  | 'common.newChat' | 'common.clearHistory' | 'common.settings';
+  | 'common.newChat' | 'common.settings';
 
 const EN: Record<StringKey, string> = {
   'mode.ask.label': 'Ask',
@@ -31,14 +31,14 @@ const EN: Record<StringKey, string> = {
   'mode.agent.tooltip': 'Autonomous implementation. Tools: read, edit, terminal.',
   'mode.plan.tooltip': 'Design first. Outputs PLAN.md with Mermaid.',
   'mode.debug.tooltip': 'Hypothesis → Instrument → Reproduce → Minimal fix.',
-  'composer.placeholder': 'Type your message... (Enter to send, Shift+Enter for new line, Alt+Enter to queue)',
-  'composer.placeholderStreaming': 'Streaming... (Enter/Cmd+Enter: Stop & Regenerate, Alt+Enter: Queue message)',
+  'composer.placeholder': 'Type your message... (Enter to send, Shift+Enter for new line)',
+  'composer.placeholderStreaming': 'Streaming... (Enter: Queue, Cmd/Ctrl+Enter: Interrupt & merge)',
   'composer.stop': 'Stop',
   'composer.regenerate': 'Regenerate',
   'composer.send': 'Send',
   'composer.queue': 'Queue',
-  'composer.keyboardHint': 'Enter to send • Shift+Enter new line • Alt+Enter to queue',
-  'composer.keyboardHintStreaming': 'Enter/Cmd+Enter: Stop & Regenerate • Alt+Enter: Queue message',
+  'composer.keyboardHint': 'Enter to send • Shift+Enter new line',
+  'composer.keyboardHintStreaming': 'Enter: Queue • Cmd/Ctrl+Enter: Interrupt & merge',
   'message.edit': 'Edit',
   'message.retry': 'Regenerate',
   'message.copy': 'Copy',
@@ -75,7 +75,6 @@ const EN: Record<StringKey, string> = {
   'secrets.show': 'Show',
   'secrets.hide': 'Hide',
   'common.newChat': 'New Chat',
-  'common.clearHistory': 'Clear History',
   'common.settings': 'Settings'
 };
 
@@ -88,14 +87,14 @@ const KO: Record<StringKey, string> = {
   'mode.agent.tooltip': '자율 구현. 도구: 읽기, 편집, 터미널.',
   'mode.plan.tooltip': '설계 우선. PLAN.md + Mermaid 출력.',
   'mode.debug.tooltip': '가설 → 계측 → 재현 → 최소 수정.',
-  'composer.placeholder': '메시지를 입력하세요... (Enter 전송, Shift+Enter 줄바꿈, Alt+Enter 대기열)',
-  'composer.placeholderStreaming': '스트리밍 중... (Enter/Cmd+Enter: 중단 & 재생성, Alt+Enter: 대기열 추가)',
+  'composer.placeholder': '메시지를 입력하세요... (Enter 전송, Shift+Enter 줄바꿈)',
+  'composer.placeholderStreaming': '스트리밍 중... (Enter: 대기열, ⌘/Ctrl+Enter: 중단 & 병합)',
   'composer.stop': '중단',
   'composer.regenerate': '재생성',
   'composer.send': '전송',
   'composer.queue': '대기',
-  'composer.keyboardHint': 'Enter 전송 • Shift+Enter 줄바꿈 • Alt+Enter 대기열',
-  'composer.keyboardHintStreaming': 'Enter/Cmd+Enter: 중단 & 재생성 • Alt+Enter: 대기열',
+  'composer.keyboardHint': 'Enter 전송 • Shift+Enter 줄바꿈',
+  'composer.keyboardHintStreaming': 'Enter: 대기열 • ⌘/Ctrl+Enter: 중단 & 병합',
   'message.edit': '편집',
   'message.retry': '재생성',
   'message.copy': '복사',
@@ -132,7 +131,6 @@ const KO: Record<StringKey, string> = {
   'secrets.show': '표시',
   'secrets.hide': '숨김',
   'common.newChat': '새 채팅',
-  'common.clearHistory': '기록 지우기',
   'common.settings': '설정'
 };
 

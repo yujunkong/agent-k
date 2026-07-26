@@ -102,6 +102,7 @@ export class ConfigManager {
       // Note: other Docker LiteLLM on :4000 may use a different DB token — prefer :52415 locally.
       'agent-k.provider.baseUrl': 'http://127.0.0.1:52415',
       'agent-k.provider.model': 'mlx-community/Qwen3.6-35B-A3B-4bit',
+      'agent-k.provider.models': ['mlx-community/Qwen3.6-35B-A3B-4bit'],
       'agent-k.provider.apiKey': '',
       'agent-k.mode.default': 'agent',
       'agent-k.maxTurns': 20,

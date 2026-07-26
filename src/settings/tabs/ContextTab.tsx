@@ -15,8 +15,11 @@ export function ContextTab() {
   return (
     <div className="settings-tab-content">
       <h3>Context Budget</h3>
+      <p style={{ fontSize: 12, opacity: 0.75, marginTop: 0 }}>
+        Fallback only — Agent K prefers max_input_tokens / context length from the selected provider (LiteLLM, Ollama, OpenAI, …).
+      </p>
       <div className="settings-field">
-        <label>Max Token Budget</label>
+        <label>Fallback Max Token Budget</label>
         <input
           type="number"
           value={budget}

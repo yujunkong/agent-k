@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CodeBlock } from './components/CodeBlock';
 import { MermaidDiagram } from './components/MermaidDiagram';
+import { repairCollapsedMarkdown } from './repairMarkdown';
 
 interface StreamingMarkdownProps {
   content: string;
@@ -96,18 +97,29 @@ export function StreamingMarkdown({ content, isStreaming }: StreamingMarkdownPro
           {node.type === 'table' && node.rows && (
             <div className="md-table-wrap">
               <table>
+                {node.rows.some((r) => r.isHeader) ? (
+                  <thead>
+                    {node.rows
+                      .filter((r) => r.isHeader)
+                      .map((row, ri) => (
+                        <tr key={`h-${ri}`}>
+                          {row.cells.map((cell, ci) => (
+                            <th key={ci}>{renderInline(cell || '\u00a0')}</th>
+                          ))}
+                        </tr>
+                      ))}
+                  </thead>
+                ) : null}
                 <tbody>
-                  {node.rows.map((row, ri) => (
-                    <tr key={ri}>
-                      {row.cells.map((cell, ci) =>
-                        row.isHeader ? (
-                          <th key={ci}>{renderInline(cell)}</th>
-                        ) : (
-                          <td key={ci}>{renderInline(cell)}</td>
-                        )
-                      )}
-                    </tr>
-                  ))}
+                  {node.rows
+                    .filter((r) => !r.isHeader)
+                    .map((row, ri) => (
+                      <tr key={`b-${ri}`}>
+                        {row.cells.map((cell, ci) => (
+                          <td key={ci}>{renderInline(cell || '\u00a0')}</td>
+                        ))}
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
@@ -174,25 +186,23 @@ class MarkdownParser {
   }
 
   feed(input: string): ParsedNode[] {
-    // Content shrank (new message / clear) — reset parser state
-    if (input.length < this.processedLength) {
-      this.processedLength = 0;
-      this.buffer = '';
-      this.nodes = [];
-      this.currentNode = {};
-      this.state = 'text';
-      this.codeLang = '';
-      this.codeContent = '';
-      this.mathBuffer = '';
-    }
+    // Full reparse each time — incremental append was splitting every streamed
+    // chunk into its own block (vertical 1-token columns) because
+    // `isComplete === false` prevented merging text nodes, and list mode
+    // pushed a new item per chunk.
+    this.processedLength = 0;
+    this.buffer = '';
+    this.nodes = [];
+    this.currentNode = {};
+    this.state = 'text';
+    this.codeLang = '';
+    this.codeContent = '';
+    this.mathBuffer = '';
 
-    // Only append the NEW suffix — appending full `input` causes Korean stutter
-    // e.g. "안"+"안녕"+"안녕하세요" → "안안녕하세요안녕하세요"
-    const newContent = input.slice(this.processedLength);
-    if (!newContent && this.processedLength > 0) return [...this.nodes];
+    if (!input) return [];
 
-    this.buffer += newContent;
-    this.processedLength = input.length;
+    this.buffer = repairCollapsedMarkdown(input);
+    this.processedLength = this.buffer.length;
     this.process();
     return [...this.nodes];
   }
@@ -229,7 +239,88 @@ class MarkdownParser {
           break;
       }
     }
+    this.flushIncompleteBlocks();
     this.buffer = '';
+  }
+
+  /** Push in-progress table/code/heading so streaming (and truncated ends) still render. */
+  private flushIncompleteBlocks() {
+    if (this.state === 'table' && this.currentNode.rows && this.currentNode.rows.length > 0) {
+      this.nodes.push({
+        id: nextId('table'),
+        type: 'table',
+        rows: normalizeTableRows(this.currentNode.rows),
+        isComplete: !this.streaming
+      });
+      return;
+    }
+    if (this.state === 'code' && (this.codeContent || this.codeLang)) {
+      this.nodes.push({
+        id: nextId('code'),
+        type: 'code',
+        lang: this.codeLang,
+        code: this.codeContent,
+        isComplete: !this.streaming
+      });
+      return;
+    }
+    if (this.state === 'heading' && (this.currentNode.text != null || this.currentNode.level)) {
+      this.nodes.push({
+        id: nextId('heading'),
+        type: 'heading',
+        level: this.currentNode.level || 1,
+        text: this.currentNode.text || '',
+        isComplete: !this.streaming
+      });
+    }
+  }
+
+  private processTable(i: number, remaining: string): number {
+    const newlineIdx = remaining.indexOf('\n');
+    const line = newlineIdx >= 0 ? remaining.slice(0, newlineIdx) : remaining;
+    const cells = splitTableCells(line);
+
+    // Detect header separator row (|---|---|)
+    if (
+      cells.length > 0 &&
+      cells.every((c) => /^:?-{1,}:?$/.test(c.replace(/\s/g, '')) || /^[:\s-]+$/.test(c))
+    ) {
+      if (newlineIdx >= 0) {
+        return i + newlineIdx + 1;
+      }
+      return i + remaining.length;
+    }
+
+    if (!this.currentNode.rows) {
+      this.currentNode.rows = [];
+    }
+
+    if (cells.length > 0) {
+      const isHeader = this.currentNode.rows.length === 0;
+      this.currentNode.rows.push({ cells, isHeader });
+    }
+
+    if (newlineIdx >= 0) {
+      const nextLine = remaining.slice(newlineIdx + 1);
+      const nextTrim = nextLine.trimStart();
+      if (nextTrim.startsWith('|') || /^\s*\|/.test(nextLine)) {
+        this.state = 'table';
+        return i + newlineIdx + 1;
+      }
+      // End of table
+      this.finalizeNode({
+        id: nextId('table'),
+        type: 'table',
+        rows: normalizeTableRows(this.currentNode.rows),
+        isComplete: true
+      });
+      this.currentNode = {};
+      this.state = 'text';
+      return i + newlineIdx + 1;
+    }
+
+    // Incomplete last line — kept in currentNode; flushIncompleteBlocks shows it
+    return i + remaining.length;
   }
 
   private processCode(i: number, remaining: string): number {
@@ -342,7 +433,25 @@ class MarkdownParser {
       return i + newlineIdx + 1;
     }
 
-    this.currentNode.items.push(itemContent);
+    // Incomplete line while streaming — hold as single in-progress item
+    if (this.currentNode.items.length === 0) {
+      this.currentNode.items.push(itemContent);
+    } else {
+      this.currentNode.items[this.currentNode.items.length - 1] = itemContent;
+    }
+    // Keep a live list node visible
+    const liveIdx = this.nodes.findIndex(
+      (n) => n.type === 'list' && n.isComplete === false
+    );
+    const liveNode: ParsedNode = {
+      id: liveIdx >= 0 ? this.nodes[liveIdx].id : nextId('list'),
+      type: 'list',
+      ordered,
+      items: [...this.currentNode.items],
+      isComplete: false
+    };
+    if (liveIdx >= 0) this.nodes[liveIdx] = liveNode;
+    else this.nodes.push(liveNode);
     return i + remaining.length;
   }
 
@@ -366,51 +475,10 @@ class MarkdownParser {
     return i + remaining.length;
   }
 
-  private processTable(i: number, remaining: string): number {
-    const newlineIdx = remaining.indexOf('\n');
-    const line = newlineIdx >= 0 ? remaining.slice(0, newlineIdx) : remaining;
-    const cells = line.split('|').filter(c => c.trim()).map(c => c.trim());
-    
-    // Detect header separator row
-    if (cells.length > 0 && cells.every(c => /^[:\s-]+$/.test(c))) {
-      if (newlineIdx >= 0) {
-        return i + newlineIdx + 1;
-      }
-      return i + remaining.length;
-    }
-    
-    if (!this.currentNode.rows) {
-      this.currentNode.rows = [];
-    }
-    
-    // Determine if header row (table just started, no rows yet)
-    const isHeader = this.currentNode.rows.length === 0;
-    this.currentNode.rows.push({ cells, isHeader });
-    
-    if (newlineIdx >= 0) {
-      const nextLine = remaining.slice(newlineIdx + 1).trimStart();
-      if (nextLine.match(/^\s*\|/)) {
-        this.state = 'table';
-        return i + newlineIdx + 1;
-      }
-      // End of table
-      this.finalizeNode({
-        id: nextId('table'),
-        type: 'table',
-        rows: [...this.currentNode.rows],
-        isComplete: true
-      });
-      this.currentNode = {};
-      this.state = 'text';
-      return i + newlineIdx + 1;
-    }
-    
-    return i + remaining.length;
-  }
-
   private processText(i: number, remaining: string): number {
-    // Check for fenced code block
-    if (remaining.startsWith('```')) {
+    // Fenced code only at line start (avoid mid-prose ``` breaking the bubble)
+    const atLineStart = i === 0 || this.buffer[i - 1] === '\n';
+    if (atLineStart && remaining.startsWith('```')) {
       const after = remaining.slice(3);
       const langMatch = after.match(/^(\w+)/);
       this.codeLang = langMatch ? langMatch[1] : '';
@@ -424,13 +492,13 @@ class MarkdownParser {
     }
     
     // Check for math block
-    if (remaining.startsWith('$$')) {
+    if (atLineStart && remaining.startsWith('$$')) {
       this.state = 'math';
       return i + 2;
     }
     
     // Check for heading
-    if (/^#{1,6}\s/.test(remaining)) {
+    if (atLineStart && /^#{1,6}\s/.test(remaining)) {
       const level = remaining.match(/^(#{1,6})\s/)![1].length;
       this.currentNode = { type: 'heading', level, text: '' };
       this.state = 'heading';
@@ -438,38 +506,38 @@ class MarkdownParser {
     }
     
     // Check for unordered / ordered list
-    if (/^[*-]\s/.test(remaining)) {
+    if (atLineStart && /^[*-]\s/.test(remaining)) {
       this.currentNode = { type: 'list', items: [], ordered: false };
       this.state = 'list';
       return i;
     }
-    if (/^\d+\.\s/.test(remaining)) {
+    if (atLineStart && /^\d+\.\s/.test(remaining)) {
       this.currentNode = { type: 'list', items: [], ordered: true };
       this.state = 'list';
       return i;
     }
 
     // Check for blockquote
-    if (remaining.startsWith('> ')) {
+    if (atLineStart && remaining.startsWith('> ')) {
       this.currentNode = { type: 'blockquote', text: '' };
       this.state = 'blockquote';
       return i + 2;
     }
 
     // GFM table: line must start with |
-    if (/^\s*\|.+\|/.test(remaining)) {
+    if (atLineStart && /^\s*\|.+\|/.test(remaining)) {
       this.state = 'table';
       this.currentNode = { type: 'table', rows: [] };
       return i;
     }
 
-    // Regular text
+    // Regular text — always merge into the previous text node
     const newlineIdx = remaining.indexOf('\n');
     const lineEnd = newlineIdx >= 0 ? newlineIdx : remaining.length;
     const textSegment = remaining.slice(0, lineEnd);
 
     const lastNode = this.nodes[this.nodes.length - 1];
-    if (lastNode?.type === 'text' && lastNode.isComplete !== false) {
+    if (lastNode?.type === 'text') {
       lastNode.text = (lastNode.text || '') + textSegment + (newlineIdx >= 0 ? '\n' : '');
       lastNode.isComplete = !this.streaming;
     } else {
@@ -495,6 +563,23 @@ class MarkdownParser {
 
 function MathFormula({ formula }: { formula: string }) {
   return <span className="math-formula">${formula}$</span>;
+}
+
+/** Preserve empty cells — `.filter(trim)` breaks GFM column alignment */
+function splitTableCells(line: string): string[] {
+  let s = line.trim();
+  if (!s) return [];
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|')) s = s.slice(0, -1);
+  return s.split('|').map((c) => c.trim());
+}
+
+function normalizeTableRows(rows: TableRow[]): TableRow[] {
+  const cols = Math.max(1, ...rows.map((r) => r.cells.length));
+  return rows.map((r) => ({
+    ...r,
+    cells: Array.from({ length: cols }, (_, i) => r.cells[i] ?? '')
+  }));
 }
 
 function escapeHtml(str: string): string {

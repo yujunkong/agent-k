@@ -1,5 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { configManager } from '../../core/ConfigManager';
+import {
+  PROVIDER_FIELDS,
+  isProviderType,
+  type ProviderFieldMeta
+} from '../../providers/providerFields';
+import type { ProviderType } from '../../providers/types';
+import {
+  addRegisteredModel,
+  fetchProviderModels,
+  getRegisteredModels,
+  removeRegisteredModel,
+  setRegisteredModels
+} from '../../chat/providerModels';
 
 /** Persist settings to extension host (VS Code configuration) */
 function persistToHost(values: Record<string, unknown>): void {
@@ -9,237 +22,293 @@ function persistToHost(values: Record<string, unknown>): void {
       vscodeApi.postMessage({ type: 'config.update', values });
       return;
     }
-  } catch { /* ignore */ }
-  window.parent.postMessage({ type: 'config.update', values }, '*');
-}
-
-/** VS Code webview API (injected in extension getHtml) */
-function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
-  try {
-    const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
-    return api?.postMessage ? api : null;
   } catch {
-    return null;
+    /* ignore */
   }
-}
-
-/** Host 경유 연결 테스트 — CSP 제한 없이 Extension Host fetch 사용 */
-function testViaExtensionHost(
-  baseUrl: string,
-  apiKey: string,
-  model: string
-): Promise<{ ok: boolean; status?: number; detail: string; modelIds?: string[] }> {
-  return new Promise((resolve, reject) => {
-    const requestId = `provider-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const api = getVsCodeApi();
-    if (!api) {
-      reject(new Error('VS Code API unavailable'));
-      return;
-    }
-
-    const timeoutMs = 12000;
-    const timer = window.setTimeout(() => {
-      window.removeEventListener('message', onMessage);
-      reject(new Error('Connection test timed out (extension host)'));
-    }, timeoutMs);
-
-    const onMessage = (event: MessageEvent) => {
-      const data = event.data;
-      if (!data || data.type !== 'provider.test.result' || data.requestId !== requestId) {
-        return;
-      }
-      window.removeEventListener('message', onMessage);
-      window.clearTimeout(timer);
-      resolve({
-        ok: Boolean(data.ok),
-        status: data.status,
-        detail: String(data.detail ?? ''),
-        modelIds: Array.isArray(data.modelIds) ? data.modelIds : undefined
-      });
-    };
-
-    window.addEventListener('message', onMessage);
-    api.postMessage({
-      type: 'provider.test',
-      requestId,
-      baseUrl,
-      apiKey: apiKey || undefined,
-      model: model || undefined
-    });
-  });
-}
-
-/** Webview 직접 fetch (connect-src 허용 시 폴백) */
-async function testViaDirectFetch(
-  baseUrl: string,
-  apiKey: string,
-  model: string
-): Promise<{ ok: boolean; status?: number; detail: string; modelIds?: string[] }> {
-  const root = baseUrl.replace(/\/$/, '');
-  const response = await fetch(`${root}/v1/models`, {
-    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
-    signal: AbortSignal.timeout(8000)
-  });
-
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    if (response.status === 401) {
-      detail +=
-        ' — Unauthorized. LiteLLM (:4000) requires a valid master key in API Key. Prefer direct MLX: http://127.0.0.1:52415 + mlx-community/Qwen3.6-35B-A3B-4bit.';
-    }
-    return { ok: false, status: response.status, detail };
-  }
-
-  const data = await response.json();
-  const modelIds: string[] = (data?.data || []).map((m: { id?: string }) => m.id).filter(Boolean);
-  const found = modelIds.includes(model);
-  const detail =
-    found
-      ? `OK — model "${model}" listed (${modelIds.length} models)`
-      : modelIds.length > 0
-        ? `OK — server reachable (${modelIds.length} models). Model may still work if loaded on demand.`
-        : 'OK — server reachable (no models in list).';
-
-  return { ok: found || modelIds.length > 0, status: response.status, detail, modelIds };
+  window.parent.postMessage({ type: 'config.update', values }, '*');
 }
 
 function formatHttp401Hint(status?: number, detail?: string): string {
   if (status === 401 || detail?.includes('401')) {
     return (
       detail ||
-      'HTTP 401 — LiteLLM needs master key. Try direct MLX at http://127.0.0.1:52415 with full model id mlx-community/Qwen3.6-35B-A3B-4bit.'
+      'HTTP 401 — API key required or invalid for this provider.'
     );
   }
   return detail || 'Connection failed';
 }
 
+function metaFor(type: string): ProviderFieldMeta {
+  return isProviderType(type) ? PROVIDER_FIELDS[type] : PROVIDER_FIELDS.litellm;
+}
+
+function shortId(id: string): string {
+  const base = id.split('/').pop() || id;
+  return base.length > 40 ? `${base.slice(0, 38)}…` : base;
+}
+
 export function ModelsTab() {
+  const initialType = String(configManager.get('agent-k.provider.type') || 'litellm');
+  const [providerType, setProviderType] = useState<string>(initialType);
+  const initialMeta = metaFor(initialType);
   const [baseUrl, setBaseUrl] = useState<string>(
-    configManager.get('agent-k.provider.baseUrl') || 'http://127.0.0.1:52415'
+    configManager.get('agent-k.provider.baseUrl') || initialMeta.defaultBaseUrl
   );
   const [model, setModel] = useState<string>(
-    configManager.get('agent-k.provider.model') || 'mlx-community/Qwen3.6-35B-A3B-4bit'
+    configManager.get('agent-k.provider.model') || initialMeta.defaultModel
   );
-  const [providerType, setProviderType] = useState<string>(configManager.get('agent-k.provider.type') || 'litellm');
   const [apiKey, setApiKey] = useState<string>(configManager.get('agent-k.provider.apiKey') || '');
+  const [registered, setRegistered] = useState<string[]>(() => getRegisteredModels());
+  const [serverModels, setServerModels] = useState<string[]>([]);
+  const [addPick, setAddPick] = useState('');
+  const [manualId, setManualId] = useState('');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testDetail, setTestDetail] = useState('');
 
+  const fields = useMemo(() => metaFor(providerType), [providerType]);
+
+  useEffect(() => {
+    const unsub = configManager.on('agent-k.provider.models', () => {
+      setRegistered(getRegisteredModels());
+    });
+    return unsub;
+  }, []);
+
+  const handleProviderTypeChange = (next: string) => {
+    setProviderType(next);
+    const meta = metaFor(next);
+    setBaseUrl(meta.defaultBaseUrl);
+    if (!configManager.get('agent-k.provider.model')) {
+      setModel(meta.defaultModel);
+    }
+    if (!meta.needsApiKey) {
+      setApiKey('');
+    }
+    setServerModels([]);
+    setAddPick('');
+    setTestStatus('idle');
+    setTestDetail('');
+  };
+
   const handleSave = () => {
-    const values = {
-      'agent-k.provider.baseUrl': baseUrl.replace(/\/$/, ''),
-      'agent-k.provider.model': model,
+    const meta = metaFor(providerType);
+    const models = registered.includes(model)
+      ? registered
+      : [...registered, model].filter(Boolean);
+    setRegisteredModels(models);
+    setRegistered(models);
+    const values: Record<string, unknown> = {
       'agent-k.provider.type': providerType,
-      'agent-k.provider.apiKey': apiKey
+      'agent-k.provider.model': model,
+      'agent-k.provider.models': models
     };
+    if (meta.needsBaseUrl) {
+      values['agent-k.provider.baseUrl'] = baseUrl.replace(/\/$/, '');
+    } else {
+      values['agent-k.provider.baseUrl'] = meta.defaultBaseUrl.replace(/\/$/, '');
+    }
+    if (meta.needsApiKey) {
+      values['agent-k.provider.apiKey'] = apiKey;
+    } else {
+      values['agent-k.provider.apiKey'] = '';
+    }
     configManager.update(values);
-    persistToHost(values);
+    persistToHost({
+      'agent-k.provider.type': values['agent-k.provider.type'],
+      'agent-k.provider.model': values['agent-k.provider.model'],
+      'agent-k.provider.baseUrl': values['agent-k.provider.baseUrl'],
+      'agent-k.provider.apiKey': values['agent-k.provider.apiKey']
+    });
   };
 
   const handleTest = async () => {
     setTestStatus('testing');
     setTestDetail('');
+    const meta = metaFor(providerType);
+    const url = meta.needsBaseUrl ? baseUrl : meta.defaultBaseUrl;
+    const key = meta.needsApiKey ? apiKey : '';
 
-    try {
-      let result: { ok: boolean; status?: number; detail: string; modelIds?: string[] };
+    const result = await fetchProviderModels({
+      baseUrl: url,
+      apiKey: key,
+      model
+    });
 
-      // 우선 Extension Host 경유 (권장 — CSP/CORS 무관)
-      const api = getVsCodeApi();
-      if (api) {
-        result = await testViaExtensionHost(baseUrl, apiKey, model);
-      } else {
-        // VS Code API 준비 대기 후 재시도, 없으면 webview fetch 폴백
-        await new Promise((r) => setTimeout(r, 150));
-        const apiRetry = getVsCodeApi();
-        if (apiRetry) {
-          result = await testViaExtensionHost(baseUrl, apiKey, model);
-        } else {
-          result = await testViaDirectFetch(baseUrl, apiKey, model);
-        }
-      }
-
-      if (!result.ok) {
-        setTestStatus('error');
-        setTestDetail(formatHttp401Hint(result.status, result.detail));
-        return;
-      }
-
-      setTestStatus('success');
-      setTestDetail(result.detail);
-    } catch (e: unknown) {
+    if (!result.ok) {
       setTestStatus('error');
-      const msg = e instanceof Error ? e.message : String(e);
-      // Host 실패 시 마지막으로 direct fetch 시도
-      if (msg.includes('extension host') || msg.includes('VS Code API')) {
-        try {
-          const fallback = await testViaDirectFetch(baseUrl, apiKey, model);
-          if (fallback.ok) {
-            setTestStatus('success');
-            setTestDetail(fallback.detail);
-            return;
-          }
-          setTestDetail(formatHttp401Hint(fallback.status, fallback.detail));
-          return;
-        } catch (inner: unknown) {
-          setTestDetail(inner instanceof Error ? inner.message : 'Connection failed');
-          return;
-        }
-      }
-      setTestDetail(msg || 'Connection failed');
+      setTestDetail(formatHttp401Hint(result.status, result.detail));
+      return;
+    }
+
+    // Server catalog stays local for "Add" — not dumped into Composer
+    setServerModels(result.modelIds);
+    setTestStatus('success');
+    setTestDetail(result.detail);
+  };
+
+  const handleAddFromServer = () => {
+    if (!addPick) return;
+    const next = addRegisteredModel(addPick);
+    setRegistered(next);
+    setModel(addPick);
+    setAddPick('');
+  };
+
+  const handleAddManual = () => {
+    const id = manualId.trim();
+    if (!id) return;
+    const next = addRegisteredModel(id);
+    setRegistered(next);
+    setModel(id);
+    setManualId('');
+  };
+
+  const handleRemove = (id: string) => {
+    const next = removeRegisteredModel(id);
+    setRegistered(next);
+    if (model === id && next[0]) {
+      setModel(next[0]);
     }
   };
+
+  const serverChoices = useMemo(
+    () => serverModels.filter((id) => !registered.includes(id)),
+    [serverModels, registered]
+  );
 
   return (
     <div className="settings-tab-content">
       <h3>Provider Configuration</h3>
-      <p className="settings-hint">
-        Recommended for local MLX/exo: direct endpoint{' '}
-        <code>http://127.0.0.1:52415</code> and full model id{' '}
-        <code>mlx-community/Qwen3.6-35B-A3B-4bit</code> (no API key). LiteLLM proxy{' '}
-        <code>http://127.0.0.1:4000</code> needs a master key — if auth is painful, use direct MLX
-        above. LiteLLM alias example: <code>qwen3.6-35b-a3b</code>.
-      </p>
+      <p className="settings-hint">{fields.hint}</p>
 
       <div className="settings-field">
         <label>Provider Type</label>
-        <select value={providerType} onChange={(e) => setProviderType(e.target.value)}>
-          <option value="litellm">LiteLLM / OpenAI-compatible</option>
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic</option>
-          <option value="ollama">Ollama</option>
-          <option value="lmstudio">LM Studio</option>
+        <select value={providerType} onChange={(e) => handleProviderTypeChange(e.target.value)}>
+          {(Object.keys(PROVIDER_FIELDS) as ProviderType[]).map((t) => (
+            <option key={t} value={t}>
+              {t === 'litellm'
+                ? 'LiteLLM / OpenAI-compatible'
+                : t === 'openai'
+                  ? 'OpenAI'
+                  : t === 'anthropic'
+                    ? 'Anthropic'
+                    : t === 'ollama'
+                      ? 'Ollama'
+                      : 'LM Studio'}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {fields.needsBaseUrl ? (
+        <div className="settings-field">
+          <label>Base URL (no trailing /v1)</label>
+          <input
+            type="text"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder={fields.defaultBaseUrl}
+          />
+        </div>
+      ) : null}
+
+      {fields.needsApiKey ? (
+        <div className="settings-field">
+          <label>
+            API Key{fields.apiKeyOptional ? ' (optional)' : ''}
+          </label>
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={fields.apiKeyOptional ? 'sk-… or empty' : 'sk-…'}
+            autoComplete="off"
+          />
+        </div>
+      ) : null}
+
+      <div className="settings-field">
+        <label>Active model</label>
+        <select
+          value={registered.includes(model) ? model : registered[0] || model}
+          onChange={(e) => setModel(e.target.value)}
+          disabled={registered.length === 0}
+        >
+          {(registered.length ? registered : model ? [model] : []).map((id) => (
+            <option key={id} value={id}>
+              {id}
+            </option>
+          ))}
         </select>
       </div>
 
       <div className="settings-field">
-        <label>Base URL (no trailing /v1)</label>
-        <input
-          type="text"
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder="http://127.0.0.1:52415"
-        />
+        <label>Registered models (Composer list)</label>
+        <p className="settings-hint" style={{ marginTop: 0 }}>
+          Only these appear in the chat model dropdown — not the full server catalog.
+        </p>
+        {registered.length === 0 ? (
+          <p className="settings-hint">None yet — add a model below.</p>
+        ) : (
+          <ul className="settings-model-list">
+            {registered.map((id) => (
+              <li key={id}>
+                <span title={id}>{shortId(id)}</span>
+                <button
+                  type="button"
+                  className="settings-btn secondary settings-btn--tiny"
+                  onClick={() => handleRemove(id)}
+                  disabled={registered.length <= 1}
+                  title="Remove from list"
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="settings-inline-add">
+          <input
+            type="text"
+            value={manualId}
+            onChange={(e) => setManualId(e.target.value)}
+            placeholder="model id…"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddManual();
+              }
+            }}
+          />
+          <button type="button" className="settings-btn secondary" onClick={handleAddManual}>
+            Add
+          </button>
+        </div>
       </div>
 
-      <div className="settings-field">
-        <label>Model</label>
-        <input
-          type="text"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder="mlx-community/Qwen3.6-35B-A3B-4bit"
-        />
-      </div>
-
-      <div className="settings-field">
-        <label>API Key (optional for local MLX)</label>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="sk-… or empty"
-        />
-      </div>
+      {serverChoices.length > 0 ? (
+        <div className="settings-field">
+          <label>Add from server ({serverChoices.length} available)</label>
+          <div className="settings-inline-add">
+            <select value={addPick} onChange={(e) => setAddPick(e.target.value)}>
+              <option value="">Select a model…</option>
+              {serverChoices.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="settings-btn secondary"
+              onClick={handleAddFromServer}
+              disabled={!addPick}
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="settings-actions">
         <button type="button" onClick={handleTest} className="settings-btn secondary">

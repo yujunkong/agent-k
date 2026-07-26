@@ -136,7 +136,7 @@ export type WebviewMessage =
 export interface ChatStreamEvent {
   type: 'chat.stream';
   requestId: string;
-  event: 'delta' | 'status' | 'tool.start' | 'tool.end' | 'timeline' | 'complete' | 'error';
+  event: 'delta' | 'status' | 'tool.start' | 'tool.end' | 'timeline' | 'file.edit' | 'complete' | 'error';
   content?: string;
   status?: string;
   toolName?: string;
@@ -165,7 +165,6 @@ export type ExtensionMessage =
   | { type: 'mention.results'; payload: MentionResultsPayload }
   | ChatStreamEvent
   | { type: 'session.new'; payload?: Record<string, never> }
-  | { type: 'session.clear'; payload?: Record<string, never> }
   | { type: 'mode.switch'; payload?: Record<string, never> }
   | { type: 'focus.input'; payload?: Record<string, never> };
 
@@ -179,7 +178,7 @@ const VALID_TYPES = new Set<string>([
   'tool.call.start', 'tool.call.end', 'tool.result',
   'timeline.update', 'mode.changed', 'history.loaded',
   'settings.loaded', 'mention.results',
-  'session.new', 'session.clear', 'mode.switch'
+  'session.new', 'mode.switch'
 ]);
 
 export function validateMessageType(type: string): boolean {

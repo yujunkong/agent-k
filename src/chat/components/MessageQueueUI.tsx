@@ -1,8 +1,8 @@
 /**
- * QueueUI - Queued 뱃지, Apply now, Interrupted 타임라인 (C3-T08)
+ * QueueUI — pending messages above the composer (not mixed into chat).
  */
 import React from 'react';
-import type { QueuedMessage, QueueAction } from '../../loop/MessageQueue';
+import type { QueuedMessage } from '../../loop/MessageQueue';
 
 interface QueueUIProps {
   messages: QueuedMessage[];
@@ -12,60 +12,55 @@ interface QueueUIProps {
 }
 
 export function QueueUI({ messages, onApplyNow, onCancel, isProcessing }: QueueUIProps) {
-  const activeMessages = messages.filter(m => m.status === 'queued' || m.status === 'processing');
+  const activeMessages = messages.filter(
+    (m) => m.status === 'queued' || m.status === 'processing'
+  );
   if (activeMessages.length === 0 && !isProcessing) return null;
 
   return (
-    <div className="queue-ui" style={{
-      padding: '4px 8px',
-      fontSize: '0.8em',
-      background: 'var(--vscode-editor-inactiveSelectionBackground, rgba(255,255,255,0.05))',
-      borderRadius: 4,
-      margin: '2px 0'
-    }}>
-      {isProcessing && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-          <span className="pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80' }} />
-          <span>Processing...</span>
-        </div>
-      )}
-      
-      {activeMessages.map(msg => (
-        <div key={msg.id} className="queue-item" style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '2px 4px',
-          opacity: msg.status === 'processing' ? 1 : 0.7
-        }}>
-          <span className="queue-badge" style={{
-            padding: '1px 6px', borderRadius: 3,
-            background: msg.action === 'resynthesize' ? 'rgba(59,130,246,0.2)' : 'rgba(107,114,128,0.2)',
-            color: msg.action === 'resynthesize' ? '#60a5fa' : '#9ca3af',
-            fontSize: '0.75em', fontWeight: 500
-          }}>
-            {msg.action === 'resynthesize' ? '↻ Resynth' : '📥 Queue'}
-          </span>
-          
-          <span className="queue-text" style={{
-            flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-          }}>
-            {msg.text.slice(0, 60)}{msg.text.length > 60 ? '...' : ''}
+    <div className="queue-ui" role="status" aria-live="polite">
+      <div className="queue-ui__header">
+        <span className="queue-ui__title">
+          대기열 {activeMessages.length > 0 ? `· ${activeMessages.length}` : ''}
+        </span>
+        <span className="queue-ui__hint">현재 턴 종료 후 전송</span>
+      </div>
+
+      {activeMessages.map((msg) => (
+        <div
+          key={msg.id}
+          className={`queue-item${msg.status === 'processing' ? ' queue-item--processing' : ''}`}
+        >
+          <span className="queue-badge">
+            {msg.status === 'processing' ? '전송 중' : '대기'}
           </span>
 
-          {msg.status === 'queued' && (
-            <>
-              <button onClick={() => onApplyNow(msg.id)} className="queue-btn" style={{ fontSize: '0.8em', cursor: 'pointer' }}
-                title="Apply now (interrupt current)">
-                ▶ Apply
+          <span className="queue-text" title={msg.text}>
+            {msg.text.slice(0, 80)}
+            {msg.text.length > 80 ? '…' : ''}
+          </span>
+
+          {msg.status === 'queued' ? (
+            <span className="queue-actions">
+              <button
+                type="button"
+                onClick={() => onApplyNow(msg.id)}
+                className="queue-btn"
+                title="지금 적용 (현재 턴 중단 후 병합)"
+              >
+                지금 적용
               </button>
-              <button onClick={() => onCancel(msg.id)} className="queue-btn" style={{ fontSize: '0.8em', cursor: 'pointer', color: '#f87171' }}
-                title="Cancel">
+              <button
+                type="button"
+                onClick={() => onCancel(msg.id)}
+                className="queue-btn queue-btn--cancel"
+                title="대기열에서 제거"
+              >
                 ✕
               </button>
-            </>
-          )}
-          
-          {msg.status === 'processing' && (
-            <span style={{ fontSize: '0.75em', opacity: 0.5 }}>⏳</span>
+            </span>
+          ) : (
+            <span className="queue-processing-dot" aria-hidden />
           )}
         </div>
       ))}

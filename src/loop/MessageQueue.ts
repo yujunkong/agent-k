@@ -112,8 +112,19 @@ export class MessageQueue {
     }
   }
 
-  cancelQueued(): void {
-    this.queue.forEach(m => {
+  /**
+   * Cancel one queued message (or all if id omitted for legacy).
+   */
+  cancelQueued(messageId?: string): void {
+    if (messageId) {
+      const msg = this.queue.find((m) => m.id === messageId && m.status === 'queued');
+      if (msg) {
+        msg.status = 'interrupted';
+        this.notify();
+      }
+      return;
+    }
+    this.queue.forEach((m) => {
       if (m.status === 'queued') {
         m.status = 'interrupted';
       }

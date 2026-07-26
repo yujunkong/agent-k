@@ -69,6 +69,51 @@ export class DebugModeController {
     this.onStageChange?.(stage);
   }
 
+  /**
+   * UI timeline 클릭 — 이전 단계는 자유, 앞 단계는 한 칸 + 최소 조건.
+   */
+  goToStage(stage: DebugStage): { ok: boolean; error?: string } {
+    const order: DebugStage[] = [
+      'hypothesis',
+      'instrument',
+      'reproduce',
+      'analyze',
+      'fix',
+      'cleanup'
+    ];
+    if (!order.includes(stage)) {
+      return { ok: false, error: `Unknown stage: ${stage}` };
+    }
+    const currentIdx = order.indexOf(this.state.stage);
+    const targetIdx = order.indexOf(stage);
+
+    if (targetIdx <= currentIdx) {
+      this.setStage(stage);
+      return { ok: true };
+    }
+
+    if (targetIdx > currentIdx + 1) {
+      return { ok: false, error: '이전 단계를 먼저 진행하세요.' };
+    }
+
+    // One step forward
+    if (stage === 'instrument' && !this.state.activeHypothesisId) {
+      return { ok: false, error: '가설을 먼저 선택한 뒤 Instrument로 이동하세요.' };
+    }
+    if (stage === 'fix') {
+      const confirmed = this.state.hypotheses.some((h) => h.status === 'confirmed');
+      if (!confirmed) {
+        return { ok: false, error: '확인된 가설이 있어야 Fix 단계로 갈 수 있습니다.' };
+      }
+    }
+    if (stage === 'cleanup' && !this.state.fixApplied) {
+      return { ok: false, error: '수정(Fix)을 적용한 뒤 Cleanup으로 이동하세요.' };
+    }
+
+    this.setStage(stage);
+    return { ok: true };
+  }
+
   /** Stage 1: Generate hypotheses */
   addHypothesis(title: string, description: string, files: string[]): Hypothesis {
     const h: Hypothesis = {

@@ -50,6 +50,8 @@ export interface StreamChunk {
   done?: boolean;
   error?: string;
   usage?: { promptTokens?: number; completionTokens?: number };
+  /** Set when the model hit max_tokens mid-answer */
+  finishReason?: string;
 }
 
 export type ProviderEventType = 'registered' | 'updated' | 'removed' | 'activated' | 'error';

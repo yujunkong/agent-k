@@ -244,6 +244,7 @@ async function executeHostTool(
   const {
     executeGrep,
     executeGlob,
+    executeFileSearch,
     executeReadFile,
     executeListDir,
     executeReadLints,
@@ -253,7 +254,7 @@ async function executeHostTool(
   const map: Record<string, (input: ToolInput) => Promise<ToolOutput>> = {
     grep: executeGrep,
     glob: executeGlob,
-    file_search: executeGlob,
+    file_search: executeFileSearch,
     read_file: executeReadFile,
     list_dir: executeListDir,
     read_lints: executeReadLints,
@@ -347,7 +348,7 @@ async function streamCompletion(opts: StreamOpts): Promise<string> {
       })),
       stream: true,
       temperature: 0.4,
-      max_tokens: 4096,
+        max_tokens: 16384,
       enable_thinking: true
     }),
     signal: opts.signal

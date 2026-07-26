@@ -44,9 +44,9 @@ function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
   }
 }
 
-/** Ask = completions-only in webview; Agent/Plan/Debug need host tools */
-function needsHostToolLoop(mode: Mode): boolean {
-  return mode === 'agent' || mode === 'plan' || mode === 'debug';
+/** All modes run through Extension Host AgentLoop (Ask = read-only tools). */
+function needsHostToolLoop(_mode: Mode): boolean {
+  return true;
 }
 
 export function useChatStream(options: UseChatStreamOptions = {}): UseChatStreamReturn {
@@ -73,7 +73,8 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
   }, []);
 
   /**
-   * Agent/Plan/Debug: post chat.send → Extension Host runs tools → chat.stream events.
+   * All modes: post chat.send → Extension Host runs tools → chat.stream events.
+   * Ask uses the same path with read-only tool whitelist.
    */
   const sendViaHost = useCallback(
     async (
@@ -150,8 +151,70 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             if (data.content) onDelta({ content: String(data.content) });
             break;
           case 'tool.start':
-            // Steps UI owns live label — don't spam 🔧 status into bubble
+            // Seal any early model prose as openingLead; clear body for final answer
+            onDelta({ clearContent: true });
             break;
+          case 'file.edit': {
+            const lines = Array.isArray(data.lines) ? data.lines : [];
+            onDelta({
+              fileEdit: {
+                id: `fe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                path: String(data.path || ''),
+                absPath: data.absPath != null ? String(data.absPath) : undefined,
+                checkpointId:
+                  data.checkpointId != null ? String(data.checkpointId) : undefined,
+                turn: data.turn != null ? Number(data.turn) : undefined,
+                additions: Number(data.additions) || 0,
+                deletions: Number(data.deletions) || 0,
+                lines: lines.map((l: any) => ({
+                  type:
+                    l?.type === 'add' || l?.type === 'delete'
+                      ? l.type
+                      : ('context' as const),
+                  lineNumber: Number(l?.lineNumber) || 0,
+                  text: String(l?.text ?? '')
+                }))
+              }
+            });
+            break;
+          }
+          case 'terminal.run': {
+            onDelta({
+              terminalRun: {
+                id: String(data.id || `term_${Date.now()}`),
+                phase:
+                  data.phase === 'chunk' || data.phase === 'end'
+                    ? data.phase
+                    : 'start',
+                command: data.command != null ? String(data.command) : undefined,
+                description:
+                  data.description != null ? String(data.description) : undefined,
+                cwd: data.cwd != null ? String(data.cwd) : undefined,
+                chunk: data.chunk != null ? String(data.chunk) : undefined,
+                stream:
+                  data.stream === 'stderr' || data.stream === 'stdout'
+                    ? data.stream
+                    : undefined,
+                exitCode:
+                  data.exitCode === null
+                    ? null
+                    : data.exitCode != null
+                      ? Number(data.exitCode)
+                      : undefined,
+                error: data.error != null ? String(data.error) : undefined,
+                durationMs:
+                  data.durationMs != null ? Number(data.durationMs) : undefined,
+                turn: data.turn != null ? Number(data.turn) : undefined,
+                status:
+                  data.status === 'done' ||
+                  data.status === 'error' ||
+                  data.status === 'running'
+                    ? data.status
+                    : undefined
+              }
+            });
+            break;
+          }
           // PRD-C0 §5.3 / PRD-Harness-13: forward turn timeline to ChatApp
           case 'timeline': {
             const kind = String(data.kind || 'thinking') as NonNullable<
@@ -332,10 +395,12 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                 try {
                   const parsed = JSON.parse(data);
                   const delta = parsed.choices?.[0]?.delta;
+                  let painted = false;
                   if (delta?.content) {
                     bumpIdle();
                     if (requestId === requestIdRef.current) {
                       onDelta({ content: delta.content });
+                      painted = true;
                     }
                   }
                   const reasoning =
@@ -344,7 +409,13 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                     bumpIdle();
                     if (requestId === requestIdRef.current) {
                       onDelta({ reasoning: String(reasoning) });
+                      painted = true;
                     }
+                  }
+                  // One TCP/SSE batch can hold many tokens — yield so React paints
+                  // between chunks (Thought already felt live; answer should too)
+                  if (painted) {
+                    await new Promise<void>((r) => setTimeout(r, 0));
                   }
                 } catch {
                   // Ignore parse errors for incomplete JSON

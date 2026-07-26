@@ -72,13 +72,19 @@ export function MermaidDiagram({ definition, streaming }: MermaidDiagramProps) {
     );
   }
 
+  if (!svg) {
+    return (
+      <div ref={containerRef} className="mermaid-diagram mermaid-diagram--loading">
+        <pre className="mermaid-loading">{definition}</pre>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={containerRef}
       className="mermaid-diagram"
-      dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
-    >
-      {!svg && <pre className="mermaid-loading">{definition}</pre>}
-    </div>
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
   );
 }

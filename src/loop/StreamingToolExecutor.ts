@@ -53,6 +53,7 @@ export class StreamingToolExecutor {
       const {
         executeGrep,
         executeGlob,
+        executeFileSearch,
         executeReadFile,
         executeListDir,
         executeCodebaseSearch,
@@ -63,9 +64,9 @@ export class StreamingToolExecutor {
       const executors: Record<string, (input: ToolInput) => Promise<ToolOutput>> = {
         grep: executeGrep,
         glob: executeGlob,
+        file_search: executeFileSearch,
         read_file: executeReadFile,
         list_dir: executeListDir,
-        file_search: executeGlob,
         codebase_search: executeCodebaseSearch,
         lsp_definition: executeLspDefinition,
         lsp_references: executeLspReferences

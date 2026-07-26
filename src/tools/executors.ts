@@ -6,38 +6,269 @@
  */
 import type { ToolInput, ToolOutput } from './types';
 import { recordFileReadForStaleness } from './writeExecutors';
+import * as fs from 'fs';
+import * as path from 'path';
+import { execFileSync, execSync } from 'child_process';
+
+/** Resolve ripgrep binary — VS Code GUI PATH often lacks Homebrew. */
+function findRipgrepBinary(): string | null {
+  const candidates = [
+    process.env.AGENT_K_RG_PATH,
+    'rg',
+    '/opt/homebrew/bin/rg',
+    '/usr/local/bin/rg',
+    '/usr/bin/rg'
+  ].filter(Boolean) as string[];
+
+  for (const bin of candidates) {
+    try {
+      if (bin === 'rg') {
+        execFileSync(bin, ['--version'], {
+          encoding: 'utf-8',
+          timeout: 3000,
+          stdio: ['ignore', 'pipe', 'ignore'],
+          env: {
+            ...process.env,
+            PATH: [
+              process.env.PATH || '',
+              '/opt/homebrew/bin',
+              '/usr/local/bin',
+              '/usr/bin',
+              '/bin'
+            ].join(path.delimiter)
+          }
+        });
+        return bin;
+      }
+      if (fs.existsSync(bin)) {
+        execFileSync(bin, ['--version'], {
+          encoding: 'utf-8',
+          timeout: 3000,
+          stdio: ['ignore', 'pipe', 'ignore']
+        });
+        return bin;
+      }
+    } catch {
+      /* try next */
+    }
+  }
+
+  // Last resort: `which rg` with augmented PATH
+  try {
+    const which = execSync('which rg', {
+      encoding: 'utf-8',
+      timeout: 3000,
+      env: {
+        ...process.env,
+        PATH: [
+          process.env.PATH || '',
+          '/opt/homebrew/bin',
+          '/usr/local/bin'
+        ].join(path.delimiter)
+      }
+    })
+      .trim()
+      .split('\n')[0];
+    if (which && fs.existsSync(which)) return which;
+  } catch {
+    /* no rg */
+  }
+  return null;
+}
+
+function grepJsFallback(
+  pattern: string,
+  cwd: string,
+  include: string | undefined,
+  maxResults: number
+): string[] {
+  let re: RegExp;
+  try {
+    re = new RegExp(pattern, 'i');
+  } catch {
+    re = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  }
+
+  const ignoreDir = new Set(['node_modules', '.git', 'dist', 'out', '.cursor', '.harb']);
+  const textExt = /\.(ts|tsx|js|jsx|mjs|cjs|json|md|py|rs|go|java|kt|swift|css|scss|html|yml|yaml|toml|sh|bash|zsh|txt|vue|svelte)$/i;
+  const includeRe = include
+    ? (() => {
+        try {
+          const escaped = String(include)
+            .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+            .replace(/\*/g, '.*')
+            .replace(/\?/g, '.');
+          return new RegExp('^' + escaped + '$', 'i');
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+
+  const hits: string[] = [];
+  const walk = (dir: string) => {
+    if (hits.length >= maxResults) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of entries) {
+      if (hits.length >= maxResults) return;
+      if (ent.name.startsWith('.') && ent.name !== '.') continue;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        if (ignoreDir.has(ent.name)) continue;
+        walk(full);
+      } else if (ent.isFile()) {
+        if (!textExt.test(ent.name)) continue;
+        if (includeRe && !includeRe.test(ent.name) && !includeRe.test(path.relative(cwd, full))) {
+          continue;
+        }
+        let content: string;
+        try {
+          const st = fs.statSync(full);
+          if (st.size > 1_500_000) continue;
+          content = fs.readFileSync(full, 'utf-8');
+        } catch {
+          continue;
+        }
+        const lines = content.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+          if (hits.length >= maxResults) return;
+          if (re.test(lines[i])) {
+            hits.push(`${full}:${i + 1}:${lines[i]}`);
+          }
+        }
+      }
+    }
+  };
+  walk(cwd);
+  return hits;
+}
 
 export async function executeGrep(input: ToolInput): Promise<ToolOutput> {
-  const { pattern, include, path, maxResults = 50 } = input;
-  try {
-    // Use ripgrep via child_process
-    const { execSync } = require('child_process');
-    const args = ['rg', '-n', '--no-heading', '--color', 'never'];
-    if (include) args.push('-g', include);
-    args.push(pattern);
-    if (path) args.push(path);
-    
-    const result = execSync(args.join(' '), { 
-      encoding: 'utf-8', 
-      maxBuffer: 1024 * 1024,
-      timeout: 30000
-    });
-    
-    const lines = result.split('\n').filter(Boolean).slice(0, maxResults);
-    const truncated = result.split('\n').filter(Boolean).length > maxResults;
-    
+  const pattern = String(
+    input.pattern || input.query || input.search || ''
+  ).trim();
+  const include = (input.include || input.glob || input.glob_pattern) as
+    | string
+    | undefined;
+  const maxResults = Math.min(Number(input.maxResults) || 50, 200);
+  if (!pattern) {
     return {
-      success: true,
-      data: { results: lines, count: lines.length, truncated },
+      success: false,
+      error: 'grep requires pattern (or query)',
       metadata: { duration: 0 }
     };
-  } catch (error: any) {
-    // rg returns exit code 1 when no matches found
-    if (error.status === 1) {
-      return { success: true, data: { results: [], count: 0 }, metadata: { duration: 0 } };
-    }
-    return { success: false, error: error.message, metadata: { duration: 0 } };
   }
+
+  const { getWorkspaceRoot, resolveWorkspacePath } = await import('./writeExecutors');
+  let cwd = getWorkspaceRoot() || process.cwd();
+  const rawPath = (input.path || input.cwd || input.target) as string | undefined;
+  if (rawPath && String(rawPath).trim() && String(rawPath).trim() !== '.') {
+    const resolved = resolveWorkspacePath(String(rawPath));
+    if ('error' in resolved) {
+      return { success: false, error: resolved.error, metadata: { duration: 0 } };
+    }
+    cwd = resolved.abs;
+  }
+
+  const t0 = Date.now();
+  const rg = findRipgrepBinary();
+
+  if (rg) {
+    try {
+      // NEVER join args into a shell string — `|` in patterns must stay literal
+      const args = ['-n', '--no-heading', '--color', 'never', '--hidden', '-S'];
+      if (include) {
+        args.push('-g', String(include));
+      }
+      args.push('--', pattern, cwd);
+
+      const result = execFileSync(rg, args, {
+        encoding: 'utf-8',
+        maxBuffer: 2 * 1024 * 1024,
+        timeout: 30000,
+        cwd,
+        env: {
+          ...process.env,
+          PATH: [
+            process.env.PATH || '',
+            '/opt/homebrew/bin',
+            '/usr/local/bin',
+            '/usr/bin',
+            '/bin'
+          ].join(path.delimiter)
+        }
+      });
+
+      const all = String(result).split('\n').filter(Boolean);
+      const lines = all.slice(0, maxResults);
+      return {
+        success: true,
+        data: {
+          results: lines,
+          count: lines.length,
+          truncated: all.length > maxResults,
+          engine: 'rg'
+        },
+        metadata: { duration: Date.now() - t0 }
+      };
+    } catch (error: any) {
+      // rg exit 1 = no matches
+      if (error.status === 1 || error.status === 0) {
+        return {
+          success: true,
+          data: { results: [], count: 0, engine: 'rg' },
+          metadata: { duration: Date.now() - t0 }
+        };
+      }
+      // Fall through to JS on missing binary / other errors
+      if (error.status !== 127 && !/ENOENT|not found/i.test(String(error.message || ''))) {
+        // regex error etc. — still try JS fallback
+      }
+    }
+  }
+
+  try {
+    const lines = grepJsFallback(pattern, cwd, include, maxResults);
+    return {
+      success: true,
+      data: {
+        results: lines,
+        count: lines.length,
+        truncated: false,
+        engine: 'js',
+        note: rg ? 'rg failed; used JS fallback' : 'rg not found; used JS fallback'
+      },
+      metadata: { duration: Date.now() - t0 }
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error?.message || 'grep failed',
+      metadata: { duration: Date.now() - t0 }
+    };
+  }
+}
+
+export async function executeFileSearch(input: ToolInput): Promise<ToolOutput> {
+  const query = String(input.query || input.pattern || input.name || '').trim();
+  if (!query) {
+    return { success: false, error: 'file_search requires query', metadata: { duration: 0 } };
+  }
+  // Convert bare name → glob
+  const pattern =
+    query.includes('*') || query.includes('/') || query.includes('\\')
+      ? query
+      : `**/*${query}*`;
+  return executeGlob({
+    ...input,
+    pattern,
+    maxResults: input.maxResults || 50
+  });
 }
 
 export async function executeGlob(input: ToolInput): Promise<ToolOutput> {
@@ -203,28 +434,48 @@ export async function executeReadFile(input: ToolInput): Promise<ToolOutput> {
 }
 
 export async function executeListDir(input: ToolInput): Promise<ToolOutput> {
-  const { path: dirPath, depth = 1 } = input;
+  const depth = Number(input.depth) || 1;
   try {
-    const fs = require('fs');
-    const path = require('path');
-    
-    function list(dir: string, currentDepth: number): any[] {
+    const { getWorkspaceRoot, resolveWorkspacePath } = await import('./writeExecutors');
+    let dir = String(input.path || input.dir || '.').trim() || '.';
+    if (dir === '.') {
+      dir = getWorkspaceRoot() || process.cwd();
+    } else {
+      const resolved = resolveWorkspacePath(dir);
+      if ('error' in resolved) {
+        return { success: false, error: resolved.error, metadata: { duration: 0 } };
+      }
+      dir = resolved.abs;
+    }
+
+    function list(dirPath: string, currentDepth: number): any[] {
       if (currentDepth > depth) return [];
-      const entries: any[] = fs.readdirSync(dir, { withFileTypes: true });
-      return entries.map((entry: any) => {
-        const fullPath = path.join(dir, entry.name);
-        const item: any = { name: entry.name, type: entry.isDirectory() ? 'directory' : 'file' };
+      const entries: fs.Dirent[] = fs.readdirSync(dirPath, { withFileTypes: true });
+      return entries.map((entry) => {
+        const fullPath = path.join(dirPath, entry.name);
+        const item: any = {
+          name: entry.name,
+          type: entry.isDirectory() ? 'directory' : 'file'
+        };
         if (entry.isDirectory() && currentDepth < depth) {
           item.children = list(fullPath, currentDepth + 1);
         }
         return item;
       });
     }
-    
-    const items = list(dirPath, 1);
-    return { success: true, data: { path: dirPath, items }, metadata: { duration: 0 } };
+
+    const entries = list(dir, 1);
+    return {
+      success: true,
+      data: { path: dir, entries, count: entries.length },
+      metadata: { duration: 0 }
+    };
   } catch (error: any) {
-    return { success: false, error: error.message, metadata: { duration: 0 } };
+    return {
+      success: false,
+      error: `Cannot list directory: ${error.message}`,
+      metadata: { duration: 0 }
+    };
   }
 }
 

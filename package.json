@@ -44,11 +44,6 @@
         "icon": "$(add)"
       },
       {
-        "command": "agent-k.chat.clear",
-        "title": "Clear History",
-        "icon": "$(clear-all)"
-      },
-      {
         "command": "agent-k.openSettings",
         "title": "Open Settings",
         "icon": "$(gear)"
@@ -192,7 +187,7 @@
         "agent-k.context.budget": {
           "type": "integer",
           "default": 100000,
-          "description": "Token budget for agent mode"
+          "description": "Fallback context token budget when the provider does not report max_input_tokens / context length for the selected model"
         },
         "agent-k.telemetry.enabled": {
           "type": "boolean",
@@ -287,12 +282,6 @@
         "when": "view == agent-k.chat"
       },
       {
-        "command": "agent-k.chat.clear",
-        "key": "ctrl+shift+delete",
-        "mac": "cmd+shift+delete",
-        "when": "view == agent-k.chat"
-      },
-      {
         "command": "agent-k.openSettings",
         "key": "ctrl+,",
         "mac": "cmd+,",
@@ -321,11 +310,6 @@
       "view/title": [
         {
           "command": "agent-k.chat.new",
-          "when": "view == agent-k.chat",
-          "group": "navigation"
-        },
-        {
-          "command": "agent-k.chat.clear",
           "when": "view == agent-k.chat",
           "group": "navigation"
         },

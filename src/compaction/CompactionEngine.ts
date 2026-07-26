@@ -31,7 +31,16 @@ export interface ContextMessage {
 export class ContextCompactionEngine {
   private readonly protectionTurns = 6;
   private readonly maxToolResultLength = 32000; // 32KB truncation
-  private readonly maxContextTokens = 128000;
+  private readonly maxContextTokens: number;
+
+  constructor(maxContextTokens = 128000) {
+    this.maxContextTokens = Math.max(4096, maxContextTokens);
+  }
+
+  /** Current context window used for level thresholds */
+  get contextWindow(): number {
+    return this.maxContextTokens;
+  }
 
   compact(
     messages: ContextMessage[],

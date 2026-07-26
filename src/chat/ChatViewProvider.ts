@@ -136,10 +136,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.view?.webview.postMessage({ type: 'session.new' });
   }
 
-  public clearHistory() {
-    this.view?.webview.postMessage({ type: 'session.clear' });
-  }
-
   public openProviderSettings() {
     this.view?.webview.postMessage({ type: 'settings.open', tab: 'providers' });
   }

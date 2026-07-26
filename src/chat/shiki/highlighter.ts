@@ -20,7 +20,8 @@ export async function getHighlighterInstance(): Promise<Highlighter> {
 
   loadPromise = createHighlighter({
     langs: SUPPORTED_LANGS as any,
-    themes: ['dark-plus', 'light-plus'],
+    // Cursor-like token colors (richer than dark-plus mono look)
+    themes: ['github-dark', 'github-light'],
     engine: createJavaScriptRegexEngine()
   }).then((hl) => {
     highlighter = hl;
@@ -42,7 +43,7 @@ export function highlightCode(code: string, lang: string, isDark: boolean): Prom
       }
       return hl.codeToHtml(code, {
         lang: normalizedLang,
-        theme: isDark ? 'dark-plus' : 'light-plus'
+        theme: isDark ? 'github-dark' : 'github-light'
       });
     } catch {
       return escapeHtml(code);

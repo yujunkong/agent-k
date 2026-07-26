@@ -37,6 +37,11 @@ export interface LoopConfig {
   tier?: ModelTier;
   systemPrompt?: string;
   provider?: LiteLLMProvider; // HARB: mock provider 주입 슬롯
+  /**
+   * Model context window (max input tokens) from provider model info.
+   * Compaction triggers near ~90% of this budget.
+   */
+  contextBudget?: number;
   /** Provider 없을 때 단위/AC 테스트용 고정 응답 */
   mockResponse?: {
     content?: string;
@@ -50,8 +55,25 @@ export interface LoopConfig {
   onError?: (error: Error) => void;
   /** Final prose answer for this user request (no more tool_calls) — chat UI stream */
   onAssistantContent?: (content: string) => void | Promise<void>;
+  /** Incremental answer tokens (same cadence as reasoning) — chat UI stream */
+  onAssistantDelta?: (delta: string) => void | Promise<void>;
   /** Streaming / final model reasoning (Thought UI) — not mixed into answer */
   onReasoning?: (fullText: string) => void | Promise<void>;
+  /** Live terminal output for Cursor-style terminal cards in chat */
+  onTerminalEvent?: (ev: {
+    id: string;
+    phase: 'start' | 'chunk' | 'end';
+    command?: string;
+    description?: string;
+    cwd?: string;
+    chunk?: string;
+    stream?: 'stdout' | 'stderr';
+    exitCode?: number | null;
+    error?: string;
+    durationMs?: number;
+    turn?: number;
+    status?: 'running' | 'done' | 'error';
+  }) => void | Promise<void>;
 }
 
 export type LoopStatus = 'idle' | 'streaming' | 'tool_executing' | 'stopped' | 'completed' | 'error' | 'doom_loop';
@@ -90,6 +112,8 @@ export class AgentLoopController {
   private consecutiveFailures = 0;
   private jsonParseFailures = 0;
   private currentTier: ModelTier;
+  /** Resolved model context window (max input tokens) */
+  private contextBudget: number;
   /** 마지막 prefetch 블록 (테스트/디버그용) */
   private lastPrefetch = '';
   /** Identical tool+args doom detection (success or fail) */
@@ -104,6 +128,10 @@ export class AgentLoopController {
     this.config = config;
     const modeConfig = modeRegistry.getModeConfig(config.mode);
     this.currentTier = config.tier || 'A';
+    this.contextBudget = Math.max(
+      4096,
+      config.contextBudget || modeConfig.contextBudget || 100000
+    );
     this._state = {
       status: 'idle',
       currentTurn: 0,
@@ -115,7 +143,7 @@ export class AgentLoopController {
     // HARB: 하네스 컴포넌트 초기화
     this.prefetchEngine = new PrefetchEngine();
     this.autoVerificationHook = createAutoVerificationHook();
-    this.compactionEngine = new ContextCompactionEngine();
+    this.compactionEngine = new ContextCompactionEngine(this.contextBudget);
   }
 
   get state(): LoopState {
@@ -333,7 +361,16 @@ export class AgentLoopController {
             role: 'tool',
             toolCallId: toolCall.id,
             name: toolCall.name,
-            content: result.success ? (result.data ? JSON.stringify(result.data) : '') : (result.error || '')
+            content: result.success
+              ? result.data
+                ? JSON.stringify(result.data)
+                : ''
+              : JSON.stringify({
+                  error: result.error || 'failed',
+                  ...(result.data && typeof result.data === 'object'
+                    ? (result.data as object)
+                    : {})
+                })
           });
 
           // Track failures for routing heuristics
@@ -362,6 +399,8 @@ export class AgentLoopController {
             return;
           }
         }
+        // Next LLM turn may plan again in prose — allow another tool nudge
+        this.toolIntentNudged = false;
       } else {
         // No tool calls → assistant response only (end of turn chain for this request)
         const finalContent = response.content || '';
@@ -375,8 +414,9 @@ export class AgentLoopController {
         return;
       }
 
-      // ─── HARB-T26: Compaction check ──────────────────────
-      if (this._state.currentTurn % 5 === 0 || this.estimateTotalTokens() > 100000) {
+      // ─── HARB-T26: Compaction check (provider model context window) ───
+      const compactAt = Math.floor(this.contextBudget * 0.9);
+      if (this._state.currentTurn % 5 === 0 || this.estimateTotalTokens() > compactAt) {
         try {
           const ctxMessages: ContextMessage[] = this.messages.map(m => ({
             role: m.role,
@@ -639,11 +679,13 @@ export class AgentLoopController {
       model: this.config.modelId,
       tools: schemas.length > 0 ? schemas : undefined,
       signal: this.abortController?.signal,
-      enableThinking: opts?.enableThinking
+      enableThinking: opts?.enableThinking,
+      maxTokens: 16384
     });
 
     let fullContent = '';
     let reasoningContent = '';
+    let hitLengthLimit = false;
     const toolCallAcc = new Map<
       number,
       { id: string; name: string; arguments: string }
@@ -652,6 +694,11 @@ export class AgentLoopController {
     for await (const chunk of stream) {
       if (chunk.content) {
         fullContent += chunk.content;
+        // Mirror onReasoning: push answer tokens live (Thought already streams)
+        void this.config.onAssistantDelta?.(chunk.content);
+      }
+      if (chunk.finishReason === 'length') {
+        hitLengthLimit = true;
       }
       const anyChunk = chunk as {
         reasoning?: string;
@@ -690,6 +737,13 @@ export class AgentLoopController {
         this.config.onError?.(new Error(chunk.error));
         return null;
       }
+    }
+
+    if (hitLengthLimit && fullContent.trim()) {
+      const note =
+        '\n\n*(응답이 길이 제한으로 잘렸을 수 있습니다. Regenerate로 이어서 요청하세요.)*';
+      fullContent += note;
+      void this.config.onAssistantDelta?.(note);
     }
 
     let toolCalls: Array<{ id: string; name: string; arguments: ToolInput }> = [
@@ -772,9 +826,9 @@ export class AgentLoopController {
     return normalized;
   }
 
-  /** Detect plan-only reasoning that should have emitted tools */
+  /** Detect plan-only reasoning/prose that should have emitted tools */
   private reasoningIntendsTools(text: string): boolean {
-    return /read_file|list_dir|codebase_search|\bgrep\b|\bglob\b|in parallel|let me (read|search|open|check)|i('ll| will) (read|search|open)|읽어|파일을 읽|병렬로 읽/i.test(
+    return /read_file|list_dir|codebase_search|\bgrep\b|\bglob\b|edit_file|todo_write|in parallel|let me (read|search|open|check|fix)|i('ll| will) (read|search|open|fix|check)|읽어|살펴|확인하|수정하|고치|분석하|파일을 읽|병렬로 읽|먼저 .{0,40}(읽|확인|파악|수정)|이어서|진행하/i.test(
       text
     );
   }
@@ -906,11 +960,12 @@ export class AgentLoopController {
 
     // Dispatch to executor
     try {
-      const { executeGrep, executeGlob, executeReadFile, executeListDir, executeCodebaseSearch, executeLspDefinition, executeLspReferences, executeReadLints } = await import('../tools/executors');
+      const { executeGrep, executeGlob, executeFileSearch, executeReadFile, executeListDir, executeCodebaseSearch, executeLspDefinition, executeLspReferences, executeReadLints } = await import('../tools/executors');
       
       const executors: Record<string, (input: ToolInput) => Promise<ToolOutput>> = {
         grep: executeGrep,
         glob: executeGlob,
+        file_search: executeFileSearch,
         read_file: executeReadFile,
         list_dir: executeListDir,
         codebase_search: executeCodebaseSearch,
@@ -949,6 +1004,12 @@ export class AgentLoopController {
       if (name === 'ask_question') {
         const { askQuestionTool } = await import('../tools/session/AskQuestionTool');
         return await askQuestionTool.execute(args);
+      }
+
+      // ─── todo_write (C5-T23) ─────────────────────────────
+      if (name === 'todo_write') {
+        const { todoWriteTool } = await import('../tools/session/TodoWriteTool');
+        return todoWriteTool.execute(args);
       }
 
       // ─── add_instrumentation (RW-C6-02-R2: 실파일 마커 삽입) ──────
@@ -1111,6 +1172,40 @@ export class AgentLoopController {
           return { success: false, error: err.message };
         }
       }
+      if (name === 'web_fetch') {
+        const url = String(args.url || args.href || '').trim();
+        if (!url) {
+          return { success: false, error: 'web_fetch requires url' };
+        }
+        try {
+          const u = new URL(url);
+          if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+            return { success: false, error: 'web_fetch only supports http/https' };
+          }
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), Number(args.timeout) || 20000);
+          const res = await fetch(url, {
+            signal: controller.signal,
+            headers: { 'User-Agent': 'Agent-K/1.0', Accept: 'text/*,application/json,*/*' }
+          });
+          clearTimeout(timer);
+          const text = await res.text();
+          const max = Math.min(Number(args.maxLength) || 80_000, 200_000);
+          return {
+            success: res.ok,
+            data: {
+              url,
+              status: res.status,
+              contentType: res.headers.get('content-type'),
+              body: text.slice(0, max),
+              truncated: text.length > max
+            },
+            error: res.ok ? undefined : `HTTP ${res.status}`
+          };
+        } catch (err: any) {
+          return { success: false, error: err?.message || 'web_fetch failed' };
+        }
+      }
       if (name === 'mcp_list_tools') {
         const { RuntimeServices } = await import('../core/RuntimeServices');
         const client = RuntimeServices.getMcpClient();
@@ -1244,11 +1339,77 @@ export class AgentLoopController {
         executeDeleteFile,
         executeRunTerminalCmd
       } = await import('../tools/writeExecutors');
+
+      if (name === 'run_terminal_cmd') {
+        const command = String(
+          (args.command as string) ||
+            (args.cmd as string) ||
+            (args.shell as string) ||
+            ''
+        ).trim();
+        const id = `term_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const turn = this._state.currentTurn || 1;
+        const t0 = Date.now();
+        await this.config.onTerminalEvent?.({
+          id,
+          phase: 'start',
+          command,
+          description:
+            typeof args.description === 'string' ? args.description : undefined,
+          turn,
+          status: 'running'
+        });
+        const result = await executeRunTerminalCmd(args, {
+          onChunk: (chunk, stream) => {
+            void this.config.onTerminalEvent?.({
+              id,
+              phase: 'chunk',
+              chunk,
+              stream,
+              turn
+            });
+          }
+        });
+        const data =
+          result.data && typeof result.data === 'object'
+            ? (result.data as Record<string, unknown>)
+            : {};
+        await this.config.onTerminalEvent?.({
+          id,
+          phase: 'end',
+          command: String(data.command || command),
+          cwd: data.cwd != null ? String(data.cwd) : undefined,
+          exitCode:
+            data.exitCode === null || data.exitCode === undefined
+              ? null
+              : Number(data.exitCode),
+          error: result.error,
+          durationMs: Date.now() - t0,
+          turn,
+          status: result.success ? 'done' : 'error',
+          // Full buffers for clients that missed chunks
+          chunk: [
+            data.stdout != null ? String(data.stdout) : '',
+            data.stderr
+              ? `\n${String(data.stderr)}`
+              : ''
+          ].join('').slice(0, 80_000) || undefined
+        });
+        return result;
+      }
+      if (name === 'terminal_output' || name === 'process_list') {
+        return {
+          success: false,
+          error:
+            `${name} is not available yet — run_terminal_cmd captures stdout/stderr in the same turn. ` +
+            'Background session polling is not implemented.'
+        };
+      }
+
       const writeExecutors: Record<string, (input: ToolInput) => Promise<ToolOutput>> = {
         edit_file: executeEditFile,
         write_file: executeWriteFile,
-        delete_file: executeDeleteFile,
-        run_terminal_cmd: executeRunTerminalCmd
+        delete_file: executeDeleteFile
       };
       const writeExec = writeExecutors[name];
       if (writeExec) {

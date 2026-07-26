@@ -44,7 +44,7 @@ export async function* streamChat(options: {
         })),
         stream: true,
         temperature,
-        max_tokens: 4096
+        max_tokens: 16384
       }),
       signal
     });

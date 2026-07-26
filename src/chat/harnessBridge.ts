@@ -54,18 +54,10 @@ export async function buildHarnessTurnContext(
   return { systemPrompt, prefetchBlock, prefetchRaw, assembly };
 }
 
-/** Ask-mode chat UI has no tool runner — discourage printing fake [tool] tags */
-const CHAT_UI_NO_TOOL_TAGS =
-  'Do NOT emit tool tags like [todo_write] as plain text in this chat UI; ' +
-  'tools are invoked by the host, not by printing tags. ' +
-  'For greetings, reply briefly without tool markup.';
-
 /**
- * 전송 payload에 프리페치·하네스 시스템 노트 주입
- * (API 전용 — UI 말풍선에는 넣지 말 것)
- *
- * Agent/Plan/Debug: AgentLoopController owns system+TurnStructure —
- * only inject prefetch here (do not dump tool schemas into the user turn).
+ * 전송 payload에 프리페치 주입 (API 전용 — UI 말풍선에는 넣지 말 것).
+ * All modes are host-mediated: AgentLoop owns system+TurnStructure —
+ * only inject prefetch here.
  */
 export function prependHarnessToUserPayload(
   userText: string,
@@ -73,19 +65,10 @@ export function prependHarnessToUserPayload(
   mode?: Mode
 ): string {
   const parts: string[] = [];
-  const hostMediated = mode === 'agent' || mode === 'plan' || mode === 'debug';
-
-  if (!hostMediated) {
-    // Soften harness todo_write guidance for plain-completions (Ask) path
-    parts.push(`<chat_ui_note>\n${CHAT_UI_NO_TOOL_TAGS}\n</chat_ui_note>`);
-  }
+  // Host path for every mode — keep user payload clean (prefetch only)
+  void mode;
   if (ctx.prefetchBlock) {
     parts.push(ctx.prefetchBlock);
-  }
-  // Ask only: inject truncated harness system.
-  // Agent/Plan/Debug: ContextAssembler+AgentLoop inject TurnStructure on the host.
-  if (!hostMediated && ctx.systemPrompt) {
-    parts.push(`<harness_system>\n${ctx.systemPrompt.slice(0, 4000)}\n</harness_system>`);
   }
   parts.push(userText);
   return parts.join('\n\n');

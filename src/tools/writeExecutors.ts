@@ -12,6 +12,11 @@ import { PatchApplier } from '../patches/applier';
 import { StalenessChecker } from '../patches/staleness';
 import { CheckpointManager } from '../checkpoint/CheckpointManager';
 import { RuntimeServices } from '../core/RuntimeServices';
+import {
+  buildEditDiffPreview,
+  buildWriteFileDiffPreview,
+  guessLanguageFromPath
+} from '../chat/editDiffPreview';
 
 /** VS Code 없는 단위/E2E 환경에서는 process.cwd() 사용 */
 export function getWorkspaceRoot(): string {
@@ -75,6 +80,16 @@ export async function executeEditFile(input: ToolInput): Promise<ToolOutput> {
     return { success: false, error: 'edit_file requires at least one hunk' };
   }
 
+  let beforeContent = '';
+  try {
+    beforeContent = fs.readFileSync(resolved.abs, 'utf-8');
+  } catch {
+    beforeContent = '';
+  }
+  const diff = buildEditDiffPreview(hunks, beforeContent);
+  const root = getWorkspaceRoot();
+  const relPath = path.relative(root, resolved.abs) || path.basename(resolved.abs);
+
   const applier = new PatchApplier(getCheckpointManager());
   const result = await applier.apply(resolved.abs, hunks, {
     createCheckpoint: true,
@@ -92,8 +107,11 @@ export async function executeEditFile(input: ToolInput): Promise<ToolOutput> {
     success: true,
     data: {
       path: resolved.abs,
+      relPath,
       modified: result.modified,
-      checkpointId: result.checkpointId
+      checkpointId: result.checkpointId,
+      language: guessLanguageFromPath(resolved.abs),
+      diff
     }
   };
 }
@@ -110,7 +128,9 @@ export async function executeWriteFile(input: ToolInput): Promise<ToolOutput> {
   }
 
   const mgr = getCheckpointManager();
+  let previousContent: string | undefined;
   if (fs.existsSync(resolved.abs)) {
+    previousContent = fs.readFileSync(resolved.abs, 'utf-8');
     await mgr.createCheckpoint(
       [resolved.abs],
       `Pre-write: ${path.basename(resolved.abs)}`,
@@ -125,9 +145,19 @@ export async function executeWriteFile(input: ToolInput): Promise<ToolOutput> {
   fs.writeFileSync(resolved.abs, content, 'utf-8');
   mgr.updateHash(resolved.abs);
 
+  const root = getWorkspaceRoot();
+  const relPath = path.relative(root, resolved.abs) || path.basename(resolved.abs);
+  const diff = buildWriteFileDiffPreview(content, previousContent);
+
   return {
     success: true,
-    data: { path: resolved.abs, bytesWritten: Buffer.byteLength(content, 'utf-8') }
+    data: {
+      path: resolved.abs,
+      relPath,
+      bytesWritten: Buffer.byteLength(content, 'utf-8'),
+      language: guessLanguageFromPath(resolved.abs),
+      diff
+    }
   };
 }
 
@@ -162,9 +192,19 @@ const BLOCKED_CMD_PATTERNS = [
   />\s*\/dev\/sd/i
 ];
 
-export async function executeRunTerminalCmd(input: ToolInput): Promise<ToolOutput> {
-  const command = input.command as string;
-  if (!command?.trim()) {
+export async function executeRunTerminalCmd(
+  input: ToolInput,
+  opts?: {
+    onChunk?: (chunk: string, stream: 'stdout' | 'stderr') => void;
+  }
+): Promise<ToolOutput> {
+  const command = String(
+    (input.command as string) ||
+      (input.cmd as string) ||
+      (input.shell as string) ||
+      ''
+  ).trim();
+  if (!command) {
     return { success: false, error: 'run_terminal_cmd requires command' };
   }
   for (const pattern of BLOCKED_CMD_PATTERNS) {
@@ -176,7 +216,12 @@ export async function executeRunTerminalCmd(input: ToolInput): Promise<ToolOutpu
     return { success: false, error: 'Path traversal (..) is not allowed in commands' };
   }
 
-  const cwd = getWorkspaceRoot();
+  const cwd =
+    typeof input.cwd === 'string' && input.cwd.trim()
+      ? path.isAbsolute(input.cwd)
+        ? input.cwd
+        : path.join(getWorkspaceRoot(), input.cwd)
+      : getWorkspaceRoot();
   const timeoutMs = (input.timeout as number) || 120_000;
 
   return new Promise((resolve) => {
@@ -188,35 +233,59 @@ export async function executeRunTerminalCmd(input: ToolInput): Promise<ToolOutpu
 
     let stdout = '';
     let stderr = '';
-    child.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-    child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+    child.stdout?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString();
+      stdout += text;
+      opts?.onChunk?.(text, 'stdout');
+    });
+    child.stderr?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString();
+      stderr += text;
+      opts?.onChunk?.(text, 'stderr');
+    });
 
     const timer = setTimeout(() => {
       child.kill('SIGTERM');
       resolve({
         success: false,
         error: `Command timed out after ${timeoutMs}ms`,
-        data: { stdout, stderr, exitCode: null }
+        data: {
+          command,
+          cwd,
+          stdout: stdout.slice(0, 50_000),
+          stderr: stderr.slice(0, 50_000),
+          exitCode: null,
+          description: input.description
+        }
       });
     }, timeoutMs);
 
     child.on('close', (code) => {
       clearTimeout(timer);
+      const ok = code === 0;
       resolve({
-        success: code === 0,
+        success: ok,
         data: {
+          command,
+          cwd,
           stdout: stdout.slice(0, 50_000),
           stderr: stderr.slice(0, 50_000),
           exitCode: code,
           description: input.description
         },
-        error: code !== 0 ? `Exit code ${code}` : undefined
+        error: ok
+          ? undefined
+          : `Exit code ${code}${stderr.trim() ? `: ${stderr.trim().slice(0, 200)}` : stdout.trim() ? `: ${stdout.trim().slice(0, 200)}` : ''}`
       });
     });
 
     child.on('error', (err) => {
       clearTimeout(timer);
-      resolve({ success: false, error: err.message });
+      resolve({
+        success: false,
+        error: err.message,
+        data: { command, cwd, stdout, stderr, exitCode: null }
+      });
     });
   });
 }

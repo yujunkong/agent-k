@@ -177,6 +177,76 @@ export class PlanModeController {
     }
   }
 
+  /**
+   * UI에서 단계 배지 클릭 시 이동.
+   * 이전 단계로는 항상 가능. 앞으로 가기는 최소 조건만 검사.
+   */
+  goToStage(stage: PlanStage): { ok: boolean; error?: string } {
+    const order: PlanStage[] = ['research', 'questions', 'planning', 'review', 'build'];
+    if (!order.includes(stage)) {
+      return { ok: false, error: `Unknown stage: ${stage}` };
+    }
+    const currentIdx = order.indexOf(this.state.stage);
+    const targetIdx = order.indexOf(stage);
+
+    // Backward / same: always OK
+    if (targetIdx <= currentIdx) {
+      this.setStage(stage);
+      return { ok: true };
+    }
+
+    if (stage === 'questions') {
+      this.setStage('questions');
+      return { ok: true };
+    }
+    if (stage === 'planning') {
+      this.setStage('planning');
+      return { ok: true };
+    }
+    if (stage === 'review') {
+      if (!this.state.planDocument) {
+        return {
+          ok: false,
+          error: '아직 Plan 문서가 없습니다. Planning에서 먼저 계획을 생성하세요.'
+        };
+      }
+      this.setStage('review');
+      return { ok: true };
+    }
+    if (stage === 'build') {
+      if (!this.state.planDocument) {
+        return { ok: false, error: 'Plan 문서가 없어 Build로 갈 수 없습니다.' };
+      }
+      if (!this.state.approved) {
+        return {
+          ok: false,
+          error: 'Plan을 Review에서 승인한 뒤에 Build로 진행할 수 있습니다.'
+        };
+      }
+      if (!this.areAllQuestionsAnswered()) {
+        return {
+          ok: false,
+          error: '질문에 모두 답한 뒤에 Build로 진행할 수 있습니다.'
+        };
+      }
+      this.setStage('build');
+      if (this.onBuildReady) {
+        try {
+          this.onBuildReady(this.getBuildContext());
+        } catch (e) {
+          return {
+            ok: false,
+            error: e instanceof Error ? e.message : 'Build 전환 실패'
+          };
+        }
+      }
+      return { ok: true };
+    }
+
+    this.setStage(stage);
+    return { ok: true };
+  }
+
   // ─── Stage 1: Research ──────────────────────────────────
   async startResearch(): Promise<void> {
     this.setStage('research');

@@ -28,12 +28,62 @@ export interface ChatMessage {
     itemStatus: 'running' | 'done' | 'error';
     durationMs?: number;
   }>;
+  /** Successful edit_file / write_file previews (Cursor-style cards) */
+  fileEdits?: FileEditPreview[];
+  /** run_terminal_cmd cards (Cursor-style expandable terminal box) */
+  terminalRuns?: TerminalRunPreview[];
+  /**
+   * Cursor-style first line: shown immediately above Thought/tools
+   * ("네, templates 폴더 분석하겠습니다.") — not cleared by tool turns.
+   */
+  openingLead?: string;
+  /**
+   * Assistant prose sealed between turns (survives clearContent).
+   * Rendered after that turn's Thought / Exploring / edit cards.
+   */
+  turnProse?: Array<{
+    id: string;
+    /** Appears after this turn's steps/edits */
+    turn: number;
+    content: string;
+  }>;
   metadata?: {
     model: string;
     tokens: { input: number; output: number };
     mode: Mode;
     toolsUsed: string[];
   };
+}
+
+export interface FileEditPreview {
+  id: string;
+  path: string;
+  absPath?: string;
+  additions: number;
+  deletions: number;
+  checkpointId?: string;
+  /** Agent loop turn — place card after that turn's tools in the timeline */
+  turn?: number;
+  lines: Array<{
+    type: 'add' | 'delete' | 'context';
+    lineNumber: number;
+    text: string;
+  }>;
+}
+
+/** Cursor-style terminal run card in the chat timeline */
+export interface TerminalRunPreview {
+  id: string;
+  command: string;
+  description?: string;
+  cwd?: string;
+  status: 'running' | 'done' | 'error';
+  stdout: string;
+  stderr: string;
+  exitCode?: number | null;
+  durationMs?: number;
+  turn?: number;
+  error?: string;
 }
 
 export interface Attachment {
@@ -82,6 +132,25 @@ export interface StreamDelta {
   reasoning?: string;
   /** Host tool-loop status (e.g. "🔧 Running glob…") — replaces bubble while tools run */
   status?: string;
+  /** Drop draft answer when a tool-calling turn begins */
+  clearContent?: boolean;
+  /** Successful file edit preview card */
+  fileEdit?: FileEditPreview;
+  /** Terminal run card start / live chunk / end */
+  terminalRun?: {
+    id: string;
+    phase: 'start' | 'chunk' | 'end';
+    command?: string;
+    description?: string;
+    cwd?: string;
+    chunk?: string;
+    stream?: 'stdout' | 'stderr';
+    exitCode?: number | null;
+    error?: string;
+    durationMs?: number;
+    turn?: number;
+    status?: 'running' | 'done' | 'error';
+  };
   /** PRD-C0 §5.3 / PRD-Harness-13: turn timeline upsert */
   timeline?: TimelineDelta;
   /** Host ask_question → ClarifyingQuestions (RW-C5-02) */

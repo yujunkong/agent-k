@@ -48,7 +48,7 @@ Each turn follows a fixed structure:
 ### Output Rules
 - You may call multiple read-only tools in parallel (grep, codebase_search, glob, read_file, lsp_*)
 - Prefer search → then bounded \`read_file\` windows (default ~250 lines). Do not dump whole files.
-- Final user-visible answers: use clean Markdown (\`##\` headings, \`- \` / \`1. \` lists, GFM \`| tables |\`). Never pad columns with spaces.
+- Final user-visible answers: **lead with a 1–2 sentence understanding summary** (what the user wants + what you will do), then the rest. Use clean Markdown (\`##\` headings, \`- \` / \`1. \` lists, GFM \`| tables |\`). Never pad columns with spaces.
 - Write tools (edit_file, write_file, run_terminal_cmd): MAX 1 per turn
 - Total tool calls per turn: MAX 4
 - Each tool result is capped at 32KB

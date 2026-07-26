@@ -33,7 +33,7 @@ export class LiteLLMProvider implements LLMProviderInterface {
   }
 
   async *streamChat(options: StreamChatOptions): AsyncGenerator<StreamChunk> {
-    const { messages, model, temperature = 0.7, maxTokens = 4096, signal, tools } = options;
+    const { messages, model, temperature = 0.7, maxTokens = 16384, signal, tools } = options;
     const modelName = model || this.config.model;
     // Tool turns keep thinking ON for Thought UI, but AgentLoop truncates/nudges
     // so Qwen does not get stuck in plan-only loops.
@@ -93,8 +93,10 @@ export class LiteLLMProvider implements LLMProviderInterface {
 
             try {
               const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta;
+              const choice = parsed.choices?.[0];
+              const delta = choice?.delta;
               const usage = parsed.usage;
+              const finishReason = choice?.finish_reason;
 
               if (delta?.content) {
                 yield { content: delta.content };
@@ -110,6 +112,10 @@ export class LiteLLMProvider implements LLMProviderInterface {
 
               if (delta?.tool_calls) {
                 yield { toolCalls: delta.tool_calls };
+              }
+
+              if (finishReason === 'length') {
+                yield { finishReason: 'length' } as StreamChunk;
               }
 
               // Usage alone must NOT end the stream — content may still follow on some servers

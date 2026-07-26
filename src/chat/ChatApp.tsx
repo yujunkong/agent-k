@@ -6,11 +6,12 @@
  * ⚙️ 설정 → SettingsPanel
  * ask_question 도구 → ClarifyingQuestions 모달
  */
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { MessageBubble } from './components/MessageBubble';
 import { Composer } from './components/Composer';
-import { ModeSelector } from './components/ModeSelector';
+import { ChangedFilesBar } from './components/ChangedFilesBar';
+import type { FileEditPreview } from './types';
 import { useChatStream } from './hooks/useChatStream';
 import { configManager } from '../core/ConfigManager';
 import type { ChatMessage, Mode, StreamDelta, Attachment } from './types';
@@ -27,6 +28,9 @@ import { DebugTimeline } from './components/DebugTimeline';
 import { DebugModeController } from '../debug/DebugModeController';
 import type { DebugStage, Hypothesis } from '../debug/DebugModeController';
 import { SettingsPanel } from '../settings/SettingsPanel';
+import { HistoryPanel } from './components/HistoryPanel';
+import { ChatSessionStore } from './ChatSessionStore';
+import type { ChatSessionMeta } from './ChatSessionStore';
 // RW-C5-02: ask_question 도구 → ClarifyingQuestions 브리지
 import { askQuestionTool } from '../tools/session/AskQuestionTool';
 import type { PendingQuestion } from '../tools/session/AskQuestionTool';
@@ -47,6 +51,7 @@ import { DesignModePanel, designModeContext } from '../browser/DesignModePanel';
 import { FindingList } from '../review/FindingList';
 import { AcceptFix } from '../review/AcceptFix';
 import type { ReviewFinding } from '../review/AgentReviewLoop';
+import { modeRegistry } from '../agent/modeRegistry';
 import { ArtifactGallery } from '../artifacts/ArtifactGallery';
 import type { Artifact } from '../artifacts/ArtifactStore';
 import { UXForMediumPanel } from '../harness/UXForMediumPanel';
@@ -56,7 +61,13 @@ import {
   prependHarnessToUserPayload,
   stripHarnessForDisplay
 } from './harnessBridge';
+import { sanitizeOpeningLead, splitStreamingLead } from './openingLead';
+import { sealBodyBeforeTools } from './sealTurnProse';
 import { stripFakeToolMarkup } from './displaySanitize';
+import {
+  getRegisteredModels,
+  persistProviderModel
+} from './providerModels';
 
 const MODE_LABELS: Record<Mode, string> = {
   ask: 'Ask',
@@ -72,36 +83,59 @@ const MODE_TOOLTIPS: Record<Mode, string> = {
   debug: 'Hypothesis → Instrument → Reproduce → Minimal fix.'
 };
 
-const STORAGE_KEY = 'agent-k.chat.history';
+function shortModelName(raw: string): string {
+  const base = (raw || '').split('/').pop() || raw || 'model';
+  return base.length > 32 ? `${base.slice(0, 30)}…` : base;
+}
+
+/** Dedupe session file edits by path (latest wins) */
+function collectSessionFileEdits(messages: ChatMessage[]): FileEditPreview[] {
+  const map = new Map<string, FileEditPreview>();
+  for (const m of messages) {
+    if (!Array.isArray(m.fileEdits)) continue;
+    for (const fe of m.fileEdits) {
+      const key = (fe.absPath || fe.path || '').replace(/\\/g, '/');
+      if (!key) continue;
+      map.set(key, fe);
+    }
+  }
+  return [...map.values()];
+}
+
+const sessionStore = new ChatSessionStore();
+
+function sanitizeLoadedMessages(parsed: ChatMessage[]): ChatMessage[] {
+  return parsed
+    .map((m) => {
+      if (m.role === 'user') {
+        let content = stripHarnessForDisplay(m.content);
+        content = stripResynthForDisplay(content);
+        return { ...m, content };
+      }
+      if (m.role === 'assistant') {
+        return { ...m, content: stripFakeToolMarkup(m.content) };
+      }
+      return m;
+    })
+    .map((m) =>
+      m.role === 'assistant' && m.status === 'streaming'
+        ? {
+            ...m,
+            status: m.content?.trim() ? 'complete' : 'error',
+            content: m.content?.trim() || '(interrupted)'
+          }
+        : m
+    );
+}
 
 export function ChatApp() {
+  const [sessionId, setSessionId] = useState(() => sessionStore.loadActive().id);
+  const [sessionList, setSessionList] = useState<ChatSessionMeta[]>(() => sessionStore.list());
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (!stored) return [];
-      const parsed = JSON.parse(stored) as ChatMessage[];
-      // 이전 버전에서 harness/resynth 래퍼가 user content에 저장된 이력 정리
-      return parsed.map((m) => {
-        if (m.role === 'user') {
-          let content = stripHarnessForDisplay(m.content);
-          content = stripResynthForDisplay(content);
-          return { ...m, content };
-        }
-        // Strip fake [todo_write] markup left in saved assistant bubbles
-        if (m.role === 'assistant') {
-          return { ...m, content: stripFakeToolMarkup(m.content) };
-        }
-        return m;
-      }).map((m) =>
-        m.role === 'assistant' && m.status === 'streaming'
-          ? { ...m, status: m.content?.trim() ? 'complete' : 'error', content: m.content?.trim() || '(interrupted)' }
-          : m
-      );
-    } catch {
-      return [];
-    }
+    const active = sessionStore.loadActive();
+    return sanitizeLoadedMessages(active.messages || []);
   });
-  const [mode, setMode] = useState<Mode>('agent');
+  const [mode, setMode] = useState<Mode>(() => sessionStore.loadActive().mode || 'agent');
   const [error, setError] = useState<string | null>(null);
 
   // HARB: 중급 모델 UX 상태바
@@ -141,8 +175,9 @@ export function ChatApp() {
   const [reproduceSteps, setReproduceSteps] = useState<{ order: number; description: string }[]>([]);
   const [reproduceHypothesisId, setReproduceHypothesisId] = useState('debug');
 
-  // Settings / Design / Review / Artifacts
+  // Settings / History / Design / Review / Artifacts
   const [showSettings, setShowSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'models' | 'secrets' | 'permission' | 'queue' | 'harness' | 'context' | 'mcp' | 'features' | 'privacy'>('models');
   const [showDesignMode, setShowDesignMode] = useState(false);
   const [showReview, setShowReview] = useState(false);
@@ -161,10 +196,48 @@ export function ChatApp() {
   const [queueTick, setQueueTick] = useState(0);
   const stopHandlerRef = useRef<StopHandler | null>(null);
 
+  const [providerModel, setProviderModel] = useState(() =>
+    String(configManager.get('agent-k.provider.model') || 'mlx-community/Qwen3.6-35B-A3B-4bit')
+  );
+  const [providerBaseUrl, setProviderBaseUrl] = useState(() =>
+    String(configManager.get('agent-k.provider.baseUrl') || 'http://127.0.0.1:52415')
+  );
+  const [providerApiKey, setProviderApiKey] = useState(() =>
+    String(configManager.get('agent-k.provider.apiKey') || '')
+  );
+  const [providerType, setProviderType] = useState(() =>
+    String(configManager.get('agent-k.provider.type') || 'litellm')
+  );
+  const [registeredModels, setRegisteredModels] = useState<string[]>(() => getRegisteredModels());
+  const [modelContextBudget, setModelContextBudget] = useState<number>(() =>
+    Number(configManager.get('agent-k.context.budget')) || 100000
+  );
+  const [modelContextSource, setModelContextSource] = useState<string>('fallback');
+
+  useEffect(() => {
+    const unsubs = [
+      configManager.on('agent-k.provider.model', (_k, v) => {
+        setProviderModel(String(v || ''));
+      }),
+      configManager.on('agent-k.provider.baseUrl', (_k, v) => {
+        setProviderBaseUrl(String(v || ''));
+      }),
+      configManager.on('agent-k.provider.apiKey', (_k, v) => {
+        setProviderApiKey(String(v || ''));
+      }),
+      configManager.on('agent-k.provider.models', () => {
+        setRegisteredModels(getRegisteredModels());
+      })
+    ];
+    // One-time migrate / prune bloated legacy catalog
+    setRegisteredModels(getRegisteredModels());
+    return () => unsubs.forEach((u) => u());
+  }, []);
+
   const { streaming, sendMessage, stop, regenerate } = useChatStream({
-    baseUrl: configManager.get('agent-k.provider.baseUrl') || 'http://127.0.0.1:52415',
-    model: configManager.get('agent-k.provider.model') || 'mlx-community/Qwen3.6-35B-A3B-4bit',
-    apiKey: configManager.get('agent-k.provider.apiKey') || undefined
+    baseUrl: providerBaseUrl || 'http://127.0.0.1:52415',
+    model: providerModel,
+    apiKey: providerApiKey || undefined
   });
 
   const queuedMessageRef = useRef<string | null>(null);
@@ -173,6 +246,63 @@ export function ChatApp() {
   messagesRef.current = messages;
   /** Bumped on stop/resynth so in-flight handleSend (awaiting harness) is abandoned. */
   const sendEpochRef = useRef(0);
+  /** Sticky bottom scroll — pause if user scrolls up (Cursor-like) */
+  const messageListRef = useRef<HTMLDivElement | null>(null);
+  const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const stickToBottomRef = useRef(true);
+
+  const scrollMessagesToBottom = useCallback((force = false) => {
+    if (!force && !stickToBottomRef.current) return;
+    const list = messageListRef.current;
+    const end = messageEndRef.current;
+    const run = () => {
+      if (!force && !stickToBottomRef.current) return;
+      if (end) {
+        end.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' });
+      }
+      if (list) {
+        list.scrollTop = list.scrollHeight;
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(run));
+  }, []);
+
+  const onMessageListScroll = useCallback(() => {
+    const el = messageListRef.current;
+    if (!el) return;
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = gap < 96;
+  }, []);
+
+  // Pin to bottom on new messages / streaming tokens
+  useEffect(() => {
+    if (streaming) stickToBottomRef.current = true;
+    scrollMessagesToBottom(streaming);
+  }, [messages, streaming, scrollMessagesToBottom]);
+
+  // Follow DOM growth (Thought / markdown) while streaming
+  useEffect(() => {
+    const list = messageListRef.current;
+    if (!list) return;
+
+    const nudge = () => {
+      if (stickToBottomRef.current || streaming) scrollMessagesToBottom(true);
+    };
+
+    const mo = new MutationObserver(nudge);
+    mo.observe(list, { childList: true, subtree: true, characterData: true });
+
+    let ro: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(nudge);
+      ro.observe(list);
+    }
+
+    return () => {
+      mo.disconnect();
+      ro?.disconnect();
+    };
+  }, [streaming, scrollMessagesToBottom]);
 
   useEffect(() => {
     return msgQueue.subscribe(() => setQueueTick((t) => t + 1));
@@ -182,34 +312,84 @@ export function ChatApp() {
     stopHandlerRef.current = new StopHandler({ abort: stop, queue: msgQueue });
   }, [stop, msgQueue]);
 
-  /**
-   * Clear history: stop stream if needed, empty UI + localStorage, clear error.
-   * Allowed while streaming (stop first, then clear).
-   */
-  const handleClearHistory = useCallback(() => {
+  /** New chat: archive current transcript, start empty session. */
+  const handleNewChat = useCallback(() => {
     if (streaming) {
       stopHandlerRef.current?.stop('user_stop');
-      sendEpochRef.current += 1; // abandon in-flight harness/send
+      sendEpochRef.current += 1;
     }
+    if (messages.length === 0) {
+      setShowHistory(false);
+      setError(null);
+      return;
+    }
+    sessionStore.saveMessages(sessionId, messages, mode);
+    const next = sessionStore.createEmpty(mode);
+    setSessionId(next.id);
     setMessages([]);
     stepStartRef.current = {};
-    localStorage.removeItem(STORAGE_KEY);
+    setSessionList(sessionStore.list());
     setError(null);
-  }, [streaming]);
+    setShowHistory(false);
+  }, [streaming, messages, sessionId, mode]);
 
-  /** New chat = same transcript reset as Clear */
-  const handleNewChat = useCallback(() => {
-    handleClearHistory();
-  }, [handleClearHistory]);
+  const handleOpenSession = useCallback(
+    (id: string) => {
+      if (id === sessionId) {
+        setShowHistory(false);
+        return;
+      }
+      if (streaming) {
+        stopHandlerRef.current?.stop('user_stop');
+        sendEpochRef.current += 1;
+      }
+      if (messages.length > 0) {
+        sessionStore.saveMessages(sessionId, messages, mode);
+      }
+      const loaded = sessionStore.switchTo(id);
+      if (!loaded) return;
+      setSessionId(loaded.id);
+      setMessages(sanitizeLoadedMessages(loaded.messages || []));
+      setMode(loaded.mode || 'agent');
+      stepStartRef.current = {};
+      setSessionList(sessionStore.list());
+      setError(null);
+      setShowHistory(false);
+    },
+    [sessionId, streaming, messages, mode]
+  );
 
-  // Host commands → panel toggles + session clear/new (RW-C7-05/06/10)
+  const handleDeleteSession = useCallback(
+    (id: string) => {
+      if (streaming && id === sessionId) {
+        stopHandlerRef.current?.stop('user_stop');
+        sendEpochRef.current += 1;
+      }
+      const next = sessionStore.delete(id);
+      setSessionList(sessionStore.list());
+      if (!next) return;
+      if (id === sessionId) {
+        setSessionId(next.id);
+        setMessages(sanitizeLoadedMessages(next.messages || []));
+        setMode(next.mode || 'agent');
+        stepStartRef.current = {};
+        setError(null);
+      }
+    },
+    [streaming, sessionId]
+  );
+
+  // Host commands → panel toggles + session.new
   useEffect(() => {
     const onMsg = (event: MessageEvent) => {
       const data = event.data;
       if (!data || typeof data !== 'object') return;
-      // Title-bar Clear / New posts these; mirror header button handlers
-      if (data.type === 'session.clear' || data.type === 'session.new') {
-        handleClearHistory();
+      if (data.type === 'session.new') {
+        handleNewChat();
+        return;
+      }
+      if (data.type === 'ui.history.open') {
+        setShowHistory(true);
         return;
       }
       if (data.type === 'ui.design.open') setShowDesignMode(true);
@@ -236,23 +416,31 @@ export function ChatApp() {
         if (typeof data.tab === 'string') setSettingsTab(data.tab);
         setShowSettings(true);
       }
+      if (data.type === 'model.context') {
+        const n = Number(data.maxInputTokens);
+        if (Number.isFinite(n) && n > 0) {
+          setModelContextBudget(Math.floor(n));
+        }
+        if (typeof data.source === 'string') {
+          setModelContextSource(data.source);
+        }
+        if (typeof data.providerType === 'string') {
+          setProviderType(data.providerType);
+        }
+      }
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
-  }, [handleClearHistory]);
+  }, [handleNewChat]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-  }, [messages]);
-
-  // Process queued message when streaming completes (legacy single-slot + MessageQueue queue_only)
-  useEffect(() => {
-    if (!streaming && queuedMessageRef.current) {
-      const queued = queuedMessageRef.current;
-      queuedMessageRef.current = null;
-      handleSend(queued, []);
-    }
-  }, [streaming]);
+    const delay = streaming ? 400 : 0;
+    const t = window.setTimeout(() => {
+      sessionStore.saveMessages(sessionId, messages, mode);
+      setSessionList(sessionStore.list());
+    }, delay);
+    return () => window.clearTimeout(t);
+  }, [messages, sessionId, mode, streaming]);
 
   // RW-C6-05-R2: mount ReproduceUI when tool wait starts (callback + poll)
   useEffect(() => {
@@ -352,27 +540,27 @@ export function ChatApp() {
     });
   }, [debugController]);
 
-  // Reset debug when switching away from debug mode
+  // Reset debug chrome when leaving debug (keep chat messages)
   useEffect(() => {
     if (mode !== 'debug') {
       debugController.reset();
     }
-  }, [mode]);
+  }, [mode, debugController]);
 
-  // Reset plan when switching away from plan mode
+  // Reset plan chrome when leaving plan (keep chat messages)
   useEffect(() => {
     if (mode !== 'plan') {
       planController.reset();
-      askQuestionTool.clear();
       setPlanStage('research');
       setShowClarifying(false);
       setShowPlanEditor(false);
       setPendingQuestions([]);
+      // Don't cancel host ask_question waiters that belong to agent turns
     } else {
-      // Start plan flow on entering plan mode (RW-C5-01 AC1)
+      // Entering plan: start stage machine without wiping transcript
       planController.run('Planning session started');
     }
-  }, [mode]);
+  }, [mode, planController]);
 
   /**
    * Remove orphan empty streaming assistants; finalize non-empty ones.
@@ -439,8 +627,12 @@ export function ChatApp() {
       setUxState((prev) => ({
         ...prev,
         tier: 'A',
+        modelName: shortModelName(
+          configManager.get('agent-k.provider.model') || prev.modelName
+        ),
         prefetchCount: fileHits || (harnessCtx.prefetchRaw ? 1 : 0),
-        prefetchLatencyMs: Date.now() - t0
+        prefetchLatencyMs: Date.now() - t0,
+        contextTokens: harnessCtx.assembly?.usedTokens || prev.contextTokens
       }));
       setStuckEvent(null);
     } catch {
@@ -481,6 +673,21 @@ export function ChatApp() {
 
     // AgentLoop status → toolStatus (never mix into content)
     let sawProse = false;
+    /** After first tool call, further content is the final answer (not the opening lead) */
+    let toolsStarted = false;
+
+    const TOOL_KINDS = new Set([
+      'searching',
+      'reading',
+      'editing',
+      'running',
+      'browsing',
+      'asking'
+    ]);
+
+    const sealLeadFromMessage = (msg: ChatMessage): ChatMessage => {
+      return sealBodyBeforeTools(msg, turnNumberRef.current || 1);
+    };
 
     sendMessage(
       payload,
@@ -511,12 +718,125 @@ export function ChatApp() {
           setAwaitingUser(true);
           return;
         }
+        // Tools began — freeze a short *model* ack as openingLead (never a full dump)
+        if (delta.clearContent) {
+          toolsStarted = true;
+          setMessages((prev) => {
+            const lastIdx = prev.length - 1;
+            if (
+              lastIdx >= 0 &&
+              prev[lastIdx].role === 'assistant' &&
+              prev[lastIdx].status === 'streaming'
+            ) {
+              const newMsgs = [...prev];
+              newMsgs[lastIdx] = sealLeadFromMessage(newMsgs[lastIdx]);
+              return newMsgs;
+            }
+            return prev;
+          });
+          return;
+        }
+        // Cursor-style file edit cards
+        if (delta.fileEdit) {
+          const fe = {
+            ...delta.fileEdit,
+            turn: delta.fileEdit.turn || turnNumberRef.current || 1
+          };
+          setMessages((prev) => {
+            const lastIdx = prev.length - 1;
+            if (
+              lastIdx < 0 ||
+              prev[lastIdx].role !== 'assistant' ||
+              prev[lastIdx].status !== 'streaming'
+            ) {
+              return prev;
+            }
+            const msg = prev[lastIdx];
+            const fileEdits = [...(msg.fileEdits || []), fe];
+            const copy = [...prev];
+            copy[lastIdx] = { ...msg, fileEdits };
+            return copy;
+          });
+          return;
+        }
+        // Cursor-style terminal run cards (live + final)
+        if (delta.terminalRun) {
+          const ev = delta.terminalRun;
+          setMessages((prev) => {
+            const lastIdx = prev.length - 1;
+            if (
+              lastIdx < 0 ||
+              prev[lastIdx].role !== 'assistant' ||
+              prev[lastIdx].status !== 'streaming'
+            ) {
+              return prev;
+            }
+            const msg = prev[lastIdx];
+            const runs = [...(msg.terminalRuns || [])];
+            const idx = runs.findIndex((r) => r.id === ev.id);
+            const turn = ev.turn || turnNumberRef.current || 1;
+            if (ev.phase === 'start' || idx < 0) {
+              const next = {
+                id: ev.id,
+                command: ev.command || '',
+                description: ev.description,
+                cwd: ev.cwd,
+                status: (ev.status || 'running') as 'running' | 'done' | 'error',
+                stdout: '',
+                stderr: '',
+                turn
+              };
+              if (idx >= 0) runs[idx] = { ...runs[idx], ...next };
+              else runs.push(next);
+            } else if (ev.phase === 'chunk') {
+              const cur = runs[idx];
+              if (ev.stream === 'stderr') {
+                runs[idx] = {
+                  ...cur,
+                  stderr: (cur.stderr || '') + (ev.chunk || '')
+                };
+              } else {
+                runs[idx] = {
+                  ...cur,
+                  stdout: (cur.stdout || '') + (ev.chunk || '')
+                };
+              }
+            } else if (ev.phase === 'end') {
+              const cur = runs[idx];
+              // Prefer streamed buffers; fall back to full end chunk dump
+              let stdout = cur.stdout || '';
+              let stderr = cur.stderr || '';
+              if (!stdout && !stderr && ev.chunk) {
+                stdout = ev.chunk;
+              }
+              runs[idx] = {
+                ...cur,
+                command: ev.command || cur.command,
+                cwd: ev.cwd || cur.cwd,
+                status: ev.status || (ev.error ? 'error' : 'done'),
+                exitCode: ev.exitCode,
+                error: ev.error,
+                durationMs: ev.durationMs,
+                stdout,
+                stderr,
+                turn: ev.turn || cur.turn
+              };
+            }
+            const copy = [...prev];
+            copy[lastIdx] = { ...msg, terminalRuns: runs };
+            return copy;
+          });
+          return;
+        }
         // Cursor-style: append/upsert steps on the streaming assistant bubble
         if (delta.timeline) {
           const tl = delta.timeline;
-          // Cursor-quiet: drop Planning/Done noise; keep thinking done so turns collapse
-          if (tl.kind === 'planning' || tl.kind === 'done') {
+          // Keep planning (Planning next moves); drop only terminal "done" chrome
+          if (tl.kind === 'done') {
             return;
+          }
+          if (TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running') {
+            toolsStarted = true;
           }
           const id =
             tl.id ||
@@ -536,7 +856,10 @@ export function ChatApp() {
             ) {
               return prev;
             }
-            const msg = prev[lastIdx];
+            let msg = prev[lastIdx];
+            if (TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running') {
+              msg = sealLeadFromMessage(msg);
+            }
             const steps = [...(msg.steps || [])];
             const idx = steps.findIndex((s) => s.id === id);
             const nextStep = {
@@ -614,11 +937,25 @@ export function ChatApp() {
             const lastIdx = prev.length - 1;
             if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
               const newMsgs = [...prev];
-              newMsgs[lastIdx] = {
-                ...newMsgs[lastIdx],
-                toolStatus: undefined,
-                content: (newMsgs[lastIdx].content || '') + delta.content!
-              };
+              const msg = newMsgs[lastIdx];
+              const hasToolStep = (msg.steps || []).some((s) => TOOL_KINDS.has(s.kind));
+              if (!toolsStarted && !hasToolStep) {
+                // Early prose: short ack → openingLead; overflow / markdown → body
+                const draft = `${msg.openingLead || ''}${msg.content || ''}${delta.content!}`;
+                const { lead, rest } = splitStreamingLead(draft);
+                newMsgs[lastIdx] = {
+                  ...msg,
+                  toolStatus: undefined,
+                  openingLead: lead || undefined,
+                  content: rest
+                };
+              } else {
+                newMsgs[lastIdx] = {
+                  ...msg,
+                  toolStatus: undefined,
+                  content: (msg.content || '') + delta.content!
+                };
+              }
               return newMsgs;
             }
             return prev;
@@ -642,11 +979,18 @@ export function ChatApp() {
             const steps = prevSteps.map((s) =>
               s.itemStatus === 'running' ? { ...s, itemStatus: 'done' as const } : s
             );
+            // Repair bad leads + optionally promote a short ack from the final answer
+            const promoted = sanitizeOpeningLead(
+              newMsgs[lastIdx].openingLead,
+              content.trim()
+            );
+            const finalContent = promoted.content.trim() || content.trim();
             newMsgs[lastIdx] = {
               ...newMsgs[lastIdx],
-              status: content.trim() ? 'complete' : 'error',
+              status: finalContent || promoted.lead ? 'complete' : 'error',
               toolStatus: undefined,
-              content: content.trim() || '(no response)',
+              openingLead: promoted.lead || undefined,
+              content: finalContent || '(no response)',
               steps
             };
             return newMsgs;
@@ -687,16 +1031,6 @@ export function ChatApp() {
     );
   }, [mode, sendMessage, planStage, planController, cleanupStreamingAssistants]);
 
-  /** Alt+Enter: Queue-only — no abort (RW-P0-04) */
-  const handleQueueMessage = useCallback((text: string) => {
-    msgQueue.enqueue(text, 'queue_only');
-    if (!streaming) {
-      // Idle: flush immediately as normal send
-      const drained = msgQueue.drain();
-      if (drained[0]) handleSend(drained.join('\n'), []);
-    }
-  }, [msgQueue, streaming, handleSend]);
-
   /**
    * Enter while streaming: Interrupt & Resynthesize (RW-P0-04).
    * UI bubble = user typed text only; API gets synthesizeInstructions wrapper.
@@ -704,24 +1038,46 @@ export function ChatApp() {
    */
   const handleResynthesize = useCallback((text: string) => {
     stopHandlerRef.current?.interruptForResynthesize();
-    // Invalidate any handleSend still awaiting harness from a prior turn
     sendEpochRef.current += 1;
     const drained = msgQueue.drain();
-    // Do NOT enqueue resynthesize into MessageQueue — that left stuck "Resynth" badges
-    // (onProcess is unused; ChatApp drives resynth directly).
     const instruction = [text, ...drained].filter(Boolean).join('\n');
 
-    const cleaned = cleanupStreamingAssistants(messagesRef.current);
-    setMessages(cleaned);
+    const raw = messagesRef.current;
+    const last = raw[raw.length - 1];
+    const interruptedExtra =
+      last?.role === 'assistant'
+        ? [last.openingLead, last.content].filter((s) => Boolean(s?.trim())).join('\n')
+        : '';
 
-    // Abort path with no new instruction: just clean UI so composer is usable
+    // UI: finalize or drop streaming assistant
+    const cleaned = cleanupStreamingAssistants(raw);
+    setMessages(cleaned);
+    messagesRef.current = cleaned;
+
     if (!instruction.trim()) return;
 
-    const agentMsgs: AgentMessage[] = cleaned.map((m) => ({
-      role: m.role as AgentMessage['role'],
-      content: m.content,
-      name: undefined
-    }));
+    // API synthesis input: history without streaming bubble, then interrupted assistant
+    // (even if empty — so original user request is still found as last user)
+    const prior = raw.filter(
+      (m) => !(m.role === 'assistant' && m.status === 'streaming')
+    );
+    const agentMsgs: AgentMessage[] = [
+      ...prior.map((m) => ({
+        role: m.role as AgentMessage['role'],
+        content: m.content,
+        name: undefined
+      })),
+      ...(last?.role === 'assistant'
+        ? [
+            {
+              role: 'assistant' as const,
+              content: interruptedExtra || '(interrupted before any text)',
+              name: undefined
+            }
+          ]
+        : [])
+    ];
+
     const rebuilt = buildResynthesizeMessages(
       agentMsgs,
       instruction,
@@ -730,13 +1086,47 @@ export function ChatApp() {
     );
     const synthesisText = rebuilt[rebuilt.length - 1]?.content || instruction;
 
-    // Defer send so abort settles; display=instruction, API=wrapper
     const epochAtSchedule = sendEpochRef.current;
     setTimeout(() => {
-      if (epochAtSchedule !== sendEpochRef.current) return; // another interrupt won
+      if (epochAtSchedule !== sendEpochRef.current) return;
       handleSend(instruction, [], { apiUserContent: synthesisText });
     }, 50);
   }, [msgQueue, mode, handleSend, cleanupStreamingAssistants]);
+
+  /** Alt+Enter: Queue-only — no abort (RW-P0-04) */
+  const handleQueueMessage = useCallback((text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    msgQueue.enqueue(trimmed, 'queue_only');
+    // While streaming: stay queued until turn ends (or Apply / Enter interrupt).
+    // Idle: flush immediately as a normal send.
+    if (!streaming) {
+      const drained = msgQueue.drain();
+      if (drained[0]) handleSend(drained.join('\n\n'), []);
+    }
+  }, [msgQueue, streaming, handleSend]);
+
+  // Flush Alt+Enter queue when the current stream finishes
+  useEffect(() => {
+    if (streaming) return;
+    if (msgQueue.getQueued().length === 0) return;
+    const t = window.setTimeout(() => {
+      const drained = msgQueue.drain();
+      if (drained.length > 0) {
+        handleSend(drained.join('\n\n'), []);
+      }
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [streaming, msgQueue, handleSend]);
+
+  // Legacy single-slot queue (plan approve etc.)
+  useEffect(() => {
+    if (!streaming && queuedMessageRef.current) {
+      const queued = queuedMessageRef.current;
+      queuedMessageRef.current = null;
+      handleSend(queued, []);
+    }
+  }, [streaming, handleSend]);
 
   /** Stop button — abort + clear streaming orphans; composer accepts new messages */
   const handleStop = useCallback(() => {
@@ -755,8 +1145,8 @@ export function ChatApp() {
     }
   }, [msgQueue, handleResynthesize]);
 
-  const handleQueueCancel = useCallback((_messageId: string) => {
-    msgQueue.cancelQueued();
+  const handleQueueCancel = useCallback((messageId: string) => {
+    msgQueue.cancelQueued(messageId);
   }, [msgQueue]);
 
   const acceptFix = useRef(new AcceptFix()).current;
@@ -812,13 +1202,20 @@ export function ChatApp() {
   }, []);
 
   const handleModeChange = useCallback((newMode: Mode) => {
-    if (newMode !== mode) {
-      setMode(newMode);
-      setMessages([]);
-      stepStartRef.current = {};
-      setShowSettings(false);
+    if (newMode === mode) return;
+    // Shared transcript across modes — only tools/prompts change.
+    // Stop in-flight stream so the next send uses the new mode cleanly.
+    if (streaming) {
+      stopHandlerRef.current?.stop('user_stop');
+      sendEpochRef.current += 1;
+      setMessages(cleanupStreamingAssistants);
     }
-  }, [mode]);
+    setMode(newMode);
+    setShowSettings(false);
+    setAwaitingUser(false);
+    setShowPlanEditor(false);
+    setError(null);
+  }, [mode, streaming, cleanupStreamingAssistants]);
 
   // ─── C5-C7 핸들러 ─────────────────────────────────────
 
@@ -871,26 +1268,122 @@ export function ChatApp() {
 
   /** Plan: 에디터 저장 */
   const handlePlanSave = useCallback((content: string) => {
-    const doc = planController.getState().planDocument;
-    if (doc) {
-      planController.setPlanDocument({ ...doc, content });
-      planController.moveToReview().catch(() => {});
-    }
+    const existing = planController.getState().planDocument;
+    const doc = existing || {
+      slug: 'plan-draft',
+      title: 'Plan',
+      content: '',
+      sections: [],
+      todoCount: 0,
+      createdAt: Date.now()
+    };
+    void planController.setPlanDocument({ ...doc, content }).then(() => {
+      void planController.moveToReview().catch((e) => {
+        setError(e instanceof Error ? e.message : 'Review로 이동하지 못했습니다.');
+      });
+    });
     setShowPlanEditor(false);
+    setPlanStage('review');
   }, [planController]);
 
-  /** Plan: 에디터 취소 */
+  /** Plan: 에디터 취소 — 단계만 닫기 (리서치 초기화하지 않음) */
   const handlePlanCancel = useCallback(() => {
     setShowPlanEditor(false);
-    planController.reset();
-    setPlanStage('research');
+  }, []);
+
+  /** Plan: 스테이지 클릭 — 컨트롤러로 이동 + 해당 UI 열기 */
+  const handleStageClick = useCallback((stage: PlanStage) => {
+    const result = planController.goToStage(stage);
+    if (!result.ok) {
+      setError(result.error || '이 단계로 이동할 수 없습니다.');
+      return;
+    }
+    setPlanStage(stage);
+    setError(null);
+    setShowClarifying(false);
+    setShowPlanEditor(false);
+
+    if (stage === 'questions') {
+      if (planController.getQuestions().length === 0) {
+        setError('아직 질문이 없습니다. Research에서 탐색을 먼저 진행하세요.');
+      } else {
+        setShowClarifying(true);
+      }
+      return;
+    }
+
+    if (stage === 'planning') {
+      // Ensure a draft plan exists so the editor can save
+      if (!planController.getState().planDocument) {
+        void planController.setPlanDocument({
+          slug: 'plan-draft',
+          title: 'Plan',
+          content: [
+            '# Plan',
+            '',
+            '## Context',
+            '',
+            '(Research 결과를 여기에 요약하세요)',
+            '',
+            '## Architecture',
+            '',
+            '```mermaid',
+            'flowchart TD',
+            '  A[Start] --> B[Plan]',
+            '```',
+            '',
+            '## TODOs',
+            '',
+            '- [ ] Step 1',
+            '',
+            '## Risks',
+            '',
+            '- TBD',
+            '',
+            '## Approval',
+            '',
+            '- [ ] Approved',
+            ''
+          ].join('\n'),
+          sections: [],
+          todoCount: 1,
+          createdAt: Date.now()
+        });
+      }
+      setShowPlanEditor(true);
+      return;
+    }
+
+    if (stage === 'review') {
+      if (!planController.getState().planDocument) {
+        setError('아직 Plan 문서가 없습니다. 3. Plan에서 먼저 초안을 작성하세요.');
+        return;
+      }
+      setShowPlanEditor(true);
+      return;
+    }
+
+    if (stage === 'research') {
+      setError(null);
+      return;
+    }
+
+    if (stage === 'build') {
+      // goToStage already validated / fired build-ready
+      return;
+    }
   }, [planController]);
 
-  /** Plan: 스테이지 클릭 */
-  const handleStageClick = useCallback((stage: PlanStage) => {
-    if (stage === 'questions') setShowClarifying(true);
-    if (stage === 'planning' || stage === 'review') setShowPlanEditor(true);
-  }, []);
+  /** Debug: 타임라인 단계 클릭 */
+  const handleDebugStageClick = useCallback((stage: DebugStage) => {
+    const result = debugController.goToStage(stage);
+    if (!result.ok) {
+      setError(result.error || '이 단계로 이동할 수 없습니다.');
+      return;
+    }
+    setError(null);
+    setDebugTick((t) => t + 1);
+  }, [debugController]);
 
   /** Debug: 가설 선택 → 계측 단계 진입 (RW-C6-01) */
   const handleSelectHypothesis = useCallback((id: string) => {
@@ -906,38 +1399,136 @@ export function ChatApp() {
   const handleToggleSettings = useCallback((e?: React.MouseEvent) => {
     e?.preventDefault();
     e?.stopPropagation();
-    setShowSettings((prev) => {
-      const next = !prev;
-      console.log('[Agent K] Settings toggle →', next);
-      return next;
-    });
+    setShowHistory(false);
+    setShowSettings((prev) => !prev);
   }, []);
 
   const handleCloseSettings = useCallback(() => {
     setShowSettings(false);
+    // Settings may have changed provider/model — refresh context window
+    setProviderType(String(configManager.get('agent-k.provider.type') || 'litellm'));
+    setProviderBaseUrl(String(configManager.get('agent-k.provider.baseUrl') || providerBaseUrl));
+    setProviderApiKey(String(configManager.get('agent-k.provider.apiKey') || ''));
+    setProviderModel(String(configManager.get('agent-k.provider.model') || providerModel));
+    setRegisteredModels(getRegisteredModels());
+  }, [providerBaseUrl, providerModel]);
+
+  const handleToggleHistory = useCallback((e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    setShowSettings(false);
+    setShowHistory((prev) => !prev);
   }, []);
+
+  const handleCloseHistory = useCallback(() => {
+    setShowHistory(false);
+  }, []);
+
+  const handleOpenFile = useCallback((filePath: string) => {
+    try {
+      const api =
+        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      api?.postMessage?.({ type: 'file.open', path: filePath });
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const requestModelContext = useCallback(() => {
+    try {
+      const api =
+        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      api?.postMessage?.({
+        type: 'model.context.refresh',
+        providerType:
+          providerType || String(configManager.get('agent-k.provider.type') || 'litellm'),
+        baseUrl: providerBaseUrl,
+        apiKey: providerApiKey || undefined,
+        model: providerModel
+      });
+    } catch {
+      /* ignore */
+    }
+  }, [providerType, providerBaseUrl, providerApiKey, providerModel]);
+
+  useEffect(() => {
+    requestModelContext();
+  }, [requestModelContext]);
+
+  const modelLabel = shortModelName(providerModel);
+
+  const handleModelChange = useCallback((next: string) => {
+    if (!next) return;
+    persistProviderModel(next);
+    setProviderModel(next);
+  }, []);
+
+  const composerModelOptions = useMemo(() => {
+    const ids = [...registeredModels];
+    if (providerModel && !ids.includes(providerModel)) ids.unshift(providerModel);
+    return ids;
+  }, [registeredModels, providerModel]);
+
+  const sessionFileEdits = useMemo(
+    () => collectSessionFileEdits(messages),
+    [messages]
+  );
+
+  const contextBudget = modelContextBudget || modeRegistry.getModeConfig(mode).contextBudget || 100000;
+  const contextUsagePercent = Math.min(
+    100,
+    Math.round(((uxState.contextTokens || 0) / contextBudget) * 100)
+  );
+  const contextUsageLabel =
+    uxState.contextTokens > 0
+      ? `Context: ${contextUsagePercent}% used · ~${uxState.contextTokens.toLocaleString()} / ${contextBudget.toLocaleString()} tokens`
+      : `Context: ${contextBudget.toLocaleString()} tokens (${providerType}${modelContextSource !== 'provider' ? ` · ${modelContextSource}` : ''})`;
+
+  const handleUndoAllEdits = useCallback(() => {
+    const withCp = sessionFileEdits.filter((f) => f.checkpointId);
+    if (!withCp.length) {
+      setError('되돌릴 체크포인트가 없습니다.');
+      return;
+    }
+    // Earliest checkpoint undoes the whole edit batch for this session
+    const earliest = withCp[0].checkpointId!;
+    try {
+      const api =
+        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      api?.postMessage?.({ type: 'checkpoint.restore', id: earliest });
+      setMessages((prev) =>
+        prev.map((m) => (m.fileEdits?.length ? { ...m, fileEdits: [] } : m))
+      );
+    } catch {
+      setError('Undo All 요청에 실패했습니다.');
+    }
+  }, [sessionFileEdits]);
+
+  const handleReviewEdits = useCallback(() => {
+    if (!sessionFileEdits.length) return;
+    // Open first changed file; list is already expandable in the bar
+    const first = sessionFileEdits[0];
+    handleOpenFile(first.absPath || first.path);
+  }, [sessionFileEdits, handleOpenFile]);
 
   // ─── Render ────────────────────────────────────────────
   return (
     <div className="chat-container" data-ak-ui="v0.0.2">
       <header className="chat-header">
-        <ModeSelector
-          value={mode}
-          onChange={handleModeChange}
-          disabled={streaming}
-          labels={MODE_LABELS}
-          tooltips={MODE_TOOLTIPS}
-        />
+        <span className="chat-header-title" title="Agent K">
+          Agent K
+        </span>
         <div className="chat-actions">
-          <button type="button" onClick={handleNewChat} title="New Chat">
-            New
-          </button>
           <button
             type="button"
-            onClick={handleClearHistory}
-            title="Clear History"
+            onClick={handleToggleHistory}
+            title="Chat History"
+            aria-pressed={showHistory}
           >
-            Clear
+            History
+          </button>
+          <button type="button" onClick={handleNewChat} title="New Chat">
+            New
           </button>
           <button
             type="button"
@@ -959,15 +1550,6 @@ export function ChatApp() {
             setStuckEvent(null);
           }
         }}
-      />
-
-      {/* RW-P0-04: Queue UI (queueTick forces re-render on subscribe) */}
-      <QueueUI
-        key={queueTick}
-        messages={msgQueue.state.messages}
-        isProcessing={msgQueue.state.isProcessing}
-        onApplyNow={handleQueueApplyNow}
-        onCancel={handleQueueCancel}
       />
 
       {showDesignMode && (
@@ -998,18 +1580,19 @@ export function ChatApp() {
         />
       )}
 
-      {/* ── Plan Mode Header ────────────────────────────── */}
+      {/* Mode chrome — optional banners above the SHARED message list */}
       {mode === 'plan' && (
-        <PlanModeHeader
-          currentStage={planStage}
-          stages={['research', 'questions', 'planning', 'review', 'build']}
-          onStageClick={handleStageClick}
-        />
+        <div className="mode-chrome">
+          <PlanModeHeader
+            currentStage={planStage}
+            stages={['research', 'questions', 'planning', 'review', 'build']}
+            onStageClick={handleStageClick}
+          />
+        </div>
       )}
 
-      {/* ── Debug Mode UI + Timeline (RW-C6-01 / RW-C6-03-R2) ── */}
       {mode === 'debug' && (
-        <>
+        <div className="mode-chrome mode-chrome--debug">
           <DebugTimeline
             currentStage={debugController.getStage()}
             hypothesisCount={debugController.getHypotheses().length}
@@ -1017,6 +1600,7 @@ export function ChatApp() {
             markersRemaining={debugController.remainingMarkers}
             verified={debugController.getState().verified}
             evidenceCount={debugController.getState().browserEvidenceCount}
+            onStageClick={handleDebugStageClick}
           />
           <DebugModeUI
             currentStage={debugController.getStage()}
@@ -1024,17 +1608,12 @@ export function ChatApp() {
             activeHypothesisId={debugController.getState().activeHypothesisId}
             onSelectHypothesis={handleSelectHypothesis}
           />
-        </>
+        </div>
       )}
 
       {/* ── Reproduce UI (RW-C6-05-R2) ── */}
       {showReproduce && (
-        <div style={{
-          position: 'sticky', top: 0, zIndex: 12,
-          padding: '8px 12px',
-          background: 'var(--vscode-sideBar-background, #252526)',
-          borderBottom: '1px solid rgba(239,68,68,0.35)'
-        }}>
+        <div className="mode-chrome">
           <ReproduceUI
             hypothesisId={reproduceHypothesisId}
             hypothesisTitle={reproduceHypothesisId}
@@ -1045,15 +1624,9 @@ export function ChatApp() {
         </div>
       )}
 
-      {/* ── Clarifying Questions Modal (RW-C5-02) ──────── */}
+      {/* ── Clarifying Questions (RW-C5-02) ──────── */}
       {showClarifying && pendingQuestions.length > 0 && (
-        <div style={{
-          position: 'sticky', top: 0, zIndex: 10,
-          padding: '8px 12px',
-          background: 'var(--vscode-sideBar-background, #252526)',
-          borderBottom: '1px solid rgba(250,204,21,0.2)',
-          maxHeight: '40vh', overflow: 'auto'
-        }}>
+        <div className="mode-chrome mode-chrome--questions">
           <ClarifyingQuestions
             questions={pendingQuestions.map(q => ({
               id: q.id,
@@ -1070,16 +1643,9 @@ export function ChatApp() {
         </div>
       )}
 
-      {/* ── Plan Editor Overlay (RW-C57-02-R2 / RW-C5-03-R2: Mermaid via PlanEditor) ── */}
-      {(showPlanEditor || (mode === 'plan' && (planStage === 'planning' || planStage === 'review'))) && (
-        <div style={{
-          position: 'absolute', top: 0, right: 0, bottom: 0, width: '50%',
-          minWidth: 320, zIndex: 15,
-          background: 'var(--vscode-editor-background, #1e1e1e)',
-          borderLeft: '1px solid var(--vscode-panel-border, #333)',
-          overflow: 'auto',
-          boxShadow: '-4px 0 12px rgba(0,0,0,0.3)'
-        }}>
+      {/* Plan editor: only when user opens it — never auto-split the shared chat */}
+      {showPlanEditor && (
+        <div className="plan-editor-overlay" role="dialog" aria-label="Plan editor">
           <PlanEditor
             document={planController.getState().planDocument || { slug: 'plan', title: 'Plan', content: '```mermaid\nflowchart TD\n  A[Start] --> B[Plan]\n```\n', sections: [], todoCount: 0, createdAt: Date.now() }}
             onSave={handlePlanSave}
@@ -1099,6 +1665,19 @@ export function ChatApp() {
         </div>
       )}
 
+      {showHistory && (
+        <div className="settings-overlay" role="dialog" aria-label="Chat history">
+          <HistoryPanel
+            sessions={sessionList}
+            currentId={sessionId}
+            onSelect={handleOpenSession}
+            onDelete={handleDeleteSession}
+            onNew={handleNewChat}
+            onClose={handleCloseHistory}
+          />
+        </div>
+      )}
+
       {error && (
         <div className="error-banner" role="alert">
           <span>{error}</span>
@@ -1107,12 +1686,17 @@ export function ChatApp() {
       )}
 
       {/*
-        Simple scrollable list (not VirtualList): fixed itemHeight virtualization
-        overlaps variable-height markdown/mermaid bubbles in the sidebar webview.
-        사이드바 웹뷰에서는 가변 높이 메시지에 고정-높이 VirtualList가 겹침을 유발하므로
-        일반 스크롤 리스트로 안정적으로 표시한다.
+        SHARED for all modes: one message list + one composer.
+        Mode only changes tools/prompts — not a separate chat window.
       */}
-      <div className="message-list" role="log" aria-live="polite" aria-relevant="additions">
+      <div
+        ref={messageListRef}
+        className="message-list"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        onScroll={onMessageListScroll}
+      >
         {messages.map((item) => (
           <MessageBubble
             key={item.id}
@@ -1122,145 +1706,304 @@ export function ChatApp() {
             onRetry={handleRetry}
             onDelete={handleDelete}
             onCopy={(content) => navigator.clipboard.writeText(content)}
+            onOpenFile={handleOpenFile}
           />
         ))}
+        {/* Anchor so scrollHeight always includes latest growth */}
+        <div ref={messageEndRef} aria-hidden className="message-list-end" />
       </div>
 
       <footer className="chat-footer">
+        {/* Queue stays above composer — never mixed into the message list */}
+        <QueueUI
+          key={queueTick}
+          messages={msgQueue.state.messages}
+          isProcessing={msgQueue.state.isProcessing}
+          onApplyNow={handleQueueApplyNow}
+          onCancel={handleQueueCancel}
+        />
+        <ChangedFilesBar
+          files={sessionFileEdits}
+          onOpenFile={handleOpenFile}
+          onUndoAll={handleUndoAllEdits}
+          onReview={handleReviewEdits}
+        />
         <Composer
           onSend={handleSend}
           disabled={streaming}
           onStop={handleStop}
           onRegenerate={() => {
             stepStartRef.current = {};
+            let toolsStarted = false;
+            const TOOL_KINDS = new Set([
+              'searching',
+              'reading',
+              'editing',
+              'running',
+              'browsing',
+              'asking'
+            ]);
+            const sealLeadFromMessage = (msg: ChatMessage): ChatMessage => {
+              return sealBodyBeforeTools(msg, turnNumberRef.current || 1);
+            };
             regenerate(
               messages,
               mode,
               (delta: StreamDelta) => {
+                if (delta.clearContent) {
+                  toolsStarted = true;
+                  setMessages((prev) => {
+                    const lastIdx = prev.length - 1;
+                    if (
+                      lastIdx >= 0 &&
+                      prev[lastIdx].role === 'assistant' &&
+                      prev[lastIdx].status === 'streaming'
+                    ) {
+                      const newMsgs = [...prev];
+                      newMsgs[lastIdx] = sealLeadFromMessage(newMsgs[lastIdx]);
+                      return newMsgs;
+                    }
+                    return prev;
+                  });
+                  return;
+                }
+                if (delta.fileEdit) {
+                  const fe = delta.fileEdit;
+                  setMessages((prev) => {
+                    const lastIdx = prev.length - 1;
+                    if (
+                      lastIdx < 0 ||
+                      prev[lastIdx].role !== 'assistant' ||
+                      prev[lastIdx].status !== 'streaming'
+                    ) {
+                      return prev;
+                    }
+                    const msg = prev[lastIdx];
+                    const fileEdits = [...(msg.fileEdits || []), fe];
+                    const copy = [...prev];
+                    copy[lastIdx] = { ...msg, fileEdits };
+                    return copy;
+                  });
+                  return;
+                }
+                if (delta.terminalRun) {
+                  const ev = delta.terminalRun;
+                  setMessages((prev) => {
+                    const lastIdx = prev.length - 1;
+                    if (
+                      lastIdx < 0 ||
+                      prev[lastIdx].role !== 'assistant' ||
+                      prev[lastIdx].status !== 'streaming'
+                    ) {
+                      return prev;
+                    }
+                    const msg = prev[lastIdx];
+                    const runs = [...(msg.terminalRuns || [])];
+                    const idx = runs.findIndex((r) => r.id === ev.id);
+                    const turn = ev.turn || turnNumberRef.current || 1;
+                    if (ev.phase === 'start' || idx < 0) {
+                      const next = {
+                        id: ev.id,
+                        command: ev.command || '',
+                        description: ev.description,
+                        cwd: ev.cwd,
+                        status: (ev.status || 'running') as 'running' | 'done' | 'error',
+                        stdout: '',
+                        stderr: '',
+                        turn
+                      };
+                      if (idx >= 0) runs[idx] = { ...runs[idx], ...next };
+                      else runs.push(next);
+                    } else if (ev.phase === 'chunk') {
+                      const cur = runs[idx];
+                      if (ev.stream === 'stderr') {
+                        runs[idx] = {
+                          ...cur,
+                          stderr: (cur.stderr || '') + (ev.chunk || '')
+                        };
+                      } else {
+                        runs[idx] = {
+                          ...cur,
+                          stdout: (cur.stdout || '') + (ev.chunk || '')
+                        };
+                      }
+                    } else if (ev.phase === 'end') {
+                      const cur = runs[idx];
+                      let stdout = cur.stdout || '';
+                      let stderr = cur.stderr || '';
+                      if (!stdout && !stderr && ev.chunk) stdout = ev.chunk;
+                      runs[idx] = {
+                        ...cur,
+                        command: ev.command || cur.command,
+                        cwd: ev.cwd || cur.cwd,
+                        status: ev.status || (ev.error ? 'error' : 'done'),
+                        exitCode: ev.exitCode,
+                        error: ev.error,
+                        durationMs: ev.durationMs,
+                        stdout,
+                        stderr,
+                        turn: ev.turn || cur.turn
+                      };
+                    }
+                    const copy = [...prev];
+                    copy[lastIdx] = { ...msg, terminalRuns: runs };
+                    return copy;
+                  });
+                  return;
+                }
                 if (delta.timeline) {
                   const tl = delta.timeline;
-          // Cursor-quiet: drop Planning/Done; keep thinking done so turns collapse
-          if (tl.kind === 'planning' || tl.kind === 'done') {
-            return;
-          }
-          const id =
-            tl.id ||
-            `step_${tl.kind}_${tl.turn}_${tl.toolName || 'x'}_${Date.now()}`;
-          const now = Date.now();
-          if (!stepStartRef.current[id]) stepStartRef.current[id] = now;
-          const durationMs =
-            tl.itemStatus === 'done' || tl.itemStatus === 'error'
-              ? now - stepStartRef.current[id]
-              : undefined;
-          setMessages((prev) => {
-            const lastIdx = prev.length - 1;
-            if (
-              lastIdx < 0 ||
-              prev[lastIdx].role !== 'assistant' ||
-              prev[lastIdx].status !== 'streaming'
-            ) {
-              return prev;
-            }
-            const msg = prev[lastIdx];
-            const steps = [...(msg.steps || [])];
-            const idx = steps.findIndex((s) => s.id === id);
-            const nextStep = {
-              id,
-              kind: tl.kind,
-              label: tl.label,
-              // Preserve Thought text when host closes thinking without re-sending detail
-              detail: tl.detail !== undefined ? tl.detail : steps[idx]?.detail,
-              toolName: tl.toolName,
-              turn: tl.turn,
-              itemStatus: tl.itemStatus,
-              durationMs: durationMs ?? steps[idx]?.durationMs
-            };
-            if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
-            else steps.push(nextStep);
-            const copy = [...prev];
-            copy[lastIdx] = { ...msg, steps };
-            return copy;
-          });
-          return;
-        }
-        if (delta.reasoning) {
-          const id = `tl_thinking_${turnNumberRef.current || 1}`;
-          const now = Date.now();
-          if (!stepStartRef.current[id]) stepStartRef.current[id] = now;
-          setMessages((prev) => {
-            const lastIdx = prev.length - 1;
-            if (
-              lastIdx < 0 ||
-              prev[lastIdx].role !== 'assistant' ||
-              prev[lastIdx].status !== 'streaming'
-            ) {
-              return prev;
-            }
-            const msg = prev[lastIdx];
-            const steps = [...(msg.steps || [])];
-            const idx = steps.findIndex((s) => s.id === id);
-            const prevDetail = idx >= 0 ? steps[idx].detail || '' : '';
-            const nextStep = {
-              id,
-              kind: 'thinking',
-              label: 'Thought',
-              detail: prevDetail + delta.reasoning,
-              turn: turnNumberRef.current || 1,
-              itemStatus: 'running' as const
-            };
-            if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
-            else steps.push(nextStep);
-            const copy = [...prev];
-            copy[lastIdx] = { ...msg, steps };
-            return copy;
-          });
-          return;
-        }
-        if (delta.status !== undefined) {
-          setMessages((prev) => {
-            const lastIdx = prev.length - 1;
-            if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
-              const newMsgs = [...prev];
-              newMsgs[lastIdx] = {
-                ...newMsgs[lastIdx],
-                toolStatus: undefined
-              };
-              return newMsgs;
-            }
-            return prev;
-          });
-          return;
-        }
-        if (delta.content) {
-          setMessages((prev) => {
-            const lastIdx = prev.length - 1;
-            if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
-              const newMsgs = [...prev];
-              newMsgs[lastIdx] = {
-                ...newMsgs[lastIdx],
-                toolStatus: undefined,
-                content: (newMsgs[lastIdx].content || '') + delta.content!
-              };
-              return newMsgs;
-            }
-            return prev;
-          });
-        }
+                  // Keep planning (Planning next moves); drop only terminal "done" chrome
+                  if (tl.kind === 'done') {
+                    return;
+                  }
+                  if (TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running') {
+                    toolsStarted = true;
+                  }
+                  const id =
+                    tl.id ||
+                    `step_${tl.kind}_${tl.turn}_${tl.toolName || 'x'}_${Date.now()}`;
+                  const now = Date.now();
+                  if (!stepStartRef.current[id]) stepStartRef.current[id] = now;
+                  const durationMs =
+                    tl.itemStatus === 'done' || tl.itemStatus === 'error'
+                      ? now - stepStartRef.current[id]
+                      : undefined;
+                  setMessages((prev) => {
+                    const lastIdx = prev.length - 1;
+                    if (
+                      lastIdx < 0 ||
+                      prev[lastIdx].role !== 'assistant' ||
+                      prev[lastIdx].status !== 'streaming'
+                    ) {
+                      return prev;
+                    }
+                    let msg = prev[lastIdx];
+                    if (TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running') {
+                      msg = sealLeadFromMessage(msg);
+                    }
+                    const steps = [...(msg.steps || [])];
+                    const idx = steps.findIndex((s) => s.id === id);
+                    const nextStep = {
+                      id,
+                      kind: tl.kind,
+                      label: tl.label,
+                      // Preserve Thought text when host closes thinking without re-sending detail
+                      detail: tl.detail !== undefined ? tl.detail : steps[idx]?.detail,
+                      toolName: tl.toolName,
+                      turn: tl.turn,
+                      itemStatus: tl.itemStatus,
+                      durationMs: durationMs ?? steps[idx]?.durationMs
+                    };
+                    if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
+                    else steps.push(nextStep);
+                    const copy = [...prev];
+                    copy[lastIdx] = { ...msg, steps };
+                    return copy;
+                  });
+                  return;
+                }
+                if (delta.reasoning) {
+                  const id = `tl_thinking_${turnNumberRef.current || 1}`;
+                  const now = Date.now();
+                  if (!stepStartRef.current[id]) stepStartRef.current[id] = now;
+                  setMessages((prev) => {
+                    const lastIdx = prev.length - 1;
+                    if (
+                      lastIdx < 0 ||
+                      prev[lastIdx].role !== 'assistant' ||
+                      prev[lastIdx].status !== 'streaming'
+                    ) {
+                      return prev;
+                    }
+                    const msg = prev[lastIdx];
+                    const steps = [...(msg.steps || [])];
+                    const idx = steps.findIndex((s) => s.id === id);
+                    const prevDetail = idx >= 0 ? steps[idx].detail || '' : '';
+                    const nextStep = {
+                      id,
+                      kind: 'thinking',
+                      label: 'Thought',
+                      detail: prevDetail + delta.reasoning,
+                      turn: turnNumberRef.current || 1,
+                      itemStatus: 'running' as const
+                    };
+                    if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
+                    else steps.push(nextStep);
+                    const copy = [...prev];
+                    copy[lastIdx] = { ...msg, steps };
+                    return copy;
+                  });
+                  return;
+                }
+                if (delta.status !== undefined) {
+                  setMessages((prev) => {
+                    const lastIdx = prev.length - 1;
+                    if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
+                      const newMsgs = [...prev];
+                      newMsgs[lastIdx] = {
+                        ...newMsgs[lastIdx],
+                        toolStatus: undefined
+                      };
+                      return newMsgs;
+                    }
+                    return prev;
+                  });
+                  return;
+                }
+                if (delta.content) {
+                  setMessages((prev) => {
+                    const lastIdx = prev.length - 1;
+                    if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
+                      const newMsgs = [...prev];
+                      const msg = newMsgs[lastIdx];
+                      const hasToolStep = (msg.steps || []).some((s) => TOOL_KINDS.has(s.kind));
+                      if (!toolsStarted && !hasToolStep) {
+                        const draft = `${msg.openingLead || ''}${msg.content || ''}${delta.content!}`;
+                        const { lead, rest } = splitStreamingLead(draft);
+                        newMsgs[lastIdx] = {
+                          ...msg,
+                          toolStatus: undefined,
+                          openingLead: lead || undefined,
+                          content: rest
+                        };
+                      } else {
+                        newMsgs[lastIdx] = {
+                          ...msg,
+                          toolStatus: undefined,
+                          content: (msg.content || '') + delta.content!
+                        };
+                      }
+                      return newMsgs;
+                    }
+                    return prev;
+                  });
+                }
               },
               () => {
                 setMessages((prev) => {
                   const lastIdx = prev.length - 1;
                   if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
                     const newMsgs = [...prev];
+                    let content = stripFakeToolMarkup(newMsgs[lastIdx].content);
+                    if (/^🔧/.test(content.trim()) && content.length < 80) {
+                      content = '';
+                    }
                     const prevSteps = newMsgs[lastIdx].steps || [];
                     const steps = prevSteps.map((s) =>
                       s.itemStatus === 'running' ? { ...s, itemStatus: 'done' as const } : s
                     );
+                    const promoted = sanitizeOpeningLead(
+                      newMsgs[lastIdx].openingLead,
+                      content.trim()
+                    );
+                    const finalContent = promoted.content.trim() || content.trim();
                     newMsgs[lastIdx] = {
                       ...newMsgs[lastIdx],
-                      status: 'complete',
+                      status: finalContent || promoted.lead ? 'complete' : 'error',
                       toolStatus: undefined,
-                      content: stripFakeToolMarkup(newMsgs[lastIdx].content),
+                      openingLead: promoted.lead || undefined,
+                      content: finalContent || '(no response)',
                       steps
                     };
                     return newMsgs;
@@ -1296,6 +2039,16 @@ export function ChatApp() {
           onResynthesize={handleResynthesize}
           isStreaming={streaming}
           isAwaitingUser={awaitingUser}
+          mode={mode}
+          onModeChange={handleModeChange}
+          modeLabels={MODE_LABELS}
+          modeTooltips={MODE_TOOLTIPS}
+          modelLabel={modelLabel}
+          modelId={providerModel}
+          modelOptions={composerModelOptions}
+          onModelChange={handleModelChange}
+          contextUsagePercent={contextUsagePercent}
+          contextUsageLabel={contextUsageLabel}
         />
       </footer>
     </div>

@@ -10,7 +10,7 @@ interface CodeBlockProps {
 export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
   const [highlighted, setHighlighted] = useState<string>('');
   const [ready, setReady] = useState(isHighlighterReady());
-  const codeRef = useRef(code);
+  const [copied, setCopied] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -24,19 +24,18 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
   }, []);
 
   useEffect(() => {
-    codeRef.current = code;
-    
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
 
     if (!language || !ready) {
-      setHighlighted(escapeHtml(code));
+      setHighlighted('');
       return;
     }
 
     debounceRef.current = setTimeout(() => {
-      const isDark = document.body.classList.contains('vscode-dark');
+      const isDark =
+        document.body.classList.contains('vscode-dark') ||
+        document.body.classList.contains('vscode-high-contrast') ||
+        !document.body.classList.contains('vscode-light');
       highlightCode(code, language, isDark).then(setHighlighted);
     }, streaming ? 50 : 0);
 
@@ -45,36 +44,44 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
     };
   }, [code, language, ready, streaming]);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* ignore */
+    }
   };
 
+  const label = (language || 'text').toLowerCase();
+  const useShiki = Boolean(highlighted && highlighted.includes('shiki'));
+
   return (
-    <div className="code-block-wrapper">
-      <div className="code-block-header">
-        <span className="code-lang-label">{language || 'text'}</span>
-        <button className="code-copy-btn" onClick={handleCopy} title="Copy code">
-          📋 Copy
+    <div className="ak-code">
+      <div className="ak-code__header">
+        <span className="ak-code__lang">{label}</span>
+        <button
+          type="button"
+          className="ak-code__copy"
+          onClick={handleCopy}
+          title="Copy code"
+          aria-label="Copy code"
+        >
+          {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className={`code-block language-${language || 'text'}`}>
-        <code
-          className={`language-${language || 'text'}`}
-          dangerouslySetInnerHTML={{
-            __html: highlighted || (ready ? escapeHtml(code) : escapeHtml(code))
-          }}
-        />
-        {streaming && <span className="streaming-cursor">█</span>}
-      </pre>
+      {useShiki ? (
+        <div className="ak-code__body">
+          <div dangerouslySetInnerHTML={{ __html: highlighted }} />
+          {streaming ? <span className="ak-code__cursor" aria-hidden /> : null}
+        </div>
+      ) : (
+        <pre className="ak-code__pre">
+          <code>{code}</code>
+          {streaming ? <span className="ak-code__cursor" aria-hidden /> : null}
+        </pre>
+      )}
     </div>
   );
-}
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
 }

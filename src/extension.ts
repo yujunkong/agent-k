@@ -119,7 +119,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     `;
 
     return `<!DOCTYPE html>
-      <html lang="en">
+      <html lang="en" style="height:100%;width:100%;overflow:hidden;">
       <head>
         <meta charset="UTF-8">
         <!-- connect-src: webview fetch (Models tab test, chat API calls) -->
@@ -127,8 +127,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="stylesheet" href="${styleUri}" nonce="${nonce}">
         <title>Agent K Chat</title>
+        <style nonce="${nonce}">
+          html, body { position: fixed; inset: 0; margin: 0; overflow: hidden; height: 100%; width: 100%; }
+          #chat-root { position: absolute; inset: 0; overflow: hidden; display: flex; flex-direction: column; }
+        </style>
       </head>
-      <body>
+      <body style="height:100%;width:100%;overflow:hidden;margin:0;">
         <div id="chat-root"></div>
         <script nonce="${nonce}">
           (function(){
@@ -200,6 +204,64 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  /** Resolve context window for current/selected provider+model → webview */
+  private async refreshModelContext(message: {
+    baseUrl?: string;
+    apiKey?: string;
+    model?: string;
+    providerType?: string;
+  }): Promise<void> {
+    const webview = this._view?.webview;
+    if (!webview) return;
+    const cfg = vscode.workspace.getConfiguration('agent-k');
+    const providerType = String(
+      message.providerType || cfg.get('provider.type') || 'litellm'
+    ) as 'litellm' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio';
+    const baseUrl = String(
+      message.baseUrl || cfg.get('provider.baseUrl') || 'http://127.0.0.1:52415'
+    ).replace(/\/$/, '');
+    const model = String(
+      message.model || cfg.get('provider.model') || 'mlx-community/Qwen3.6-35B-A3B-4bit'
+    );
+    const apiKey =
+      message.apiKey != null
+        ? String(message.apiKey)
+        : cfg.get<string>('provider.apiKey') || undefined;
+    const fallbackBudget = Number(cfg.get('context.budget')) || 100000;
+
+    try {
+      const { resolveModelContextInfo, clearModelContextCache } = await import(
+        './providers/modelContextInfo'
+      );
+      clearModelContextCache();
+      const info = await resolveModelContextInfo({
+        providerType,
+        baseUrl,
+        apiKey,
+        model,
+        fallbackTokens: fallbackBudget
+      });
+      void webview.postMessage({
+        type: 'model.context',
+        model: info.model,
+        providerType: info.providerType,
+        maxInputTokens: info.maxInputTokens,
+        maxOutputTokens: info.maxOutputTokens,
+        source: info.source
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      void webview.postMessage({
+        type: 'model.context',
+        model,
+        providerType,
+        maxInputTokens: fallbackBudget,
+        source: 'fallback',
+        error: msg
+      });
+    }
+  }
+
   private handleMessage(message: any) {
     if (!message || typeof message !== 'object') return;
     // Models tab: 연결 테스트는 Host fetch로 수행
@@ -215,6 +277,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Agent/Plan/Debug: host-mediated tool loop (webview cannot run fs tools)
     if (message.type === 'chat.send' && message.requestId != null) {
       void this.runHostChatSend(message);
+      return;
+    }
+    if (message.type === 'model.context.refresh') {
+      void this.refreshModelContext(message);
       return;
     }
     if (message.type === 'chat.stop') {
@@ -256,6 +322,51 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     if (message.type === 'vscode.command' && message.command) {
       void vscode.commands.executeCommand(message.command, ...(message.args || []));
+      return;
+    }
+    // Webview FileEditCard header → open file in editor
+    if (message.type === 'file.open' && message.path) {
+      void this.openWorkspaceFile(String(message.path));
+      return;
+    }
+    // Undo All — restore earliest checkpoint from session edits
+    if (message.type === 'checkpoint.restore' && message.id) {
+      void this.restoreCheckpoint(String(message.id));
+      return;
+    }
+  }
+
+  private async restoreCheckpoint(id: string): Promise<void> {
+    try {
+      const mgr = RuntimeServices.getCheckpointManager();
+      if (!mgr) {
+        void vscode.window.showWarningMessage(
+          'Agent K: no checkpoint manager available to undo edits.'
+        );
+        return;
+      }
+      await mgr.restore(id);
+      void vscode.window.showInformationMessage('Agent K: edits undone (checkpoint restored).');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      void vscode.window.showErrorMessage(`Agent K: undo failed — ${msg}`);
+    }
+  }
+
+  private async openWorkspaceFile(filePath: string): Promise<void> {
+    try {
+      const fs = await import('fs');
+      let uri = vscode.Uri.file(filePath);
+      if (!fs.existsSync(filePath)) {
+        const folders = vscode.workspace.workspaceFolders;
+        if (folders?.[0]) {
+          uri = vscode.Uri.joinPath(folders[0].uri, filePath);
+        }
+      }
+      await vscode.window.showTextDocument(uri, { preview: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      void vscode.window.showErrorMessage(`Agent K: could not open file — ${msg}`);
     }
   }
 
@@ -342,7 +453,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Agent/Plan/Debug chat.send → AgentLoopController (정의된 턴 계약).
+   * Ask/Agent/Plan/Debug chat.send → AgentLoopController (정의된 턴 계약).
+   * Ask uses the same host path with a read-only tool whitelist.
    * Tier A: ≤4 tools/turn, ≤1 write, read-first, maxTurns from modeRegistry.
    * NOT the ad-hoc HostToolLoop miniprotocol.
    *
@@ -386,7 +498,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         name === 'grep' ||
         name === 'glob' ||
         name === 'file_search' ||
-        name === 'codebase_search'
+        name === 'codebase_search' ||
+        name === 'web_search' ||
+        name === 'web_fetch' ||
+        name.startsWith('mcp_searxng') ||
+        name.includes('web_search')
       ) {
         return 'searching';
       }
@@ -405,6 +521,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
       if (name.startsWith('browser_')) return 'browsing';
       if (name === 'ask_question') return 'asking';
+      // Other MCP tools still count as explore/search surface in MessageSteps
+      if (name.startsWith('mcp_')) return 'searching';
       return 'running';
     };
 
@@ -434,11 +552,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         args.path ??
         args.target_file ??
         args.file_path ??
+        args.filepath ??
+        args.file ??
+        args.target ??
         args.glob_pattern ??
         args.pattern ??
         args.query ??
         args.command ??
-        args.url;
+        args.url ??
+        args.uri;
       if (pick == null) return undefined;
       const s = String(pick);
       return s.length > 80 ? `${s.slice(0, 77)}…` : s;
@@ -446,10 +568,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     const resultDetail = (
       kind: string,
-      result: { success: boolean; data?: unknown; error?: string }
+      result: { success: boolean; data?: unknown; error?: string },
+      toolName?: string
     ): string | undefined => {
       if (!result.success) {
         const err = String(result.error || 'failed');
+        // Prefer command stderr/stdout snippet for terminal failures in the timeline
+        if (
+          toolName === 'run_terminal_cmd' &&
+          result.data &&
+          typeof result.data === 'object'
+        ) {
+          const d = result.data as Record<string, unknown>;
+          const snippet = String(d.stderr || d.stdout || err).trim();
+          return snippet.length > 60 ? `${snippet.slice(0, 57)}…` : snippet || err;
+        }
         return err.length > 60 ? `${err.slice(0, 57)}…` : err;
       }
       const data = result.data;
@@ -459,6 +592,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         if (Array.isArray(obj.files)) return `${obj.files.length} file(s)`;
         if (Array.isArray(obj.matches)) return `${obj.matches.length} match(es)`;
         if (typeof obj.path === 'string') return String(obj.path).slice(0, 80);
+        if (typeof obj.command === 'string') {
+          const cmd = String(obj.command);
+          return cmd.length > 60 ? `${cmd.slice(0, 57)}…` : cmd;
+        }
         if (typeof obj.count === 'number') return `${obj.count}`;
       }
       if (kind === 'reading') return 'ok';
@@ -481,8 +618,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       message.apiKey != null
         ? String(message.apiKey)
         : cfg.get<string>('provider.apiKey') || undefined;
+    const providerType = String(cfg.get('provider.type') || 'litellm') as
+      | 'litellm'
+      | 'openai'
+      | 'anthropic'
+      | 'ollama'
+      | 'lmstudio';
+    const fallbackBudget = Number(cfg.get('context.budget')) || 100000;
 
     let deliveredFinal = false;
+    /** Chars already pushed via onAssistantDelta — skip duplicate final dump */
+    let streamedAnswerChars = 0;
     // PRD-C0 §5.3: track turn for timeline headers
     let currentTurn = 0;
     let timelineSeq = 0;
@@ -515,6 +661,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       const { AgentLoopController } = await import('./loop/AgentLoopController');
       const { LiteLLMProvider } = await import('./providers/LiteLLMProvider');
       const { ContextAssembler } = await import('./agent/ContextAssembler');
+      const { resolveModelContextInfo } = await import('./providers/modelContextInfo');
+
+      const modelContext = await resolveModelContextInfo({
+        providerType,
+        baseUrl,
+        apiKey,
+        model,
+        fallbackTokens: fallbackBudget
+      });
+      post('model.context', {
+        model: modelContext.model,
+        providerType: modelContext.providerType,
+        maxInputTokens: modelContext.maxInputTokens,
+        maxOutputTokens: modelContext.maxOutputTokens,
+        source: modelContext.source
+      });
       const { toolRegistry } = await import('./tools/registry');
       const { modeRegistry } = await import('./agent/modeRegistry');
 
@@ -541,7 +703,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       const provider = new LiteLLMProvider({
         id: 'agent-k-chat',
         name: 'Agent K Chat',
-        type: 'litellm',
+        type: providerType,
         baseUrl,
         apiKey,
         model
@@ -552,11 +714,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         maxTurns,
         modelId: model,
         tier: 'A',
+        contextBudget: modelContext.maxInputTokens,
         systemPrompt,
         provider,
-        // Per-turn Thought + tools (sequential history — do not overwrite one row)
+        // Per-turn Thought / Exploring / Planning next moves (Cursor-style)
         onTurnStart: async (turn) => {
-          // Freeze previous turn's Thought so duration/UI stay sequential
+          // Freeze previous turn's Thought + Planning so UI stays sequential
           if (currentTurn > 0 && currentTurn !== turn) {
             postTimeline({
               kind: 'thinking',
@@ -565,14 +728,23 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               id: `tl_thinking_${currentTurn}`,
               turn: currentTurn
             });
+            postTimeline({
+              kind: 'planning',
+              label: 'Planning next moves',
+              status: 'done',
+              id: `tl_planning_${currentTurn}`,
+              turn: currentTurn
+            });
           }
           currentTurn = turn;
           activeToolItems.clear();
+          // Only "Planning next moves" while waiting for the LLM —
+          // Thinking appears later when reasoning tokens arrive (not both live).
           postTimeline({
-            kind: 'thinking',
-            label: 'Working',
+            kind: 'planning',
+            label: 'Planning next moves',
             status: 'running',
-            id: `tl_thinking_${turn}`,
+            id: `tl_planning_${turn}`,
             turn
           });
         },
@@ -587,9 +759,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           }
         },
         onReasoning: async (fullText) => {
-          const clipped = String(fullText || '').trim().slice(0, 6000);
+          const clipped = String(fullText || '').trim().slice(0, 20000);
           if (!clipped) return;
           const turn = currentTurn || 1;
+          // Reasoning replaces Planning next moves
+          postTimeline({
+            kind: 'planning',
+            label: 'Planning next moves',
+            status: 'done',
+            id: `tl_planning_${turn}`,
+            turn
+          });
           postTimeline({
             kind: 'thinking',
             label: 'Thought',
@@ -599,18 +779,52 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             turn
           });
         },
+        onAssistantDelta: async (piece) => {
+          const text = String(piece || '');
+          if (!text) return;
+          const firstAnswerToken = streamedAnswerChars === 0;
+          streamedAnswerChars += text.length;
+          if (firstAnswerToken) {
+            // Close Thought chrome once answer tokens start (Cursor-like)
+            const turn = currentTurn || 1;
+            postTimeline({
+              kind: 'thinking',
+              label: 'Thought',
+              status: 'done',
+              id: `tl_thinking_${turn}`,
+              turn
+            });
+            postTimeline({
+              kind: 'planning',
+              label: 'Planning next moves',
+              status: 'done',
+              id: `tl_planning_${turn}`,
+              turn
+            });
+          }
+          post('delta', { content: text });
+        },
         onToolCall: async (name, args) => {
           const kind = toolKind(name);
           const detail = shortDetail(args as Record<string, unknown>);
           const turn = currentTurn || 1;
           const id = `tl_tool_${turn}_${name}_${++timelineSeq}`;
           activeToolItems.set(name, id);
-          // Close this turn's Thought (keep detail) before tools
+          // Tool turn may have streamed draft prose — reset so final answer can stream cleanly
+          streamedAnswerChars = 0;
+          // Close Thought + Planning before Exploring tools slide in
           postTimeline({
             kind: 'thinking',
             label: 'Thought',
             status: 'done',
             id: `tl_thinking_${turn}`,
+            turn
+          });
+          postTimeline({
+            kind: 'planning',
+            label: 'Planning next moves',
+            status: 'done',
+            id: `tl_planning_${turn}`,
             turn
           });
           postTimeline({
@@ -624,11 +838,27 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           });
           post('tool.start', { toolName: name });
         },
+        onTerminalEvent: async (ev) => {
+          post('terminal.run', {
+            id: ev.id,
+            phase: ev.phase,
+            command: ev.command,
+            description: ev.description,
+            cwd: ev.cwd,
+            chunk: ev.chunk,
+            stream: ev.stream,
+            exitCode: ev.exitCode,
+            error: ev.error,
+            durationMs: ev.durationMs,
+            turn: ev.turn != null ? Number(ev.turn) : currentTurn || 1,
+            status: ev.status
+          });
+        },
         onToolResult: async (name, result) => {
           const kind = toolKind(name);
           const turn = currentTurn || 1;
           const id = activeToolItems.get(name) || `tl_tool_${turn}_${name}`;
-          const detail = resultDetail(kind, result);
+          const detail = resultDetail(kind, result, name);
           postTimeline({
             kind: result.success ? kind : 'error',
             label: result.success
@@ -647,6 +877,42 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               : undefined,
             error: result.success ? undefined : result.error
           });
+          // Cursor-style file edit cards in the chat transcript
+          if (
+            result.success &&
+            (name === 'edit_file' || name === 'write_file') &&
+            result.data &&
+            typeof result.data === 'object'
+          ) {
+            const data = result.data as Record<string, unknown>;
+            const diff = data.diff as
+              | {
+                  additions?: number;
+                  deletions?: number;
+                  lines?: Array<{
+                    type: string;
+                    lineNumber: number;
+                    text: string;
+                  }>;
+                }
+              | undefined;
+            if (diff && Array.isArray(diff.lines)) {
+              post('file.edit', {
+                path: String(data.relPath || data.path || name),
+                absPath: data.path != null ? String(data.path) : undefined,
+                checkpointId:
+                  data.checkpointId != null ? String(data.checkpointId) : undefined,
+                turn: currentTurn || 1,
+                additions: Number(diff.additions) || 0,
+                deletions: Number(diff.deletions) || 0,
+                lines: diff.lines.slice(0, 80).map((l) => ({
+                  type: l.type === 'add' || l.type === 'delete' ? l.type : 'context',
+                  lineNumber: Number(l.lineNumber) || 0,
+                  text: String(l.text ?? '').slice(0, 400)
+                }))
+              });
+            }
+          }
         },
         onAssistantContent: async (content) => {
           deliveredFinal = true;
@@ -658,8 +924,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             id: `tl_thinking_${turn}`,
             turn
           });
+          postTimeline({
+            kind: 'planning',
+            label: 'Planning next moves',
+            status: 'done',
+            id: `tl_planning_${turn}`,
+            turn
+          });
           post('status', { status: '' });
-          if (content?.trim()) {
+          // Avoid duplicating tokens already pushed via onAssistantDelta
+          if (streamedAnswerChars === 0 && content?.trim()) {
             post('delta', { content });
           }
         },
@@ -733,10 +1007,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   public newSession() {
     this._view?.webview.postMessage({ type: 'session.new' });
-  }
-
-  public clearHistory() {
-    this._view?.webview.postMessage({ type: 'session.clear' });
   }
 
   /** Open in-chat Settings Hub (Models tab by default) */
@@ -844,10 +1114,6 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.commands.registerCommand('agent-k.chat.new', () => {
         provider.newSession();
-      }),
-
-      vscode.commands.registerCommand('agent-k.chat.clear', () => {
-        provider.clearHistory();
       }),
 
       vscode.commands.registerCommand('agent-k.openSettings', () => {
