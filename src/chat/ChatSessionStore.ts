@@ -146,6 +146,37 @@ export class ChatSessionStore {
     return session;
   }
 
+  /**
+   * Fork: new session with a copy of messages up to a point (Cursor-style).
+   * Does not mutate the source session.
+   */
+  forkFromMessages(messages: ChatMessage[], mode: Mode = 'agent'): ChatSession {
+    const now = Date.now();
+    const cloned = messages.map((m) => ({
+      ...m,
+      status:
+        m.status === 'streaming'
+          ? ('complete' as const)
+          : m.status
+    }));
+    const session: ChatSession = {
+      id: makeId(),
+      title: titleFromMessages(cloned) || 'Forked chat',
+      mode,
+      messageCount: cloned.length,
+      createdAt: now,
+      updatedAt: now,
+      messages: cloned
+    };
+    this.writeSession(session);
+    this.index = [session.id, ...this.index.filter((id) => id !== session.id)];
+    this.trimExcess();
+    this.persistIndex();
+    this.currentId = session.id;
+    this.persistCurrent();
+    return session;
+  }
+
   /** Persist messages for a session and keep it current. */
   saveMessages(id: string, messages: ChatMessage[], mode?: Mode): void {
     const prev = this.readSession(id);

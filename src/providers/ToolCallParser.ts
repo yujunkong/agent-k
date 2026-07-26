@@ -3,10 +3,11 @@
  *
  * 1) Native tool_calls (OpenAI/Anthropic 네이티브) + plain [{name,arguments}]
  * 2) XML 태그: <tool name="grep">{"pattern":"foo"}</tool>
+ * 2b) <tool_code> / tool_code blocks (Qwen/local models)
+ * 2c) Bare: tool_name\\n{json args}
  * 3) JSON 펜스: ```json\n{"name":"grep","arguments":{...}}\n```
- * 4) Bare JSON array/object: [{"name":"glob","arguments":{...}}]  (chat dump 형식)
- * 5) 이중 인코딩: 이스케이프된 JSON 문자열 디코딩 후 파싱
- * 6) Content 스캔: 일반 텍스트 중 도구 호출 패턴 휴리스틱 추출
+ * 4) Bare JSON array/object: [{"name":"glob","arguments":{...}}]
+ * 5) 이중 인코딩
  */
 
 export interface ParsedToolCall {
@@ -15,8 +16,40 @@ export interface ParsedToolCall {
   arguments: Record<string, any>;
   raw: string;
   confidence: number; // 0-1
-  strategy: 'native' | 'xml' | 'json-fence' | 'json-array' | 'double-encoded' | 'content-scan';
+  strategy:
+    | 'native'
+    | 'xml'
+    | 'tool-code'
+    | 'name-json'
+    | 'json-fence'
+    | 'json-array'
+    | 'double-encoded'
+    | 'content-scan';
 }
+
+/** Tools we accept when recovering from free-text dumps (keep in sync with registry names) */
+const RECOVERABLE_TOOL_NAMES = [
+  'grep',
+  'glob',
+  'file_search',
+  'list_dir',
+  'read_file',
+  'read_files',
+  'codebase_search',
+  'lsp_definition',
+  'lsp_references',
+  'read_lints',
+  'edit_file',
+  'write_file',
+  'delete_file',
+  'run_terminal_cmd',
+  'terminal_output',
+  'ask_question',
+  'todo_write',
+  'switch_mode',
+  'web_search',
+  'web_fetch'
+];
 
 export class ToolCallParser {
   private toolCallIdCounter = 0;
@@ -40,9 +73,19 @@ export class ToolCallParser {
 
     const results: ParsedToolCall[] = [];
 
-    // Strategy 2: XML tags
+    // Strategy 2: XML tags <tool name="...">
     const xml = this.parseXmlTags(content);
     results.push(...xml);
+
+    // Strategy 2b: <tool_code>...</tool_code> / tool_code blocks
+    if (results.length === 0) {
+      results.push(...this.parseToolCodeBlocks(content));
+    }
+
+    // Strategy 2c: known_tool_name\n{...json...}
+    if (results.length === 0) {
+      results.push(...this.parseNameThenJson(content));
+    }
 
     // Strategy 3: JSON fence
     if (results.length === 0) {
@@ -224,6 +267,203 @@ export class ToolCallParser {
       }
     }
     return results;
+  }
+
+  /**
+   * Qwen / local models often emit:
+   *   <tool_code>
+   *   run_terminal_cmd
+   *   {"cmd":"..."}
+   *   </tool_code>
+   * or the same without closing tags.
+   */
+  private parseToolCodeBlocks(content: string): ParsedToolCall[] {
+    const results: ParsedToolCall[] = [];
+    const blocks: string[] = [];
+
+    const paired =
+      /<tool[_-]?code[^>]*>([\s\S]*?)<\/tool[_-]?code>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = paired.exec(content)) !== null) {
+      blocks.push(m[1]);
+    }
+
+    // Unclosed / label-only: tool_code\nNAME\n{...}
+    const loose =
+      /(?:^|\n)\s*(?:<\/?tool[_-]?code>?|tool_code)\s*\n([\s\S]*?)(?=\n\s*(?:<\/?tool[_-]?code>?|tool_code)\s*(?:\n|$)|$)/gi;
+    while ((m = loose.exec(content)) !== null) {
+      const body = m[1].trim();
+      if (body && !blocks.some((b) => b.includes(body.slice(0, 40)))) {
+        blocks.push(body);
+      }
+    }
+
+    for (const body of blocks) {
+      const call = this.parseToolNameAndJsonBody(body.trim());
+      if (call) {
+        results.push({
+          ...call,
+          id: this.nextId(),
+          confidence: 0.93,
+          strategy: 'tool-code'
+        });
+      }
+    }
+    return results;
+  }
+
+  /** known_tool\\n{json} anywhere in the assistant message */
+  private parseNameThenJson(content: string): ParsedToolCall[] {
+    const results: ParsedToolCall[] = [];
+    const names = RECOVERABLE_TOOL_NAMES.join('|');
+    const re = new RegExp(
+      `(?:^|\\n)\\s*(${names})\\s*\\n\\s*(\\{[\\s\\S]*?\\})\\s*(?=\\n|$)`,
+      'gi'
+    );
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(content)) !== null) {
+      const name = match[1].trim();
+      const jsonStr = this.extractBalancedJsonObject(match[2], 0) || match[2];
+      try {
+        const args = JSON.parse(jsonStr);
+        if (args && typeof args === 'object') {
+          results.push({
+            id: this.nextId(),
+            name,
+            arguments: this.normalizeRecoveredArgs(name, args),
+            raw: match[0],
+            confidence: 0.9,
+            strategy: 'name-json'
+          });
+        }
+      } catch {
+        /* skip */
+      }
+    }
+    return results;
+  }
+
+  private parseToolNameAndJsonBody(
+    body: string
+  ): { name: string; arguments: Record<string, any>; raw: string } | null {
+    const trimmed = body.trim();
+    if (!trimmed) return null;
+
+    // Optional leading "tool_code" / "invoke" noise
+    const cleaned = trimmed
+      .replace(/^(?:tool_code|invoke|function_call)\s*\n?/i, '')
+      .trim();
+
+    const lines = cleaned.split(/\n/);
+    let name = '';
+    let jsonStart = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      if (!name && RECOVERABLE_TOOL_NAMES.includes(line)) {
+        name = line;
+        continue;
+      }
+      if (line.startsWith('{')) {
+        jsonStart = cleaned.indexOf(line);
+        if (!name && i > 0) {
+          const prev = lines[i - 1].trim();
+          if (RECOVERABLE_TOOL_NAMES.includes(prev)) name = prev;
+        }
+        break;
+      }
+    }
+    if (!name) {
+      // First token then JSON on same/next lines: run_terminal_cmd {"cmd":...}
+      const sameLine = cleaned.match(
+        new RegExp(
+          `^(${RECOVERABLE_TOOL_NAMES.join('|')})\\s+(\\{[\\s\\S]*\\})\\s*$`,
+          'i'
+        )
+      );
+      if (sameLine) {
+        name = sameLine[1];
+        try {
+          const args = JSON.parse(sameLine[2]);
+          return {
+            name,
+            arguments: this.normalizeRecoveredArgs(name, args),
+            raw: cleaned
+          };
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }
+    if (jsonStart < 0) return null;
+    const jsonStr = this.extractBalancedJsonObject(cleaned, jsonStart);
+    if (!jsonStr) return null;
+    try {
+      const args = JSON.parse(jsonStr);
+      return {
+        name,
+        arguments: this.normalizeRecoveredArgs(name, args),
+        raw: cleaned
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Map common LLM arg aliases (cmd→command, etc.) */
+  private normalizeRecoveredArgs(
+    name: string,
+    args: Record<string, any>
+  ): Record<string, any> {
+    const out = { ...args };
+    if (name === 'run_terminal_cmd') {
+      if (out.command == null && out.cmd != null) out.command = out.cmd;
+      if (out.command == null && out.shell != null) out.command = out.shell;
+    }
+    if (
+      (name === 'read_file' ||
+        name === 'write_file' ||
+        name === 'edit_file' ||
+        name === 'delete_file') &&
+      out.path == null
+    ) {
+      out.path =
+        out.file_path || out.target_file || out.filepath || out.file || out.path;
+    }
+    if (name === 'write_file' && out.content == null && out.contents != null) {
+      out.content = out.contents;
+    }
+    if (name === 'read_files') {
+      const asList = (raw: unknown): string[] => {
+        if (Array.isArray(raw)) {
+          return raw.map((p) => String(p ?? '').trim()).filter(Boolean);
+        }
+        if (typeof raw === 'string' && raw.trim()) {
+          const t = raw.trim();
+          if (t.startsWith('[')) {
+            try {
+              const parsed = JSON.parse(t);
+              if (Array.isArray(parsed)) {
+                return parsed.map((p) => String(p ?? '').trim()).filter(Boolean);
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+          return [t];
+        }
+        return [];
+      };
+      for (const key of ['paths', 'files', 'file_paths', 'filePaths', 'path', 'file']) {
+        const list = asList(out[key]);
+        if (list.length) {
+          out.paths = list;
+          break;
+        }
+      }
+    }
+    return out;
   }
 
   private parseJsonFence(content: string): ParsedToolCall[] {

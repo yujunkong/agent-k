@@ -69,6 +69,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private _hostLoop?: import('./loop/AgentLoopController').AgentLoopController;
   private _hostLoopRequestId?: string;
   private _hostLoopAbort?: AbortController;
+  /** Serialize chat.send so interrupt/new-tab cannot interleave two loops */
+  private _hostSendChain: Promise<void> = Promise.resolve();
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -90,6 +92,51 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       undefined,
       []
     );
+
+    // ask_question UI bridge lives with the webview (not per chat.request finally)
+    this.ensureAskQuestionBridge();
+    webviewView.onDidDispose(() => {
+      if (this._view === webviewView) {
+        RuntimeServices.setAskQuestionNotifier(undefined);
+        this._view = undefined;
+      }
+    });
+  }
+
+  /**
+   * Keep ClarifyingQuestions bridge registered for the active webview.
+   * Must not be cleared by a superseded request's finally (interrupt → resend race).
+   */
+  private ensureAskQuestionBridge(): void {
+    RuntimeServices.setAskQuestionNotifier((q) => {
+      const webview = this._view?.webview;
+      const requestId = this._hostLoopRequestId;
+      if (!webview) {
+        throw new Error(
+          'ask_question: Agent K chat webview is closed. Re-open the Agent K sidebar.'
+        );
+      }
+      if (!requestId) {
+        throw new Error(
+          'ask_question: no active chat request. Send a message again to continue.'
+        );
+      }
+      void webview.postMessage({
+        type: 'chat.stream',
+        requestId,
+        event: 'ask_question',
+        qid: q.id,
+        question: q.question,
+        options: q.options,
+        required: q.required
+      });
+      void webview.postMessage({
+        type: 'chat.stream',
+        requestId,
+        event: 'status',
+        status: 'asking'
+      });
+    });
   }
 
   private getHtml(webview: vscode.Webview): string {
@@ -282,7 +329,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     // Agent/Plan/Debug: host-mediated tool loop (webview cannot run fs tools)
     if (message.type === 'chat.send' && message.requestId != null) {
-      void this.runHostChatSend(message);
+      // Abort current wait immediately, then run next send after prior promise settles
+      this.abortHostChatLoop();
+      this._hostSendChain = this._hostSendChain
+        .catch(() => undefined)
+        .then(() => this.runHostChatSend(message));
       return;
     }
     if (message.type === 'model.context.refresh') {
@@ -467,6 +518,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       void this.pickAttachmentUris(String(message.requestId));
       return;
     }
+    // Composer @ mention — workspace file/folder search
+    if (message.type === 'composer.search' && message.requestId != null) {
+      void this.handleComposerSearch(
+        String(message.requestId),
+        String(message.query ?? ''),
+        message.kind === 'folder' ? 'folder' : 'file'
+      );
+      return;
+    }
     // Webview → host: persist agent-k.* settings
     if (message.type === 'config.update' && message.values) {
       const section = vscode.workspace.getConfiguration('agent-k');
@@ -557,6 +617,126 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Composer `@` file/folder picker — workspace search (built-in).
+   */
+  private async handleComposerSearch(
+    requestId: string,
+    query: string,
+    kind: 'file' | 'folder'
+  ): Promise<void> {
+    const webview = this._view?.webview;
+    if (!webview) return;
+
+    const q = query.trim().toLowerCase().replace(/\\/g, '/');
+    const exclude =
+      '**/{node_modules,.git,dist,out,build,.next,coverage,.agentk,venv,.venv}/**';
+
+    type Hit = {
+      kind: 'file' | 'folder';
+      path: string;
+      label: string;
+      description: string;
+      score: number;
+    };
+    const hits: Hit[] = [];
+    const folderSeen = new Set<string>();
+
+    try {
+      const uris = await vscode.workspace.findFiles('**/*', exclude, 1200);
+      for (const uri of uris) {
+        const abs = uri.fsPath;
+        const rel = vscode.workspace.asRelativePath(uri).replace(/\\/g, '/');
+        const base = rel.split('/').pop() || rel;
+        const relLower = rel.toLowerCase();
+        const baseLower = base.toLowerCase();
+
+        if (kind !== 'folder') {
+          if (
+            !q ||
+            baseLower.includes(q) ||
+            relLower.includes(q)
+          ) {
+            let score = 0;
+            if (baseLower === q) score = 100;
+            else if (baseLower.startsWith(q)) score = 80;
+            else if (baseLower.includes(q)) score = 60;
+            else if (relLower.includes(q)) score = 40;
+            else score = 10;
+            hits.push({
+              kind: 'file',
+              path: abs,
+              label: base,
+              description: rel,
+              score
+            });
+          }
+        }
+
+        const parts = rel.split('/');
+        for (let i = 1; i < parts.length; i++) {
+          const folderRel = parts.slice(0, i).join('/');
+          if (folderSeen.has(folderRel)) continue;
+          const folderBase = parts[i - 1] || folderRel;
+          const folderLower = folderRel.toLowerCase();
+          const folderBaseLower = folderBase.toLowerCase();
+          if (
+            q &&
+            !folderLower.includes(q) &&
+            !folderBaseLower.includes(q)
+          ) {
+            continue;
+          }
+          folderSeen.add(folderRel);
+          if (kind === 'file' && q && !folderBaseLower.includes(q)) {
+            // When searching files, only surface strongly matching folders
+            if (!folderLower.endsWith('/' + q) && folderBaseLower !== q) continue;
+          }
+          let score = 0;
+          if (folderBaseLower === q) score = 95;
+          else if (folderBaseLower.startsWith(q)) score = 75;
+          else if (folderBaseLower.includes(q)) score = 55;
+          else score = 20;
+          const wsFolder = vscode.workspace.getWorkspaceFolder(uri);
+          const root =
+            wsFolder?.uri || vscode.workspace.workspaceFolders?.[0]?.uri;
+          if (!root) continue;
+          const folderUri = vscode.Uri.joinPath(root, ...folderRel.split('/'));
+          hits.push({
+            kind: 'folder',
+            path: folderUri.fsPath,
+            label: folderBase,
+            description: folderRel,
+            score
+          });
+        }
+      }
+
+      hits.sort((a, b) => b.score - a.score || a.description.localeCompare(b.description));
+      const results = hits.slice(0, 40).map(({ kind: k, path, label, description }) => ({
+        kind: k,
+        path,
+        label,
+        description
+      }));
+
+      void webview.postMessage({
+        type: 'composer.search.result',
+        requestId,
+        query,
+        results
+      });
+    } catch (err) {
+      void webview.postMessage({
+        type: 'composer.search.result',
+        requestId,
+        query,
+        results: [],
+        error: err instanceof Error ? err.message : String(err)
+      });
+    }
+  }
+
+  /**
    * Webview drag/drop: turn file:// (or absolute) URIs into workspace paths + type.
    */
   private async resolveAttachmentUris(requestId: string, uris: string[]): Promise<void> {
@@ -637,13 +817,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       });
     };
 
-    // Bridge ask_question → webview ClarifyingQuestions (host/webview split)
+    // Bridge ask_question → this request's post() (survives interrupt / new-tab races)
     RuntimeServices.setAskQuestionNotifier((q) => {
+      if (this._hostLoopRequestId !== requestId) {
+        throw new Error(
+          'ask_question: request superseded. Send a message again to continue.'
+        );
+      }
       post('ask_question', {
         qid: q.id,
         question: q.question,
         options: q.options,
-        required: q.required,
+        required: q.required
       });
       post('status', { status: 'asking' });
     });
@@ -672,14 +857,25 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       ) {
         return 'editing';
       }
+      // Only real shell tools are "running" — else UI says "Ran a command" wrongly
       if (name === 'run_terminal_cmd' || name === 'terminal_output') {
         return 'running';
       }
       if (name.startsWith('browser_')) return 'browsing';
       if (name === 'ask_question') return 'asking';
+      // Session chrome — not a shell command (MessageSteps hides these)
+      if (
+        name === 'todo_write' ||
+        name === 'switch_mode' ||
+        name === 'checkpoint_create' ||
+        name === 'checkpoint_restore'
+      ) {
+        return 'session';
+      }
+      if (name === 'task_run' || name === 'skill_run') return 'task';
       // Other MCP tools still count as explore/search surface in MessageSteps
       if (name.startsWith('mcp_')) return 'searching';
-      return 'running';
+      return 'task';
     };
 
     const kindVerb = (kind: string): string => {
@@ -696,14 +892,109 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           return 'Browsing';
         case 'asking':
           return 'Asking';
+        case 'session':
+          return 'Updating';
+        case 'task':
+          return 'Working';
         default:
           return 'Working';
       }
     };
 
     // Short path/pattern only — never dump full tool JSON (PRD-C0 §5.3)
-    const shortDetail = (args: Record<string, unknown> | undefined): string | undefined => {
+    // Cursor-style: "Grepped pattern in path", "Read file.ts L10-50"
+    const shortDetail = (
+      name: string,
+      args: Record<string, unknown> | undefined
+    ): string | undefined => {
       if (!args) return undefined;
+
+      if (name === 'grep') {
+        const pattern = String(args.pattern ?? args.query ?? '').trim();
+        const path = String(
+          args.path ?? args.target ?? args.glob ?? args.glob_pattern ?? ''
+        ).trim();
+        const scope =
+          !path || path === '.' || path === './'
+            ? 'workspace'
+            : path.replace(/\\/g, '/');
+        if (pattern && scope) {
+          const p = pattern.length > 48 ? `${pattern.slice(0, 45)}…` : pattern;
+          const s = scope.length > 40 ? `${scope.slice(0, 37)}…` : scope;
+          return `${p} in ${s}`;
+        }
+        if (pattern) return pattern.length > 80 ? `${pattern.slice(0, 77)}…` : pattern;
+        if (scope) return scope;
+      }
+
+      if (name === 'glob' || name === 'file_search') {
+        const pattern = String(
+          args.glob_pattern ?? args.pattern ?? args.query ?? ''
+        ).trim();
+        const path = String(args.path ?? '').trim();
+        if (pattern && path && path !== '.' && path !== './') {
+          return `${pattern} in ${path}`;
+        }
+        if (pattern) return pattern.length > 80 ? `${pattern.slice(0, 77)}…` : pattern;
+      }
+
+      if (name === 'read_file' || name === 'read_files') {
+        if (name === 'read_files' && Array.isArray(args.paths) && args.paths.length) {
+          const n = args.paths.length;
+          const first = String(args.paths[0] ?? '');
+          const base = first.replace(/\\/g, '/').split('/').pop() || first;
+          return n === 1 ? base.slice(0, 80) : `${n} files · ${base.slice(0, 40)}`;
+        }
+        const file = String(
+          args.path ??
+            args.target_file ??
+            args.file_path ??
+            args.filepath ??
+            args.file ??
+            ''
+        ).trim();
+        if (!file) return undefined;
+        const base = file.replace(/\\/g, '/').split('/').pop() || file;
+        const offset =
+          typeof args.offset === 'number'
+            ? args.offset
+            : typeof args.start_line === 'number'
+              ? args.start_line
+              : undefined;
+        const limit =
+          typeof args.limit === 'number'
+            ? args.limit
+            : typeof args.end_line === 'number' && offset != null
+              ? Math.max(0, args.end_line - offset + 1)
+              : undefined;
+        if (offset != null && offset > 0) {
+          const start = offset;
+          const end =
+            limit != null && limit > 0
+              ? start + limit - 1
+              : typeof args.end_line === 'number'
+                ? args.end_line
+                : start + 249;
+          return `${base} L${start}-${end}`;
+        }
+        return base.slice(0, 80);
+      }
+
+      if (name === 'run_terminal_cmd' || name === 'terminal_output') {
+        const cmd = String(
+          args.command ?? args.cmd ?? args.shell ?? args.description ?? ''
+        ).trim();
+        if (!cmd) return undefined;
+        return cmd.length > 80 ? `${cmd.slice(0, 77)}…` : cmd;
+      }
+
+      if (name === 'todo_write') {
+        if (Array.isArray(args.todos)) return `${args.todos.length} todo(s)`;
+        const text = String(args.text ?? args.content ?? '').trim();
+        if (text) return text.length > 60 ? `${text.slice(0, 57)}…` : text;
+        return 'todos';
+      }
+
       if (Array.isArray(args.paths) && args.paths.length) {
         const n = args.paths.length;
         const first = String(args.paths[0] ?? '');
@@ -792,8 +1083,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const fallbackBudget = Number(cfg.get('context.budget')) || 100000;
 
     let deliveredFinal = false;
-    /** Chars already pushed via onAssistantDelta — skip duplicate final dump */
-    let streamedAnswerChars = 0;
+    /** Answer text already pushed via onAssistantDelta (this segment) */
+    let streamedAnswer = '';
     /** Only seal chat body once per agent turn (avoid N tools → N clearContent flickers) */
     let sealedContentTurn = -1;
     // PRD-C0 §5.3: track turn for timeline headers
@@ -801,6 +1092,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     let timelineSeq = 0;
     /** Active tool timeline item id keyed by tool name (last call wins per name) */
     const activeToolItems = new Map<string, string>();
+    /** Cursor-style row text from tool args — keep on result so Grepped/Read don't become "N matches" */
+    const toolStartDetails = new Map<string, string>();
 
     const postTimeline = (payload: {
       kind: string;
@@ -810,6 +1103,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       status: 'running' | 'done' | 'error';
       id?: string;
       turn?: number;
+      /** opening = per-turn main Thought; mid = nested under Exploring */
+      thoughtRole?: 'opening' | 'mid';
     }) => {
       const id = payload.id || `tl_${payload.kind}_${currentTurn}_${++timelineSeq}`;
       post('timeline', {
@@ -819,7 +1114,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         detail: payload.detail,
         toolName: payload.toolName,
         status: payload.status,
-        id
+        id,
+        thoughtRole: payload.thoughtRole
       });
       return id;
     };
@@ -927,6 +1223,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         onDebugStage: (stage) => {
           post('debug.stage', { stage });
         },
+        // Re-bind ask_question UI on every tool call (new tab / interrupt safe)
+        onAskQuestion: (q) => {
+          if (this._hostLoopRequestId !== requestId) {
+            throw new Error(
+              'ask_question: request superseded. Send a message again to continue.'
+            );
+          }
+          post('ask_question', {
+            qid: q.id,
+            question: q.question,
+            options: q.options,
+            required: q.required
+          });
+          post('status', { status: 'asking' });
+        },
         thinkingEffort:
           (message.thinkingEffort as 'off' | 'low' | 'medium' | 'high') ||
           (configManager.get('agent-k.thinking.effort') as
@@ -944,7 +1255,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               label: 'Thought',
               status: 'done',
               id: `tl_thinking_${currentTurn}`,
-              turn: currentTurn
+              turn: currentTurn,
+              thoughtRole: 'opening'
             });
             postTimeline({
               kind: 'planning',
@@ -956,6 +1268,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           }
           currentTurn = turn;
           activeToolItems.clear();
+          toolStartDetails.clear();
           // Only "Planning next moves" while waiting for the LLM —
           // Thinking appears later when reasoning tokens arrive (not both live).
           postTimeline({
@@ -994,14 +1307,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             detail: clipped,
             status: 'running',
             id: `tl_thinking_${turn}`,
-            turn
+            turn,
+            thoughtRole: 'opening'
           });
         },
         onAssistantDelta: async (piece) => {
           const text = String(piece || '');
           if (!text) return;
-          const firstAnswerToken = streamedAnswerChars === 0;
-          streamedAnswerChars += text.length;
+          const firstAnswerToken = streamedAnswer.length === 0;
+          streamedAnswer += text;
+          deliveredFinal = true;
           if (firstAnswerToken) {
             // Close Thought chrome once answer tokens start (Cursor-like)
             const turn = currentTurn || 1;
@@ -1010,7 +1325,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               label: 'Thought',
               status: 'done',
               id: `tl_thinking_${turn}`,
-              turn
+              turn,
+              thoughtRole: 'opening'
             });
             postTimeline({
               kind: 'planning',
@@ -1024,22 +1340,29 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         },
         onToolCall: async (name, args, callId) => {
           const kind = toolKind(name);
-          const detail = shortDetail(args as Record<string, unknown>);
+          const detail = shortDetail(name, args as Record<string, unknown>);
           const turn = currentTurn || 1;
           const id =
             callId && String(callId).trim()
               ? `tl_${String(callId)}`
               : `tl_tool_${turn}_${name}_${++timelineSeq}`;
           activeToolItems.set(callId || name, id);
+          // Keep Cursor-style start detail across tool result (don't replace with "N matches")
+          if (detail) {
+            toolStartDetails.set(id, detail);
+          }
           // Tool turn may have streamed draft prose — reset so final answer can stream cleanly
-          streamedAnswerChars = 0;
+          streamedAnswer = '';
+          // Mid-turn deltas must not count as the closing message
+          deliveredFinal = false;
           // Close Thought + Planning before Exploring tools slide in
           postTimeline({
             kind: 'thinking',
             label: 'Thought',
             status: 'done',
             id: `tl_thinking_${turn}`,
-            turn
+            turn,
+            thoughtRole: 'opening'
           });
           postTimeline({
             kind: 'planning',
@@ -1085,7 +1408,26 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           const id =
             activeToolItems.get(callId || name) ||
             (callId ? `tl_${String(callId)}` : `tl_tool_${turn}_${name}`);
-          const detail = resultDetail(kind, result, name);
+          const startDetail = toolStartDetails.get(id);
+          const endDetail = resultDetail(kind, result, name);
+          // Explore rows keep Grepped/Read args text; failures still show error
+          const exploreKeepStart =
+            kind === 'searching' ||
+            kind === 'reading' ||
+            kind === 'browsing' ||
+            name === 'grep' ||
+            name === 'read_file' ||
+            name === 'read_files' ||
+            name === 'glob' ||
+            name === 'file_search' ||
+            name === 'codebase_search' ||
+            name === 'list_dir';
+          const detail = !result.success
+            ? endDetail || startDetail
+            : exploreKeepStart && startDetail
+              ? startDetail
+              : endDetail || startDetail;
+          toolStartDetails.delete(id);
           postTimeline({
             // Keep explore/action kind so UI groups correctly; status carries failure
             kind,
@@ -1150,7 +1492,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             label: 'Thought',
             status: 'done',
             id: `tl_thinking_${turn}`,
-            turn
+            turn,
+            thoughtRole: 'opening'
           });
           postTimeline({
             kind: 'planning',
@@ -1160,10 +1503,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             turn
           });
           post('status', { status: '' });
-          // Avoid duplicating tokens already pushed via onAssistantDelta
-          if (streamedAnswerChars === 0 && content?.trim()) {
-            post('delta', { content });
+          const full = String(content || '');
+          if (!full.trim()) return;
+          // Never re-dump the whole answer after deltas already streamed it
+          if (streamedAnswer.length > 0) {
+            if (full.startsWith(streamedAnswer)) {
+              const rest = full.slice(streamedAnswer.length);
+              if (rest) {
+                streamedAnswer += rest;
+                post('delta', { content: rest });
+              }
+            }
+            // else: different/duplicate blob — ignore to avoid "same message twice"
+            return;
           }
+          streamedAnswer = full;
+          post('delta', { content: full });
         },
         onError: (err) => {
           postTimeline({
@@ -1179,11 +1534,23 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
       this._hostLoop = loop;
 
-      // Keepalive so webview idle watchdog does not fire during slow LLM TTFT
+      // Keepalive so webview idle watchdog does not fire during slow LLM TTFT / ask_question
       const heartbeat = setInterval(() => {
         if (this._hostLoopRequestId !== requestId) return;
-        if (this._hostLoop?.isRunning) {
+        const asking = RuntimeServices.isAskQuestionPending();
+        if (this._hostLoop?.isRunning || asking) {
           post('heartbeat', {});
+        }
+        // Re-broadcast pending MCQ — recovers if first ask_question event was missed
+        const pending = RuntimeServices.getPendingQuestion();
+        if (pending) {
+          post('ask_question', {
+            qid: pending.id,
+            question: pending.question,
+            options: pending.options,
+            required: pending.required,
+          });
+          post('status', { status: 'asking' });
         }
       }, 8_000);
 
@@ -1203,7 +1570,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           ...history
         ]);
 
-        if (!deliveredFinal && this._hostLoopRequestId === requestId) {
+        if (!deliveredFinal && streamedAnswer.length === 0 && this._hostLoopRequestId === requestId) {
           post('status', { status: '' });
           const snap = loop.getMessages();
           const last = [...snap].reverse().find(
@@ -1211,6 +1578,27 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           );
           if (last?.content) {
             post('delta', { content: last.content });
+            deliveredFinal = true;
+            streamedAnswer = String(last.content);
+          }
+        }
+
+        // Tools ran but body still empty (sealed mid-prose, empty final) — surface last assistant text
+        if (
+          streamedAnswer.length === 0 &&
+          sealedContentTurn >= 0 &&
+          this._hostLoopRequestId === requestId
+        ) {
+          const snap = loop.getMessages();
+          const last = [...snap].reverse().find(
+            (m) =>
+              m.role === 'assistant' &&
+              String(m.content || '').trim() &&
+              !m.toolCalls?.length
+          );
+          if (last?.content?.trim()) {
+            post('delta', { content: last.content });
+            streamedAnswer = String(last.content);
           }
         }
 
@@ -1219,7 +1607,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
       } finally {
         clearInterval(heartbeat);
-        RuntimeServices.setAskQuestionNotifier(undefined);
+        // Do NOT clear ask_question notifier here — a newer request may already
+        // own the bridge. Cleared only on webview dispose / ensure overwrite.
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

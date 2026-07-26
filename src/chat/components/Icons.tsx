@@ -154,3 +154,74 @@ export function IconCheck(p: IconProps) {
     </Svg>
   );
 }
+
+/** Fork chat from this message (Cursor-style branch) */
+export function IconFork(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="6" cy="6" r="2.5" />
+      <circle cx="18" cy="6" r="2.5" />
+      <circle cx="18" cy="18" r="2.5" />
+      <path d="M8.5 7.5 15.5 7.5" />
+      <path d="M6 8.5v7a2 2 0 0 0 2 2h7.5" />
+    </Svg>
+  );
+}
+
+export function IconChevronDown(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m6 9 6 6 6-6" />
+    </Svg>
+  );
+}
+
+/** Agent mode — infinity */
+export function IconInfinity(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M18.178 8c5.096 0 5.096 8 0 8-5.095 0-7.133-8-12.739-8-4.585 0-4.585 8 0 8 5.606 0 7.644-8 12.74-8z" />
+    </Svg>
+  );
+}
+
+/** Plan mode — bulleted list */
+export function IconList(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M8 6h13" />
+      <path d="M8 12h13" />
+      <path d="M8 18h13" />
+      <circle cx="4" cy="6" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="4" cy="18" r="1.2" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}
+
+/** Debug mode — bug */
+export function IconBug(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M8 8.5V7a4 4 0 0 1 8 0v1.5" />
+      <rect x="7" y="8.5" width="10" height="10" rx="4" />
+      <path d="M12 12v4" />
+      <path d="M9 14h6" />
+      <path d="m5 10-2-1" />
+      <path d="m19 10 2-1" />
+      <path d="m5 16-2 1" />
+      <path d="m19 16 2 1" />
+      <path d="M5 13H3" />
+      <path d="M21 13h-2" />
+    </Svg>
+  );
+}
+
+/** Ask mode — speech bubble */
+export function IconMessage(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    </Svg>
+  );
+}

@@ -9,12 +9,15 @@ import { toolRegistry } from './registry';
 // ─── grep ──────────────────────────────────────────────
 const grepTool: ToolDefinition = {
   name: 'grep',
-  description: 'Search files for a regex pattern. Uses ripgrep. Supports file pattern filtering.',
+  description:
+    'Search file CONTENTS for a regex/symbol (ripgrep). Use for identifiers, strings, error text. ' +
+    'Do NOT use glob patterns like **/*.ts here — that is the glob tool. ' +
+    'Cursor UI shows this as Grepped.',
   parameters: {
     type: 'object',
     properties: {
-      pattern: { type: 'string', description: 'Regex pattern to search for' },
-      include: { type: 'string', description: 'File glob pattern to include (e.g. "*.ts")', optional: true },
+      pattern: { type: 'string', description: 'Regex or literal to find inside files (e.g. ask_question|waitForQuestion)' },
+      include: { type: 'string', description: 'Limit to file glob (e.g. "*.ts", "src/**/*.py")', optional: true },
       path: { type: 'string', description: 'Directory to search in', optional: true },
       maxResults: { type: 'number', description: 'Maximum results (default: 50)', optional: true }
     },
@@ -28,7 +31,9 @@ const grepTool: ToolDefinition = {
 // ─── glob ──────────────────────────────────────────────
 const globTool: ToolDefinition = {
   name: 'glob',
-  description: 'Find files by glob pattern (e.g. "**/*.ts", "src/**/*.test.*")',
+  description:
+    'Find files by path/name glob (e.g. "**/*.ts", "rust-server/**/*.rs"). ' +
+    'Not for searching inside file contents — use grep for that. Cursor UI shows this as Searched.',
   parameters: {
     type: 'object',
     properties: {
@@ -106,13 +111,13 @@ const readFileTool: ToolDefinition = {
 const readFilesTool: ToolDefinition = {
   name: 'read_files',
   description:
-    'Read slices of many files in one call (up to 12). Use this when exploring a codebase so you do not drip-read 2–4 files per turn. Same offset/limit defaults as read_file.',
+    'Read slices of many files in one call (up to 12). Required: paths (string array). Aliases path/files also accepted. Use when exploring so you do not drip-read 2–4 files per turn. Same offset/limit defaults as read_file.',
   parameters: {
     type: 'object',
     properties: {
       paths: {
         type: 'array',
-        description: 'Workspace-relative or absolute file paths (max 12)',
+        description: 'Non-empty list of workspace-relative or absolute file paths (max 12). Required.',
         items: { type: 'string' }
       },
       offset: {

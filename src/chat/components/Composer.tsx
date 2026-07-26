@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, KeyboardEvent, useCallback } from '
 import type { Attachment, Mode } from '../types';
 import { ModeSelector } from './ModeSelector';
 import { IconQueue } from './Icons';
+import { ComposerPalette, type PaletteItem } from './ComposerPalette';
 import {
   THINKING_EFFORT_OPTIONS,
   type ThinkingEffort
@@ -13,6 +14,13 @@ import {
   makeLogAttachment,
   parseLineRangeInput
 } from '../attachmentFormat';
+import {
+  detectComposerTrigger,
+  filterSlashCommands,
+  replaceTriggerRange,
+  type ActiveTrigger,
+  type MentionHit
+} from '../composerPalette';
 
 interface ComposerProps {
   onSend: (text: string, files: Attachment[]) => void;
@@ -48,6 +56,14 @@ interface ComposerProps {
   /** 0–100 estimated context fill */
   contextUsagePercent?: number;
   contextUsageLabel?: string;
+  /** Prefill composer (e.g. Stop on user bubble → same text for resend) */
+  seedText?: string | null;
+  seedNonce?: number;
+  /** Slash command actions (/new, /agent, …) */
+  onSlashCommand?: (cmd: {
+    action: 'newChat' | 'settings' | 'mode';
+    mode?: Mode;
+  }) => void;
 }
 
 function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
@@ -143,7 +159,10 @@ export function Composer({
   thinkingEffort = 'medium',
   onThinkingEffortChange,
   contextUsagePercent = 0,
-  contextUsageLabel
+  contextUsageLabel,
+  seedText = null,
+  seedNonce = 0,
+  onSlashCommand
 }: ComposerProps) {
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -154,6 +173,165 @@ export function Composer({
   const suppressCommitRef = useRef(false);
   const lastSubmitRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
   const dragDepthRef = useRef(0);
+
+  const [paletteTrigger, setPaletteTrigger] = useState<ActiveTrigger | null>(
+    null
+  );
+  const [paletteIndex, setPaletteIndex] = useState(0);
+  const [mentionHits, setMentionHits] = useState<MentionHit[]>([]);
+  const [mentionLoading, setMentionLoading] = useState(false);
+  const searchReqRef = useRef(0);
+  const paletteTriggerRef = useRef<ActiveTrigger | null>(null);
+  paletteTriggerRef.current = paletteTrigger;
+
+  useEffect(() => {
+    if (seedNonce <= 0 || seedText == null) return;
+    setText(seedText);
+    window.requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      const len = seedText.length;
+      try {
+        el.setSelectionRange(len, len);
+      } catch {
+        /* ignore */
+      }
+    });
+  }, [seedNonce, seedText]);
+
+  const syncPalette = useCallback((nextText: string, cursor: number) => {
+    const trigger = detectComposerTrigger(nextText, cursor);
+    setPaletteTrigger(trigger);
+    setPaletteIndex(0);
+    if (!trigger || trigger.kind !== 'mention') {
+      setMentionHits([]);
+      setMentionLoading(false);
+    }
+  }, []);
+
+  // Debounced workspace search for @
+  useEffect(() => {
+    if (!paletteTrigger || paletteTrigger.kind !== 'mention') return;
+    const api = getVsCodeApi();
+    if (!api) {
+      setMentionHits([]);
+      setMentionLoading(false);
+      return;
+    }
+    const reqId = `cs_${++searchReqRef.current}_${Date.now()}`;
+    setMentionLoading(true);
+    const query = paletteTrigger.query;
+    const t = window.setTimeout(() => {
+      api.postMessage({
+        type: 'composer.search',
+        requestId: reqId,
+        query,
+        kind: 'file'
+      });
+    }, 80);
+
+    const onMsg = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.type !== 'composer.search.result') return;
+      if (data.requestId !== reqId) return;
+      const results = Array.isArray(data.results) ? data.results : [];
+      setMentionHits(
+        results.map((r: any) => ({
+          kind: r.kind === 'folder' ? 'folder' : 'file',
+          path: String(r.path || ''),
+          label: String(r.label || r.path || ''),
+          description: r.description != null ? String(r.description) : undefined
+        }))
+      );
+      setMentionLoading(false);
+    };
+    window.addEventListener('message', onMsg);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('message', onMsg);
+    };
+  }, [paletteTrigger]);
+
+  const paletteItems: PaletteItem[] = (() => {
+    if (!paletteTrigger) return [];
+    if (paletteTrigger.kind === 'slash') {
+      return filterSlashCommands(paletteTrigger.query).map((cmd) => ({
+        type: 'slash' as const,
+        cmd
+      }));
+    }
+    return mentionHits.map((hit) => ({ type: 'mention' as const, hit }));
+  })();
+
+  const applyTextAndCursor = (next: string, cursor: number) => {
+    setText(next);
+    window.requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      try {
+        el.setSelectionRange(cursor, cursor);
+      } catch {
+        /* ignore */
+      }
+    });
+  };
+
+  const closePalette = () => {
+    setPaletteTrigger(null);
+    setMentionHits([]);
+    setMentionLoading(false);
+    setPaletteIndex(0);
+  };
+
+  const selectPaletteItem = useCallback(
+    (item: PaletteItem) => {
+      const trigger = paletteTriggerRef.current;
+      const el = textareaRef.current;
+      if (!trigger || !el) return;
+      const cursor = el.selectionStart ?? text.length;
+
+      if (item.type === 'mention') {
+        const { hit } = item;
+        const att: Attachment = {
+          type: hit.kind === 'folder' ? 'folder' : 'file',
+          path: hit.path,
+          label: hit.label
+        };
+        setAttachments((prev) => {
+          const normalized = { ...att, id: attachmentId(att) };
+          const id = attachmentId(normalized);
+          if (prev.some((a) => attachmentId(a) === id)) return prev;
+          return [...prev, normalized];
+        });
+        const { text: next, cursor: nextCursor } = replaceTriggerRange(
+          text,
+          trigger.start,
+          cursor,
+          ''
+        );
+        applyTextAndCursor(next, nextCursor);
+        closePalette();
+        return;
+      }
+
+      const { cmd } = item;
+      const { text: next, cursor: nextCursor } = replaceTriggerRange(
+        text,
+        trigger.start,
+        cursor,
+        ''
+      );
+      applyTextAndCursor(next, nextCursor);
+      closePalette();
+      onSlashCommand?.({
+        action: cmd.action,
+        mode: cmd.mode
+      });
+    },
+    [text, onSlashCommand]
+  );
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -180,6 +358,7 @@ export function Composer({
     suppressCommitRef.current = true;
     setText('');
     setAttachments([]);
+    closePalette();
     window.setTimeout(() => {
       suppressCommitRef.current = false;
     }, 100);
@@ -390,6 +569,33 @@ export function Composer({
       return;
     }
 
+    // @ / palette navigation
+    if (paletteTrigger && paletteItems.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setPaletteIndex((i) => (i + 1) % paletteItems.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setPaletteIndex(
+          (i) => (i - 1 + paletteItems.length) % paletteItems.length
+        );
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closePalette();
+        return;
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey)) {
+        e.preventDefault();
+        const item = paletteItems[paletteIndex];
+        if (item) selectPaletteItem(item);
+        return;
+      }
+    }
+
     const isEnterKey = e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter';
     if (!isEnterKey || e.shiftKey) return;
 
@@ -437,7 +643,9 @@ export function Composer({
       setText('');
       return;
     }
-    setText(e.target.value);
+    const next = e.target.value;
+    setText(next);
+    syncPalette(next, e.target.selectionStart ?? next.length);
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -488,7 +696,7 @@ export function Composer({
 
   const getPlaceholder = () => {
     if (isAwaitingUser) {
-      return 'Waiting for your answer above…';
+      return 'Waiting for your answer…';
     }
     if (isStreaming) {
       return 'Streaming… (Enter: queue · ⌘/Ctrl+Enter: interrupt)';
@@ -496,7 +704,7 @@ export function Composer({
     if (attachments.length) {
       return '메시지 추가, 또는 첨부만으로 전송… (로그 붙여넣기·칩 클릭=줄 범위)';
     }
-    return 'Plan, Build, @ for context…';
+    return '메시지 입력 · @ 파일 · / 명령…';
   };
 
   const usagePct = Math.max(0, Math.min(100, Math.round(contextUsagePercent)));
@@ -509,196 +717,228 @@ export function Composer({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {attachments.length > 0 ? (
-        <div className="composer-chips" aria-label="Attached context">
-          {attachments.map((a) => {
-            const id = attachmentId(a);
-            const label = attachmentDisplayLabel(a);
-            const isLog = a.type === 'log' || a.type === 'snippet';
-            return (
-              <span
-                key={id}
-                className={`composer-chip composer-chip--${a.type}${
-                  a.startLine != null ? ' composer-chip--ranged' : ''
-                }`}
-                title={
-                  isLog
-                    ? (a.content || '').slice(0, 500)
-                    : a.startLine != null
-                      ? `${a.path}:${a.startLine}${
-                          a.endLine != null ? `-${a.endLine}` : ''
-                        }`
-                      : a.path
-                }
-              >
-                <span className="composer-chip-icon" aria-hidden>
-                  {a.type === 'folder' ? '📁' : isLog ? '📋' : '📄'}
-                </span>
-                <button
-                  type="button"
-                  className="composer-chip-label"
-                  onClick={() => editLineRange(a)}
-                  title={
-                    a.type === 'file' || a.type === 'snippet'
-                      ? '클릭하여 줄 범위 지정'
-                      : undefined
-                  }
-                >
-                  {label}
-                </button>
-                <button
-                  type="button"
-                  className="composer-chip-remove"
-                  onClick={() => removeAttachment(id)}
-                  title="첨부 제거"
-                  aria-label={`Remove ${label}`}
-                >
-                  ×
-                </button>
-              </span>
-            );
-          })}
-        </div>
-      ) : null}
-
       {dragOver ? (
         <div className="composer-drop-hint">
           Hold <kbd>Shift</kbd> and drop files/folders to attach
         </div>
       ) : null}
 
-      <div className="composer-box">
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onCompositionStart={handleCompositionStart}
-          onCompositionEnd={handleCompositionEnd}
-          onPaste={handlePaste}
-          placeholder={getPlaceholder()}
-          disabled={disabled && !isStreaming}
-          rows={1}
-          style={{ height: `${height}px`, minHeight: '52px', maxHeight: '200px' }}
-        />
-
-        <div className="composer-toolbar">
-          <div className="composer-toolbar__left">
-            <ModeSelector
-              value={mode}
-              onChange={onModeChange}
-              disabled={isStreaming}
-              labels={modeLabels}
-              tooltips={modeTooltips}
-            />
-            {onModelChange && (modelOptions.length > 0 || modelId) ? (
-              <select
-                className="composer-model composer-model-select"
-                value={modelId || modelOptions[0] || ''}
-                onChange={(e) => onModelChange(e.target.value)}
-                disabled={isStreaming}
-                title={modelId || modelLabel}
-                aria-label="Model"
-              >
-                {(modelOptions.includes(modelId || '')
-                  ? modelOptions
-                  : modelId
-                    ? [modelId, ...modelOptions]
-                    : modelOptions
-                ).map((id) => {
-                  const short = id.split('/').pop() || id;
-                  const label = short.length > 32 ? `${short.slice(0, 30)}…` : short;
-                  return (
-                    <option key={id} value={id} title={id}>
-                      {label}
-                    </option>
-                  );
-                })}
-              </select>
-            ) : (
-              <span className="composer-model" title={modelLabel}>
-                {modelLabel}
-              </span>
-            )}
-            {onThinkingEffortChange ? (
-              <select
-                className="composer-thinking-select"
-                value={thinkingEffort}
-                onChange={(e) =>
-                  onThinkingEffortChange(e.target.value as ThinkingEffort)
-                }
-                disabled={isStreaming}
-                title={
-                  THINKING_EFFORT_OPTIONS.find((o) => o.value === thinkingEffort)
-                    ?.title || 'Thinking 강도'
-                }
-                aria-label="Thinking 강도"
-              >
-                {THINKING_EFFORT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value} title={o.title}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            ) : null}
-          </div>
-
-          <div className="composer-toolbar__right">
-            <button
-              type="button"
-              onClick={pickAttachments}
-              disabled={disabled && !isStreaming}
-              className="composer-icon-btn"
-              title="파일 또는 폴더 첨부"
-              aria-label="파일 또는 폴더 첨부"
-            >
-              📎
-            </button>
-            {isStreaming ? (
-              <>
-                {onQueueMessage ? (
-                  <button
-                    type="button"
-                    onClick={() => submitQueue(text)}
-                    disabled={!canSend}
-                    className="composer-icon-btn composer-icon-btn--queue"
-                    title="대기열에 추가 (Enter) — 현재 턴 종료 후 전송"
-                    aria-label="대기열에 추가"
+      <div className="composer-box-wrap">
+        {paletteTrigger ? (
+          <ComposerPalette
+            kind={paletteTrigger.kind}
+            items={paletteItems}
+            selectedIndex={paletteIndex}
+            loading={mentionLoading}
+            query={paletteTrigger.query}
+            onHover={setPaletteIndex}
+            onSelect={selectPaletteItem}
+          />
+        ) : null}
+        <div className="composer-box">
+          {attachments.length > 0 ? (
+            <div className="composer-chips" aria-label="Attached context">
+              {attachments.map((a) => {
+                const id = attachmentId(a);
+                const label = attachmentDisplayLabel(a);
+                const isLog = a.type === 'log' || a.type === 'snippet';
+                return (
+                  <span
+                    key={id}
+                    className={`composer-chip composer-chip--${a.type}${
+                      a.startLine != null ? ' composer-chip--ranged' : ''
+                    }`}
+                    title={
+                      isLog
+                        ? (a.content || '').slice(0, 500)
+                        : a.startLine != null
+                          ? `${a.path}:${a.startLine}${
+                              a.endLine != null ? `-${a.endLine}` : ''
+                            }`
+                          : a.path
+                    }
                   >
-                    <IconQueue />
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => submitResynth(text)}
-                  className="composer-icon-btn"
-                  title="중단 후 합치기 (⌘/Ctrl+Enter)"
-                  aria-label="중단 후 합치기"
+                    <span className="composer-chip-icon" aria-hidden>
+                      {a.type === 'folder' ? '📁' : isLog ? '📋' : '📄'}
+                    </span>
+                    <button
+                      type="button"
+                      className="composer-chip-label"
+                      onClick={() => editLineRange(a)}
+                      title={
+                        a.type === 'file' || a.type === 'snippet'
+                          ? '클릭하여 줄 범위 지정'
+                          : undefined
+                      }
+                    >
+                      {label}
+                    </button>
+                    <button
+                      type="button"
+                      className="composer-chip-remove"
+                      onClick={() => removeAttachment(id)}
+                      title="첨부 제거"
+                      aria-label={`Remove ${label}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
+            onPaste={handlePaste}
+            onClick={(e) =>
+              syncPalette(
+                e.currentTarget.value,
+                e.currentTarget.selectionStart ?? 0
+              )
+            }
+            onKeyUp={(e) => {
+              if (
+                e.key === 'ArrowLeft' ||
+                e.key === 'ArrowRight' ||
+                e.key === 'Home' ||
+                e.key === 'End'
+              ) {
+                syncPalette(
+                  e.currentTarget.value,
+                  e.currentTarget.selectionStart ?? 0
+                );
+              }
+            }}
+            placeholder={getPlaceholder()}
+            disabled={disabled && !isStreaming}
+            rows={1}
+            style={{ height: `${height}px`, minHeight: '52px', maxHeight: '200px' }}
+          />
+
+          <div className="composer-toolbar" role="toolbar" aria-label="Composer controls">
+            <div className="composer-toolbar__left">
+              <ModeSelector
+                value={mode}
+                onChange={onModeChange}
+                disabled={isStreaming}
+                labels={modeLabels}
+                tooltips={modeTooltips}
+              />
+              {onModelChange && (modelOptions.length > 0 || modelId) ? (
+                <select
+                  className="composer-model composer-model-select"
+                  value={modelId || modelOptions[0] || ''}
+                  onChange={(e) => onModelChange(e.target.value)}
+                  disabled={isStreaming}
+                  title={modelId || modelLabel}
+                  aria-label="Model"
                 >
-                  ⏎
-                </button>
-                <button
-                  type="button"
-                  onClick={onStop}
-                  className="composer-icon-btn composer-icon-btn--stop"
-                  title="중지"
-                  aria-label="중지"
+                  {(modelOptions.includes(modelId || '')
+                    ? modelOptions
+                    : modelId
+                      ? [modelId, ...modelOptions]
+                      : modelOptions
+                  ).map((id) => {
+                    const short = id.split('/').pop() || id;
+                    const label =
+                      short.length > 32 ? `${short.slice(0, 30)}…` : short;
+                    return (
+                      <option key={id} value={id} title={id}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <span className="composer-model" title={modelLabel}>
+                  {modelLabel}
+                </span>
+              )}
+              {onThinkingEffortChange ? (
+                <select
+                  className="composer-thinking-select"
+                  value={thinkingEffort}
+                  onChange={(e) =>
+                    onThinkingEffortChange(e.target.value as ThinkingEffort)
+                  }
+                  disabled={isStreaming}
+                  title={
+                    THINKING_EFFORT_OPTIONS.find((o) => o.value === thinkingEffort)
+                      ?.title || 'Thinking 강도'
+                  }
+                  aria-label="Thinking 강도"
                 >
-                  <span className="composer-stop-square" aria-hidden />
-                </button>
-              </>
-            ) : (
+                  {THINKING_EFFORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value} title={o.title}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+            </div>
+
+            <div className="composer-toolbar__right">
               <button
                 type="button"
-                onClick={() => submitIdle(text)}
-                disabled={disabled || !canSend}
-                className="composer-icon-btn composer-icon-btn--send"
-                title="전송"
-                aria-label="전송"
+                onClick={pickAttachments}
+                disabled={disabled && !isStreaming}
+                className="composer-icon-btn"
+                title="파일 또는 폴더 첨부"
+                aria-label="파일 또는 폴더 첨부"
               >
-                ▲
+                📎
               </button>
-            )}
+              {isStreaming ? (
+                <>
+                  {onQueueMessage ? (
+                    <button
+                      type="button"
+                      onClick={() => submitQueue(text)}
+                      disabled={!canSend}
+                      className="composer-icon-btn composer-icon-btn--queue"
+                      title="대기열에 추가 (Enter) — 현재 턴 종료 후 전송"
+                      aria-label="대기열에 추가"
+                    >
+                      <IconQueue />
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => submitResynth(text)}
+                    className="composer-icon-btn"
+                    title="중단 후 합치기 (⌘/Ctrl+Enter)"
+                    aria-label="중단 후 합치기"
+                  >
+                    ⏎
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onStop}
+                    className="composer-icon-btn composer-icon-btn--stop"
+                    title="중지"
+                    aria-label="중지"
+                  >
+                    <span className="composer-stop-square" aria-hidden />
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => submitIdle(text)}
+                  disabled={disabled || !canSend}
+                  className="composer-icon-btn composer-icon-btn--send"
+                  title="전송"
+                  aria-label="전송"
+                >
+                  ▲
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

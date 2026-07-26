@@ -341,6 +341,27 @@ function normalizeToolArgs(name: string, args: ToolInput): ToolInput {
   const next = { ...args };
   const root = getWorkspaceRoot();
 
+  if (name === 'ask_question') {
+    if (next.question == null || !String(next.question).trim()) {
+      next.question =
+        next.prompt || next.text || next.query || next.message || next.question;
+    }
+  }
+  if (name === 'run_terminal_cmd') {
+    if (next.command == null && next.cmd != null) next.command = next.cmd;
+    if (next.command == null && next.shell != null) next.command = next.shell;
+  }
+  if (
+    (name === 'write_file' || name === 'edit_file' || name === 'read_file') &&
+    next.path == null
+  ) {
+    next.path =
+      next.file_path || next.target_file || next.filepath || next.file || next.path;
+  }
+  if (name === 'write_file' && next.content == null && next.contents != null) {
+    next.content = next.contents;
+  }
+
   if (name === 'glob' || name === 'file_search') {
     const p = (next.path as string) || '.';
     if (!p || p === '.' || p === './') {

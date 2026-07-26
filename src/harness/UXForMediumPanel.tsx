@@ -22,33 +22,23 @@ export function UXForMediumPanel({ uxState, stuckEvent, onAction }: UXForMediumP
   return (
     <div
       className="ux-for-medium-panel"
-      style={{
-        padding: '4px 10px',
-        fontSize: '11px',
-        borderBottom: '1px solid var(--vscode-panel-border, #444)',
-        background: 'var(--vscode-editor-background, #1e1e1e)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 4
-      }}
       title="Harness tier status (Flash / Pro routing)"
     >
-      <div style={{ opacity: 0.9 }}>{statusLine}</div>
-      {suggestion && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-          <span style={{ color: 'var(--vscode-errorForeground, #f48771)' }}>{suggestion.message}</span>
-          {suggestion.actions.map(action => (
+      <div className="ux-for-medium-panel__line">{statusLine}</div>
+      {suggestion ? (
+        <div className="ux-for-medium-panel__stuck">
+          <span className="ux-for-medium-panel__stuck-msg">{suggestion.message}</span>
+          {suggestion.actions.map((action) => (
             <button
               key={action}
               type="button"
-              style={{ fontSize: '11px', padding: '2px 8px' }}
               onClick={() => onAction?.(action, suggestion.event)}
             >
               {action}
             </button>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -27,12 +27,29 @@ export class AskQuestionTool {
    * Register question and wait for user answer via host↔webview bridge.
    */
   async execute(input: ToolInput): Promise<ToolOutput> {
-    const questionText = String(input.question || '').trim();
+    // Alias recovery — models often send prompt/text/query instead of question
+    let questionText = String(
+      input.question || input.prompt || input.text || input.query || input.message || ''
+    ).trim();
+    let optionsRaw = input.options;
+    if (
+      !questionText &&
+      Array.isArray(input.questions) &&
+      input.questions[0] &&
+      typeof input.questions[0] === 'object'
+    ) {
+      const first = input.questions[0] as Record<string, unknown>;
+      questionText = String(first.question || first.prompt || first.text || '').trim();
+      if (optionsRaw == null && Array.isArray(first.options)) {
+        optionsRaw = first.options;
+      }
+    }
+    // Never block the host with an empty prompt — UI would not open (ChatApp requires question)
     if (!questionText) {
-      return { success: false, error: 'ask_question requires a non-empty "question" string' };
+      questionText =
+        '전환 범위나 우선순위에 대해 확인이 필요합니다. 아래에서 선택하거나 기타에 적어 주세요.';
     }
 
-    const optionsRaw = input.options;
     const optionsIn = Array.isArray(optionsRaw)
       ? (optionsRaw as unknown[]).map((o) => String(o)).filter(Boolean)
       : undefined;

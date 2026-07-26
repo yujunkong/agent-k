@@ -23,7 +23,8 @@ export interface TurnStructureConfig {
 
 export const DEFAULT_TURN_STRUCTURE: TurnStructureConfig = {
   maxToolCallsPerTurn: 12,
-  maxWriteToolsPerTurn: 1,
+  /** Allow several new-file writes per turn — MAX 1 caused silent drops + fake "Edit N" markdown */
+  maxWriteToolsPerTurn: 6,
   maxToolResultChars: 32000,
   responseReservePercent: 10,
 };
@@ -50,10 +51,16 @@ Each turn follows a fixed structure:
 - **Batch exploration**: when you know several paths, use \`read_files\` with up to 12 paths in ONE call, or emit many \`read_file\` calls in the SAME turn. Do NOT drip-read 2–4 files per turn then stop — that wastes rounds.
 - Prefer search → then bounded \`read_file\` / \`read_files\` windows (default ~250 lines). Do not dump whole files.
 - Final user-visible answers: **lead with a 1–2 sentence understanding summary** (what the user wants + what you will do), then the rest. Use clean Markdown (\`##\` headings, \`- \` / \`1. \` lists, GFM \`| tables |\`). Never pad columns with spaces.
-- Write tools (edit_file, write_file, run_terminal_cmd): MAX 1 per turn
+- Write tools (\`edit_file\`, \`write_file\`, \`delete_file\`, \`run_terminal_cmd\`): up to **6** per turn. Prefer real tool calls — never fake file changes in markdown.
 - Total tool calls per turn: MAX 12
 - Each tool result is capped at 32KB
 - Always respond in the format requested
+
+### File edits — tools only (CRITICAL)
+- **Never** narrate edits as markdown like \`Edit 15: Create 'path'\` or paste the whole new file in a fenced code block and claim it was written.
+- To create/overwrite a file → \`write_file\` tool. To patch → \`edit_file\` tool.
+- Before declaring \`pub mod foo;\` / imports, **create \`foo.rs\` (or the real module file) in the same turn or an earlier successful tool result**. Do not leave the tree referencing missing modules.
+- Match existing project layout (\`list_dir\` / \`glob\` first). Do not invent paths like \`core/src/...\` when the crate uses \`src/...\`.
 
 ### Tool Call Format
 When calling tools, use the exact JSON format specified in the tool schemas.

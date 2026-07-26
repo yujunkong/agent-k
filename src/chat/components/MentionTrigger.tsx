@@ -172,9 +172,10 @@ export function MentionTrigger({ value, onChange, onMentionSelect, disabled, res
             right: 0,
             maxHeight: 200,
             overflowY: 'auto',
-            background: 'var(--vscode-dropdown-background, #2d2d2d)',
-            border: '1px solid var(--vscode-dropdown-border, #555)',
-            borderRadius: 4,
+            background: 'var(--ak-panel-bg, var(--vscode-input-background, #3c3c3c))',
+            border: '1px solid var(--ak-panel-border, rgba(255, 255, 255, 0.14))',
+            borderRadius: 10,
+            boxShadow: 'var(--ak-panel-shadow, 0 8px 24px rgba(0, 0, 0, 0.4))',
             zIndex: 1000
           }}
         >

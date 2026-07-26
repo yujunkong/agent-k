@@ -30,6 +30,7 @@ export interface ChatMessage {
     toolName?: string;
     /** Agent loop turn number (for Cursor-style collapse-per-turn) */
     turn?: number;
+    thoughtRole?: 'opening' | 'mid';
     itemStatus: 'running' | 'done' | 'error';
     durationMs?: number;
   }>;
@@ -134,6 +135,8 @@ export interface TimelineDelta {
   label: string;
   detail?: string;
   toolName?: string;
+  /** Host: opening = per-turn main Thought; mid = nested under Exploring */
+  thoughtRole?: 'opening' | 'mid';
   /** running while in-flight; done/error when finished */
   itemStatus: 'running' | 'done' | 'error';
   id?: string;

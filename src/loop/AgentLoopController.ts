@@ -43,6 +43,16 @@ Call ask_question now (one or more times) with 2–4 multiple-choice options abo
 
 Do NOT write more "최종 결론" prose. Emit ask_question tool_calls only.`;
 
+/** After tools finish — require a real user-visible wrap-up message */
+const WRAP_UP_NUDGE = `Tools for this request are finished. Write the user-visible final reply now in the user's language (Korean if they wrote Korean). Do NOT call tools.
+
+Required:
+1. What you changed (key files / edits) — brief bullets
+2. Why / root cause (if fixing or debugging) — one short section
+3. Result and what's left (if anything)
+
+Use clean Markdown (## headings, - bullets). No "Proceeding to…", no "이제 작성하겠습니다" status lines — this is the closing message the user reads under Worked for.`;
+
 export interface LoopConfig {
   mode: Mode;
   maxTurns: number;
@@ -78,6 +88,16 @@ export interface LoopConfig {
     result: ToolOutput,
     callId?: string
   ) => Promise<void>;
+  /**
+   * Host chat: re-bind ask_question → webview right before wait.
+   * Avoids RuntimeServices notifier races (interrupt / new tab / concurrent send).
+   */
+  onAskQuestion?: (q: {
+    id: string;
+    question: string;
+    options?: string[];
+    required?: boolean;
+  }) => void;
   onTurnStart?: (turn: number) => Promise<void>;
   onTurnEnd?: (turn: number, context: TurnContext) => Promise<void>;
   onStatus?: (status: LoopStatus) => void;
@@ -150,8 +170,19 @@ export class AgentLoopController {
   private doomHandler = new DoomLoopHandler();
   /** Local models sometimes return empty final after tools — retry once */
   private emptyFinalRetried = false;
+  /** After tools: forced user-facing wrap-up message — once per run */
+  private wrapUpRetried = false;
   /** Reasoning said "I'll read…" but emitted no tool_calls — nudge once */
   private toolIntentNudged = false;
+  /** Said "writing files…" without write_file — nudge once more */
+  private writeIntentNudged = false;
+  /** Agent returned "I'll continue…" prose after tools — keep nudging (capped) */
+  private continueIntentNudges = 0;
+  private static readonly MAX_CONTINUE_NUDGES = 2;
+  /** edit_file / write_file / delete_file succeeded this run */
+  private writeToolsUsedThisRun = false;
+  /** Any tool ran this run — subsequent LLM passes use short mid-explore thinking */
+  private toolsRanThisRun = false;
   /** Plan research ended in prose without ask_question — nudge once */
   private planAskQuestionNudged = false;
   /** ask_question ran at least once this loop */
@@ -245,6 +276,15 @@ export class AgentLoopController {
     this._state.status = 'streaming';
     this._state.startTime = Date.now();
     this._state.currentTurn = 0;
+    this.emptyFinalRetried = false;
+    this.wrapUpRetried = false;
+    this.toolIntentNudged = false;
+    this.writeIntentNudged = false;
+    this.continueIntentNudges = 0;
+    this.writeToolsUsedThisRun = false;
+    this.toolsRanThisRun = false;
+    this.planAskQuestionNudged = false;
+    this.askedQuestionThisRun = false;
 
     this.messages = [
       { role: 'system', content: this.config.systemPrompt || modeRegistry.getSystemPrompt(this.config.mode) },
@@ -259,7 +299,12 @@ export class AgentLoopController {
     this._state.status = 'streaming';
     this.messages = messages;
     this.emptyFinalRetried = false;
+    this.wrapUpRetried = false;
     this.toolIntentNudged = false;
+    this.writeIntentNudged = false;
+    this.continueIntentNudges = 0;
+    this.writeToolsUsedThisRun = false;
+    this.toolsRanThisRun = false;
     this.planAskQuestionNudged = false;
     this.askedQuestionThisRun = false;
     this.doomDetector.reset();
@@ -315,7 +360,7 @@ export class AgentLoopController {
       const response = await this.callModel();
       if (!response) break;
 
-      // --- Phase 2: Process tool calls (PromptTurnStructure: ≤12 tools, ≤1 write) ---
+      // --- Phase 2: Process tool calls (PromptTurnStructure: ≤12 tools, ≤6 writes) ---
       if (response.toolCalls && response.toolCalls.length > 0) {
         this._state.status = 'tool_executing';
         this.config.onStatus?.(this._state.status);
@@ -324,26 +369,35 @@ export class AgentLoopController {
         const turnValidation = validateTurnStructure(
           response.toolCalls.map(tc => ({ name: tc.name })),
         );
+        const { DEFAULT_TURN_STRUCTURE } = await import('../harness/PromptTurnStructure');
         let toolCalls = response.toolCalls;
+        /** Write/tool calls over the limit — still returned as errors so the model knows they did not run */
+        const deferredOverLimit: typeof response.toolCalls = [];
         if (!turnValidation.valid) {
-          // Was: inject error + continue → Thought loop with no progress.
-          // Now: truncate to limit and proceed (e.g. 13 parallel reads → keep 12).
-          const { DEFAULT_TURN_STRUCTURE } = await import('../harness/PromptTurnStructure');
+          // Was: silent drop of extra writes → model thought files were created.
+          // Now: keep up to limits for execution; excess get explicit failure results.
           const maxN = DEFAULT_TURN_STRUCTURE.maxToolCallsPerTurn;
+          const maxW = DEFAULT_TURN_STRUCTURE.maxWriteToolsPerTurn;
           const writeTools = new Set([
             'edit_file', 'write_file', 'delete_file', 'run_terminal_cmd'
           ]);
           let writes = 0;
-          toolCalls = [];
+          const kept: typeof response.toolCalls = [];
           for (const tc of response.toolCalls) {
-            if (toolCalls.length >= maxN) break;
-            if (writeTools.has(tc.name)) {
-              if (writes >= DEFAULT_TURN_STRUCTURE.maxWriteToolsPerTurn) continue;
-              writes++;
+            const isWrite = writeTools.has(tc.name);
+            if (isWrite && writes >= maxW) {
+              deferredOverLimit.push(tc);
+              continue;
             }
-            toolCalls.push(tc);
+            if (kept.length >= maxN) {
+              deferredOverLimit.push(tc);
+              continue;
+            }
+            if (isWrite) writes++;
+            kept.push(tc);
           }
-          if (toolCalls.length === 0) {
+          toolCalls = kept;
+          if (toolCalls.length === 0 && deferredOverLimit.length === 0) {
             this.messages.push({
               role: 'assistant',
               content:
@@ -358,8 +412,31 @@ export class AgentLoopController {
         this.messages.push({
           role: 'assistant',
           content: response.content || '',
-          toolCalls
+          toolCalls: [...toolCalls, ...deferredOverLimit]
         });
+
+        // Explicit failures for truncated calls (must not look like success)
+        for (const tc of deferredOverLimit) {
+          const err = {
+            success: false as const,
+            error:
+              `Skipped: turn allows at most ${DEFAULT_TURN_STRUCTURE.maxWriteToolsPerTurn} write/terminal tools ` +
+              `and ${DEFAULT_TURN_STRUCTURE.maxToolCallsPerTurn} total tools. ` +
+              `Re-call "${tc.name}" next turn — this invocation did NOT run.`
+          };
+          this.messages.push({
+            role: 'tool',
+            toolCallId: tc.id,
+            name: tc.name,
+            content: JSON.stringify({ error: err.error })
+          });
+          await this.config.onToolResult?.(tc.name, err, tc.id);
+        }
+
+        if (toolCalls.length === 0) {
+          this.consecutiveFailures++;
+          continue;
+        }
 
         const { isParallelReadTool, mapPool } = await import('./parallelRead');
 
@@ -421,6 +498,13 @@ export class AgentLoopController {
             this.consecutiveFailures++;
           } else {
             this.consecutiveFailures = 0;
+            if (
+              toolCall.name === 'edit_file' ||
+              toolCall.name === 'write_file' ||
+              toolCall.name === 'delete_file'
+            ) {
+              this.writeToolsUsedThisRun = true;
+            }
           }
 
           await this.config.onToolResult?.(toolCall.name, result, toolCall.id);
@@ -549,8 +633,10 @@ export class AgentLoopController {
           }
         }
         if (stopRun) return;
-        // Next LLM turn may plan again in prose — allow another tool nudge
+        this.toolsRanThisRun = true;
+        // Next LLM turn may plan again — allow fresh nudges after tools ran
         this.toolIntentNudged = false;
+        this.emptyFinalRetried = false;
       } else {
         // No tool calls → assistant response only (end of turn chain for this request)
         const finalContent = response.content || '';
@@ -653,10 +739,15 @@ export class AgentLoopController {
           return { toolCalls: recovered };
         }
 
-        // Reasoning plans "I'll read…" but no tool_calls — one nudge with tools still on
-        const intendsTools = this.reasoningIntendsTools(result.reasoning || result.content || '');
+        // Reasoning plans "I'll read/write…" but no tool_calls — nudge with tools still on
+        const said = `${result.reasoning || ''}\n${result.content || ''}`;
+        const intendsTools = this.reasoningIntendsTools(said);
+        const pendingWrites =
+          !this.writeToolsUsedThisRun &&
+          this.hasWriteToolSchemas(schemas) &&
+          this.claimsPendingFileWrites(said);
         if (
-          intendsTools &&
+          (intendsTools || pendingWrites) &&
           schemas.length > 0 &&
           !this.toolIntentNudged
         ) {
@@ -666,8 +757,9 @@ export class AgentLoopController {
           }
           this.messages.push({
             role: 'user',
-            content:
-              'Your previous turn only contained reasoning/plans, not tool_calls. Call the needed tools now (≤12 per turn; prefer read_files for many paths). No prose — emit tool_calls only.'
+            content: pendingWrites
+              ? 'You claimed you would write/create files but emitted no write_file/edit_file. Call those tools now for the files you named. No planning prose — tool_calls only.'
+              : 'Your previous turn only contained reasoning/plans, not tool_calls. Call the needed tools now (≤12 per turn; prefer read_files for many paths). No prose — emit tool_calls only.'
           });
           result = await this.streamOnce(this.buildProviderMessages(), schemas);
           if (result === null) return null;
@@ -682,24 +774,108 @@ export class AgentLoopController {
           }
         }
 
+        // Still promising writes after nudge — one more forced write pass (agent/build)
+        const said2 = `${result.reasoning || ''}\n${result.content || ''}`;
+        if (
+          !this.writeToolsUsedThisRun &&
+          !this.writeIntentNudged &&
+          this.hasWriteToolSchemas(schemas) &&
+          this.claimsPendingFileWrites(said2) &&
+          (this.config.mode === 'agent' || this.config.planStage === 'build')
+        ) {
+          this.writeIntentNudged = true;
+          this.messages.push({
+            role: 'user',
+            content:
+              'STOP summarizing. Emit write_file and/or edit_file tool_calls for the next plan files now. Do not say "Proceeding to write" — call the tools.'
+          });
+          result = await this.streamOnce(this.buildProviderMessages(), schemas);
+          if (result === null) return null;
+          if (result.toolCalls && result.toolCalls.length > 0) {
+            return { toolCalls: this.normalizeToolCalls(result.toolCalls, result.content || '') };
+          }
+          const recoveredW = this.recoverToolCallsFromContent(
+            result.content || result.reasoning || ''
+          );
+          if (recoveredW.length > 0) {
+            return { toolCalls: recoveredW };
+          }
+        }
+
         // Plan research/questions: prose conclusion without ask_question → force MCQ tools
         const planAsk = await this.nudgePlanAskQuestionIfNeeded(result, schemas);
         if (planAsk === null) return null;
         if (planAsk) return planAsk;
 
         const prose = (result.content || '').trim();
-        if (prose && prose !== '...') {
+        const hadToolsAlready = this.messages.some((m) => m.role === 'tool');
+        // After commands/reads: model often narrates "이제 생성하겠습니다" and stops — force tools
+        if (
+          prose &&
+          prose !== '...' &&
+          hadToolsAlready &&
+          schemas.length > 0 &&
+          (this.config.mode === 'agent' || this.config.planStage === 'build') &&
+          this.claimsContinueWork(prose) &&
+          !this.looksLikeClosingSummary(prose) &&
+          this.continueIntentNudges < AgentLoopController.MAX_CONTINUE_NUDGES
+        ) {
+          this.continueIntentNudges++;
           if ((result.reasoning || '').trim()) {
             void this.config.onReasoning?.(result.reasoning);
           }
-          return { content: prose, toolCalls: [] };
+          // Keep narration in the provider transcript (UI already streamed deltas)
+          const last = this.messages[this.messages.length - 1];
+          if (
+            !(
+              last?.role === 'assistant' &&
+              (last.content || '').trim() === prose
+            )
+          ) {
+            this.messages.push({ role: 'assistant', content: prose });
+          }
+          this.messages.push({
+            role: 'user',
+            content:
+              'Do not stop after explaining. Call the next tools now (write_file/edit_file/read_file/run_terminal_cmd as needed). No more status prose — tool_calls only.'
+          });
+          result = await this.streamOnce(this.buildProviderMessages(), schemas);
+          if (result === null) return null;
+          if (result.toolCalls && result.toolCalls.length > 0) {
+            return { toolCalls: this.normalizeToolCalls(result.toolCalls, result.content || '') };
+          }
+          const recoveredC = this.recoverToolCallsFromContent(
+            result.content || result.reasoning || ''
+          );
+          if (recoveredC.length > 0) {
+            return { toolCalls: recoveredC };
+          }
+          const prose2 = (result.content || '').trim();
+          if (prose2 && prose2 !== '...' && !this.isWeakFinalAnswer(prose2)) {
+            if ((result.reasoning || '').trim()) {
+              void this.config.onReasoning?.(result.reasoning);
+            }
+            return { content: prose2, toolCalls: [] };
+          }
+          // Fall through — force wrap-up below instead of returning mid-work status
+        }
+
+        const candidateProse = (result.content || '').trim() || prose;
+        if (candidateProse && candidateProse !== '...') {
+          // Only demand a rich wrap-up after tools; short chat replies are fine otherwise
+          if (!hadToolsAlready || !this.isWeakFinalAnswer(candidateProse)) {
+            if ((result.reasoning || '').trim()) {
+              void this.config.onReasoning?.(result.reasoning);
+            }
+            return { content: candidateProse, toolCalls: [] };
+          }
         }
 
         if ((result.reasoning || '').trim()) {
           void this.config.onReasoning?.(result.reasoning);
         }
 
-        const hadTools = this.messages.some((m) => m.role === 'tool');
+        const hadTools = hadToolsAlready;
         if (hadTools && !this.emptyFinalRetried) {
           this.emptyFinalRetried = true;
           const planStage = this.config.planStage || 'research';
@@ -730,54 +906,64 @@ export class AgentLoopController {
               void this.config.onReasoning?.(retry.reasoning);
             }
             const retryProse = (retry.content || '').trim();
-            if (retryProse && retryProse !== '...') {
+            if (retryProse && retryProse !== '...' && !this.isWeakFinalAnswer(retryProse)) {
               return { content: retryProse, toolCalls: [] };
             }
-          } else {
+          } else if (
+            !this.writeToolsUsedThisRun &&
+            this.hasWriteToolSchemas(schemas) &&
+            (this.config.mode === 'agent' || this.config.planStage === 'build')
+          ) {
+            // After research tools: force implementation instead of "final analysis, no tools"
             this.messages.push({
               role: 'user',
               content:
-                'Tool results are above. Write a concise final analysis in Korean (or the user language). Do NOT call tools. Use clean Markdown: ## headings, - bullets, and GFM | tables | — never space-padded columns.'
+                'Tool results are above. Apply the approved plan now: call write_file/edit_file for the next files. Do not write a summary — emit tool_calls only.'
             });
-            // Final answer pass: allow thinking for Thought UI
-            const retry = await this.streamOnce(this.buildProviderMessages(), [], {
-              enableThinking: true
-            });
+            const retry = await this.streamOnce(this.buildProviderMessages(), schemas);
             if (retry === null) return null;
+            if (retry.toolCalls && retry.toolCalls.length > 0) {
+              return { toolCalls: this.normalizeToolCalls(retry.toolCalls, retry.content || '') };
+            }
+            const recoveredWrite = this.recoverToolCallsFromContent(
+              retry.content || retry.reasoning || ''
+            );
+            if (recoveredWrite.length > 0) {
+              return { toolCalls: recoveredWrite };
+            }
             if ((retry.reasoning || '').trim()) {
               void this.config.onReasoning?.(retry.reasoning);
             }
             const retryProse = (retry.content || '').trim();
-            if (retryProse && retryProse !== '...') {
+            if (retryProse && retryProse !== '...' && !this.isWeakFinalAnswer(retryProse)) {
               return { content: retryProse, toolCalls: [] };
             }
-            if ((retry.reasoning || result.reasoning || '').trim()) {
-              return {
-                content: (retry.content || retry.reasoning || result.reasoning || '').trim(),
-                toolCalls: []
-              };
-            }
+            // Write force failed — fall through to wrap-up
           }
         }
 
+        // After tools: always try one dedicated wrap-up so Worked for has a message below
+        if (hadTools) {
+          const wrapped = await this.requestWrapUpPass();
+          if (wrapped === null) return null;
+          if (wrapped) return wrapped;
+          return {
+            content: this.synthesizeFromToolResults(),
+            toolCalls: []
+          };
+        }
+
         // Intended tools but never called them — stop with clear message (don't spin)
-        if (intendsTools && !hadTools) {
+        if ((intendsTools || this.claimsPendingFileWrites(said)) && !hadTools) {
           return {
             content:
-              '모델이 파일을 읽겠다고만 반복하고 도구를 호출하지 않았습니다. Regenerate로 다시 시도하거나, 읽을 파일 경로를 구체적으로 지정해 주세요.',
+              '모델이 파일을 읽거나 작성하겠다고만 하고 도구를 호출하지 않았습니다. Regenerate로 다시 시도하거나, 대상 파일 경로를 구체적으로 지정해 주세요.',
             toolCalls: []
           };
         }
 
         if (!hadTools && (result.reasoning || '').trim()) {
           return { content: result.reasoning.trim(), toolCalls: [] };
-        }
-
-        if (hadTools) {
-          return {
-            content: this.synthesizeFromToolResults(),
-            toolCalls: []
-          };
         }
 
         return {
@@ -860,7 +1046,11 @@ export class AgentLoopController {
   private async streamOnce(
     providerMessages: Array<Record<string, unknown>>,
     schemas: Record<string, unknown>[],
-    opts?: { enableThinking?: boolean }
+    opts?: {
+      enableThinking?: boolean;
+      /** Override composer effort for this pass */
+      thinkingEffort?: import('../agent/thinkingEffort').ThinkingEffort;
+    }
   ): Promise<{
     content: string;
     reasoning: string;
@@ -868,7 +1058,11 @@ export class AgentLoopController {
   } | null> {
     if (!this.config.provider) return null;
 
-    const effort = this.config.thinkingEffort || 'medium';
+    const userEffort = this.config.thinkingEffort || 'medium';
+    // After tools: force low thinking so Exploring mid-Thoughts stay short
+    const effort =
+      opts?.thinkingEffort ??
+      (this.toolsRanThisRun && userEffort !== 'off' ? 'low' : userEffort);
     const enableThinking =
       opts?.enableThinking !== undefined
         ? opts.enableThinking
@@ -998,6 +1192,80 @@ export class AgentLoopController {
   }
 
   /**
+   * After tools, empty/status-only prose is not enough — user needs a closing message
+   * under Worked for (what changed, why, outcome).
+   */
+  private isWeakFinalAnswer(prose: string): boolean {
+    const t = (prose || '').trim();
+    if (!t || t === '...') return true;
+    if (this.looksLikeClosingSummary(t)) return false;
+    if (t.length < 60) return true;
+    if (this.claimsContinueWork(t) && t.length < 280) return true;
+    if (
+      /^(완료|끝|done|finished|ok\.?|완료했습니다\.?|수정했습니다\.?|적용했습니다\.?|진행했습니다\.?)$/i.test(
+        t
+      )
+    ) {
+      return true;
+    }
+    // Single short status sentence, no structure
+    if (t.length < 120 && !/[#*\-\n]/.test(t) && this.claimsContinueWork(t)) {
+      return true;
+    }
+    return false;
+  }
+
+  /** Real wrap-up (not "이제 작성하겠습니다" mid-work narration) */
+  private looksLikeClosingSummary(prose: string): boolean {
+    const t = (prose || '').trim();
+    if (t.length < 80) return false;
+    const hasStructure =
+      /^#{1,3}\s/m.test(t) ||
+      /^[-*]\s/m.test(t) ||
+      t.split('\n').filter((l) => l.trim()).length >= 3;
+    const hasOutcome =
+      /수정|변경|원인|결과|완료|추가|생성|fixed|changed|because|root cause|summary|요약/i.test(
+        t
+      );
+    // Still mid-work promises without outcome → not a closing summary
+    if (
+      /이제\s*(작성|생성|구현)|proceeding to write|will (now )?write/i.test(t) &&
+      !hasOutcome
+    ) {
+      return false;
+    }
+    return hasStructure && hasOutcome;
+  }
+
+  /**
+   * One dedicated no-tools LLM pass for the user-visible closing message.
+   * @returns content result, undefined if already tried / skipped, null if aborted
+   */
+  private async requestWrapUpPass(): Promise<
+    { content: string; toolCalls: [] } | null | undefined
+  > {
+    if (this.wrapUpRetried) return undefined;
+    this.wrapUpRetried = true;
+    this.messages.push({ role: 'user', content: WRAP_UP_NUDGE });
+    const retry = await this.streamOnce(this.buildProviderMessages(), [], {
+      enableThinking: true,
+      thinkingEffort: this.config.thinkingEffort || 'medium'
+    });
+    if (retry === null) return null;
+    if ((retry.reasoning || '').trim()) {
+      void this.config.onReasoning?.(retry.reasoning);
+    }
+    const retryProse = (retry.content || '').trim();
+    if (retryProse && retryProse !== '...') {
+      return { content: retryProse, toolCalls: [] };
+    }
+    if ((retry.reasoning || '').trim()) {
+      return { content: retry.reasoning.trim(), toolCalls: [] };
+    }
+    return undefined;
+  }
+
+  /**
    * Plan research/questions ended with a prose "결론" and no ask_question —
    * keep the research text in history and force MCQ tool calls once.
    */
@@ -1071,16 +1339,140 @@ export class AgentLoopController {
           continue;
         }
       }
-      normalized.push({ ...tc, arguments: args });
+      normalized.push({
+        ...tc,
+        arguments: this.aliasToolArgs(tc.name, args as ToolInput)
+      });
     }
     return normalized;
   }
 
+  /** cmd→command, prompt→question 등 LLM 별칭 정규화 */
+  private aliasToolArgs(name: string, args: ToolInput): ToolInput {
+    const out = { ...args };
+    if (name === 'run_terminal_cmd') {
+      if (out.command == null && out.cmd != null) out.command = out.cmd;
+      if (out.command == null && out.shell != null) out.command = out.shell;
+    }
+    if (name === 'ask_question') {
+      if (out.question == null || !String(out.question).trim()) {
+        out.question =
+          out.prompt || out.text || out.query || out.message || out.question;
+      }
+      // Nested: { questions: [{ question, options }] } → first item
+      if (
+        (!out.question || !String(out.question).trim()) &&
+        Array.isArray(out.questions) &&
+        out.questions[0]
+      ) {
+        const first = out.questions[0] as Record<string, unknown>;
+        if (first && typeof first === 'object') {
+          out.question = first.question || first.prompt || first.text;
+          if (out.options == null && Array.isArray(first.options)) {
+            out.options = first.options;
+          }
+        }
+      }
+    }
+    if (
+      (name === 'read_file' ||
+        name === 'write_file' ||
+        name === 'edit_file' ||
+        name === 'delete_file') &&
+      out.path == null
+    ) {
+      out.path =
+        out.file_path || out.target_file || out.filepath || out.file || out.path;
+    }
+    if (name === 'write_file' && out.content == null && out.contents != null) {
+      out.content = out.contents;
+    }
+    if (name === 'read_files') {
+      const paths = this.coerceReadFilesPaths(out);
+      if (paths.length) out.paths = paths;
+    }
+    return out;
+  }
+
+  /** read_files: accept paths/files/path aliases from sloppy tool args */
+  private coerceReadFilesPaths(args: ToolInput): string[] {
+    const asList = (raw: unknown): string[] => {
+      if (Array.isArray(raw)) {
+        return raw.map((p) => String(p ?? '').trim()).filter(Boolean);
+      }
+      if (typeof raw === 'string') {
+        const t = raw.trim();
+        if (!t) return [];
+        if (t.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(t);
+            if (Array.isArray(parsed)) {
+              return parsed.map((p) => String(p ?? '').trim()).filter(Boolean);
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+        if (t.includes('\n') || (t.includes(',') && t.includes('/'))) {
+          return t
+            .split(/[\n,]/)
+            .map((p) => p.trim().replace(/^["']|["']$/g, ''))
+            .filter(Boolean);
+        }
+        return [t];
+      }
+      return [];
+    };
+    for (const key of [
+      'paths',
+      'files',
+      'file_paths',
+      'filePaths',
+      'targets',
+      'path',
+      'file',
+      'target_file',
+      'file_path',
+      'filepath'
+    ]) {
+      const list = asList(args[key]);
+      if (list.length) return list;
+    }
+    return [];
+  }
+
   /** Detect plan-only reasoning/prose that should have emitted tools */
   private reasoningIntendsTools(text: string): boolean {
-    return /read_file|list_dir|codebase_search|\bgrep\b|\bglob\b|edit_file|todo_write|in parallel|let me (read|search|open|check|fix)|i('ll| will) (read|search|open|fix|check)|읽어|살펴|확인하|수정하|고치|분석하|파일을 읽|병렬로 읽|먼저 .{0,40}(읽|확인|파악|수정)|이어서|진행하/i.test(
+    return /read_file|list_dir|codebase_search|\bgrep\b|\bglob\b|edit_file|write_file|todo_write|ask_question|in parallel|let me (read|search|open|check|fix|proceed|write|create|update|start|implement)|i('ll| will) (read|search|open|fix|check|proceed|write|create|update|implement|add|start)|proceed(ing)? to (write|create|edit|implement)|writing (the )?files?|create(ing)? .{0,80}\.(rs|ts|tsx|js|py|toml|md)\b|읽어|살펴|확인하|수정하|고치|분석하|파악하|진행하|진행합|작성하|작성을|작성할|생성하|생성을|생성할|구현하|구현을|구현할|시작하|시작합니다|파일을 읽|파일을\s*(작성|생성|저장|만들)|병렬로 읽|먼저 .{0,80}(읽|확인|파악|수정|진행|작성|생성)|이어서|다음으로|이제 .{0,40}(읽|확인|작성|생성|구현|시작)/i.test(
       text
     );
+  }
+
+  /** Prose claims disk writes are happening / next — without actual write tools */
+  private claimsPendingFileWrites(text: string): boolean {
+    return /proceed(ing)? to write|writing (the )?files?|now (i('ll| will) )?write|will (now )?(write|create|update) .{0,60}files?|create(ing)? [`'"]?src\/|update [`'"]?src\/|write_file|edit_file|파일을\s*(작성|생성|저장)|코드를\s*작성|작성하(겠|고|는|겠습)|작성을\s*(시작|진행)|생성하(겠|고|는|겠습)|생성을\s*(시작|진행)|구현을\s*시작|구현하(겠|고)|시작하(겠|고|겠습)|시작합니다|바로\s*진행/i.test(
+      text
+    );
+  }
+
+  /** After tools: model narrates next work instead of calling tools */
+  private claimsContinueWork(text: string): boolean {
+    return (
+      this.claimsPendingFileWrites(text) ||
+      this.reasoningIntendsTools(text) ||
+      /다음\s*(단계|으로|은)|이어서\s*(진행|작업)|계속\s*(진행|하)|let me (continue|proceed|next)|next[,:]?\s*(i('ll| will)|step)|moving on to|now (that|i('ll| will))/i.test(
+        text
+      )
+    );
+  }
+
+  private hasWriteToolSchemas(
+    schemas: Array<{ function?: { name?: string } }>
+  ): boolean {
+    return schemas.some((s) => {
+      const n = s?.function?.name;
+      return n === 'write_file' || n === 'edit_file' || n === 'delete_file';
+    });
   }
 
   /** 모델 텍스트에서 ToolCallParser로 도구 호출 복구 — 등록된 도구명만 허용 */
@@ -1109,7 +1501,9 @@ export class AgentLoopController {
   }
 
   private looksLikeBrokenToolPayload(content: string): boolean {
-    return /```(?:json)?|"name"\s*:\s*"|tool_calls|<tool\s|function_call/i.test(content);
+    return /```(?:json)?|"name"\s*:\s*"|tool_calls|<tool\s|tool_code|function_call/i.test(
+      content
+    );
   }
 
   /**
@@ -1279,6 +1673,11 @@ export class AgentLoopController {
       // ─── ask_question (C5-T02 / RW-C5-02) ───────────────
       if (name === 'ask_question') {
         const { askQuestionTool } = await import('../tools/session/AskQuestionTool');
+        // Re-bind UI bridge for this loop — survives interrupt→new-tab races
+        if (this.config.onAskQuestion) {
+          const { RuntimeServices } = await import('../core/RuntimeServices');
+          RuntimeServices.setAskQuestionNotifier(this.config.onAskQuestion);
+        }
         const result = await askQuestionTool.execute(args);
         if (result.success) {
           this.askedQuestionThisRun = true;

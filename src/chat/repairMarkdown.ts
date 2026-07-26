@@ -15,6 +15,16 @@ export function repairCollapsedMarkdown(input: string): string {
 
   let s = input.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
+  // If the model dumped JSON-escaped newlines, expand before jam detection
+  const literalNl = (s.match(/\\n/g) || []).length;
+  const realNl = (s.match(/\n/g) || []).length;
+  if (literalNl >= 2 && literalNl > realNl) {
+    s = s
+      .replace(/\\r\\n/g, '\n')
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\\"/g, '"');
+  }
   // Always: `| A || desc | … |` → `| A | desc | … |` (option letter + empty cell)
   // Letters must be uppercase so we don't merge `| x || B |` in collapsed tables.
   s = s.replace(

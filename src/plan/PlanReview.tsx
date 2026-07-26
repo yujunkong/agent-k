@@ -18,6 +18,8 @@ interface PlanReviewProps {
   /** Save + open plan markdown in the VS Code editor */
   onOpenInEditor?: (content: string) => void;
   onClose?: () => void;
+  /** Discard plan and return to Research */
+  onDiscard?: () => void;
 }
 
 export function PlanReview({
@@ -27,12 +29,14 @@ export function PlanReview({
   onReject,
   onEdit,
   onOpenInEditor,
-  onClose
+  onClose,
+  onDiscard
 }: PlanReviewProps) {
   const [content, setContent] = useState(document.content);
   const [removedSteps, setRemovedSteps] = useState<Set<number>>(new Set());
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
+  const [armDiscard, setArmDiscard] = useState(false);
 
   useEffect(() => {
     setContent(document.content);
@@ -101,6 +105,32 @@ export function PlanReview({
           >
             Request Changes
           </button>
+          {onDiscard ? (
+            <button
+              type="button"
+              className={
+                armDiscard
+                  ? 'settings-btn plan-review__discard plan-review__discard--armed'
+                  : 'settings-btn plan-review__discard'
+              }
+              onClick={() => {
+                if (!armDiscard) {
+                  setArmDiscard(true);
+                  return;
+                }
+                setArmDiscard(false);
+                onDiscard();
+              }}
+              onBlur={() => setArmDiscard(false)}
+              title={
+                armDiscard
+                  ? '다시 누르면 계획을 폐기하고 Research로 갑니다'
+                  : '계획을 폐기하고 Research로 돌아갑니다'
+              }
+            >
+              {armDiscard ? '정말 폐기?' : '계획 폐기'}
+            </button>
+          ) : null}
           <button
             type="button"
             className="settings-btn primary"

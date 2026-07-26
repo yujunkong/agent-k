@@ -248,6 +248,10 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                 label: String(data.label || kind),
                 detail: data.detail != null ? String(data.detail) : undefined,
                 toolName: data.toolName != null ? String(data.toolName) : undefined,
+                thoughtRole:
+                  data.thoughtRole === 'opening' || data.thoughtRole === 'mid'
+                    ? data.thoughtRole
+                    : undefined,
                 itemStatus,
                 id: data.id != null ? String(data.id) : undefined
               }
@@ -255,6 +259,8 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             break;
           }
           case 'ask_question':
+            // Pause idle watchdog while host waits on user (can be minutes)
+            clearIdle();
             // Pause "Streaming…" chrome — user must answer ClarifyingQuestions
             onDelta({
               status: 'asking',

@@ -23,8 +23,10 @@ You MUST follow this verification sequence for every edit/write operation:
 3. **Check ambiguity**: If you're unsure about the exact change needed, use \`ask_question\` with multiple-choice options.
 
 ### Edit Rules
-4. **Search-Replace only**: Use \`edit_file\` with exact \`search\`/\`replace\` strings.
-   - The \`search\` block MUST match exactly ONE location in the file.
+4. **Use tools only**: Create/overwrite with \`write_file\`; patch with \`edit_file\` (exact unique \`oldText\`/\`newText\`).
+   - Never pretend an edit happened via chat markdown (\`Edit 15: Create …\`, fenced file dumps).
+   - Do not wire \`pub mod\` / imports to files you have not successfully written.
+   - The \`oldText\` block MUST match exactly ONE location in the file.
    - If multiple matches exist, refine your search string.
    - Do NOT use line numbers or unified-diff format.
 

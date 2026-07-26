@@ -54,14 +54,32 @@ const writeFileTool: ToolDefinition = {
 
 const runTerminalCmdTool: ToolDefinition = {
   name: 'run_terminal_cmd',
-  description: 'Run a terminal command. Commands run in the workspace root directory. Use for build, test, lint, git, and other CLI operations.',
+  description:
+    'Run a terminal command in the workspace root (build, test, lint, git, cargo, etc.). Prefer arg name `command` (alias `cmd` also accepted).',
   parameters: {
     type: 'object',
     properties: {
       command: { type: 'string', description: 'Shell command to execute' },
-      description: { type: 'string', description: 'What this command does (visible in timeline)', optional: true },
-      timeout: { type: 'number', description: 'Timeout in ms (default: 120000)', optional: true },
-      requireApproval: { type: 'boolean', description: 'Force approval even in auto mode', optional: true }
+      cmd: {
+        type: 'string',
+        description: 'Alias for command',
+        optional: true
+      },
+      description: {
+        type: 'string',
+        description: 'What this command does (visible in timeline)',
+        optional: true
+      },
+      timeout: {
+        type: 'number',
+        description: 'Timeout in ms (default: 120000)',
+        optional: true
+      },
+      requireApproval: {
+        type: 'boolean',
+        description: 'Force approval even in auto mode',
+        optional: true
+      }
     },
     required: ['command']
   },

@@ -43,12 +43,10 @@ function initMermaid() {
       edgeLabelBackground: '#2e3440',
       arrowheadColor: '#88c0d0'
     },
-    // Edge paths must stay stroke-only — filled curves become black blobs
+    // Edge paths: stroke-only + high-contrast color on dark chat background
     themeCSS: [
-      '.edgePath .path { fill: none !important; }',
-      '.flowchart-link { fill: none !important; }',
-      '.edgePath path { fill: none !important; }',
-      '.marker { fill: #88c0d0 !important; stroke: #88c0d0 !important; }',
+      '.edgePath .path, .edgePath path, .flowchart-link, .edgePaths .path { fill: none !important; stroke: #88c0d0 !important; stroke-width: 1.5px !important; }',
+      '.marker, marker path, .arrowheadPath { fill: #88c0d0 !important; stroke: #88c0d0 !important; }',
       '.cluster rect { fill: #2e3440 !important; stroke: #4c566a !important; }'
     ].join('\n')
   });

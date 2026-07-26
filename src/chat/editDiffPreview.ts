@@ -120,7 +120,7 @@ export function guessLanguageFromPath(filePath: string): string {
 
 export function languageBadge(filePath: string): string {
   const ext = filePath.split('.').pop()?.toUpperCase() || 'FILE';
-  if (ext === 'TSX') return 'TS';
-  if (ext === 'JSX') return 'JS';
+  if (ext === 'TSX') return 'TSX';
+  if (ext === 'JSX') return 'JSX';
   return ext.slice(0, 4);
 }

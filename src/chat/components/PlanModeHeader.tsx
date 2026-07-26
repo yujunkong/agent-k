@@ -1,7 +1,7 @@
 /**
  * PlanModeHeader - Plan 모드 진행 표시 + Review 재오픈/폐기
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { PlanStage } from '../../plan/PlanModeController';
 
 interface PlanModeHeaderProps {
@@ -66,10 +66,29 @@ export function PlanModeHeader({
   void _stages;
   const currentIdx = STAGE_ORDER.indexOf(currentStage);
   const inReview = currentStage === 'review';
-  const showReviewActions =
+  const [armDiscard, setArmDiscard] = useState(false);
+
+  useEffect(() => {
+    setArmDiscard(false);
+  }, [currentStage, reviewOpen]);
+
+  const showOpenReview =
     Boolean(onOpenReview) &&
     ((canOpenReview && currentStage === 'planning') ||
       (inReview && !reviewOpen));
+  // Discard must stay available while Review overlay is open (webview has no window.confirm)
+  const showDiscard = Boolean(inReview && onDiscardPlan);
+  const showActions = showOpenReview || showDiscard;
+
+  const handleDiscardClick = () => {
+    if (!onDiscardPlan) return;
+    if (!armDiscard) {
+      setArmDiscard(true);
+      return;
+    }
+    setArmDiscard(false);
+    onDiscardPlan();
+  };
 
   return (
     <div className="plan-mode-header" role="status">
@@ -113,28 +132,39 @@ export function PlanModeHeader({
           })}
         </div>
 
-        {showReviewActions ? (
+        {showActions ? (
           <div className="plan-mode-header__actions">
-            <button
-              type="button"
-              className="settings-btn primary"
-              onClick={onOpenReview}
-              title={
-                inReview
-                  ? 'Review 창을 다시 열어 승인하거나 수정합니다'
-                  : '채팅에 작성된 PLAN을 Review로 엽니다'
-              }
-            >
-              {inReview ? 'Review 다시 열기' : 'Review 열기'}
-            </button>
-            {inReview && onDiscardPlan ? (
+            {showOpenReview ? (
               <button
                 type="button"
-                className="settings-btn plan-mode-header__discard"
-                onClick={onDiscardPlan}
-                title="현재 계획을 폐기하고 Research로 돌아갑니다"
+                className="settings-btn primary"
+                onClick={onOpenReview}
+                title={
+                  inReview
+                    ? 'Review 창을 다시 열어 승인하거나 수정합니다'
+                    : '채팅에 작성된 PLAN을 Review로 엽니다'
+                }
               >
-                계획 폐기
+                {inReview ? 'Review 다시 열기' : 'Review 열기'}
+              </button>
+            ) : null}
+            {showDiscard ? (
+              <button
+                type="button"
+                className={
+                  armDiscard
+                    ? 'settings-btn plan-mode-header__discard plan-mode-header__discard--armed'
+                    : 'settings-btn plan-mode-header__discard'
+                }
+                onClick={handleDiscardClick}
+                onBlur={() => setArmDiscard(false)}
+                title={
+                  armDiscard
+                    ? '다시 누르면 Research로 돌아갑니다 (plan_*.md 파일은 유지)'
+                    : '현재 계획을 폐기하고 Research로 돌아갑니다'
+                }
+              >
+                {armDiscard ? '정말 폐기?' : '계획 폐기'}
               </button>
             ) : null}
           </div>

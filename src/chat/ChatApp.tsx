@@ -19,7 +19,8 @@ import { formatAttachmentsForPayload } from './attachmentFormat';
 import {
   extractPlanMarkdownFromMessage,
   findLatestPlanMarkdown,
-  looksLikePlanDocument
+  looksLikePlanDocument,
+  dedupeRepeatedPlanDocument
 } from './planPromote';
 import './chat.css';
 
@@ -116,6 +117,60 @@ function collectSessionFileEdits(messages: ChatMessage[]): FileEditPreview[] {
 
 const sessionStore = new ChatSessionStore();
 
+function normalizeProse(text: string): string {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^---+\s*$/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function looksLikeDuplicateProse(aRaw: string, bRaw: string): boolean {
+  const a = normalizeProse(aRaw);
+  const b = normalizeProse(bRaw);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // Shorter Korean answers still duplicate often (~40+)
+  if (a.length >= 40 && b.includes(a)) return true;
+  if (b.length >= 40 && a.includes(b)) return true;
+  const n = Math.min(160, a.length, b.length);
+  if (n >= 40 && a.slice(0, n) === b.slice(0, n)) return true;
+  // Near-equal length with high prefix overlap
+  if (a.length >= 60 && b.length >= 60) {
+    const m = Math.min(120, a.length, b.length);
+    if (a.slice(0, m) === b.slice(0, m)) return true;
+  }
+  return false;
+}
+
+/**
+ * Same plan/answer often lands in turnProse (mid-turn) and again in content
+ * (final). Keep the final body (Worked collapsed still shows it) and drop
+ * matching sealed entries so the open timeline does not show it twice.
+ */
+function dedupeAssistantBody(msg: ChatMessage): ChatMessage {
+  const body = (msg.content || '').trim();
+  const prose = msg.turnProse || [];
+  if (!body || prose.length === 0) return msg;
+
+  const kept = prose.filter(
+    (p) => !looksLikeDuplicateProse(String(p.content || ''), body)
+  );
+  if (kept.length === prose.length) {
+    const sealed = prose
+      .map((p) => String(p.content || '').trim())
+      .filter(Boolean)
+      .join('\n\n');
+    if (looksLikeDuplicateProse(body, sealed)) {
+      return { ...msg, turnProse: [] };
+    }
+    return msg;
+  }
+  return { ...msg, turnProse: kept };
+}
+
 function sanitizeLoadedMessages(parsed: ChatMessage[]): ChatMessage[] {
   return parsed
     .map((m) => {
@@ -125,19 +180,52 @@ function sanitizeLoadedMessages(parsed: ChatMessage[]): ChatMessage[] {
         return { ...m, content };
       }
       if (m.role === 'assistant') {
-        return { ...m, content: stripFakeToolMarkup(m.content) };
+        return dedupeAssistantBody({
+          ...m,
+          content: stripFakeToolMarkup(m.content)
+        });
       }
       return m;
     })
-    .map((m) =>
-      m.role === 'assistant' && m.status === 'streaming'
-        ? {
-            ...m,
-            status: m.content?.trim() ? 'complete' : 'error',
-            content: m.content?.trim() || '(interrupted)'
-          }
-        : m
-    );
+    .map((m) => {
+      if (m.role !== 'assistant' || m.status !== 'streaming') return m;
+      return finalizeStreamingAssistant(m);
+    })
+    .filter((m): m is ChatMessage => m != null);
+}
+
+/** Finalize or drop a streaming assistant (shared by tab switch / reload). */
+function finalizeStreamingAssistant(m: ChatMessage): ChatMessage | null {
+  if (m.role !== 'assistant' || m.status !== 'streaming') return m;
+  const hasBody = Boolean(m.content?.trim());
+  const hasSteps = (m.steps?.length ?? 0) > 0;
+  const hasProse =
+    Boolean(m.openingLead?.trim()) || (m.turnProse?.length ?? 0) > 0;
+  const hasCards =
+    (m.fileEdits?.length ?? 0) > 0 || (m.terminalRuns?.length ?? 0) > 0;
+  if (!hasBody && !hasSteps && !hasProse && !hasCards) return null;
+  return {
+    ...m,
+    status: 'complete',
+    content: hasBody ? m.content : m.content,
+    workedDurationMs:
+      typeof m.workedDurationMs === 'number'
+        ? m.workedDurationMs
+        : Math.max(0, Date.now() - (m.timestamp || Date.now()))
+  };
+}
+
+function finalizeStreamingMessages(prev: ChatMessage[]): ChatMessage[] {
+  const out: ChatMessage[] = [];
+  for (const m of prev) {
+    if (m.role === 'assistant' && m.status === 'streaming') {
+      const next = finalizeStreamingAssistant(m);
+      if (next) out.push(next);
+    } else {
+      out.push(m);
+    }
+  }
+  return out;
 }
 
 export function ChatApp() {
@@ -180,6 +268,11 @@ export function ChatApp() {
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestion[]>([]);
   /** True while host is blocked on ask_question — Composer shows Waiting… not Streaming… */
   const [awaitingUser, setAwaitingUser] = useState(false);
+  /** Prefill composer after Stop on a user bubble */
+  const [composerSeed, setComposerSeed] = useState<{
+    text: string;
+    nonce: number;
+  } | null>(null);
 
   // Debug mode controller (RW-C6-01)
   const [debugController] = useState(() => new DebugModeController());
@@ -263,7 +356,15 @@ export function ChatApp() {
     thinkingEffort
   });
 
-  const queuedMessageRef = useRef<string | null>(null);
+  /** Plan Approve → Agent handoff calls handleSend after it is defined */
+  const handleSendRef = useRef<
+    | ((
+        text: string,
+        files: Attachment[],
+        opts?: { apiUserContent?: string; modeOverride?: Mode }
+      ) => Promise<void>)
+    | null
+  >(null);
   const turnNumberRef = useRef(0);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
@@ -275,6 +376,15 @@ export function ChatApp() {
   const lastPromotedPlanRef = useRef<string>('');
   const planStageRef = useRef(planStage);
   planStageRef.current = planStage;
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+  /** Session that owns the in-flight host loop / ask_question waiter */
+  const loopSessionIdRef = useRef<string | null>(null);
+  /** Park Clarifying UI when user switches tabs while Waiting… */
+  const parkedAwaitingRef = useRef<{
+    sessionId: string;
+    questions: PendingQuestion[];
+  } | null>(null);
   /** Debug session file slug under `.agentk/debug/tmp/debug_<hash>.md` */
   const debugSessionSlugRef = useRef<string | undefined>(undefined);
   /** Sticky bottom scroll — pause if user scrolls up (Cursor-like) */
@@ -305,19 +415,18 @@ export function ChatApp() {
     stickToBottomRef.current = gap < 96;
   }, []);
 
-  // Pin to bottom on new messages / streaming tokens
+  // Pin to bottom when user is already near bottom (never yank scroll during Thought)
   useEffect(() => {
-    if (streaming) stickToBottomRef.current = true;
-    scrollMessagesToBottom(streaming);
-  }, [messages, streaming, scrollMessagesToBottom]);
+    scrollMessagesToBottom(false);
+  }, [messages, scrollMessagesToBottom]);
 
-  // Follow DOM growth (Thought / markdown) while streaming
+  // Follow DOM growth (Thought / markdown) only while stick-to-bottom is on
   useEffect(() => {
     const list = messageListRef.current;
     if (!list) return;
 
     const nudge = () => {
-      if (stickToBottomRef.current || streaming) scrollMessagesToBottom(true);
+      if (stickToBottomRef.current) scrollMessagesToBottom(false);
     };
 
     const mo = new MutationObserver(nudge);
@@ -333,7 +442,7 @@ export function ChatApp() {
       mo.disconnect();
       ro?.disconnect();
     };
-  }, [streaming, scrollMessagesToBottom]);
+  }, [scrollMessagesToBottom]);
 
   useEffect(() => {
     return msgQueue.subscribe(() => setQueueTick((t) => t + 1));
@@ -350,11 +459,24 @@ export function ChatApp() {
 
   /** New chat: archive current transcript, start empty session. */
   const handleNewChat = useCallback(() => {
+    // New tab abandons any in-flight Wait/stream — do not leave a zombie ask_question
     if (streaming) {
+      if (awaitingUser) {
+        parkedAwaitingRef.current = null;
+        setShowClarifying(false);
+        setAwaitingUser(false);
+        setPendingQuestions([]);
+      } else {
+        const kept = finalizeStreamingMessages(messagesRef.current);
+        messagesRef.current = kept;
+        setMessages(kept);
+      }
       stopHandlerRef.current?.stop('user_stop');
       sendEpochRef.current += 1;
+      loopSessionIdRef.current = null;
     }
-    if (messages.length === 0) {
+    const snap = messagesRef.current.length ? messagesRef.current : messages;
+    if (snap.length === 0) {
       setShowHistory(false);
       setError(null);
       setOpenTabIds((prev) =>
@@ -362,7 +484,7 @@ export function ChatApp() {
       );
       return;
     }
-    sessionStore.saveMessages(sessionId, messages, mode);
+    sessionStore.saveMessages(sessionId, snap, mode);
     const next = sessionStore.createEmpty(mode);
     setSessionId(next.id);
     setMessages([]);
@@ -371,7 +493,7 @@ export function ChatApp() {
     setOpenTabIds((prev) => [next.id, ...prev.filter((id) => id !== next.id)]);
     setError(null);
     setShowHistory(false);
-  }, [streaming, messages, sessionId, mode]);
+  }, [streaming, awaitingUser, messages, sessionId, mode]);
 
   const handleOpenSession = useCallback(
     (id: string) => {
@@ -379,11 +501,20 @@ export function ChatApp() {
         setShowHistory(false);
         return;
       }
-      if (streaming) {
+      // Waiting…: keep host ask_question; park UI for this session
+      if (streaming && awaitingUser) {
+        parkedAwaitingRef.current = { sessionId, questions: pendingQuestions };
+        setShowClarifying(false);
+        setAwaitingUser(false);
+      } else if (streaming) {
+        const kept = finalizeStreamingMessages(messagesRef.current);
+        messagesRef.current = kept;
+        setMessages(kept);
+        sessionStore.saveMessages(sessionId, kept, mode);
         stopHandlerRef.current?.stop('user_stop');
         sendEpochRef.current += 1;
-      }
-      if (messages.length > 0) {
+        loopSessionIdRef.current = null;
+      } else if (messages.length > 0) {
         sessionStore.saveMessages(sessionId, messages, mode);
       }
       const loaded = sessionStore.switchTo(id);
@@ -398,28 +529,46 @@ export function ChatApp() {
       );
       setError(null);
       setShowHistory(false);
+      const parked = parkedAwaitingRef.current;
+      if (parked && parked.sessionId === id) {
+        setPendingQuestions(parked.questions);
+        setShowClarifying(true);
+        setAwaitingUser(true);
+        parkedAwaitingRef.current = null;
+      } else {
+        setPendingQuestions([]);
+        setShowClarifying(false);
+      }
     },
-    [sessionId, streaming, messages, mode]
+    [sessionId, streaming, awaitingUser, messages, mode, pendingQuestions]
   );
 
   const handleCloseTab = useCallback(
     (id: string) => {
-      if (streaming && id === sessionId) {
-        stopHandlerRef.current?.stop('user_stop');
-        sendEpochRef.current += 1;
-      }
-
       const remaining = openTabIds.filter((x) => x !== id);
 
-      // Inactive tab — just remove from open tabs (session stays in History)
+      // Inactive tab — never abort the active session
       if (id !== sessionId) {
         setOpenTabIds(remaining);
         return;
       }
 
-      // Closing the active tab: save, then switch or start New chat
-      if (messages.length > 0) {
-        sessionStore.saveMessages(sessionId, messages, mode);
+      if (streaming && awaitingUser) {
+        parkedAwaitingRef.current = { sessionId, questions: pendingQuestions };
+        setShowClarifying(false);
+        setAwaitingUser(false);
+      } else if (streaming) {
+        const kept = finalizeStreamingMessages(messagesRef.current);
+        messagesRef.current = kept;
+        setMessages(kept);
+        stopHandlerRef.current?.stop('user_stop');
+        sendEpochRef.current += 1;
+        loopSessionIdRef.current = null;
+      }
+
+      const snap = messagesRef.current.length ? messagesRef.current : messages;
+      if (snap.length > 0) {
+        sessionStore.saveMessages(sessionId, snap, mode);
       }
 
       const idx = openTabIds.indexOf(id);
@@ -440,23 +589,42 @@ export function ChatApp() {
           setOpenTabIds(
             remaining.includes(neighborId) ? remaining : [neighborId, ...remaining]
           );
+          const parked = parkedAwaitingRef.current;
+          if (parked && parked.sessionId === neighborId) {
+            setPendingQuestions(parked.questions);
+            setShowClarifying(true);
+            setAwaitingUser(true);
+            parkedAwaitingRef.current = null;
+          } else {
+            setPendingQuestions([]);
+            setShowClarifying(false);
+          }
           setError(null);
           setShowHistory(false);
           return;
         }
       }
 
-      // Last open tab closed → brand-new empty chat (Cursor-like New Agent)
       const fresh = sessionStore.createEmpty(mode);
       setSessionId(fresh.id);
       setMessages([]);
       stepStartRef.current = {};
       setSessionList(sessionStore.list());
       setOpenTabIds([fresh.id]);
+      setPendingQuestions([]);
+      setShowClarifying(false);
       setError(null);
       setShowHistory(false);
     },
-    [sessionId, openTabIds, streaming, messages, mode]
+    [
+      sessionId,
+      openTabIds,
+      streaming,
+      awaitingUser,
+      messages,
+      mode,
+      pendingQuestions
+    ]
   );
 
   const handleDeleteSession = useCallback(
@@ -695,36 +863,12 @@ export function ChatApp() {
         setShowPlanReview(false);
       }
     });
-    // Build-ready: switch to Agent mode with plan context (RW-C5-04)
-    planController.onBuildReadyCallback((_context: string) => {
-      const planState = planController.getState();
-      if (planState.planDocument) {
-        const planToAgent = new PlanToAgent();
-        planToAgent.setPlanDocument(planState.planDocument);
-        const transition = planToAgent.buildTransitionContext(
-          planState.planDocument,
-          planState.researchResults,
-          planState.questions.map(q => ({ question: q.question, answer: q.answer }))
-        );
-        // Set mode to agent — tools like edit_file/write_file become available
-        setMode('agent');
-        setMessages([]);
-        // Queue the plan execution context as the first agent message
-        const msgContent: string = transition.messages[0]?.content ?? _context;
-        queuedMessageRef.current = msgContent;
-      } else {
-        // Fallback: simple context string
-        setMode('agent');
-        setMessages([]);
-        queuedMessageRef.current = `I have approved the plan. Here is the context:\n\n${_context}\n\nPlease execute the plan step by step.`;
-      }
-    });
   }, [planController]);
 
   /** Persist plan draft + open Review overlay (idempotent per content hash) */
   const promotePlanToReview = useCallback(
     (planMdRaw: string, opts?: { slug?: string; title?: string }) => {
-      const planMd = planMdRaw.trim();
+      const planMd = dedupeRepeatedPlanDocument(planMdRaw.trim());
       if (!planMd || planMd === '(no response)') return false;
 
       const titleMatch = planMd.match(/^#\s+(.+)$/m);
@@ -926,23 +1070,7 @@ export function ChatApp() {
    * Prevents hourglass bubbles left after abort/stop/resynth.
    */
   const cleanupStreamingAssistants = useCallback((prev: ChatMessage[]): ChatMessage[] => {
-    const out: ChatMessage[] = [];
-    for (const m of prev) {
-      if (m.role === 'assistant' && m.status === 'streaming') {
-        if (!m.content?.trim()) continue; // drop empty placeholder
-        out.push({
-          ...m,
-          status: 'complete',
-          workedDurationMs:
-            typeof m.workedDurationMs === 'number'
-              ? m.workedDurationMs
-              : Math.max(0, Date.now() - (m.timestamp || Date.now()))
-        }); // keep partial text
-      } else {
-        out.push(m);
-      }
-    }
-    return out;
+    return finalizeStreamingMessages(prev);
   }, []);
 
   // ─── Message handler ───────────────────────────────────
@@ -954,12 +1082,14 @@ export function ChatApp() {
   const handleSend = useCallback(async (
     text: string,
     files: Attachment[],
-    opts?: { apiUserContent?: string }
+    opts?: { apiUserContent?: string; modeOverride?: Mode }
   ) => {
     if (!text.trim() && files.length === 0) return;
     setError(null);
 
     const epoch = ++sendEpochRef.current;
+    const effectiveMode = opts?.modeOverride ?? mode;
+    loopSessionIdRef.current = sessionIdRef.current;
 
     // Prefetch / context: @file/@folder + inline log/snippet / line ranges
     const displayText = text;
@@ -982,9 +1112,13 @@ export function ChatApp() {
     try {
       const t0 = Date.now();
       const prefetchSource = [mentionBlock, displayText].filter(Boolean).join('\n');
-      const harnessCtx = await buildHarnessTurnContext(prefetchSource || displayText, mode, 'A');
+      const harnessCtx = await buildHarnessTurnContext(
+        prefetchSource || displayText,
+        effectiveMode,
+        'A'
+      );
       if (epoch !== sendEpochRef.current) return; // superseded by stop/resynth
-      payload = prependHarnessToUserPayload(payload, harnessCtx, mode);
+      payload = prependHarnessToUserPayload(payload, harnessCtx, effectiveMode);
       const fileHits = (harnessCtx.prefetchRaw.match(/Read file:/g) || []).length;
       setUxState((prev) => ({
         ...prev,
@@ -1029,6 +1163,9 @@ export function ChatApp() {
       .map((m) => (m.id === userMsg.id ? { ...m, content: payload } : m));
     messagesRef.current = nextMessages;
     setMessages(nextMessages);
+    // New turn — pin to latest (user just sent)
+    stickToBottomRef.current = true;
+    scrollMessagesToBottom(true);
     // Fresh steps for this assistant bubble (Cursor-style, on the message)
     stepStartRef.current = {};
     turnNumberRef.current += 1;
@@ -1058,20 +1195,25 @@ export function ChatApp() {
       payload,
       files,
       apiMessages,
-      mode,
+      effectiveMode,
       // onDelta — timeline (PRD-C0 §5.3) | ask_question | status | streamed prose
       (delta: StreamDelta) => {
         if (epoch !== sendEpochRef.current) return;
         // Host ask_question → show ClarifyingQuestions (webview cannot see host singleton)
-        if (delta.askQuestion?.id && delta.askQuestion.question) {
+        // Require id only — empty question used to skip UI while host still blocked → "Streaming…" freeze
+        if (delta.askQuestion?.id) {
           const q = delta.askQuestion;
-          const normalized = normalizeMcqQuestion(q.question, q.options);
-          if (mode === 'plan') {
+          const normalized = normalizeMcqQuestion(
+            q.question ||
+              '확인이 필요합니다. 아래에서 선택하거나 기타에 적어 주세요.',
+            q.options
+          );
+          if (effectiveMode === 'plan') {
             planController.enterQuestionsStage();
           }
           // Debug hypothesis: register MCQ options as selectable hypotheses
           if (
-            mode === 'debug' &&
+            effectiveMode === 'debug' &&
             debugController.getStage() === 'hypothesis' &&
             normalized.options.length >= 2
           ) {
@@ -1084,26 +1226,34 @@ export function ChatApp() {
             }
             setDebugTick((t) => t + 1);
           }
+          const ownerId = loopSessionIdRef.current || sessionIdRef.current;
+          const qEntry = {
+            id: q.id,
+            question: normalized.question,
+            options: normalized.options,
+            required: q.required !== false,
+            answered: false,
+          };
+          // User is on another chat tab — park Waiting UI for the owner session
+          if (ownerId && ownerId !== sessionIdRef.current) {
+            parkedAwaitingRef.current = {
+              sessionId: ownerId,
+              questions: [qEntry]
+            };
+            planController.addQuestion({ id: q.id, question: normalized.question });
+            return;
+          }
           setPendingQuestions((prev) => {
             if (prev.find((p) => p.id === q.id)) return prev;
             planController.addQuestion({ id: q.id, question: normalized.question });
-            return [
-              ...prev,
-              {
-                id: q.id,
-                question: normalized.question,
-                options: normalized.options,
-                required: q.required !== false,
-                answered: false,
-              },
-            ];
+            return [...prev, qEntry];
           });
           setShowClarifying(true);
           setAwaitingUser(true);
           return;
         }
         // Host debug FSM stage sync
-        if (delta.debugStage && mode === 'debug') {
+        if (delta.debugStage && effectiveMode === 'debug') {
           debugController.syncStageFromHost(delta.debugStage as DebugStage);
           setDebugTick((t) => t + 1);
           return;
@@ -1133,6 +1283,9 @@ export function ChatApp() {
         if (delta.fileEdit) {
           const fe = {
             ...delta.fileEdit,
+            id:
+              delta.fileEdit.id ||
+              `fe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
             turn: delta.fileEdit.turn || turnNumberRef.current || 1
           };
           setMessages((prev) => {
@@ -1145,7 +1298,21 @@ export function ChatApp() {
               return prev;
             }
             const msg = prev[lastIdx];
-            const fileEdits = [...(msg.fileEdits || []), fe];
+            const key = (fe.absPath || fe.path || '').replace(/\\/g, '/');
+            const prevEdits = msg.fileEdits || [];
+            // Same path+turn → replace (host sometimes double-posts one write)
+            const idx = key
+              ? prevEdits.findIndex((x) => {
+                  const xk = (x.absPath || x.path || '').replace(/\\/g, '/');
+                  return xk === key && (x.turn || 0) === (fe.turn || 0);
+                })
+              : -1;
+            const fileEdits =
+              idx >= 0
+                ? prevEdits.map((x, i) =>
+                    i === idx ? { ...fe, id: x.id || fe.id } : x
+                  )
+                : [...prevEdits, fe];
             const copy = [...prev];
             copy[lastIdx] = { ...msg, fileEdits };
             return copy;
@@ -1263,6 +1430,11 @@ export function ChatApp() {
               detail: tl.detail !== undefined ? tl.detail : steps[idx]?.detail,
               toolName: tl.toolName,
               turn: tl.turn,
+              thoughtRole:
+                tl.thoughtRole ??
+                (tl.kind === 'thinking'
+                  ? steps[idx]?.thoughtRole ?? 'opening'
+                  : steps[idx]?.thoughtRole),
               itemStatus: tl.itemStatus,
               durationMs: durationMs ?? steps[idx]?.durationMs
             };
@@ -1298,6 +1470,7 @@ export function ChatApp() {
               label: 'Thought',
               detail: prevDetail + delta.reasoning,
               turn: turnNumberRef.current || 1,
+              thoughtRole: 'opening' as const,
               itemStatus: 'running' as const
             };
             if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
@@ -1309,6 +1482,12 @@ export function ChatApp() {
           return;
         }
         if (delta.status !== undefined) {
+          if (delta.status === 'asking') {
+            const ownerId = loopSessionIdRef.current || sessionIdRef.current;
+            if (!ownerId || ownerId === sessionIdRef.current) {
+              setAwaitingUser(true);
+            }
+          }
           setMessages((prev) => {
             const lastIdx = prev.length - 1;
             if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
@@ -1375,17 +1554,27 @@ export function ChatApp() {
               ? `${leadLeft}${body}`.trim()
               : body || leadLeft
           );
-          newMsgs[lastIdx] = {
+          const draft = dedupeAssistantBody({
             ...newMsgs[lastIdx],
-            status: finalContent ? 'complete' : 'error',
             toolStatus: undefined,
             openingLead: undefined,
-            content: finalContent || '(no response)',
+            content: finalContent,
             steps,
             workedDurationMs: Math.max(
               0,
               Date.now() - (newMsgs[lastIdx].timestamp || Date.now())
             )
+          });
+          const hasBody = Boolean(draft.content?.trim());
+          const hasOther =
+            (draft.turnProse?.length ?? 0) > 0 ||
+            (draft.steps?.length ?? 0) > 0 ||
+            (draft.fileEdits?.length ?? 0) > 0 ||
+            (draft.terminalRuns?.length ?? 0) > 0;
+          newMsgs[lastIdx] = {
+            ...draft,
+            status: hasBody || hasOther ? 'complete' : 'error',
+            content: hasBody ? draft.content : hasOther ? '' : '(no response)'
           };
           completedAssistant = newMsgs[lastIdx];
           messagesRef.current = newMsgs;
@@ -1394,7 +1583,7 @@ export function ChatApp() {
         // Plan mode: after planning turn, promote assistant text → PlanReview + plan_<hash>.md
         const stageNow = planStageRef.current;
         const shouldPromotePlan =
-          mode === 'plan' &&
+          effectiveMode === 'plan' &&
           (promotePlanOnCompleteRef.current ||
             stageNow === 'planning' ||
             stageNow === 'questions');
@@ -1416,7 +1605,11 @@ export function ChatApp() {
           }
           // Do not clear promote flag on empty — wait for recovery / next complete
         }
-        if (mode === 'plan' && planStage === 'research' && planController.getQuestions().length > 0) {
+        if (
+          effectiveMode === 'plan' &&
+          planStage === 'research' &&
+          planController.getQuestions().length > 0
+        ) {
           setShowClarifying(true);
         }
       },
@@ -1452,7 +1645,61 @@ export function ChatApp() {
         });
       }
     );
-  }, [mode, sendMessage, planStage, planController, cleanupStreamingAssistants, promotePlanToReview]);
+  }, [mode, sendMessage, planStage, planController, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom]);
+
+  handleSendRef.current = handleSend;
+
+  // Build-ready: Agent handoff without wiping the chat (RW-C5-04)
+  useEffect(() => {
+    planController.onBuildReadyCallback((_context: string) => {
+      const planState = planController.getState();
+
+      // Abort any in-flight stream — otherwise empty/stale UI can stick on Streaming…
+      stopHandlerRef.current?.stop('user_stop');
+      sendEpochRef.current += 1;
+      setAwaitingUser(false);
+      setShowClarifying(false);
+      setMessages(cleanupStreamingAssistants);
+      setMode('agent');
+
+      const displayText =
+        '승인한 계획을 실행해 주세요. 단계별로 진행하세요.';
+      let apiContent: string;
+      if (planState.planDocument) {
+        const planToAgent = new PlanToAgent();
+        planToAgent.setPlanDocument(planState.planDocument);
+        const transition = planToAgent.buildTransitionContext(
+          planState.planDocument,
+          planState.researchResults,
+          planState.questions.map((q) => ({
+            question: q.question,
+            answer: q.answer
+          }))
+        );
+        apiContent = [
+          transition.messages[0]?.content ?? _context,
+          '',
+          'Please execute the plan step by step, starting with Step 1.'
+        ].join('\n');
+      } else {
+        apiContent = [
+          'I have approved the plan. Here is the context:',
+          '',
+          _context,
+          '',
+          'Please execute the plan step by step.'
+        ].join('\n');
+      }
+
+      // Defer so stop/mode settle, then send on Agent tools
+      queueMicrotask(() => {
+        void handleSendRef.current?.(displayText, [], {
+          apiUserContent: apiContent,
+          modeOverride: 'agent'
+        });
+      });
+    });
+  }, [planController, cleanupStreamingAssistants]);
 
   /**
    * Interrupt & Resynthesize.
@@ -1546,15 +1793,6 @@ export function ChatApp() {
     return () => window.clearTimeout(t);
   }, [streaming, msgQueue, handleSend]);
 
-  // Legacy single-slot queue (plan approve etc.)
-  useEffect(() => {
-    if (!streaming && queuedMessageRef.current) {
-      const queued = queuedMessageRef.current;
-      queuedMessageRef.current = null;
-      handleSend(queued, []);
-    }
-  }, [streaming, handleSend]);
-
   /** Stop button — abort + clear streaming orphans; composer accepts new messages */
   const handleStop = useCallback(() => {
     stopHandlerRef.current?.stop('user_stop');
@@ -1564,6 +1802,15 @@ export function ChatApp() {
     setMessages(cleanupStreamingAssistants);
     setError(null);
   }, [cleanupStreamingAssistants]);
+
+  /** User bubble Stop: halt run and put that message back in the composer for resend */
+  const handleStopAndPrefill = useCallback(
+    (content: string) => {
+      handleStop();
+      setComposerSeed({ text: content, nonce: Date.now() });
+    },
+    [handleStop]
+  );
 
   /** Apply now: only that one item — do not drain the rest of the queue */
   const handleQueueApplyNow = useCallback((messageId: string) => {
@@ -1617,19 +1864,37 @@ export function ChatApp() {
     }
   }, [messages, handleSend]);
 
-  const handleRetry = useCallback((messageId: string) => {
-    const idx = messages.findIndex((m) => m.id === messageId);
-    const msg = messages[idx];
-    if (!msg) return;
-    setMessages((prev) => prev.slice(0, idx));
-    if (msg.role === 'user') {
-      handleSend(msg.content, msg.attachments || []);
-    }
-  }, [messages, handleSend]);
-
-  const handleDelete = useCallback((messageId: string) => {
-    setMessages((prev) => prev.filter((m) => m.id !== messageId));
-  }, []);
+  const handleFork = useCallback(
+    (messageId: string) => {
+      const idx = messages.findIndex((m) => m.id === messageId);
+      if (idx < 0) return;
+      if (streaming) {
+        stopHandlerRef.current?.stop('user_stop');
+        sendEpochRef.current += 1;
+      }
+      const snap = messagesRef.current.length ? messagesRef.current : messages;
+      if (snap.length > 0) {
+        sessionStore.saveMessages(sessionId, snap, mode);
+      }
+      const sliced = snap.slice(0, idx + 1);
+      const forked = sessionStore.forkFromMessages(sliced, mode);
+      setSessionId(forked.id);
+      setMessages(sanitizeLoadedMessages(forked.messages || []));
+      stepStartRef.current = {};
+      setSessionList(sessionStore.list());
+      setOpenTabIds((prev) => [
+        forked.id,
+        ...prev.filter((id) => id !== forked.id)
+      ]);
+      setPendingQuestions([]);
+      setShowClarifying(false);
+      setAwaitingUser(false);
+      setError(null);
+      parkedAwaitingRef.current = null;
+      loopSessionIdRef.current = null;
+    },
+    [messages, streaming, sessionId, mode]
+  );
 
   const handleModeChange = useCallback((newMode: Mode) => {
     if (newMode === mode) return;
@@ -1648,6 +1913,27 @@ export function ChatApp() {
   }, [mode, streaming, cleanupStreamingAssistants]);
 
   // ─── C5-C7 핸들러 ─────────────────────────────────────
+
+  /** Mark in-bubble ask_question rows done so the live blink stops immediately */
+  const sealAskingSteps = useCallback(() => {
+    setMessages((prev) => {
+      let changed = false;
+      const next = prev.map((m) => {
+        if (m.role !== 'assistant' || !m.steps?.length) return m;
+        let local = false;
+        const steps = m.steps.map((s) => {
+          if (s.kind === 'asking' && s.itemStatus === 'running') {
+            local = true;
+            changed = true;
+            return { ...s, itemStatus: 'done' as const };
+          }
+          return s;
+        });
+        return local ? { ...m, steps } : m;
+      });
+      return changed ? next : prev;
+    });
+  }, []);
 
   /** Plan/Agent: 질문 답변 → host RuntimeServices.resolveQuestion */
   const handlePlanAnswer = useCallback((id: string, answer: string) => {
@@ -1686,10 +1972,11 @@ export function ChatApp() {
       }
     }
 
-    // Agent mode: one question → dismiss UI; loop resumes after host resolves
+    // Stop ask_question live blink immediately; dismiss Waiting UI
+    sealAskingSteps();
     setShowClarifying(false);
     setAwaitingUser(false);
-  }, [planController, mode, debugController]);
+  }, [planController, mode, debugController, sealAskingSteps]);
 
   /** Plan: 질문 완료 → Planning 단계 + 에이전트에게 실제 PLAN.md 작성 요청 */
   const handleQuestionsComplete = useCallback(() => {
@@ -1698,6 +1985,10 @@ export function ChatApp() {
       if (streaming) {
         stopHandlerRef.current?.stop('user_stop');
         sendEpochRef.current += 1;
+        // Preserve Thought/Explored from the research turn before PLAN write send
+        const kept = cleanupStreamingAssistants(messagesRef.current);
+        messagesRef.current = kept;
+        setMessages(kept);
       }
       try {
         const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
@@ -1714,6 +2005,7 @@ export function ChatApp() {
       setAwaitingUser(false);
       setShowPlanReview(false);
       setPendingQuestions([]);
+      sealAskingSteps();
 
       const qa = planController
         .getQuestions()
@@ -1721,28 +2013,40 @@ export function ChatApp() {
         .join('\n');
       const research = (planController.getState().researchResults || '').trim();
       promotePlanOnCompleteRef.current = true;
-      void handleSend(
-        [
-          '질문 답변을 반영해 **전체 PLAN.md**만 작성하세요. 구현·수정·파일 편집은 절대 하지 마세요.',
-          '',
-          '필수 섹션: Context, Questions & Answers, Architecture (mermaid flowchart), TODOs (`- [ ]`), Risks, Approval.',
-          'ask_question을 다시 호출하지 마세요. switch_mode도 호출하지 마세요.',
-          '계획이 본문 답변이어야 합니다. 사용자가 Review에서 승인하기 전까지 Build/구현은 없습니다.',
-          '',
-          research ? `## Research notes\n${research.slice(0, 6000)}` : '',
-          '',
-          '## Clarifying answers',
-          qa || '(none)',
-        ]
-          .filter(Boolean)
-          .join('\n'),
-        []
-      );
+      // UI: short bubble only — long PLAN instructions go to the API payload
+      const displayText = [
+        '답변을 반영해 PLAN.md를 작성해 주세요.',
+        qa ? `\n${qa}` : ''
+      ].join('');
+      const apiUserContent = [
+        '질문 답변을 반영해 **전체 PLAN.md**만 작성하세요. 구현·수정·파일 편집은 절대 하지 마세요.',
+        '',
+        '필수 섹션: Context, Questions & Answers, Architecture (mermaid flowchart), TODOs (`- [ ]`), Risks, Approval.',
+        'ask_question을 다시 호출하지 마세요. switch_mode도 호출하지 마세요.',
+        '계획이 본문 답변이어야 합니다. 사용자가 Review에서 승인하기 전까지 Build/구현은 없습니다.',
+        '마크다운은 실제 줄바꿈을 쓰세요. JSON 이스케이프(`\\n`)나 한 줄짜리 테이블로 쓰지 마세요.',
+        '',
+        research ? `## Research notes\n${research.slice(0, 6000)}` : '',
+        '',
+        '## Clarifying answers',
+        qa || '(none)',
+      ]
+        .filter(Boolean)
+        .join('\n');
+      void handleSend(displayText, [], { apiUserContent });
       return;
     }
+    sealAskingSteps();
     setShowClarifying(false);
     setAwaitingUser(false);
-  }, [planController, mode, handleSend, streaming]);
+  }, [
+    planController,
+    mode,
+    handleSend,
+    streaming,
+    cleanupStreamingAssistants,
+    sealAskingSteps
+  ]);
 
   /** Plan/Agent: 질문 취소 — must unblock host waiter */
   const handleQuestionsCancel = useCallback(() => {
@@ -1894,21 +2198,21 @@ export function ChatApp() {
     if (md) promotePlanToReview(md);
   }, [planStage, planController, messages, promotePlanToReview]);
 
-  /** Discard plan document and leave Review */
+  /** Discard plan document and leave Review (no window.confirm — blocked in webview) */
   const handleDiscardPlan = useCallback(() => {
-    if (
-      !window.confirm(
-        '현재 계획을 폐기하고 Research 단계로 돌아갈까요?\n저장된 plan_*.md 파일은 그대로 둡니다.'
-      )
-    ) {
-      return;
-    }
+    const discarded =
+      planController.getState().planDocument?.content?.trim() ||
+      findLatestPlanMarkdown(messages);
     planController.discardPlan();
-    lastPromotedPlanRef.current = '';
+    // Prevent recovery effect from immediately re-promoting the same chat plan
+    lastPromotedPlanRef.current = discarded || 'discarded';
     promotePlanOnCompleteRef.current = false;
     setShowPlanReview(false);
+    setShowClarifying(false);
+    setPendingQuestions([]);
+    setAwaitingUser(false);
     setPlanStage('research');
-  }, [planController]);
+  }, [planController, messages]);
 
   /** Debug: 가설 선택 → 계측 단계 진입 (RW-C6-01) */
   const handleSelectHypothesis = useCallback((id: string) => {
@@ -2127,6 +2431,25 @@ export function ChatApp() {
   // ─── Render ────────────────────────────────────────────
   return (
     <div className="chat-container" data-ak-ui="v0.0.2">
+      <div className="chat-shell">
+        <aside
+          className={`chat-rail${showHistory ? ' is-open' : ''}`}
+          aria-hidden={!showHistory}
+          aria-label={showHistory ? '채팅 기록' : undefined}
+        >
+          {showHistory ? (
+            <HistoryPanel
+              sessions={sessionList}
+              currentId={sessionId}
+              onSelect={handleOpenSession}
+              onDelete={handleDeleteSession}
+              onNew={handleNewChat}
+              onClose={handleCloseHistory}
+            />
+          ) : null}
+        </aside>
+
+        <div className="chat-main">
       <ChatSessionTabs
         sessions={sessionList}
         currentId={sessionId}
@@ -2232,26 +2555,6 @@ export function ChatApp() {
         </div>
       )}
 
-      {/* ── Clarifying Questions (RW-C5-02) ──────── */}
-      {showClarifying && pendingQuestions.length > 0 && (
-        <div className="mode-chrome mode-chrome--questions">
-          <ClarifyingQuestions
-            questions={pendingQuestions.map(q => ({
-              id: q.id,
-              type: 'single' as const,
-              question: q.question,
-              options: q.options,
-              required: q.required,
-              answer: q.answer
-            }))}
-            forceRadio
-            onAnswer={handlePlanAnswer}
-            onComplete={handleQuestionsComplete}
-            onCancel={handleQuestionsCancel}
-          />
-        </div>
-      )}
-
       {/* Plan review: Approve & Execute is the only path into Build */}
       {showPlanReview && planController.getState().planDocument?.content?.trim() ? (
         <div className="plan-editor-overlay" role="dialog" aria-label="Plan review">
@@ -2263,6 +2566,7 @@ export function ChatApp() {
             onEdit={handlePlanEdit}
             onOpenInEditor={handleOpenPlanInEditor}
             onClose={handlePlanReviewClose}
+            onDiscard={handleDiscardPlan}
           />
         </div>
       ) : null}
@@ -2274,19 +2578,6 @@ export function ChatApp() {
             key={settingsTab}
             initialTab={settingsTab}
             onClose={handleCloseSettings}
-          />
-        </div>
-      )}
-
-      {showHistory && (
-        <div className="settings-overlay" role="dialog" aria-label="Chat history">
-          <HistoryPanel
-            sessions={sessionList}
-            currentId={sessionId}
-            onSelect={handleOpenSession}
-            onDelete={handleDeleteSession}
-            onNew={handleNewChat}
-            onClose={handleCloseHistory}
           />
         </div>
       )}
@@ -2310,18 +2601,27 @@ export function ChatApp() {
         aria-relevant="additions"
         onScroll={onMessageListScroll}
       >
-        {messages.map((item) => (
-          <MessageBubble
-            key={item.id}
-            message={item}
-            isStreaming={streaming && messages[messages.length - 1]?.id === item.id}
-            onEdit={handleEditMessage}
-            onRetry={handleRetry}
-            onDelete={handleDelete}
-            onCopy={(content) => navigator.clipboard.writeText(content)}
-            onOpenFile={handleOpenFile}
-          />
-        ))}
+        {(() => {
+          const lastUserId = [...messages]
+            .reverse()
+            .find((m) => m.role === 'user')?.id;
+          return messages.map((item) => (
+            <MessageBubble
+              key={item.id}
+              message={item}
+              isStreaming={
+                streaming && messages[messages.length - 1]?.id === item.id
+              }
+              isAgentRunning={streaming}
+              isLastUser={item.role === 'user' && item.id === lastUserId}
+              onEdit={handleEditMessage}
+              onFork={handleFork}
+              onStopAndPrefill={handleStopAndPrefill}
+              onCopy={(content) => navigator.clipboard.writeText(content)}
+              onOpenFile={handleOpenFile}
+            />
+          ));
+        })()}
         {/* Anchor so scrollHeight always includes latest growth */}
         <div ref={messageEndRef} aria-hidden className="message-list-end" />
       </div>
@@ -2335,16 +2635,53 @@ export function ChatApp() {
           onApplyNow={handleQueueApplyNow}
           onCancel={handleQueueCancel}
         />
+        {/* Stick ask_question UI above composer — never scroll off-screen at top */}
+        {showClarifying && pendingQuestions.length > 0 && (
+          <div className="clarifying-dock" role="region" aria-label="Clarifying questions">
+            <ClarifyingQuestions
+              questions={pendingQuestions.map(q => ({
+                id: q.id,
+                type: 'single' as const,
+                question: q.question,
+                options: q.options,
+                required: q.required,
+                answer: q.answer
+              }))}
+              forceRadio
+              onAnswer={handlePlanAnswer}
+              onComplete={handleQuestionsComplete}
+              onCancel={handleQuestionsCancel}
+            />
+          </div>
+        )}
         <ChangedFilesBar
           files={sessionFileEdits}
           onOpenFile={handleOpenFile}
           onUndoAll={handleUndoAllEdits}
           onReview={handleReviewEdits}
+          isStreaming={streaming}
+          onStop={handleStop}
         />
         <Composer
           onSend={handleSend}
           disabled={streaming}
           onStop={handleStop}
+          seedText={composerSeed?.text ?? null}
+          seedNonce={composerSeed?.nonce ?? 0}
+          onSlashCommand={(cmd) => {
+            if (cmd.action === 'newChat') {
+              handleNewChat();
+              return;
+            }
+            if (cmd.action === 'settings') {
+              setShowSettings(true);
+              setSettingsTab('models');
+              return;
+            }
+            if (cmd.action === 'mode' && cmd.mode) {
+              handleModeChange(cmd.mode);
+            }
+          }}
           onRegenerate={() => {
             stepStartRef.current = {};
             let toolsStarted = false;
@@ -2366,6 +2703,30 @@ export function ChatApp() {
               messages,
               mode,
               (delta: StreamDelta) => {
+                if (delta.askQuestion?.id) {
+                  const q = delta.askQuestion;
+                  const normalized = normalizeMcqQuestion(
+                    q.question ||
+                      '확인이 필요합니다. 아래에서 선택하거나 기타에 적어 주세요.',
+                    q.options
+                  );
+                  setPendingQuestions((prev) => {
+                    if (prev.find((p) => p.id === q.id)) return prev;
+                    return [
+                      ...prev,
+                      {
+                        id: q.id,
+                        question: normalized.question,
+                        options: normalized.options,
+                        required: q.required !== false,
+                        answered: false,
+                      },
+                    ];
+                  });
+                  setShowClarifying(true);
+                  setAwaitingUser(true);
+                  return;
+                }
                 if (delta.clearContent) {
                   toolsStarted = true;
                   setMessages((prev) => {
@@ -2387,7 +2748,13 @@ export function ChatApp() {
                   return;
                 }
                 if (delta.fileEdit) {
-                  const fe = delta.fileEdit;
+                  const fe = {
+                    ...delta.fileEdit,
+                    id:
+                      delta.fileEdit.id ||
+                      `fe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    turn: delta.fileEdit.turn || turnNumberRef.current || 1
+                  };
                   setMessages((prev) => {
                     const lastIdx = prev.length - 1;
                     if (
@@ -2398,7 +2765,23 @@ export function ChatApp() {
                       return prev;
                     }
                     const msg = prev[lastIdx];
-                    const fileEdits = [...(msg.fileEdits || []), fe];
+                    const key = (fe.absPath || fe.path || '').replace(/\\/g, '/');
+                    const prevEdits = msg.fileEdits || [];
+                    const idx = key
+                      ? prevEdits.findIndex((x) => {
+                          const xk = (x.absPath || x.path || '').replace(
+                            /\\/g,
+                            '/'
+                          );
+                          return xk === key && (x.turn || 0) === (fe.turn || 0);
+                        })
+                      : -1;
+                    const fileEdits =
+                      idx >= 0
+                        ? prevEdits.map((x, i) =>
+                            i === idx ? { ...fe, id: x.id || fe.id } : x
+                          )
+                        : [...prevEdits, fe];
                     const copy = [...prev];
                     copy[lastIdx] = { ...msg, fileEdits };
                     return copy;
@@ -2511,6 +2894,11 @@ export function ChatApp() {
                       detail: tl.detail !== undefined ? tl.detail : steps[idx]?.detail,
                       toolName: tl.toolName,
                       turn: tl.turn,
+                      thoughtRole:
+                        tl.thoughtRole ??
+                        (tl.kind === 'thinking'
+                          ? steps[idx]?.thoughtRole ?? 'opening'
+                          : steps[idx]?.thoughtRole),
                       itemStatus: tl.itemStatus,
                       durationMs: durationMs ?? steps[idx]?.durationMs
                     };
@@ -2545,6 +2933,7 @@ export function ChatApp() {
                       label: 'Thought',
                       detail: prevDetail + delta.reasoning,
                       turn: turnNumberRef.current || 1,
+                      thoughtRole: 'opening' as const,
                       itemStatus: 'running' as const
                     };
                     if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
@@ -2556,6 +2945,9 @@ export function ChatApp() {
                   return;
                 }
                 if (delta.status !== undefined) {
+                  if (delta.status === 'asking') {
+                    setAwaitingUser(true);
+                  }
                   setMessages((prev) => {
                     const lastIdx = prev.length - 1;
                     if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
@@ -2672,6 +3064,8 @@ export function ChatApp() {
           contextUsageLabel={contextUsageLabel}
         />
       </footer>
+        </div>
+      </div>
     </div>
   );
 }

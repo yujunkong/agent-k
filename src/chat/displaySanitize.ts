@@ -25,12 +25,44 @@ const FAKE_TOOL_NAMES = [
 ] as const;
 
 /**
+ * Local models sometimes emit JSON-escaped text (`\n`, `\"`) as the answer body.
+ * Unescape when literal escapes dominate real newlines so markdown/tables work.
+ */
+export function unescapeLiteralEscapes(content: string): string {
+  if (!content || !/\\[ntr"]/.test(content)) return content;
+  const literalNl = (content.match(/\\n/g) || []).length;
+  const realNl = (content.match(/\n/g) || []).length;
+  if (literalNl < 2 || literalNl <= realNl) return content;
+  return content
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\'/g, "'");
+}
+
+/**
  * Remove fake tool call tags and bare tool-call JSON the model dumps as plain text
- * (e.g. `[todo_write]...[/todo_write]` or `[{"name":"glob","arguments":{...}}]`).
+ * (e.g. `[todo_write]...[/todo_write]`, `<tool_code>…`, or `[{"name":"glob",…}]`).
  */
 export function stripFakeToolMarkup(content: string): string {
   if (!content) return content;
-  let out = content;
+  let out = unescapeLiteralEscapes(content);
+
+  // <tool_code>…</tool_code> (Qwen/local — must not appear as the answer)
+  out = out.replace(/<\/?tool[_-]?code[^>]*>/gi, '');
+  out = out.replace(
+    /(?:^|\n)\s*tool_code\s*\n\s*(?:grep|glob|file_search|list_dir|read_file|read_files|codebase_search|edit_file|write_file|delete_file|run_terminal_cmd|todo_write|ask_question)\s*\n\s*\{[\s\S]*?\}\s*/gi,
+    '\n'
+  );
+  // Bare: run_terminal_cmd\n{"cmd":...}
+  out = out.replace(
+    new RegExp(
+      `(?:^|\\n)\\s*(?:${FAKE_TOOL_NAMES.join('|')}|read_files)\\s*\\n\\s*\\{[\\s\\S]*?\\}\\s*(?=\\n|$)`,
+      'gi'
+    ),
+    '\n'
+  );
 
   for (const name of FAKE_TOOL_NAMES) {
     // Paired tags: [todo_write] ... [/todo_write]

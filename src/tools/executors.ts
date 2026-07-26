@@ -434,17 +434,62 @@ export async function executeReadFile(input: ToolInput): Promise<ToolOutput> {
 }
 
 /** Batch read — up to 12 paths in parallel */
+export function coerceReadFilesPaths(input: ToolInput | Record<string, unknown>): string[] {
+  const asList = (raw: unknown): string[] => {
+    if (Array.isArray(raw)) {
+      return raw.map((p) => String(p ?? '').trim()).filter(Boolean);
+    }
+    if (typeof raw === 'string') {
+      const t = raw.trim();
+      if (!t) return [];
+      if (t.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(t);
+          if (Array.isArray(parsed)) {
+            return parsed.map((p) => String(p ?? '').trim()).filter(Boolean);
+          }
+        } catch {
+          /* single path that happens to start with [ */
+        }
+      }
+      // Comma / newline separated fallback
+      if (t.includes('\n') || (t.includes(',') && t.includes('/'))) {
+        return t
+          .split(/[\n,]/)
+          .map((p) => p.trim().replace(/^["']|["']$/g, ''))
+          .filter(Boolean);
+      }
+      return [t];
+    }
+    return [];
+  };
+
+  const keys = [
+    'paths',
+    'files',
+    'file_paths',
+    'filePaths',
+    'targets',
+    'path',
+    'file',
+    'target_file',
+    'file_path',
+    'filepath'
+  ];
+  for (const key of keys) {
+    const list = asList((input as Record<string, unknown>)[key]);
+    if (list.length) return list;
+  }
+  return [];
+}
+
 export async function executeReadFiles(input: ToolInput): Promise<ToolOutput> {
-  const raw = input.paths;
-  const paths = Array.isArray(raw)
-    ? raw.map((p) => String(p || '').trim()).filter(Boolean)
-    : typeof raw === 'string'
-      ? [raw.trim()].filter(Boolean)
-      : [];
+  const paths = coerceReadFilesPaths(input);
   if (!paths.length) {
     return {
       success: false,
-      error: 'read_files requires a non-empty paths array',
+      error:
+        'read_files requires a non-empty paths array (or path/files aliases)',
       metadata: { duration: 0 }
     };
   }

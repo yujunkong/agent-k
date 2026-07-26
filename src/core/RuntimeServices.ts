@@ -162,10 +162,26 @@ export const RuntimeServices = {
         resolve(answer);
       };
       // Notify webview (extension posts chat.stream ask_question)
+      if (!askQuestionNotifier) {
+        clearTimeout(timer);
+        askQuestionResolver = undefined;
+        askQuestionReject = undefined;
+        askQuestionPending = undefined;
+        reject(
+          new Error(
+            'ask_question: no UI bridge (notifier unset). Re-open Agent K chat and retry.'
+          )
+        );
+        return;
+      }
       try {
-        askQuestionNotifier?.(pending);
-      } catch {
-        /* ignore notifier errors — waiter still blocks */
+        askQuestionNotifier(pending);
+      } catch (e) {
+        clearTimeout(timer);
+        askQuestionResolver = undefined;
+        askQuestionReject = undefined;
+        askQuestionPending = undefined;
+        reject(e instanceof Error ? e : new Error(String(e)));
       }
     });
   },
