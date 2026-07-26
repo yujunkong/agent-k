@@ -4,7 +4,7 @@
  * @멘션 + 에러 스택 → 관련 파일/심볼 미리 읽기
  * 결과를 ContextBlock으로 조립
  */
-import { extractFileMentions, extractSymbolMentions, hasCodebaseMention } from './MentionExtractor';
+import { extractFileMentions, extractSymbolMentions, hasCodebaseMention, parseFileMentionQuery } from './MentionExtractor';
 import { parseStackTrace, getContextFiles } from './StackTraceParser';
 import { ContextBlockBuilder, PrefetchResult } from './ContextBlockBuilder';
 
@@ -34,18 +34,31 @@ export class PrefetchEngine {
 
     const results: PrefetchResult[] = [];
 
-    // 1. Extract @file mentions
+    // 1. Extract @file mentions (optional :start-end line range)
     const fileMentions = extractFileMentions(userMessage);
-    for (const filePath of fileMentions.slice(0, this.config.maxFiles)) {
+    for (const fileQuery of fileMentions.slice(0, this.config.maxFiles)) {
       try {
+        const { path: filePath, startLine, endLine } = parseFileMentionQuery(fileQuery);
         const fs = require('fs');
         if (fs.existsSync(filePath)) {
-          const content = fs.readFileSync(filePath, 'utf-8').slice(0, this.config.maxChars);
+          const raw = fs.readFileSync(filePath, 'utf-8');
+          let content: string;
+          let summary: string;
+          if (startLine != null) {
+            const lines = raw.split(/\r?\n/);
+            const from = Math.max(0, startLine - 1);
+            const to = Math.min(lines.length, endLine ?? startLine);
+            content = lines.slice(from, to).join('\n').slice(0, this.config.maxChars);
+            summary = `Read file: ${filePath}:${startLine}-${to} (${content.length} chars)`;
+          } else {
+            content = raw.slice(0, this.config.maxChars);
+            summary = `Read file: ${filePath} (${content.length} chars)`;
+          }
           results.push({
             type: 'file_read',
-            source: filePath,
+            source: startLine != null ? `${filePath}:${startLine}-${endLine ?? startLine}` : filePath,
             content,
-            summary: `Read file: ${filePath} (${content.length} chars)`,
+            summary,
             relevance: 0.9,
             timestamp: Date.now()
           });

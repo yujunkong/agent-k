@@ -79,7 +79,7 @@ const listDirTool: ToolDefinition = {
 const readFileTool: ToolDefinition = {
   name: 'read_file',
   description:
-    'Read a slice of a file (Cursor-style). Default ~250 lines. Prefer grep/codebase_search first, then read with offset/limit around hits. Do not read entire large files.',
+    'Read a slice of one file (Cursor-style). Default ~250 lines. For several known paths prefer read_files in one call. Prefer grep/codebase_search first, then windowed reads.',
   parameters: {
     type: 'object',
     properties: {
@@ -97,6 +97,41 @@ const readFileTool: ToolDefinition = {
       maxChars: { type: 'number', description: 'Maximum characters (default: 50000)', optional: true }
     },
     required: ['path']
+  },
+  modeAllowlist: ['ask', 'agent', 'plan', 'debug'],
+  category: 'search'
+};
+
+// ─── read_files (batch) ────────────────────────────────
+const readFilesTool: ToolDefinition = {
+  name: 'read_files',
+  description:
+    'Read slices of many files in one call (up to 12). Use this when exploring a codebase so you do not drip-read 2–4 files per turn. Same offset/limit defaults as read_file.',
+  parameters: {
+    type: 'object',
+    properties: {
+      paths: {
+        type: 'array',
+        description: 'Workspace-relative or absolute file paths (max 12)',
+        items: { type: 'string' }
+      },
+      offset: {
+        type: 'number',
+        description: 'Starting line for each file (1-indexed)',
+        optional: true
+      },
+      limit: {
+        type: 'number',
+        description: 'Max lines per file (default 250)',
+        optional: true
+      },
+      maxChars: {
+        type: 'number',
+        description: 'Max characters per file (default: 50000)',
+        optional: true
+      }
+    },
+    required: ['paths']
   },
   modeAllowlist: ['ask', 'agent', 'plan', 'debug'],
   category: 'search'
@@ -179,6 +214,7 @@ export function registerReadTools() {
   toolRegistry.registerTool(fileSearchTool);
   toolRegistry.registerTool(listDirTool);
   toolRegistry.registerTool(readFileTool);
+  toolRegistry.registerTool(readFilesTool);
   toolRegistry.registerTool(codebaseSearchTool);
   toolRegistry.registerTool(lspDefinitionTool);
   toolRegistry.registerTool(lspReferencesTool);

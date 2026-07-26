@@ -1,5 +1,5 @@
 /**
- * PlanModeHeader - Plan 모드 헤더 배지 + 진행 단계 UI (C5-T19)
+ * PlanModeHeader - Plan 모드 진행 표시 + Review 재오픈/폐기
  */
 import React from 'react';
 import type { PlanStage } from '../../plan/PlanModeController';
@@ -7,7 +7,13 @@ import type { PlanStage } from '../../plan/PlanModeController';
 interface PlanModeHeaderProps {
   currentStage: PlanStage;
   stages: PlanStage[];
-  onStageClick?: (stage: PlanStage) => void;
+  /** Open / re-open the Review overlay */
+  onOpenReview?: () => void;
+  canOpenReview?: boolean;
+  /** Review overlay currently visible */
+  reviewOpen?: boolean;
+  /** Discard plan and leave Review */
+  onDiscardPlan?: () => void;
 }
 
 const STAGE_META: Record<
@@ -32,12 +38,12 @@ const STAGE_META: Record<
   review: {
     icon: '👀',
     label: 'Review',
-    tooltip: '계획을 검토·수정하고 승인합니다.'
+    tooltip: '계획을 검토·수정하고 승인합니다. Build는 여기서만 시작합니다.'
   },
   build: {
     icon: '🚀',
     label: 'Build',
-    tooltip: '승인 후 Agent 모드로 전환해 구현을 시작합니다.'
+    tooltip: 'Review에서 Approve & Execute 후에만 진행됩니다.'
   }
 };
 
@@ -51,108 +57,97 @@ const STAGE_ORDER: PlanStage[] = [
 
 export function PlanModeHeader({
   currentStage,
-  stages,
-  onStageClick
+  stages: _stages,
+  onOpenReview,
+  canOpenReview,
+  reviewOpen,
+  onDiscardPlan
 }: PlanModeHeaderProps) {
+  void _stages;
   const currentIdx = STAGE_ORDER.indexOf(currentStage);
+  const inReview = currentStage === 'review';
+  const showReviewActions =
+    Boolean(onOpenReview) &&
+    ((canOpenReview && currentStage === 'planning') ||
+      (inReview && !reviewOpen));
 
   return (
-    <div
-      className="plan-mode-header"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '8px 12px',
-        background:
-          'linear-gradient(135deg, rgba(250,204,21,0.08), rgba(250,204,21,0.02))',
-        borderBottom: '1px solid rgba(250,204,21,0.2)',
-        fontSize: 13
-      }}
-    >
-      <span
-        style={{
-          padding: '3px 8px',
-          borderRadius: 4,
-          background: 'rgba(250,204,21,0.2)',
-          color: '#facc15',
-          fontWeight: 600,
-          fontSize: 11,
-          letterSpacing: 0.4,
-          flexShrink: 0
-        }}
-      >
-        PLAN
-      </span>
+    <div className="plan-mode-header" role="status">
+      <div className="plan-mode-header__row">
+        <span className="plan-mode-header__badge">PLAN</span>
 
-      <div
-        className="plan-stage-row"
-        style={{ display: 'flex', gap: 4, flex: 1, minWidth: 0, flexWrap: 'wrap' }}
-      >
-        {STAGE_ORDER.map((stage, i) => {
-          const meta = STAGE_META[stage];
-          const isActive = stage === currentStage;
-          const isCompleted = STAGE_ORDER.indexOf(stage) < currentIdx;
-          const isListed = stages.includes(stage);
-          const clickable = Boolean(onStageClick) && (isListed || isCompleted || isActive);
+        <div className="plan-stage-row" aria-label="Plan stages">
+          {STAGE_ORDER.map((stage, i) => {
+            const meta = STAGE_META[stage];
+            const isActive = stage === currentStage;
+            const isCompleted = STAGE_ORDER.indexOf(stage) < currentIdx;
+            const isBuildLocked = stage === 'build' && currentStage === 'review';
 
-          return (
-            <button
-              key={stage}
-              type="button"
-              className="plan-stage-btn"
-              title={meta.tooltip}
-              aria-label={`${meta.label}: ${meta.tooltip}`}
-              aria-current={isActive ? 'step' : undefined}
-              onClick={() => {
-                if (clickable) onStageClick?.(stage);
-              }}
-              disabled={!clickable}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '5px 10px',
-                borderRadius: 6,
-                border: isActive
-                  ? '1px solid rgba(250,204,21,0.55)'
-                  : '1px solid transparent',
-                background: isActive
-                  ? 'rgba(250,204,21,0.22)'
-                  : isCompleted
-                    ? 'rgba(74,222,128,0.12)'
-                    : 'transparent',
-                color: isActive
-                  ? '#facc15'
-                  : isCompleted
-                    ? '#4ade80'
-                    : 'var(--vscode-foreground, #ccc)',
-                fontWeight: isActive ? 600 : 400,
-                cursor: clickable ? 'pointer' : 'default',
-                fontSize: 12,
-                lineHeight: 1.2,
-                opacity: !isListed && !isCompleted && !isActive ? 0.35 : 1
-              }}
-            >
-              <span
-                aria-hidden
-                style={{
-                  fontSize: 16,
-                  lineHeight: 1,
-                  width: 18,
-                  textAlign: 'center',
-                  flexShrink: 0
-                }}
+            return (
+              <div
+                key={stage}
+                className={[
+                  'plan-stage-badge',
+                  isActive ? 'plan-stage-badge--active' : '',
+                  isCompleted ? 'plan-stage-badge--done' : '',
+                  isBuildLocked ? 'plan-stage-badge--locked' : ''
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                title={
+                  isBuildLocked
+                    ? 'Review에서 Approve & Execute를 눌러야 Build로 갑니다'
+                    : meta.tooltip
+                }
+                aria-current={isActive ? 'step' : undefined}
               >
-                {isCompleted && !isActive ? '✓' : meta.icon}
-              </span>
-              <span style={{ whiteSpace: 'nowrap' }}>
-                {i + 1}. {meta.label}
-              </span>
+                <span className="plan-stage-badge__icon" aria-hidden>
+                  {isCompleted && !isActive ? '✓' : meta.icon}
+                </span>
+                <span className="plan-stage-badge__label">
+                  {i + 1}. {meta.label}
+                  {isBuildLocked ? ' (대기)' : ''}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {showReviewActions ? (
+          <div className="plan-mode-header__actions">
+            <button
+              type="button"
+              className="settings-btn primary"
+              onClick={onOpenReview}
+              title={
+                inReview
+                  ? 'Review 창을 다시 열어 승인하거나 수정합니다'
+                  : '채팅에 작성된 PLAN을 Review로 엽니다'
+              }
+            >
+              {inReview ? 'Review 다시 열기' : 'Review 열기'}
             </button>
-          );
-        })}
+            {inReview && onDiscardPlan ? (
+              <button
+                type="button"
+                className="settings-btn plan-mode-header__discard"
+                onClick={onDiscardPlan}
+                title="현재 계획을 폐기하고 Research로 돌아갑니다"
+              >
+                계획 폐기
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
+
+      {inReview && !reviewOpen ? (
+        <div className="plan-mode-header__hint" role="status">
+          Review 창을 닫은 상태입니다. <strong>Review 다시 열기</strong>로 승인·수정하거나,{' '}
+          <strong>계획 폐기</strong>로 처음부터 다시 시작할 수 있습니다. Build는 Review에서
+          Approve &amp; Execute 할 때만 진행됩니다.
+        </div>
+      ) : null}
     </div>
   );
 }

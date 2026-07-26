@@ -36,10 +36,11 @@ export interface StreamChatOptions {
   signal?: AbortSignal;
   tools?: any[];
   /**
-   * Qwen thinking. Default: false when tools are present (otherwise plans
-   * stay in reasoning_content with no tool_calls).
+   * Qwen / exo thinking channel. Prefer setting via thinkingEffort.
    */
   enableThinking?: boolean;
+  /** off | low | medium | high — mapped to enable_thinking + reasoning_effort / budget */
+  thinkingEffort?: 'off' | 'low' | 'medium' | 'high';
 }
 
 export interface StreamChunk {

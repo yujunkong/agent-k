@@ -20,28 +20,45 @@ import {
 
 /** VS Code 없는 단위/E2E 환경에서는 process.cwd() 사용 */
 export function getWorkspaceRoot(): string {
+  const roots = getWorkspaceRoots();
+  return roots[0] || process.cwd();
+}
+
+/** Multi-root workspace folders (first = primary) */
+export function getWorkspaceRoots(): string[] {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const vscode = require('vscode') as typeof import('vscode');
-    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
+    const folders = vscode.workspace.workspaceFolders || [];
+    if (folders.length) {
+      return folders.map((f) => path.resolve(f.uri.fsPath));
+    }
   } catch {
-    return process.cwd();
+    /* tests / no vscode */
   }
+  return [path.resolve(process.cwd())];
 }
 
 /**
- * 상대/절대 경로를 워크스페이스 루트 기준으로 정규화 (루트 탈출 시 거부)
+ * 상대/절대 경로를 워크스페이스 루트 기준으로 정규화 (루트 탈출 시 거부).
+ * Multi-root: any folder in the workspace is allowed.
  */
 export function resolveWorkspacePath(filePath: string): { abs: string } | { error: string } {
-  const root = path.resolve(getWorkspaceRoot());
+  const roots = getWorkspaceRoots();
   const abs = path.isAbsolute(filePath)
     ? path.resolve(filePath)
-    : path.resolve(root, filePath);
-  const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
-  if (abs !== root && !abs.startsWith(rootWithSep)) {
-    return { error: `Path escapes workspace root: ${filePath}` };
+    : path.resolve(roots[0], filePath);
+
+  for (const root of roots) {
+    const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
+    if (abs === root || abs.startsWith(rootWithSep)) {
+      return { abs };
+    }
   }
-  return { abs };
+
+  return {
+    error: `Path escapes workspace root: ${filePath} (open that folder in VS Code, or use a path under ${roots[0]})`
+  };
 }
 
 function getCheckpointManager(): CheckpointManager {

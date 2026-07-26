@@ -50,7 +50,7 @@ export function StreamingMarkdown({ content, isStreaming }: StreamingMarkdownPro
     <div className="markdown-body">
       {nodes.map((node) => (
         <React.Fragment key={node.id}>
-          {node.type === 'text' && (
+          {node.type === 'text' && (node.text || '').trim() !== '' && (
             <div className="md-text">{renderInline(node.text || '')}</div>
           )}
           {node.type === 'heading' && (
@@ -249,7 +249,7 @@ class MarkdownParser {
       this.nodes.push({
         id: nextId('table'),
         type: 'table',
-        rows: normalizeTableRows(this.currentNode.rows),
+        rows: coalesceTableRows(this.currentNode.rows),
         isComplete: !this.streaming
       });
       return;
@@ -311,7 +311,7 @@ class MarkdownParser {
       this.finalizeNode({
         id: nextId('table'),
         type: 'table',
-        rows: normalizeTableRows(this.currentNode.rows),
+        rows: coalesceTableRows(this.currentNode.rows),
         isComplete: true
       });
       this.currentNode = {};
@@ -569,6 +569,8 @@ function MathFormula({ formula }: { formula: string }) {
 function splitTableCells(line: string): string[] {
   let s = line.trim();
   if (!s) return [];
+  // Lone "|" / "||" noise rows from broken repairs
+  if (/^\|+$/.test(s.replace(/\s/g, ''))) return [];
   if (s.startsWith('|')) s = s.slice(1);
   if (s.endsWith('|')) s = s.slice(0, -1);
   return s.split('|').map((c) => c.trim());
@@ -580,6 +582,63 @@ function normalizeTableRows(rows: TableRow[]): TableRow[] {
     ...r,
     cells: Array.from({ length: cols }, (_, i) => r.cells[i] ?? '')
   }));
+}
+
+/**
+ * Merge orphan label rows ("A", "B.", "**C**") into the following content row.
+ * Happens when models write `| A || desc | pros |` and repair/split breaks it.
+ */
+function coalesceTableRows(rows: TableRow[]): TableRow[] {
+  const cleaned = rows.filter((r) => r.cells.some((c) => c.trim()));
+  const out: TableRow[] = [];
+
+  for (let i = 0; i < cleaned.length; i++) {
+    const row = cleaned[i];
+    if (row.isHeader) {
+      out.push(row);
+      continue;
+    }
+
+    const nonEmptyIdx = row.cells
+      .map((c, idx) => ({ c: c.trim(), idx }))
+      .filter((x) => x.c);
+    const labelOnly =
+      nonEmptyIdx.length === 1 &&
+      isOptionLabel(nonEmptyIdx[0].c) &&
+      i + 1 < cleaned.length &&
+      !cleaned[i + 1].isHeader;
+
+    if (labelOnly) {
+      const label = stripMdEmphasis(nonEmptyIdx[0].c).replace(/\.$/, '');
+      const next = cleaned[i + 1];
+      const merged = [...next.cells];
+      const first = (merged[0] || '').trim();
+      if (!first || !new RegExp(`^${escapeRegExp(label)}\\.?\\b`).test(first)) {
+        merged[0] = first ? `${label}. ${first}` : `${label}.`;
+      }
+      out.push({ cells: merged, isHeader: false });
+      i++;
+      continue;
+    }
+
+    out.push(row);
+  }
+
+  return normalizeTableRows(out);
+}
+
+function isOptionLabel(cell: string): boolean {
+  const t = stripMdEmphasis(cell).trim();
+  // A / B. / 1 / ① — short option markers only (uppercase letters)
+  return /^(?:[A-Z]|[0-9]{1,2}|[①-⑩])\.?$/.test(t);
+}
+
+function stripMdEmphasis(s: string): string {
+  return s.replace(/\*\*/g, '').replace(/__/g, '').trim();
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function escapeHtml(str: string): string {

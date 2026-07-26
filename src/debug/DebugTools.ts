@@ -1,22 +1,26 @@
 /**
  * DebugTools - Debug 모드 도구 설정 (C6-T23)
- * 
- * Debug 모드는 edit_file 허용 (계측용), Plan 모드와 whitelist 분리
+ *
+ * Stage별 허용 도구는 DEBUG_STAGE_TOOLS / isDebugToolAllowedForStage 참고.
  */
 import { modeRegistry } from '../agent/modeRegistry';
+import {
+  isDebugToolAllowedForStage,
+  type DebugStage
+} from '../debug/DebugModeController';
 
 export class DebugTools {
-  /**
-   * Get tools allowed in Debug mode
-   */
   getAllowedTools(): string[] {
     return modeRegistry.getModeConfig('debug').allowedTools;
   }
 
-  /**
-   * Check if a tool is allowed
-   */
   isToolAllowed(toolName: string): boolean {
     return modeRegistry.isToolAllowed('debug', toolName);
+  }
+
+  isToolAllowedInStage(stage: DebugStage, toolName: string): boolean {
+    return (
+      this.isToolAllowed(toolName) && isDebugToolAllowedForStage(stage, toolName)
+    );
   }
 }

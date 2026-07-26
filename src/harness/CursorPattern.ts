@@ -32,10 +32,11 @@ Bad: \`네, 「지금 나온 결과가…」 요청을 확인했습니다.\` (pa
 ### Core Loop
 1. **Understand**: Read the user's request carefully. Identify files, symbols, and intent.
 2. **Say it back**: Open the user-visible answer with the short summary above (when there is a real task).
-3. **Explore**: Search first, then read only needed windows.
+3. **Explore**: Search first, then read needed windows in a batch.
    - Prefer \`grep\` / \`codebase_search\` / \`glob\` to locate symbols and paths.
-   - Then \`read_file\` with \`offset\` + \`limit\` (~250 lines) around hits — never dump whole large files.
-   - Read tools can run in parallel when independent.
+   - Then \`read_files\` (many paths) or several \`read_file\` calls in the **same** turn (up to 12) — never drip 2–4 files across many turns.
+   - Use \`offset\` + \`limit\` (~250 lines) around hits — never dump whole large files.
+   - Read tools run in parallel when independent.
 4. **Plan**: Write a brief plan with \`todo_write\` before making changes.
 5. **Execute**: Make one focused edit at a time.
 6. **Verify**: Check lints after each edit. Fix issues immediately.

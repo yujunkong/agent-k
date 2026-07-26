@@ -19,6 +19,7 @@ export interface ChatSession extends ChatSessionMeta {
 
 const INDEX_KEY = 'agent-k.chat.sessions.index';
 const CURRENT_KEY = 'agent-k.chat.sessions.current';
+const OPEN_TABS_KEY = 'agent-k.chat.sessions.openTabs';
 const LEGACY_KEY = 'agent-k.chat.history';
 const PREFIX = 'agent-k.chat.sessions.';
 const MAX_SESSIONS = 50;
@@ -74,6 +75,25 @@ export class ChatSessionStore {
 
   getCurrentId(): string | null {
     return this.currentId;
+  }
+
+  /**
+   * Tabs the user left open (not the full history list).
+   * Does not force-include current — closing a tab must stick.
+   */
+  getOpenTabIds(): string[] {
+    const stored = readJson<string[]>(OPEN_TABS_KEY, []);
+    const valid = stored.filter((id) => this.index.includes(id));
+    if (valid.length === 0 && this.currentId && this.index.includes(this.currentId)) {
+      return [this.currentId];
+    }
+    return valid;
+  }
+
+  setOpenTabIds(ids: string[]): void {
+    // Persist exactly what the UI closed/opened — never re-add currentId
+    const valid = ids.filter((id) => this.index.includes(id));
+    writeJson(OPEN_TABS_KEY, valid);
   }
 
   list(): ChatSessionMeta[] {

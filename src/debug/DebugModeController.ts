@@ -12,6 +12,79 @@ import { VerifyCleanup } from './VerifyCleanup';
 export type DebugStage = 'hypothesis' | 'instrument' | 'reproduce' | 'analyze' | 'fix' | 'cleanup';
 export type HypothesisStatus = 'pending' | 'investigating' | 'confirmed' | 'rejected';
 
+/** Stage-specific system prompts (injected each chat.send like Plan) */
+export const DEBUG_STAGE_PROMPTS: Record<DebugStage, string> = {
+  hypothesis: `You are Agent K in DEBUG mode — HYPOTHESIS stage.
+
+Explore read-only. Form 2–3 root-cause hypotheses.
+Then call \`ask_question\` ONCE with those hypotheses as multiple-choice options so the user picks which to investigate.
+
+RULES:
+- Do NOT edit files, instrument, or apply fixes.
+- Do NOT ask "which patch should I apply now?" — ask which hypothesis to test.
+- Wait for the user's choice before instrumenting.`,
+
+  instrument: `You are Agent K in DEBUG mode — INSTRUMENT stage.
+
+Add DEBUG_INSTRUMENT markers for the selected hypothesis via \`add_instrumentation\` only.
+Do NOT apply the real bug fix yet. Do NOT call edit_file/write_file for fixes.`,
+
+  reproduce: `You are Agent K in DEBUG mode — REPRODUCE stage.
+
+Call \`request_reproduce\` with clear steps. Wait for the user to reproduce.
+Do NOT edit production logic or apply fixes.`,
+
+  analyze: `You are Agent K in DEBUG mode — ANALYZE stage.
+
+Collect logs with \`collect_runtime_logs\`, read evidence, confirm or reject the hypothesis.
+Do NOT apply the fix yet. When you know the root cause, tell the user and wait —
+the user must click "Confirm & Fix" in the UI before Fix stage.`,
+
+  fix: `You are Agent K in DEBUG mode — FIX stage.
+
+The user confirmed the root cause. Apply the MINIMAL fix only for the confirmed hypothesis.
+Do not remove instrumentation yet (that is Cleanup).`,
+
+  cleanup: `You are Agent K in DEBUG mode — CLEANUP stage.
+
+Remove ALL DEBUG_INSTRUMENT markers via \`remove_instrumentation\`. Verify none remain.`
+};
+
+/** Tools allowed per debug stage (intersection with DEBUG_WHITELIST at execute time) */
+const DEBUG_READ = [
+  'grep', 'glob', 'file_search', 'list_dir', 'read_file', 'read_lints',
+  'codebase_search', 'lsp_definition', 'lsp_references',
+  'ask_question', 'todo_write',
+  'web_search', 'web_fetch',
+  'browser_navigate', 'browser_click', 'browser_screenshot',
+  'browser_evaluate', 'browser_console', 'browser_network',
+  'browser_scroll', 'browser_wait',
+];
+
+export const DEBUG_STAGE_TOOLS: Record<DebugStage, string[]> = {
+  hypothesis: [...DEBUG_READ],
+  instrument: [...DEBUG_READ, 'add_instrumentation', 'request_reproduce'],
+  reproduce: [...DEBUG_READ, 'request_reproduce', 'add_instrumentation'],
+  analyze: [...DEBUG_READ, 'collect_runtime_logs', 'run_terminal_cmd', 'terminal_output'],
+  fix: [
+    ...DEBUG_READ,
+    'edit_file', 'write_file', 'delete_file',
+    'run_terminal_cmd', 'terminal_output',
+    'checkpoint_create', 'checkpoint_restore',
+    'remove_instrumentation', // may clean up after minimal fix in same phase
+  ],
+  cleanup: [...DEBUG_READ, 'remove_instrumentation', 'run_terminal_cmd'],
+};
+
+export function isDebugToolAllowedForStage(stage: DebugStage, toolName: string): boolean {
+  const allowed = DEBUG_STAGE_TOOLS[stage];
+  if (!allowed) return false;
+  if (toolName.startsWith('mcp_')) {
+    return stage === 'analyze' || stage === 'fix' || stage === 'hypothesis';
+  }
+  return allowed.includes(toolName);
+}
+
 export interface Hypothesis {
   id: string;
   title: string;
@@ -67,6 +140,15 @@ export class DebugModeController {
   private setStage(stage: DebugStage): void {
     this.state.stage = stage;
     this.onStageChange?.(stage);
+  }
+
+  /** Host/tool stream sync — apply stage without forward-gate checks */
+  syncStageFromHost(stage: DebugStage): void {
+    const order: DebugStage[] = [
+      'hypothesis', 'instrument', 'reproduce', 'analyze', 'fix', 'cleanup'
+    ];
+    if (!order.includes(stage)) return;
+    this.setStage(stage);
   }
 
   /**
@@ -155,8 +237,9 @@ export class DebugModeController {
     this.setStage('reproduce');
   }
 
-  /** Stage 3: Reproduce */
+  /** Stage 3: Reproduce → Analyze */
   markReproduced(): void {
+    if (this.state.stage === 'fix' || this.state.stage === 'cleanup') return;
     this.setStage('analyze');
   }
 

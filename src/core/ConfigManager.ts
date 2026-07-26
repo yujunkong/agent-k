@@ -15,6 +15,8 @@ export const AGENT_K_VSCODE_CONFIG_KEYS = [
   'agent-k.queue.resynthesizeDebounceMs',
   'agent-k.queue.debounceMs',
   'agent-k.mcp.servers',
+  'agent-k.thinking.effort',
+  'agent-k.maxTurns',
 ] as const;
 
 /** Webview FeaturesTab keys — in-memory until contributed to package.json */
@@ -105,12 +107,13 @@ export class ConfigManager {
       'agent-k.provider.models': ['mlx-community/Qwen3.6-35B-A3B-4bit'],
       'agent-k.provider.apiKey': '',
       'agent-k.mode.default': 'agent',
-      'agent-k.maxTurns': 20,
+      'agent-k.maxTurns': 25,
       'agent-k.permission.level': 'accept_edits',
       'agent-k.queue.onEnterWhileRunning': 'resynthesize',
       'agent-k.queue.onStop': 'keep',
       'agent-k.queue.resynthesizeDebounceMs': 300,
       'agent-k.queue.debounceMs': 300,
+      'agent-k.thinking.effort': 'medium',
       'agent-k.context.budget': 100000,
       'agent-k.telemetry.enabled': true,
       'agent-k.budget.dailyTokens': 10000000,

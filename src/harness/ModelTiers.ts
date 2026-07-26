@@ -41,7 +41,7 @@ export interface TierPolicy {
 // ─── All Tools Reference ───────────────────────────────────────
 
 export const ALL_TOOLS = [
-  'grep', 'glob', 'list_dir', 'read_file', 'codebase_search',
+  'grep', 'glob', 'list_dir', 'read_file', 'read_files', 'codebase_search',
   'lsp_definition', 'lsp_references', 'lsp_diagnostics',
   'edit_file', 'write_file', 'delete_file',
   'run_terminal_cmd', 'read_lints',
@@ -64,7 +64,7 @@ export const TIER_POLICIES: Record<ModelTier, TierPolicy> = {
   A: {
     tier: 'A',
     toolWhitelist: [
-      'grep', 'glob', 'list_dir', 'read_file',
+      'grep', 'glob', 'list_dir', 'read_file', 'read_files',
       'edit_file', 'write_file', 'run_terminal_cmd', 'read_lints',
       'ask_question', 'todo_write',
     ],
@@ -75,7 +75,7 @@ export const TIER_POLICIES: Record<ModelTier, TierPolicy> = {
       parallel_tool_calls: false,
     },
     maxTurns: 15,
-    maxToolCallsPerTurn: 4,
+    maxToolCallsPerTurn: 12,
     forcePlanOn: [
       'file_count_ge_3',
       'keyword_refactor',
@@ -98,7 +98,7 @@ export const TIER_POLICIES: Record<ModelTier, TierPolicy> = {
       parallel_tool_calls: true,
     },
     maxTurns: 25,
-    maxToolCallsPerTurn: 8,
+    maxToolCallsPerTurn: 16,
     forcePlanOn: [],
     forcePlanApproval: false,
     autoLintTest: false,

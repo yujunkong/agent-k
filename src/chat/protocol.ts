@@ -17,6 +17,12 @@ export interface ChatSendPayload {
   requestId: string;
   messages: { role: string; content: string }[];
   mode: 'ask' | 'agent' | 'plan' | 'debug';
+  /** Plan FSM stage for stage-specific system prompt */
+  planStage?: 'research' | 'questions' | 'planning' | 'review' | 'build';
+  /** Debug FSM stage for stage-specific system prompt */
+  debugStage?: string;
+  /** Thinking effort: off | low | medium | high */
+  thinkingEffort?: 'off' | 'low' | 'medium' | 'high';
   baseUrl?: string;
   apiKey?: string;
   model?: string;

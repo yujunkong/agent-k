@@ -1,9 +1,10 @@
 /**
- * PlanStorage - 계획 문서 저장/로드 (C5-T09 / RW-C5-06-R2)
- *
- * 착각 금지: .agentk/plans 경로 문자열만으로는 미완료.
- * ExtensionContext.workspaceState는 activate → RuntimeServices로 실주입 (fake exports 제거).
+ * PlanStorage — drafts under project-root temp folder:
+ *   `<workspace>/.agentk/plans/tmp/plan_<hash>.md`
  */
+import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { RuntimeServices } from '../core/RuntimeServices';
 
@@ -17,107 +18,174 @@ export interface StoredPlan {
 }
 
 export class PlanStorage {
-  private static readonly DEFAULT_DIR = '.agentk/plans';
+  /** Relative to workspace root */
+  private static readonly REL_TMP_DIR = path.join('.agentk', 'plans', 'tmp');
   private static readonly RECENT_KEY = 'agent-k.recentPlans';
   private static readonly MAX_RECENT = 10;
 
-  /**
-   * Optional direct inject (tests). Prefer RuntimeServices from activate.
-   */
   static setExtensionContext(context: vscode.ExtensionContext): void {
     RuntimeServices.setWorkspaceState(context.workspaceState);
   }
 
-  /**
-   * Get the plan storage directory URI
-   */
-  static async getStorageUri(): Promise<vscode.Uri> {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) {
-      throw new Error('No workspace folder open');
+  /** Unique id → `plan_<hash>` filename stem */
+  static makePlanId(content: string, title?: string): string {
+    const hash = crypto
+      .createHash('sha256')
+      .update(`${Date.now()}\n${title || ''}\n${content}`)
+      .digest('hex')
+      .slice(0, 10);
+    return `plan_${hash}`;
+  }
+
+  /** Absolute path: `<workspaceRoot>/.agentk/plans/tmp` */
+  static getTempDirFsPath(): string {
+    const root = this.getWorkspaceRootFsPath();
+    return path.join(root, this.REL_TMP_DIR);
+  }
+
+  static getWorkspaceRootFsPath(): string {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) {
+      throw new Error(
+        '워크스페이스 폴더가 없습니다. 프로젝트 폴더를 연 뒤 Plan을 저장하세요.'
+      );
     }
-    const root = workspaceFolders[0].uri;
-    const configPath = vscode.workspace.getConfiguration('agent-k').get<string>('plans.directory') || this.DEFAULT_DIR;
-    return vscode.Uri.joinPath(root, configPath);
+    // Prefer folder that looks like the active project (first is fine for single-root)
+    return folders[0].uri.fsPath;
+  }
+
+  static async getTempStorageUri(): Promise<vscode.Uri> {
+    return vscode.Uri.file(this.getTempDirFsPath());
+  }
+
+  static async getStorageUri(): Promise<vscode.Uri> {
+    const root = this.getWorkspaceRootFsPath();
+    return vscode.Uri.file(path.join(root, '.agentk', 'plans'));
   }
 
   /**
-   * Save a plan document to disk
+   * Save draft → `<workspace>/.agentk/plans/tmp/plan_<hash>.md`
+   * Uses Node fs (mkdir recursive) so the temp folder always appears at project root.
    */
-  static async savePlan(slug: string, title: string, content: string): Promise<StoredPlan> {
-    const dir = await this.getStorageUri();
-    await vscode.workspace.fs.createDirectory(dir);
+  static async savePlan(
+    title: string,
+    content: string,
+    existingSlug?: string
+  ): Promise<StoredPlan> {
+    const body = String(content || '').trim();
+    if (!body) {
+      throw new Error('Plan 내용이 비어 있어 저장하지 않았습니다.');
+    }
 
-    const filePath = vscode.Uri.joinPath(dir, `PLAN-${slug}.md`);
-    const encoder = new TextEncoder();
-    await vscode.workspace.fs.writeFile(filePath, encoder.encode(content));
+    const tmpDir = this.getTempDirFsPath();
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    const slug =
+      existingSlug && /^plan_[a-f0-9]+$/i.test(existingSlug)
+        ? existingSlug
+        : this.makePlanId(body, title);
+    const fileName = `${slug}.md`;
+    const absPath = path.join(tmpDir, fileName);
+
+    const header = [
+      '---',
+      `title: ${JSON.stringify(title || 'Plan')}`,
+      `slug: ${slug}`,
+      `updatedAt: ${new Date().toISOString()}`,
+      '---',
+      '',
+      body,
+      ''
+    ].join('\n');
+
+    fs.writeFileSync(absPath, header, 'utf8');
 
     const plan: StoredPlan = {
       slug,
-      title,
-      filePath: filePath.fsPath,
+      title: title || this.extractTitle(body) || slug,
+      filePath: absPath,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      todoCount: (content.match(/- \[ \]/g) || []).length
+      todoCount: (body.match(/- \[[ xX]\]/g) || []).length
     };
 
-    await this.addToRecent(plan);
+    try {
+      await this.addToRecent(plan);
+    } catch (e) {
+      console.warn('[PlanStorage] addToRecent failed (file still saved):', e);
+    }
     return plan;
   }
 
-  /**
-   * Load a plan document from disk
-   */
   static async loadPlan(slug: string): Promise<{ content: string; plan: StoredPlan } | null> {
-    const dir = await this.getStorageUri();
-    const filePath = vscode.Uri.joinPath(dir, `PLAN-${slug}.md`);
+    const candidates = [
+      path.join(this.getTempDirFsPath(), `${slug}.md`),
+      path.join(this.getWorkspaceRootFsPath(), '.agentk', 'plans', `PLAN-${slug}.md`),
+      path.join(this.getWorkspaceRootFsPath(), '.agentk', 'plans', `${slug}.md`)
+    ];
 
-    try {
-      const data = await vscode.workspace.fs.readFile(filePath);
-      const decoder = new TextDecoder();
-      const content = decoder.decode(data);
-
-      const plan: StoredPlan = {
-        slug,
-        title: this.extractTitle(content) || slug,
-        filePath: filePath.fsPath,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        todoCount: (content.match(/- \[ \]/g) || []).length
-      };
-
-      return { content, plan };
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * List all saved plans
-   */
-  static async listPlans(): Promise<StoredPlan[]> {
-    const dir = await this.getStorageUri();
-    try {
-      const files = await vscode.workspace.fs.readDirectory(dir);
-      const plans: StoredPlan[] = [];
-
-      for (const [name, type] of files) {
-        if (type === vscode.FileType.File && name.startsWith('PLAN-') && name.endsWith('.md')) {
-          const slug = name.replace(/^PLAN-/, '').replace(/\.md$/, '');
-          const loaded = await this.loadPlan(slug);
-          if (loaded) plans.push(loaded.plan);
-        }
+    for (const filePath of candidates) {
+      try {
+        if (!fs.existsSync(filePath)) continue;
+        const raw = fs.readFileSync(filePath, 'utf8');
+        const content = this.stripFrontmatter(raw);
+        return {
+          content,
+          plan: {
+            slug,
+            title: this.extractTitle(content) || slug,
+            filePath,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            todoCount: (content.match(/- \[[ xX]\]/g) || []).length
+          }
+        };
+      } catch {
+        /* try next */
       }
-
-      return plans.sort((a, b) => b.updatedAt - a.updatedAt);
-    } catch {
-      return [];
     }
+    return null;
   }
 
-  /**
-   * Get recent plans from injected workspaceState (max 10)
-   */
+  static async listPlans(): Promise<StoredPlan[]> {
+    const plans: StoredPlan[] = [];
+    const seen = new Set<string>();
+
+    const collect = (dir: string, pattern: RegExp) => {
+      try {
+        if (!fs.existsSync(dir)) return;
+        for (const name of fs.readdirSync(dir)) {
+          if (!pattern.test(name)) continue;
+          const slug = name.replace(/\.md$/, '').replace(/^PLAN-/, '');
+          if (seen.has(slug)) continue;
+          // sync load
+          const filePath = path.join(dir, name);
+          const raw = fs.readFileSync(filePath, 'utf8');
+          const content = this.stripFrontmatter(raw);
+          seen.add(slug);
+          plans.push({
+            slug,
+            title: this.extractTitle(content) || slug,
+            filePath,
+            createdAt: Date.now(),
+            updatedAt: fs.statSync(filePath).mtimeMs,
+            todoCount: (content.match(/- \[[ xX]\]/g) || []).length
+          });
+        }
+      } catch {
+        /* missing */
+      }
+    };
+
+    collect(this.getTempDirFsPath(), /^plan_[a-f0-9]+\.md$/i);
+    collect(
+      path.join(this.getWorkspaceRootFsPath(), '.agentk', 'plans'),
+      /^PLAN-.+\.md$/i
+    );
+
+    return plans.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
   static getRecentPlans(): StoredPlan[] {
     const state = this.getWorkspaceState();
     return state.get<StoredPlan[]>(this.RECENT_KEY, []);
@@ -126,28 +194,50 @@ export class PlanStorage {
   private static async addToRecent(plan: StoredPlan): Promise<void> {
     const state = this.getWorkspaceState();
     const recent = state.get<StoredPlan[]>(this.RECENT_KEY, []);
-    const filtered = recent.filter(p => p.slug !== plan.slug);
+    const filtered = recent.filter((p) => p.slug !== plan.slug);
     filtered.unshift(plan);
-    // Keep only the 10 most recent plans (AC)
     if (filtered.length > this.MAX_RECENT) filtered.length = this.MAX_RECENT;
     await state.update(this.RECENT_KEY, filtered);
   }
 
-  /**
-   * RW-C5-06-R2: Use RuntimeServices Memento — never extension.exports fake
-   */
   private static getWorkspaceState(): vscode.Memento {
     const state = RuntimeServices.getWorkspaceState();
     if (!state) {
       throw new Error(
-        'PlanStorage not initialized. Call RuntimeServices.setWorkspaceState(context.workspaceState) from extension.activate().'
+        'PlanStorage not initialized. Call RuntimeServices.setWorkspaceState from activate().'
       );
     }
     return state;
   }
 
   private static extractTitle(content: string): string {
-    const match = content.match(/^# (.+)$/m);
+    const match = content.match(/^#\s+(.+)$/m);
     return match ? match[1].trim() : 'Untitled Plan';
+  }
+
+  /** True for Agent K plan drafts under `.agentk/plans/**` */
+  static isPlanDocumentUri(uri: vscode.Uri): boolean {
+    const normalized = uri.fsPath.replace(/\\/g, '/');
+    if (!normalized.includes('/.agentk/plans/')) return false;
+    const base = path.basename(normalized);
+    return /^plan_[a-f0-9]+\.md$/i.test(base) || /^PLAN-.+\.md$/i.test(base);
+  }
+
+  static slugFromUri(uri: vscode.Uri): string {
+    return path
+      .basename(uri.fsPath)
+      .replace(/\.md$/i, '')
+      .replace(/^PLAN-/i, '');
+  }
+
+  static titleFromContent(content: string): string {
+    return this.extractTitle(content);
+  }
+
+  static stripFrontmatter(raw: string): string {
+    if (!raw.startsWith('---')) return raw;
+    const end = raw.indexOf('\n---', 3);
+    if (end < 0) return raw;
+    return raw.slice(end + 4).replace(/^\s+/, '');
   }
 }

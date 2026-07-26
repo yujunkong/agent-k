@@ -11,6 +11,11 @@ export interface ChatMessage {
   toolResults?: ToolResult[];
   status: MessageStatus;
   timestamp: number;
+  /**
+   * Wall-clock work time for Cursor-style "Worked for Xm Ys" collapse
+   * (set when streaming completes).
+   */
+  workedDurationMs?: number;
   /** Host AgentLoop tool status — separate from answer content (turn contract UX) */
   toolStatus?: string;
   /**
@@ -39,11 +44,11 @@ export interface ChatMessage {
   openingLead?: string;
   /**
    * Assistant prose sealed between turns (survives clearContent).
-   * Rendered after that turn's Thought / Exploring / edit cards.
+   * Rendered after that turn's Thought, before Exploring / tools.
    */
   turnProse?: Array<{
     id: string;
-    /** Appears after this turn's steps/edits */
+    /** Appears after this turn's Thought, before tools */
     turn: number;
     content: string;
   }>;
@@ -87,9 +92,17 @@ export interface TerminalRunPreview {
 }
 
 export interface Attachment {
-  type: 'file' | 'folder' | 'symbol' | 'codebase';
+  /** Unique chip id (required for logs/snippets; optional for files) */
+  id?: string;
+  type: 'file' | 'folder' | 'symbol' | 'codebase' | 'snippet' | 'log';
   path: string;
+  /** Inline body (selection / pasted log). Prefer over re-reading when set. */
   content?: string;
+  /** 1-based inclusive line range for file/snippet */
+  startLine?: number;
+  endLine?: number;
+  /** Chip label override (logs) */
+  label?: string;
 }
 
 export interface ToolCall {
@@ -134,6 +147,8 @@ export interface StreamDelta {
   status?: string;
   /** Drop draft answer when a tool-calling turn begins */
   clearContent?: boolean;
+  /** Agent-loop turn to attach sealed prose to (from tool.start) */
+  sealTurn?: number;
   /** Successful file edit preview card */
   fileEdit?: FileEditPreview;
   /** Terminal run card start / live chunk / end */
@@ -160,6 +175,8 @@ export interface StreamDelta {
     options?: string[];
     required?: boolean;
   };
+  /** Host debug FSM stage advance → timeline / controller sync */
+  debugStage?: string;
   toolCalls?: ToolCall[];
   done?: boolean;
   error?: string;

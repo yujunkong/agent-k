@@ -1,5 +1,6 @@
 /**
- * DebugTimeline - 디버그 전용 타임라인 UI (C6-T13)
+ * DebugTimeline - 디버그 진행 표시 (읽기 전용, C6-T13)
+ * 단계 전환은 DebugModeController / 에이전트가 내부에서 담당한다.
  */
 import React from 'react';
 import type { DebugStage } from '../../debug/DebugModeController';
@@ -12,7 +13,6 @@ interface DebugTimelineProps {
   verified: boolean;
   /** RW-C6-03-R2: browser evidence attached to timeline */
   evidenceCount?: number;
-  onStageClick?: (stage: DebugStage) => void;
 }
 
 const STAGE_INFO: Record<
@@ -72,14 +72,15 @@ export function DebugTimeline({
   logsCollected,
   markersRemaining,
   verified,
-  evidenceCount = 0,
-  onStageClick
+  evidenceCount = 0
 }: DebugTimelineProps) {
   const currentIdx = STAGE_ORDER.indexOf(currentStage);
 
   return (
     <div
       className="debug-timeline"
+      role="status"
+      aria-label={`Debug mode: ${STAGE_INFO[currentStage]?.label || currentStage}`}
       style={{
         padding: '8px 12px',
         marginBottom: 8,
@@ -113,18 +114,14 @@ export function DebugTimeline({
           const isActive = stage === currentStage;
           const isCompleted = i < currentIdx;
           const isPending = i > currentIdx;
-          const clickable = Boolean(onStageClick);
 
           return (
-            <button
+            <div
               key={stage}
-              type="button"
-              className="debug-stage-btn"
+              className="debug-stage-badge"
               title={info.tooltip}
               aria-label={`${info.label}: ${info.tooltip}`}
               aria-current={isActive ? 'step' : undefined}
-              onClick={() => onStageClick?.(stage)}
-              disabled={!clickable}
               style={{
                 flex: '1 1 72px',
                 minWidth: 64,
@@ -140,8 +137,8 @@ export function DebugTimeline({
                 opacity: isPending ? 0.45 : 1,
                 fontSize: 11,
                 color: 'var(--vscode-foreground, #ccc)',
-                cursor: clickable ? 'pointer' : 'default',
-                fontFamily: 'inherit'
+                fontFamily: 'inherit',
+                userSelect: 'none'
               }}
             >
               <div
@@ -157,7 +154,7 @@ export function DebugTimeline({
               <div style={{ fontWeight: isActive ? 600 : 400, lineHeight: 1.2 }}>
                 {info.label}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>

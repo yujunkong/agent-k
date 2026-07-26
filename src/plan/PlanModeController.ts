@@ -2,12 +2,12 @@
  * PlanModeController - Plan 모드 5단계 오케스트레이터 (C5-T01)
  * 
  * 플로우: Research → Questions → Plan → Review → Build (Agent 전환)
- * PLAN whitelist: 읽기 도구 + ask_question + todo_write + switch_mode
+ * PLAN whitelist: 읽기 도구 + ask_question + todo_write (switch_mode 없음 — UI Approve만 Build)
  * 쓰기/터미널/browser 도구는 스키마 미노출 또는 호출 시 즉시 deny
  * 
  * RW-C5-01: run() 진입점 추가 → AgentLoop+Chat 연결
  * RW-C5-02: ask_question → ClarifyingQuestions UI 브리지
- * RW-C5-03: PlanEditor에 실제 Mermaid 렌더 연결
+ * RW-C5-03: PlanReview에서 리뷰 + Approve→Agent 핸드오프
  * RW-C5-04: Approve→Agent 핸드오프
  */
 import type { Mode } from '../agent/types';
@@ -29,53 +29,52 @@ export interface PlanFlowState {
 export const PLAN_STAGE_PROMPTS: Record<PlanStage, string> = {
   research: `You are Agent K in PLAN mode — RESEARCH stage.
 
-Your ONLY task: explore the codebase to understand the current state.
-Use read-only tools (grep, glob, read_file, list_dir, codebase_search, lsp_*).
-After exploration, summarize findings and generate 3-5 clarifying questions.
+Explore read-only. Understand the problem and constraints.
+
+EXIT CONDITION (mandatory):
+- When you have enough context, you MUST call \`ask_question\` (2–4 multiple-choice options)
+  about REQUIREMENTS still needed for the plan.
+- Calling \`ask_question\` advances the UI to the Questions stage.
+- FORBIDDEN in this stage: a "최종 결론" / full migration verdict / open-ended prose Q&A
+  as the end of the turn. Research ends with tool \`ask_question\`, not chat paragraphs.
 
 RULES:
-- Do NOT edit any files.
-- Do NOT run terminal commands (except read-only utils).
-- Output: exploration summary followed by questions.`,
+- Do NOT edit files or implement.
+- Do NOT ask "1번/2번/다 고칠까" style implementation menus.
+- Prefer short research notes; the written plan is saved as \`.agentk/plans/tmp/plan_*.md\` (unique hash per plan).`,
 
   questions: `You are Agent K in PLAN mode — QUESTIONS stage.
 
-The user is answering clarifying questions about the plan scope.
-Wait for all questions to be answered before proceeding.
-You may use ask_question to ask additional questions if needed.
-
-RULES:
-- Do NOT edit files or run terminal commands.
-- Only ask questions or provide clarifications.`,
+Ask REQUIREMENT questions only via \`ask_question\` (scope, constraints, success criteria, compatibility, UX/API preferences).
+Each question MUST use \`ask_question\` with options — never list questions only in chat prose.
+FORBIDDEN: "which bug/option should I fix now" menus.
+Do not implement. Wait for answers, then the UI will request a written plan.`,
 
   planning: `You are Agent K in PLAN mode — PLANNING stage.
 
-Generate a comprehensive plan document with:
-1. Context — what was found during exploration
-2. Architecture — Mermaid diagrams showing before/after
-3. TODOs — numbered implementation steps
-4. Risks — potential issues and mitigations
+Write a complete plan document for user review (saved as a unique plan_*.md file, not a shared PLAN.md):
+1. Context
+2. Questions & Answers
+3. Architecture (mermaid before/after)
+4. TODOs (\`- [ ]\` steps — planned work, not done)
+5. Risks
+6. Approval
 
 RULES:
-- Do NOT implement anything. This is a planning-only stage.
-- Include at least one Mermaid diagram.
-- Be specific about file paths and code changes.`,
+- Do NOT implement or edit files.
+- Do NOT call switch_mode.
+- The user will review and must Approve before any Build.
+- Mermaid: quote node labels that contain ( ), /, or <br/> — e.g. R["API Routers<br/>(9)"] and keep DB as DB[(SQLite)] (cylinder), never DB["(SQLite)"].`,
 
   review: `You are Agent K in PLAN mode — REVIEW stage.
 
-The plan document has been generated. Present it for user review.
-The user can edit the plan, approve it, or request changes.
-
-RULES:
-- Wait for user decision (approve/reject/edit).
-- If rejected, revise the plan based on feedback.
-- If approved, call switch_mode('agent') to start implementation.`,
+The plan is in the review UI. Respond to user feedback only.
+Do NOT implement. Do NOT call switch_mode.
+Build starts only when the user clicks Approve & Execute.`,
 
   build: `You are Agent K — BUILD mode.
 
-The plan has been approved. Execute the implementation steps in order.
-Follow the plan precisely. If you discover issues, report them.
-Start with TODO #1 and proceed sequentially.`
+The plan has been approved by the user. Execute the TODOs in order.`
 };
 
 export class PlanModeController {
@@ -276,8 +275,17 @@ export class PlanModeController {
   }
 
   areAllQuestionsAnswered(): boolean {
-    return this.state.questions.length > 0 && 
-      this.state.questions.every(q => q.answer && q.answer.trim().length > 0);
+    // No questions yet → not blocking Approve once a plan exists (research-only paths).
+    return this.state.questions.every(q => q.answer && q.answer.trim().length > 0);
+  }
+
+  /**
+   * ask_question tool fired — move header to Questions (progress indicator).
+   */
+  enterQuestionsStage(): void {
+    if (this.state.stage === 'research' || this.state.stage === 'questions') {
+      this.setStage('questions');
+    }
   }
 
   async moveToPlanning(): Promise<void> {
@@ -314,6 +322,15 @@ export class PlanModeController {
     this.state.approved = false;
     this.state.error = reason;
     this.setStage('planning'); // Go back to planning
+  }
+
+  /** Discard current plan document and return to research */
+  discardPlan(): void {
+    this.state.planDocument = null;
+    this.state.approved = false;
+    this.state.error = undefined;
+    this.state.questions = [];
+    this.setStage('research');
   }
 
   // ─── Stage 5: Build ─────────────────────────────────────

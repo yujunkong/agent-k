@@ -51,7 +51,7 @@ suite('PlanGenerator', () => {
     assert.ok(mermaid.includes('REFACTOR'));
   });
 
-  test('TODO 추출', () => {
+  test('TODO 추출 — Step N 형식', () => {
     const doc = planGenerator.generatePlan({
       title: 'Test',
       researchContext: '',
@@ -65,6 +65,22 @@ suite('PlanGenerator', () => {
     assert.strictEqual(todos.length, 3);
     assert.strictEqual(todos[0], 'Step one');
     assert.strictEqual(todos[1], 'Step two');
+  });
+
+  test('TODO 추출 — Phase / plain checkbox도 인식', () => {
+    const md = [
+      '## TODOs',
+      '- [ ] Phase 1: Scaffold',
+      '- [ ] Phase 2: Wire API',
+      '- [x] Done already',
+      '- [ ] **Step 3**: Final polish',
+      '* [ ] Alt bullet style'
+    ].join('\n');
+    const todos = planGenerator.extractTodos(md);
+    assert.strictEqual(todos.length, 4);
+    assert.ok(todos.some((t) => /Scaffold/.test(t)));
+    assert.ok(todos.some((t) => /Final polish/.test(t)));
+    assert.ok(todos.some((t) => /Alt bullet/.test(t)));
   });
 
   test('파싱된 섹션 재추출', () => {

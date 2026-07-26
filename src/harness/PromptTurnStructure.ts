@@ -22,7 +22,7 @@ export interface TurnStructureConfig {
 }
 
 export const DEFAULT_TURN_STRUCTURE: TurnStructureConfig = {
-  maxToolCallsPerTurn: 4,
+  maxToolCallsPerTurn: 12,
   maxWriteToolsPerTurn: 1,
   maxToolResultChars: 32000,
   responseReservePercent: 10,
@@ -46,11 +46,12 @@ Each turn follows a fixed structure:
 7. Older conversation (may be summarized)
 
 ### Output Rules
-- You may call multiple read-only tools in parallel (grep, codebase_search, glob, read_file, lsp_*)
-- Prefer search → then bounded \`read_file\` windows (default ~250 lines). Do not dump whole files.
+- You may call multiple read-only tools in parallel (grep, codebase_search, glob, read_file, read_files, lsp_*)
+- **Batch exploration**: when you know several paths, use \`read_files\` with up to 12 paths in ONE call, or emit many \`read_file\` calls in the SAME turn. Do NOT drip-read 2–4 files per turn then stop — that wastes rounds.
+- Prefer search → then bounded \`read_file\` / \`read_files\` windows (default ~250 lines). Do not dump whole files.
 - Final user-visible answers: **lead with a 1–2 sentence understanding summary** (what the user wants + what you will do), then the rest. Use clean Markdown (\`##\` headings, \`- \` / \`1. \` lists, GFM \`| tables |\`). Never pad columns with spaces.
 - Write tools (edit_file, write_file, run_terminal_cmd): MAX 1 per turn
-- Total tool calls per turn: MAX 4
+- Total tool calls per turn: MAX 12
 - Each tool result is capped at 32KB
 - Always respond in the format requested
 

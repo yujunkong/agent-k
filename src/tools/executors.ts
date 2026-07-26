@@ -433,6 +433,54 @@ export async function executeReadFile(input: ToolInput): Promise<ToolOutput> {
   }
 }
 
+/** Batch read — up to 12 paths in parallel */
+export async function executeReadFiles(input: ToolInput): Promise<ToolOutput> {
+  const raw = input.paths;
+  const paths = Array.isArray(raw)
+    ? raw.map((p) => String(p || '').trim()).filter(Boolean)
+    : typeof raw === 'string'
+      ? [raw.trim()].filter(Boolean)
+      : [];
+  if (!paths.length) {
+    return {
+      success: false,
+      error: 'read_files requires a non-empty paths array',
+      metadata: { duration: 0 }
+    };
+  }
+  const capped = paths.slice(0, 12);
+  const shared = {
+    offset: input.offset,
+    limit: input.limit,
+    maxChars: input.maxChars
+  };
+  const { mapPool } = await import('../loop/parallelRead');
+  const results = await mapPool(capped, 8, async (path) => {
+    const one = await executeReadFile({ ...shared, path });
+    return {
+      path,
+      success: one.success,
+      error: one.error,
+      data: one.data
+    };
+  });
+  const ok = results.filter((r) => r.success).length;
+  return {
+    success: ok > 0,
+    data: {
+      files: results,
+      count: results.length,
+      ok,
+      failed: results.length - ok,
+      ...(paths.length > 12
+        ? { note: `Only first 12 of ${paths.length} paths were read. Call again for the rest.` }
+        : {})
+    },
+    error: ok === 0 ? 'All read_files paths failed' : undefined,
+    metadata: { duration: 0 }
+  };
+}
+
 export async function executeListDir(input: ToolInput): Promise<ToolOutput> {
   const depth = Number(input.depth) || 1;
   try {

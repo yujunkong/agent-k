@@ -1,6 +1,18 @@
 import React, { useState, useRef, useEffect, KeyboardEvent, useCallback } from 'react';
 import type { Attachment, Mode } from '../types';
 import { ModeSelector } from './ModeSelector';
+import { IconQueue } from './Icons';
+import {
+  THINKING_EFFORT_OPTIONS,
+  type ThinkingEffort
+} from '../../agent/thinkingEffort';
+import {
+  attachmentDisplayLabel,
+  attachmentId,
+  looksLikeLogOrSnippet,
+  makeLogAttachment,
+  parseLineRangeInput
+} from '../attachmentFormat';
 
 interface ComposerProps {
   onSend: (text: string, files: Attachment[]) => void;
@@ -30,6 +42,9 @@ interface ComposerProps {
   modelOptions?: string[];
   /** User picked a model from the composer dropdown */
   onModelChange?: (modelId: string) => void;
+  /** Thinking effort (Off / Low / Med / High) */
+  thinkingEffort?: ThinkingEffort;
+  onThinkingEffortChange?: (effort: ThinkingEffort) => void;
   /** 0–100 estimated context fill */
   contextUsagePercent?: number;
   contextUsageLabel?: string;
@@ -42,13 +57,6 @@ function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
   } catch {
     return null;
   }
-}
-
-/** Basename for Cursor-like chip label */
-function baseName(p: string): string {
-  const norm = p.replace(/\\/g, '/').replace(/\/+$/, '');
-  const parts = norm.split('/');
-  return parts[parts.length - 1] || p;
 }
 
 /** Collect file:// / path URIs from VS Code explorer or OS drop */
@@ -132,6 +140,8 @@ export function Composer({
   modelId,
   modelOptions = [],
   onModelChange,
+  thinkingEffort = 'medium',
+  onThinkingEffortChange,
   contextUsagePercent = 0,
   contextUsageLabel
 }: ComposerProps) {
@@ -179,13 +189,55 @@ export function Composer({
     setAttachments((prev) => {
       const next = [...prev];
       for (const item of items) {
-        if (!item.path) continue;
-        if (next.some((a) => a.path === item.path && a.type === item.type)) continue;
-        next.push(item);
+        if (!item.path && !item.content) continue;
+        const normalized: Attachment = {
+          ...item,
+          id: item.id || attachmentId(item)
+        };
+        const id = attachmentId(normalized);
+        const idx = next.findIndex((a) => attachmentId(a) === id);
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], ...normalized, id };
+        } else {
+          next.push(normalized);
+        }
       }
       return next;
     });
   }, []);
+
+  // Editor selection / host → attach chip
+  useEffect(() => {
+    const onMsg = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.type !== 'attachments.add') return;
+      const items = Array.isArray(data.items) ? data.items : [];
+      const mapped: Attachment[] = items
+        .filter((x: any) => x && (x.path || x.content))
+        .map((x: any) => ({
+          id: x.id ? String(x.id) : undefined,
+          type: (['file', 'folder', 'snippet', 'log', 'symbol', 'codebase'].includes(x.type)
+            ? x.type
+            : x.content && !x.path
+              ? 'log'
+              : 'file') as Attachment['type'],
+          path: String(x.path || x.id || `att_${Date.now()}`),
+          content: x.content != null ? String(x.content) : undefined,
+          startLine:
+            x.startLine != null && Number.isFinite(Number(x.startLine))
+              ? Number(x.startLine)
+              : undefined,
+          endLine:
+            x.endLine != null && Number.isFinite(Number(x.endLine))
+              ? Number(x.endLine)
+              : undefined,
+          label: x.label != null ? String(x.label) : undefined
+        }));
+      if (mapped.length) addAttachments(mapped);
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, [addAttachments]);
 
   const applyResolvedResults = useCallback(
     (results: Array<{ path?: string; type?: string }>) => {
@@ -251,8 +303,45 @@ export function Composer({
     window.setTimeout(() => window.removeEventListener('message', onMsg), 120_000);
   }, [applyResolvedResults]);
 
-  const removeAttachment = (path: string) => {
-    setAttachments((prev) => prev.filter((a) => a.path !== path));
+  const removeAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((a) => attachmentId(a) !== id));
+  };
+
+  const editLineRange = (att: Attachment) => {
+    if (att.type === 'folder' || att.type === 'log') return;
+    const current =
+      att.startLine != null
+        ? att.endLine != null && att.endLine !== att.startLine
+          ? `${att.startLine}-${att.endLine}`
+          : String(att.startLine)
+        : '';
+    const raw = window.prompt(
+      '줄 범위 (예: 10-30). 비우면 파일 전체.',
+      current
+    );
+    if (raw == null) return;
+    const parsed = parseLineRangeInput(raw);
+    if (parsed == null) {
+      window.alert('형식이 올바르지 않습니다. 예: 10-30');
+      return;
+    }
+    setAttachments((prev) =>
+      prev.map((a) => {
+        if (attachmentId(a) !== attachmentId(att)) return a;
+        const next: Attachment = {
+          ...a,
+          startLine: parsed.startLine,
+          endLine: parsed.endLine
+        };
+        // Drop stale selection body when range changes without matching content
+        if (parsed.startLine == null) {
+          delete next.startLine;
+          delete next.endLine;
+        }
+        next.id = attachmentId({ ...next, id: undefined });
+        return next;
+      })
+    );
   };
 
   const canSend = Boolean(text.trim() || attachments.length);
@@ -356,10 +445,15 @@ export function Composer({
     if (!dt) return;
     const uris = collectUrisFromDataTransfer(dt as unknown as DataTransfer);
     if (uris.length && (dt.files?.length || dt.types.includes('text/uri-list'))) {
-      if (dt.files?.length || dt.types.includes('text/uri-list')) {
-        e.preventDefault();
-        resolveAndAdd(uris);
-      }
+      e.preventDefault();
+      resolveAndAdd(uris);
+      return;
+    }
+    const pasted = dt.getData('text/plain');
+    // Multi-line / log paste → chip (not dumped into the composer text)
+    if (pasted && looksLikeLogOrSnippet(pasted)) {
+      e.preventDefault();
+      addAttachments([makeLogAttachment(pasted)]);
     }
   };
 
@@ -400,7 +494,7 @@ export function Composer({
       return 'Streaming… (Enter: queue · ⌘/Ctrl+Enter: interrupt)';
     }
     if (attachments.length) {
-      return 'Add a message, or Send with attachments…';
+      return '메시지 추가, 또는 첨부만으로 전송… (로그 붙여넣기·칩 클릭=줄 범위)';
     }
     return 'Plan, Build, @ for context…';
   };
@@ -416,28 +510,54 @@ export function Composer({
       onDrop={handleDrop}
     >
       {attachments.length > 0 ? (
-        <div className="composer-chips" aria-label="Attached files">
-          {attachments.map((a) => (
-            <span
-              key={`${a.type}:${a.path}`}
-              className={`composer-chip composer-chip--${a.type}`}
-              title={a.path}
-            >
-              <span className="composer-chip-icon" aria-hidden>
-                {a.type === 'folder' ? '📁' : '📄'}
-              </span>
-              <span className="composer-chip-label">{baseName(a.path)}</span>
-              <button
-                type="button"
-                className="composer-chip-remove"
-                onClick={() => removeAttachment(a.path)}
-                title="Remove"
-                aria-label={`Remove ${baseName(a.path)}`}
+        <div className="composer-chips" aria-label="Attached context">
+          {attachments.map((a) => {
+            const id = attachmentId(a);
+            const label = attachmentDisplayLabel(a);
+            const isLog = a.type === 'log' || a.type === 'snippet';
+            return (
+              <span
+                key={id}
+                className={`composer-chip composer-chip--${a.type}${
+                  a.startLine != null ? ' composer-chip--ranged' : ''
+                }`}
+                title={
+                  isLog
+                    ? (a.content || '').slice(0, 500)
+                    : a.startLine != null
+                      ? `${a.path}:${a.startLine}${
+                          a.endLine != null ? `-${a.endLine}` : ''
+                        }`
+                      : a.path
+                }
               >
-                ×
-              </button>
-            </span>
-          ))}
+                <span className="composer-chip-icon" aria-hidden>
+                  {a.type === 'folder' ? '📁' : isLog ? '📋' : '📄'}
+                </span>
+                <button
+                  type="button"
+                  className="composer-chip-label"
+                  onClick={() => editLineRange(a)}
+                  title={
+                    a.type === 'file' || a.type === 'snippet'
+                      ? '클릭하여 줄 범위 지정'
+                      : undefined
+                  }
+                >
+                  {label}
+                </button>
+                <button
+                  type="button"
+                  className="composer-chip-remove"
+                  onClick={() => removeAttachment(id)}
+                  title="첨부 제거"
+                  aria-label={`Remove ${label}`}
+                >
+                  ×
+                </button>
+              </span>
+            );
+          })}
         </div>
       ) : null}
 
@@ -500,6 +620,27 @@ export function Composer({
                 {modelLabel}
               </span>
             )}
+            {onThinkingEffortChange ? (
+              <select
+                className="composer-thinking-select"
+                value={thinkingEffort}
+                onChange={(e) =>
+                  onThinkingEffortChange(e.target.value as ThinkingEffort)
+                }
+                disabled={isStreaming}
+                title={
+                  THINKING_EFFORT_OPTIONS.find((o) => o.value === thinkingEffort)
+                    ?.title || 'Thinking 강도'
+                }
+                aria-label="Thinking 강도"
+              >
+                {THINKING_EFFORT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value} title={o.title}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            ) : null}
           </div>
 
           <div className="composer-toolbar__right">
@@ -508,8 +649,8 @@ export function Composer({
               onClick={pickAttachments}
               disabled={disabled && !isStreaming}
               className="composer-icon-btn"
-              title="Attach files or folders"
-              aria-label="Attach"
+              title="파일 또는 폴더 첨부"
+              aria-label="파일 또는 폴더 첨부"
             >
               📎
             </button>
@@ -521,18 +662,18 @@ export function Composer({
                     onClick={() => submitQueue(text)}
                     disabled={!canSend}
                     className="composer-icon-btn composer-icon-btn--queue"
-                    title="Queue (Enter) — send after current turn finishes"
-                    aria-label="Queue"
+                    title="대기열에 추가 (Enter) — 현재 턴 종료 후 전송"
+                    aria-label="대기열에 추가"
                   >
-                    Queue
+                    <IconQueue />
                   </button>
                 ) : null}
                 <button
                   type="button"
                   onClick={() => submitResynth(text)}
                   className="composer-icon-btn"
-                  title="Interrupt & merge (⌘/Ctrl+Enter)"
-                  aria-label="Interrupt and resynthesize"
+                  title="중단 후 합치기 (⌘/Ctrl+Enter)"
+                  aria-label="중단 후 합치기"
                 >
                   ⏎
                 </button>
@@ -540,8 +681,8 @@ export function Composer({
                   type="button"
                   onClick={onStop}
                   className="composer-icon-btn composer-icon-btn--stop"
-                  title="Stop"
-                  aria-label="Stop"
+                  title="중지"
+                  aria-label="중지"
                 >
                   <span className="composer-stop-square" aria-hidden />
                 </button>
@@ -552,8 +693,8 @@ export function Composer({
                 onClick={() => submitIdle(text)}
                 disabled={disabled || !canSend}
                 className="composer-icon-btn composer-icon-btn--send"
-                title="Send"
-                aria-label="Send"
+                title="전송"
+                aria-label="전송"
               >
                 ▲
               </button>
@@ -574,7 +715,8 @@ export function Composer({
           className="composer-usage__regen"
           onClick={onRegenerate}
           disabled={disabled || isStreaming}
-          title="Regenerate last response"
+          title="마지막 응답 다시 생성"
+          aria-label="마지막 응답 다시 생성"
         >
           ↻
         </button>

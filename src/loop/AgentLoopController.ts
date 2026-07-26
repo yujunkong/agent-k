@@ -29,6 +29,19 @@ import type { ContextMessage } from '../compaction/CompactionEngine';
 import { toolCallParser } from '../providers/ToolCallParser';
 import { DoomLoopDetector } from './DoomLoopDetector';
 import { DoomLoopHandler } from './DoomLoopHandler';
+import {
+  isDebugToolAllowedForStage,
+  type DebugStage
+} from '../debug/DebugModeController';
+
+const PLAN_ASK_QUESTION_NUDGE = `STOP — PLAN mode Research/Questions must end with the ask_question tool, not a final conclusion in chat.
+
+Call ask_question now (one or more times) with 2–4 multiple-choice options about requirements still needed for the plan, for example:
+- NLP 제외 범위 / Python 공존 전략
+- 마이그레이션 우선순위 (API 먼저 vs 전체)
+- 성공 기준 / 일정
+
+Do NOT write more "최종 결론" prose. Emit ask_question tool_calls only.`;
 
 export interface LoopConfig {
   mode: Mode;
@@ -42,13 +55,29 @@ export interface LoopConfig {
    * Compaction triggers near ~90% of this budget.
    */
   contextBudget?: number;
+  /** Debug FSM stage — gates tools mid-loop (mutable via setDebugStage) */
+  debugStage?: import('../debug/DebugModeController').DebugStage;
+  /** Plan FSM stage — research must end with ask_question */
+  planStage?: import('../plan/PlanModeController').PlanStage;
+  /** Notify webview when debug stage advances */
+  onDebugStage?: (stage: import('../debug/DebugModeController').DebugStage) => void;
+  /** Thinking / reasoning effort (off|low|medium|high) */
+  thinkingEffort?: import('../agent/thinkingEffort').ThinkingEffort;
   /** Provider 없을 때 단위/AC 테스트용 고정 응답 */
   mockResponse?: {
     content?: string;
     toolCalls?: Array<{ id: string; name: string; arguments: ToolInput }>;
   };
-  onToolCall?: (name: string, args: ToolInput) => Promise<void>;
-  onToolResult?: (name: string, result: ToolOutput) => Promise<void>;
+  onToolCall?: (
+    name: string,
+    args: ToolInput,
+    callId?: string
+  ) => Promise<void>;
+  onToolResult?: (
+    name: string,
+    result: ToolOutput,
+    callId?: string
+  ) => Promise<void>;
   onTurnStart?: (turn: number) => Promise<void>;
   onTurnEnd?: (turn: number, context: TurnContext) => Promise<void>;
   onStatus?: (status: LoopStatus) => void;
@@ -123,9 +152,16 @@ export class AgentLoopController {
   private emptyFinalRetried = false;
   /** Reasoning said "I'll read…" but emitted no tool_calls — nudge once */
   private toolIntentNudged = false;
+  /** Plan research ended in prose without ask_question — nudge once */
+  private planAskQuestionNudged = false;
+  /** ask_question ran at least once this loop */
+  private askedQuestionThisRun = false;
+  /** Mutable debug FSM stage for mid-loop tool gating */
+  private debugStage: DebugStage;
 
   constructor(config: LoopConfig) {
     this.config = config;
+    this.debugStage = config.debugStage || 'hypothesis';
     const modeConfig = modeRegistry.getModeConfig(config.mode);
     this.currentTier = config.tier || 'A';
     this.contextBudget = Math.max(
@@ -161,6 +197,17 @@ export class AgentLoopController {
 
   getLastPrefetch(): string {
     return this.lastPrefetch;
+  }
+
+  getDebugStage(): DebugStage {
+    return this.debugStage;
+  }
+
+  private advanceDebugStage(stage: DebugStage): void {
+    if (this.config.mode !== 'debug') return;
+    this.debugStage = stage;
+    this.config.debugStage = stage;
+    this.config.onDebugStage?.(stage);
   }
 
   getJsonParseFailures(): number {
@@ -213,6 +260,8 @@ export class AgentLoopController {
     this.messages = messages;
     this.emptyFinalRetried = false;
     this.toolIntentNudged = false;
+    this.planAskQuestionNudged = false;
+    this.askedQuestionThisRun = false;
     this.doomDetector.reset();
     await this.runLoop();
   }
@@ -253,8 +302,11 @@ export class AgentLoopController {
       const routingDecision = routeByHeuristics(routingSignal);
       if (routingDecision.tier !== this.currentTier) {
         this.currentTier = routingDecision.tier;
-        // 티어 변경 시 maxTurns 조정
-        if (routingDecision.tier === 'B') {
+        // Tier A (smaller/local): more turns — they burn steps on exploration.
+        // Tier B (strong): also allow a long run for complex tasks.
+        if (routingDecision.tier === 'A') {
+          this._state.totalTurns = Math.max(this._state.totalTurns, 25);
+        } else if (routingDecision.tier === 'B') {
           this._state.totalTurns = Math.max(this._state.totalTurns, 25);
         }
       }
@@ -263,7 +315,7 @@ export class AgentLoopController {
       const response = await this.callModel();
       if (!response) break;
 
-      // --- Phase 2: Process tool calls (PromptTurnStructure: ≤4 tools, ≤1 write) ---
+      // --- Phase 2: Process tool calls (PromptTurnStructure: ≤12 tools, ≤1 write) ---
       if (response.toolCalls && response.toolCalls.length > 0) {
         this._state.status = 'tool_executing';
         this.config.onStatus?.(this._state.status);
@@ -275,7 +327,7 @@ export class AgentLoopController {
         let toolCalls = response.toolCalls;
         if (!turnValidation.valid) {
           // Was: inject error + continue → Thought loop with no progress.
-          // Now: truncate to limit and proceed (e.g. 5 parallel reads → keep 4).
+          // Now: truncate to limit and proceed (e.g. 13 parallel reads → keep 12).
           const { DEFAULT_TURN_STRUCTURE } = await import('../harness/PromptTurnStructure');
           const maxN = DEFAULT_TURN_STRUCTURE.maxToolCallsPerTurn;
           const writeTools = new Set([
@@ -309,28 +361,17 @@ export class AgentLoopController {
           toolCalls
         });
 
-        for (const toolCall of toolCalls) {
-          if (this.abortController?.signal.aborted) break;
+        const { isParallelReadTool, mapPool } = await import('./parallelRead');
 
-          // ─── HARB: DontDoMedium Guard ─────────────────────
-          const violation = isDontDoViolation(toolCall.name, this.currentTier);
-          if (violation.violation) {
-            this.messages.push({
-              role: 'tool',
-              toolCallId: toolCall.id,
-              name: toolCall.name,
-              content: JSON.stringify({ error: violation.reason })
-            });
-            this.consecutiveFailures++;
-            continue;
-          }
-
-          await this.config.onToolCall?.(toolCall.name, toolCall.arguments);
-
-          const result = await this.executeTool(toolCall.name, toolCall.arguments);
-
-          // ─── HARB: Auto-Verification Hook ─────────────────
-          if ((toolCall.name === 'edit_file' || toolCall.name === 'write_file') && result.success) {
+        const handleToolOutcome = async (
+          toolCall: (typeof toolCalls)[0],
+          result: ToolOutput
+        ): Promise<boolean> => {
+          // returns false if doom-loop should stop the run
+          if (
+            (toolCall.name === 'edit_file' || toolCall.name === 'write_file') &&
+            result.success
+          ) {
             try {
               const hookResult = await this.autoVerificationHook({
                 toolName: toolCall.name,
@@ -338,10 +379,9 @@ export class AgentLoopController {
                 result: { success: true, data: result.data },
                 mode: this.config.mode,
                 turnNumber: this._state.currentTurn,
-                duration: 0,
+                duration: 0
               });
               if (hookResult.action === 'modify' && hookResult.modifiedResult) {
-                // Verification failed → inject error for retry
                 this.messages.push({
                   role: 'tool',
                   toolCallId: toolCall.id,
@@ -349,11 +389,15 @@ export class AgentLoopController {
                   content: JSON.stringify(hookResult.modifiedResult)
                 });
                 this.consecutiveFailures++;
-                await this.config.onToolResult?.(toolCall.name, hookResult.modifiedResult);
-                continue;
+                await this.config.onToolResult?.(
+                  toolCall.name,
+                  hookResult.modifiedResult,
+                  toolCall.id
+                );
+                return true;
               }
             } catch {
-              // Verification hook error is non-fatal
+              /* non-fatal */
             }
           }
 
@@ -373,16 +417,14 @@ export class AgentLoopController {
                 })
           });
 
-          // Track failures for routing heuristics
           if (!result.success) {
             this.consecutiveFailures++;
           } else {
             this.consecutiveFailures = 0;
           }
 
-          await this.config.onToolResult?.(toolCall.name, result);
+          await this.config.onToolResult?.(toolCall.name, result, toolCall.id);
 
-          // Doom loop: same tool + same args ≥3× (incl. successful read spam)
           this.doomDetector.recordCall(
             toolCall.name,
             toolCall.arguments as Record<string, any>,
@@ -396,9 +438,117 @@ export class AgentLoopController {
               ? this.doomHandler.formatAlertMessage(alert)
               : 'Stopped: repeated the same tool call with no progress.';
             await this.config.onAssistantContent?.(prose);
-            return;
+            return false;
+          }
+          return true;
+        };
+
+        let i = 0;
+        let stopRun = false;
+        while (i < toolCalls.length && !stopRun) {
+          if (this.abortController?.signal.aborted) break;
+
+          // Batch consecutive read-only tools and run in parallel
+          if (isParallelReadTool(toolCalls[i].name)) {
+            const batch: typeof toolCalls = [];
+            while (
+              i < toolCalls.length &&
+              isParallelReadTool(toolCalls[i].name) &&
+              batch.length < 16
+            ) {
+              batch.push(toolCalls[i++]);
+            }
+
+            for (const toolCall of batch) {
+              const violation = isDontDoViolation(toolCall.name, this.currentTier);
+              if (violation.violation) {
+                const denied: ToolOutput = {
+                  success: false,
+                  error: violation.reason || `Tool "${toolCall.name}" prohibited`
+                };
+                this.messages.push({
+                  role: 'tool',
+                  toolCallId: toolCall.id,
+                  name: toolCall.name,
+                  content: JSON.stringify({ error: denied.error })
+                });
+                this.consecutiveFailures++;
+                await this.config.onToolResult?.(
+                  toolCall.name,
+                  denied,
+                  toolCall.id
+                );
+              } else {
+                await this.config.onToolCall?.(
+                  toolCall.name,
+                  toolCall.arguments,
+                  toolCall.id
+                );
+              }
+            }
+
+            const runnable = batch.filter((tc) => {
+              const v = isDontDoViolation(tc.name, this.currentTier);
+              return !v.violation;
+            });
+
+            const outcomes = await mapPool(runnable, 8, async (toolCall) => {
+              const result = await this.executeTool(
+                toolCall.name,
+                toolCall.arguments
+              );
+              return { toolCall, result };
+            });
+
+            for (const { toolCall, result } of outcomes) {
+              const ok = await handleToolOutcome(toolCall, result);
+              if (!ok) {
+                stopRun = true;
+                break;
+              }
+            }
+            continue;
+          }
+
+          // Write / terminal / other — serial
+          const toolCall = toolCalls[i++];
+          const violation = isDontDoViolation(toolCall.name, this.currentTier);
+          if (violation.violation) {
+            const denied: ToolOutput = {
+              success: false,
+              error: violation.reason || `Tool "${toolCall.name}" prohibited`
+            };
+            this.messages.push({
+              role: 'tool',
+              toolCallId: toolCall.id,
+              name: toolCall.name,
+              content: JSON.stringify({ error: denied.error })
+            });
+            this.consecutiveFailures++;
+            await this.config.onToolResult?.(
+              toolCall.name,
+              denied,
+              toolCall.id
+            );
+            continue;
+          }
+
+          await this.config.onToolCall?.(
+            toolCall.name,
+            toolCall.arguments,
+            toolCall.id
+          );
+          const result = await this.executeTool(
+            toolCall.name,
+            toolCall.arguments
+          );
+          const ok = await handleToolOutcome(toolCall, result);
+          if (!ok) {
+            stopRun = true;
+            break;
           }
         }
+        if (stopRun) return;
         // Next LLM turn may plan again in prose — allow another tool nudge
         this.toolIntentNudged = false;
       } else {
@@ -479,7 +629,13 @@ export class AgentLoopController {
     // HARB: provider가 설정되어 있으면 실제 LLM 호출
     if (this.config.provider) {
       try {
-        const schemas = toolRegistry.getSchemas(this.config.mode, this.currentTier);
+        const schemas = toolRegistry.getSchemas(this.config.mode, this.currentTier)
+          .filter((s) => {
+            if (this.config.mode !== 'debug') return true;
+            const name = s?.function?.name as string | undefined;
+            if (!name) return true;
+            return isDebugToolAllowedForStage(this.debugStage, name);
+          });
         const providerMessages = this.buildProviderMessages();
 
         let result = await this.streamOnce(providerMessages, schemas);
@@ -511,7 +667,7 @@ export class AgentLoopController {
           this.messages.push({
             role: 'user',
             content:
-              'Your previous turn only contained reasoning/plans, not tool_calls. Call the needed tools now (≤4 per turn, e.g. read_file). No prose — emit tool_calls only.'
+              'Your previous turn only contained reasoning/plans, not tool_calls. Call the needed tools now (≤12 per turn; prefer read_files for many paths). No prose — emit tool_calls only.'
           });
           result = await this.streamOnce(this.buildProviderMessages(), schemas);
           if (result === null) return null;
@@ -525,6 +681,11 @@ export class AgentLoopController {
             return { toolCalls: recovered2 };
           }
         }
+
+        // Plan research/questions: prose conclusion without ask_question → force MCQ tools
+        const planAsk = await this.nudgePlanAskQuestionIfNeeded(result, schemas);
+        if (planAsk === null) return null;
+        if (planAsk) return planAsk;
 
         const prose = (result.content || '').trim();
         if (prose && prose !== '...') {
@@ -541,28 +702,61 @@ export class AgentLoopController {
         const hadTools = this.messages.some((m) => m.role === 'tool');
         if (hadTools && !this.emptyFinalRetried) {
           this.emptyFinalRetried = true;
-          this.messages.push({
-            role: 'user',
-            content:
-              'Tool results are above. Write a concise final analysis in Korean (or the user language). Do NOT call tools. Use clean Markdown: ## headings, - bullets, and GFM | tables | — never space-padded columns.'
-          });
-          // Final answer pass: allow thinking for Thought UI
-          const retry = await this.streamOnce(this.buildProviderMessages(), [], {
-            enableThinking: true
-          });
-          if (retry === null) return null;
-          if ((retry.reasoning || '').trim()) {
-            void this.config.onReasoning?.(retry.reasoning);
-          }
-          const retryProse = (retry.content || '').trim();
-          if (retryProse && retryProse !== '...') {
-            return { content: retryProse, toolCalls: [] };
-          }
-          if ((retry.reasoning || result.reasoning || '').trim()) {
-            return {
-              content: (retry.content || retry.reasoning || result.reasoning || '').trim(),
-              toolCalls: []
-            };
+          const planStage = this.config.planStage || 'research';
+          const needsPlanAsk =
+            this.config.mode === 'plan' &&
+            (planStage === 'research' || planStage === 'questions') &&
+            !this.askedQuestionThisRun &&
+            schemas.some((s) => s?.function?.name === 'ask_question');
+
+          if (needsPlanAsk) {
+            this.planAskQuestionNudged = true;
+            this.messages.push({
+              role: 'user',
+              content: PLAN_ASK_QUESTION_NUDGE
+            });
+            const retry = await this.streamOnce(this.buildProviderMessages(), schemas);
+            if (retry === null) return null;
+            if (retry.toolCalls && retry.toolCalls.length > 0) {
+              return { toolCalls: this.normalizeToolCalls(retry.toolCalls, retry.content || '') };
+            }
+            const recoveredAsk = this.recoverToolCallsFromContent(
+              retry.content || retry.reasoning || ''
+            );
+            if (recoveredAsk.length > 0) {
+              return { toolCalls: recoveredAsk };
+            }
+            if ((retry.reasoning || '').trim()) {
+              void this.config.onReasoning?.(retry.reasoning);
+            }
+            const retryProse = (retry.content || '').trim();
+            if (retryProse && retryProse !== '...') {
+              return { content: retryProse, toolCalls: [] };
+            }
+          } else {
+            this.messages.push({
+              role: 'user',
+              content:
+                'Tool results are above. Write a concise final analysis in Korean (or the user language). Do NOT call tools. Use clean Markdown: ## headings, - bullets, and GFM | tables | — never space-padded columns.'
+            });
+            // Final answer pass: allow thinking for Thought UI
+            const retry = await this.streamOnce(this.buildProviderMessages(), [], {
+              enableThinking: true
+            });
+            if (retry === null) return null;
+            if ((retry.reasoning || '').trim()) {
+              void this.config.onReasoning?.(retry.reasoning);
+            }
+            const retryProse = (retry.content || '').trim();
+            if (retryProse && retryProse !== '...') {
+              return { content: retryProse, toolCalls: [] };
+            }
+            if ((retry.reasoning || result.reasoning || '').trim()) {
+              return {
+                content: (retry.content || retry.reasoning || result.reasoning || '').trim(),
+                toolCalls: []
+              };
+            }
           }
         }
 
@@ -674,12 +868,19 @@ export class AgentLoopController {
   } | null> {
     if (!this.config.provider) return null;
 
+    const effort = this.config.thinkingEffort || 'medium';
+    const enableThinking =
+      opts?.enableThinking !== undefined
+        ? opts.enableThinking
+        : effort !== 'off';
+
     const stream = this.config.provider.streamChat({
       messages: providerMessages as any,
       model: this.config.modelId,
       tools: schemas.length > 0 ? schemas : undefined,
       signal: this.abortController?.signal,
-      enableThinking: opts?.enableThinking,
+      enableThinking,
+      thinkingEffort: effort,
       maxTokens: 16384
     });
 
@@ -794,6 +995,55 @@ export class AgentLoopController {
       '',
       '_Regenerate를 누르면 모델이 다시 분석 문장을 쓸 수 있습니다._'
     ].join('\n');
+  }
+
+  /**
+   * Plan research/questions ended with a prose "결론" and no ask_question —
+   * keep the research text in history and force MCQ tool calls once.
+   */
+  private async nudgePlanAskQuestionIfNeeded(
+    result: { content?: string; reasoning?: string; toolCalls?: unknown[] },
+    schemas: Array<{ function?: { name?: string } }>
+  ): Promise<
+    | { content?: string; toolCalls: Array<{ id: string; name: string; arguments: ToolInput }> }
+    | null
+    | undefined
+  > {
+    const prose = (result.content || '').trim();
+    if (!prose || prose === '...') return undefined;
+
+    const planStage = this.config.planStage || 'research';
+    const needsAsk =
+      this.config.mode === 'plan' &&
+      (planStage === 'research' || planStage === 'questions') &&
+      !this.askedQuestionThisRun &&
+      !this.planAskQuestionNudged &&
+      schemas.some((s) => s?.function?.name === 'ask_question');
+
+    if (!needsAsk) return undefined;
+
+    this.planAskQuestionNudged = true;
+    if ((result.reasoning || '').trim()) {
+      void this.config.onReasoning?.(String(result.reasoning));
+    }
+    this.messages.push({ role: 'assistant', content: prose });
+    this.messages.push({ role: 'user', content: PLAN_ASK_QUESTION_NUDGE });
+
+    const retry = await this.streamOnce(this.buildProviderMessages(), schemas as any);
+    if (retry === null) return null;
+    if (retry.toolCalls && retry.toolCalls.length > 0) {
+      return {
+        toolCalls: this.normalizeToolCalls(retry.toolCalls, retry.content || '')
+      };
+    }
+    const recovered = this.recoverToolCallsFromContent(
+      retry.content || retry.reasoning || ''
+    );
+    if (recovered.length > 0) {
+      return { toolCalls: recovered };
+    }
+    // Still no ask_question — surface original research prose
+    return { content: prose, toolCalls: [] };
   }
 
   /** Provider/native toolCalls 정규화 + 깨진 arguments JSON 복구 */
@@ -952,6 +1202,16 @@ export class AgentLoopController {
       }
     }
 
+    // Debug 모드: 스테이지별 도구 게이트 (Hypothesis에서 Fix로 점프 금지)
+    if (this.config.mode === 'debug' && !isDebugToolAllowedForStage(this.debugStage, name)) {
+      return {
+        success: false,
+        error:
+          `[Debug Mode] Tool "${name}" is not allowed in the "${this.debugStage}" stage. ` +
+          `Follow Hypothesis → Instrument → Reproduce → Analyze → (user Confirm & Fix) → Fix → Cleanup.`
+      };
+    }
+
     // C4-T01: 쓰기·복구·셸 도구 — PermissionGate (ConfigManager 레벨 동기화)
     const permissionDenied = await this.guardWritePermission(name, args);
     if (permissionDenied) {
@@ -960,13 +1220,14 @@ export class AgentLoopController {
 
     // Dispatch to executor
     try {
-      const { executeGrep, executeGlob, executeFileSearch, executeReadFile, executeListDir, executeCodebaseSearch, executeLspDefinition, executeLspReferences, executeReadLints } = await import('../tools/executors');
+      const { executeGrep, executeGlob, executeFileSearch, executeReadFile, executeReadFiles, executeListDir, executeCodebaseSearch, executeLspDefinition, executeLspReferences, executeReadLints } = await import('../tools/executors');
       
       const executors: Record<string, (input: ToolInput) => Promise<ToolOutput>> = {
         grep: executeGrep,
         glob: executeGlob,
         file_search: executeFileSearch,
         read_file: executeReadFile,
+        read_files: executeReadFiles,
         list_dir: executeListDir,
         codebase_search: executeCodebaseSearch,
         lsp_definition: executeLspDefinition,
@@ -982,6 +1243,21 @@ export class AgentLoopController {
       // ─── C5-C7 tool dispatch ───────────────────────────────
       // switch_mode: change the active mode for subsequent turns
       if (name === 'switch_mode') {
+        // Plan mode: Build is UI-gated (Approve & Execute). Model cannot self-escalate.
+        if (this.config.mode === 'plan') {
+          return {
+            success: false,
+            error:
+              'In PLAN mode, switch_mode is disabled. Write/revise the plan only; the user must click Approve & Execute to build.'
+          };
+        }
+        if (this.config.mode === 'debug') {
+          return {
+            success: false,
+            error:
+              'In DEBUG mode, switch_mode is disabled. Stay in the debug FSM through Cleanup.'
+          };
+        }
         const targetMode = args.mode as string;
         if (!['ask', 'agent', 'plan', 'debug'].includes(targetMode)) {
           return { success: false, error: `Invalid mode: "${targetMode}". Valid modes: ask, agent, plan, debug` };
@@ -1003,7 +1279,22 @@ export class AgentLoopController {
       // ─── ask_question (C5-T02 / RW-C5-02) ───────────────
       if (name === 'ask_question') {
         const { askQuestionTool } = await import('../tools/session/AskQuestionTool');
-        return await askQuestionTool.execute(args);
+        const result = await askQuestionTool.execute(args);
+        if (result.success) {
+          this.askedQuestionThisRun = true;
+        }
+        // Hypothesis stage: MCQ (≥2 options) = user picked a hypothesis → Instrument
+        if (
+          result.success &&
+          this.config.mode === 'debug' &&
+          this.debugStage === 'hypothesis'
+        ) {
+          const opts = args.options;
+          if (Array.isArray(opts) && opts.length >= 2) {
+            this.advanceDebugStage('instrument');
+          }
+        }
+        return result;
       }
 
       // ─── todo_write (C5-T23) ─────────────────────────────
@@ -1047,6 +1338,13 @@ export class AgentLoopController {
         const removeTool = new RemoveInstrumentationTool();
         const hypothesisId = args.hypothesisId as string | undefined;
         const result = await removeTool.removeFromWorkspace(hypothesisId);
+        if (
+          this.config.mode === 'debug' &&
+          result.remaining === 0 &&
+          (this.debugStage === 'fix' || this.debugStage === 'cleanup')
+        ) {
+          this.advanceDebugStage('cleanup');
+        }
         return {
           success: result.remaining === 0,
           data: {
@@ -1092,7 +1390,15 @@ export class AgentLoopController {
       // ─── request_reproduce (RW-C6-05-R2: UI 대기 / timeout) ────────
       if (name === 'request_reproduce') {
         const { requestReproduceTool } = await import('../tools/debug/RequestReproduceTool');
-        return await requestReproduceTool.execute(args);
+        const result = await requestReproduceTool.execute(args);
+        if (
+          result.success &&
+          this.config.mode === 'debug' &&
+          (this.debugStage === 'reproduce' || this.debugStage === 'instrument')
+        ) {
+          this.advanceDebugStage('analyze');
+        }
+        return result;
       }
 
       // ─── task / task_run (RW-C7-04-R2) ────────────────

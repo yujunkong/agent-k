@@ -24,6 +24,7 @@ export const TIER_A_CORE: readonly string[] = [
   'glob',
   'list_dir',
   'read_file',
+  'read_files',
   'codebase_search',
   'edit_file',
   'write_file',
@@ -96,14 +97,14 @@ export function getToolNamesForTier(
 
   if (tier === 'C') {
     return [
-      'grep', 'glob', 'list_dir', 'read_file',
+      'grep', 'glob', 'list_dir', 'read_file', 'read_files',
       'codebase_search', 'lsp_definition', 'lsp_references',
     ];
   }
 
   // Tier B: 전체 도구
   return [
-    'grep', 'glob', 'list_dir', 'read_file', 'codebase_search',
+    'grep', 'glob', 'list_dir', 'read_file', 'read_files', 'codebase_search',
     'lsp_definition', 'lsp_references', 'lsp_diagnostics',
     'edit_file', 'write_file', 'delete_file',
     'run_terminal_cmd', 'read_lints',

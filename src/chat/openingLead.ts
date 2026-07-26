@@ -7,6 +7,13 @@ import type { Attachment } from './types';
 
 const LEAD_MAX = 220;
 
+/** Complete ack only — never lock a mid-word fragment like "네, 러스트로 만들" */
+function hasAckSentenceEnd(t: string): boolean {
+  return /(?:습니다[.!]?|겠습니다[.!]?|할게요[.!]?|할게요!|볼게요[.!]?|보죠[.!]?|죠[.!]?|요[.!]?|다[.!]?|[.!?])\s*$/.test(
+    t.trim()
+  );
+}
+
 /** @deprecated kept only so old imports don't break — always returns '' */
 export function buildOpeningLead(_userText: string, _files: Attachment[] = []): string {
   return '';
@@ -61,6 +68,7 @@ export function looksLikeMarkdownBody(s: string): boolean {
 export function looksLikeModelAck(s: string): boolean {
   const t = s.replace(/\*\*/g, '').trim();
   if (t.length < 8 || t.length > LEAD_MAX) return false;
+  if (!hasAckSentenceEnd(t)) return false;
   if (looksLikeMarkdownBody(t)) return false;
   return (
     /^(네|좋아요|알겠습니다|확인했습니다|살펴|분석|고치|수정|진행|요청|먼저|우선|그럼)/.test(t) ||
@@ -89,9 +97,9 @@ export function splitStreamingLead(accumulated: string): { lead: string; rest: s
     return { lead: head, rest };
   }
 
-  // Incomplete short prefix — keep tentatively in lead
-  if (t.length <= LEAD_MAX && !looksLikeMarkdownBody(t)) {
-    return { lead: t, rest: '' };
+  // Incomplete sentence — keep everything in one stream (content), never freeze a fragment as lead
+  if (t.length <= LEAD_MAX && !looksLikeMarkdownBody(t) && !hasAckSentenceEnd(t)) {
+    return { lead: '', rest: t };
   }
 
   // Long / markdown dump → body only (no fake lead)

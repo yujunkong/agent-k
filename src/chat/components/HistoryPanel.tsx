@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ChatSessionMeta } from '../ChatSessionStore';
 import type { Mode } from '../types';
+import { IconClose, IconPlus, IconTrash } from './Icons';
 
 interface HistoryPanelProps {
   sessions: ChatSessionMeta[];
@@ -44,15 +45,15 @@ export function HistoryPanel({
   onClose
 }: HistoryPanelProps) {
   return (
-    <div className="history-panel" role="dialog" aria-label="Chat history">
+    <div className="history-panel" role="dialog" aria-label="채팅 기록">
       <div className="history-panel__header">
         <h2>History</h2>
         <div className="history-panel__header-actions">
-          <button type="button" className="history-panel__new" onClick={onNew}>
-            New
+          <button type="button" className="history-panel__icon-btn" onClick={onNew} title="새 채팅" aria-label="새 채팅">
+            <IconPlus />
           </button>
-          <button type="button" className="settings-close" onClick={onClose} aria-label="Close">
-            ✕
+          <button type="button" className="history-panel__icon-btn" onClick={onClose} title="닫기" aria-label="닫기">
+            <IconClose />
           </button>
         </div>
       </div>
@@ -84,15 +85,15 @@ export function HistoryPanel({
                 </button>
                 <button
                   type="button"
-                  className="history-panel__delete"
-                  title="Delete session"
-                  aria-label={`Delete ${s.title}`}
+                  className="history-panel__icon-btn history-panel__delete"
+                  title="세션 삭제"
+                  aria-label={`${s.title || '채팅'} 삭제`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete(s.id);
                   }}
                 >
-                  ⌫
+                  <IconTrash size={13} />
                 </button>
               </div>
             );

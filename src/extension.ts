@@ -7,6 +7,12 @@ import { MCPClient } from './mcp/MCPClient';
 import { bootstrapMcpFromSettings, registerMcpToolsInRegistry } from './mcp/bootstrapMcp';
 import { RuntimeServices } from './core/RuntimeServices';
 import { PlanStorage } from './plan/PlanStorage';
+import {
+  PlanCodeLensProvider,
+  readPlanFromEditor,
+  updatePlanDocumentContext
+} from './plan/PlanCodeLensProvider';
+import { DebugStorage } from './debug/DebugStorage';
 import { MemoryStore } from './memories/MemoryStore';
 import { PermissionGate } from './permission/PermissionGate';
 import { CheckpointManager } from './checkpoint/CheckpointManager';
@@ -298,6 +304,156 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       );
       return;
     }
+    // Persist plan draft → <workspace>/.agentk/plans/tmp/plan_<hash>.md
+    if (message.type === 'plan.save') {
+      void (async () => {
+        try {
+          const content = String(message.content || '');
+          const title = String(message.title || 'Plan');
+          const existingSlug =
+            message.slug != null ? String(message.slug) : undefined;
+          const openInEditor = Boolean(message.openInEditor);
+          const quiet = Boolean(message.quiet) || openInEditor;
+          const stored = await PlanStorage.savePlan(title, content, existingSlug);
+          this._view?.webview.postMessage({
+            type: 'plan.saved',
+            slug: stored.slug,
+            title: stored.title,
+            filePath: stored.filePath,
+            requestId: message.requestId
+          });
+          const uri = vscode.Uri.file(stored.filePath);
+          if (openInEditor) {
+            const doc = await vscode.workspace.openTextDocument(uri);
+            await vscode.window.showTextDocument(doc, {
+              preview: false,
+              viewColumn: vscode.ViewColumn.One
+            });
+          } else if (!quiet) {
+            const open = 'Open';
+            const reveal = 'Reveal';
+            void vscode.window
+              .showInformationMessage(
+                `Plan 저장됨: ${stored.filePath}`,
+                open,
+                reveal
+              )
+              .then(async (choice) => {
+                if (choice === open) {
+                  const doc = await vscode.workspace.openTextDocument(uri);
+                  await vscode.window.showTextDocument(doc, { preview: true });
+                } else if (choice === reveal) {
+                  await vscode.commands.executeCommand('revealInExplorer', uri);
+                }
+              });
+          }
+        } catch (err: any) {
+          const msg = err?.message || String(err);
+          this._view?.webview.postMessage({
+            type: 'plan.save.error',
+            error: msg,
+            requestId: message.requestId
+          });
+          void vscode.window.showErrorMessage(`Plan 저장 실패: ${msg}`);
+        }
+      })();
+      return;
+    }
+    // Reload plan markdown from disk (after editing in VS Code editor)
+    if (message.type === 'plan.load' && message.slug != null) {
+      void (async () => {
+        try {
+          const loaded = await PlanStorage.loadPlan(String(message.slug));
+          if (!loaded) {
+            this._view?.webview.postMessage({
+              type: 'plan.load.error',
+              error: 'Plan file not found',
+              requestId: message.requestId
+            });
+            return;
+          }
+          this._view?.webview.postMessage({
+            type: 'plan.loaded',
+            slug: loaded.plan.slug,
+            title: loaded.plan.title,
+            content: loaded.content,
+            filePath: loaded.plan.filePath,
+            requestId: message.requestId
+          });
+        } catch (err: any) {
+          this._view?.webview.postMessage({
+            type: 'plan.load.error',
+            error: err?.message || String(err),
+            requestId: message.requestId
+          });
+        }
+      })();
+      return;
+    }
+    // Persist debug session → <workspace>/.agentk/debug/tmp/debug_<hash>.md
+    if (message.type === 'debug.save') {
+      void (async () => {
+        try {
+          const content = String(message.content || '');
+          const title = String(message.title || 'Debug Session');
+          const existingSlug =
+            message.slug != null ? String(message.slug) : undefined;
+          const stage =
+            message.stage != null ? String(message.stage) : undefined;
+          const stored = await DebugStorage.saveSession(title, content, {
+            existingSlug,
+            stage
+          });
+          if (message.reproduce != null && String(message.reproduce).trim()) {
+            await DebugStorage.saveSidecar(
+              stored.slug,
+              'reproduce',
+              String(message.reproduce)
+            );
+          }
+          if (message.logs != null && String(message.logs).trim()) {
+            await DebugStorage.saveSidecar(
+              stored.slug,
+              'logs',
+              String(message.logs)
+            );
+          }
+          this._view?.webview.postMessage({
+            type: 'debug.saved',
+            slug: stored.slug,
+            title: stored.title,
+            filePath: stored.filePath,
+            requestId: message.requestId
+          });
+          const open = 'Open';
+          const reveal = 'Reveal';
+          void vscode.window
+            .showInformationMessage(
+              `Debug 저장됨: ${stored.filePath}`,
+              open,
+              reveal
+            )
+            .then(async (choice) => {
+              const uri = vscode.Uri.file(stored.filePath);
+              if (choice === open) {
+                const doc = await vscode.workspace.openTextDocument(uri);
+                await vscode.window.showTextDocument(doc, { preview: true });
+              } else if (choice === reveal) {
+                await vscode.commands.executeCommand('revealInExplorer', uri);
+              }
+            });
+        } catch (err: any) {
+          const msg = err?.message || String(err);
+          this._view?.webview.postMessage({
+            type: 'debug.save.error',
+            error: msg,
+            requestId: message.requestId
+          });
+          void vscode.window.showErrorMessage(`Debug 저장 실패: ${msg}`);
+        }
+      })();
+      return;
+    }
     // Cursor-like drag/drop: resolve file:// URIs → path + file|folder
     if (message.type === 'attachments.resolve' && message.requestId != null) {
       void this.resolveAttachmentUris(
@@ -506,7 +662,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       ) {
         return 'searching';
       }
-      if (name === 'read_file' || name === 'list_dir' || name === 'read_lints') {
+      if (name === 'read_file' || name === 'read_files' || name === 'list_dir' || name === 'read_lints') {
         return 'reading';
       }
       if (
@@ -548,6 +704,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Short path/pattern only — never dump full tool JSON (PRD-C0 §5.3)
     const shortDetail = (args: Record<string, unknown> | undefined): string | undefined => {
       if (!args) return undefined;
+      if (Array.isArray(args.paths) && args.paths.length) {
+        const n = args.paths.length;
+        const first = String(args.paths[0] ?? '');
+        const base = first.replace(/\\/g, '/').split('/').pop() || first;
+        return n === 1 ? base.slice(0, 80) : `${n} files · ${base.slice(0, 40)}`;
+      }
       const pick =
         args.path ??
         args.target_file ??
@@ -590,6 +752,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       if (data && typeof data === 'object') {
         const obj = data as Record<string, unknown>;
         if (Array.isArray(obj.files)) return `${obj.files.length} file(s)`;
+        if (typeof obj.count === 'number' && toolName === 'read_files') {
+          return `${obj.count} file(s)`;
+        }
         if (Array.isArray(obj.matches)) return `${obj.matches.length} match(es)`;
         if (typeof obj.path === 'string') return String(obj.path).slice(0, 80);
         if (typeof obj.command === 'string') {
@@ -629,6 +794,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     let deliveredFinal = false;
     /** Chars already pushed via onAssistantDelta — skip duplicate final dump */
     let streamedAnswerChars = 0;
+    /** Only seal chat body once per agent turn (avoid N tools → N clearContent flickers) */
+    let sealedContentTurn = -1;
     // PRD-C0 §5.3: track turn for timeline headers
     let currentTurn = 0;
     let timelineSeq = 0;
@@ -681,7 +848,27 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       const { modeRegistry } = await import('./agent/modeRegistry');
 
       const modeConfig = modeRegistry.getModeConfig(mode);
-      const maxTurns = modeConfig.maxTurns || 15;
+      // Prefer VS Code setting; fall back to mode default. Small models need headroom.
+      const configuredTurns = Number(configManager.get('agent-k.maxTurns'));
+      const maxTurns =
+        Number.isFinite(configuredTurns) && configuredTurns >= 5
+          ? Math.min(100, Math.floor(configuredTurns))
+          : modeConfig.maxTurns || 25;
+
+      // Plan/Debug: append FSM stage prompt
+      let customSystemPrompt: string | undefined;
+      if (mode === 'plan') {
+        const { PLAN_STAGE_PROMPTS } = await import('./plan/PlanModeController');
+        const stage = (message.planStage || 'research') as keyof typeof PLAN_STAGE_PROMPTS;
+        const stagePrompt = PLAN_STAGE_PROMPTS[stage] || PLAN_STAGE_PROMPTS.research;
+        customSystemPrompt = `${modeConfig.systemPrompt}\n\n${stagePrompt}`;
+      } else if (mode === 'debug') {
+        const { DEBUG_STAGE_PROMPTS } = await import('./debug/DebugModeController');
+        const stage = (message.debugStage || 'hypothesis') as keyof typeof DEBUG_STAGE_PROMPTS;
+        const stagePrompt =
+          DEBUG_STAGE_PROMPTS[stage] || DEBUG_STAGE_PROMPTS.hypothesis;
+        customSystemPrompt = `${modeConfig.systemPrompt}\n\n${stagePrompt}`;
+      }
 
       // ContextAssembler injects VerificationFirst + Slogans + TurnStructure + DontDo
       const assembler = new ContextAssembler();
@@ -693,7 +880,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         })),
         {
           tier: 'A',
-          toolSchemas: toolRegistry.getSchemas(mode, 'A')
+          toolSchemas: toolRegistry.getSchemas(mode, 'A'),
+          customSystemPrompt
         }
       );
       const systemPrompt =
@@ -717,6 +905,36 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         contextBudget: modelContext.maxInputTokens,
         systemPrompt,
         provider,
+        debugStage:
+          mode === 'debug'
+            ? ((message.debugStage as
+                | 'hypothesis'
+                | 'instrument'
+                | 'reproduce'
+                | 'analyze'
+                | 'fix'
+                | 'cleanup') || 'hypothesis')
+            : undefined,
+        planStage:
+          mode === 'plan'
+            ? ((message.planStage as
+                | 'research'
+                | 'questions'
+                | 'planning'
+                | 'review'
+                | 'build') || 'research')
+            : undefined,
+        onDebugStage: (stage) => {
+          post('debug.stage', { stage });
+        },
+        thinkingEffort:
+          (message.thinkingEffort as 'off' | 'low' | 'medium' | 'high') ||
+          (configManager.get('agent-k.thinking.effort') as
+            | 'off'
+            | 'low'
+            | 'medium'
+            | 'high') ||
+          'medium',
         // Per-turn Thought / Exploring / Planning next moves (Cursor-style)
         onTurnStart: async (turn) => {
           // Freeze previous turn's Thought + Planning so UI stays sequential
@@ -804,12 +1022,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           }
           post('delta', { content: text });
         },
-        onToolCall: async (name, args) => {
+        onToolCall: async (name, args, callId) => {
           const kind = toolKind(name);
           const detail = shortDetail(args as Record<string, unknown>);
           const turn = currentTurn || 1;
-          const id = `tl_tool_${turn}_${name}_${++timelineSeq}`;
-          activeToolItems.set(name, id);
+          const id =
+            callId && String(callId).trim()
+              ? `tl_${String(callId)}`
+              : `tl_tool_${turn}_${name}_${++timelineSeq}`;
+          activeToolItems.set(callId || name, id);
           // Tool turn may have streamed draft prose — reset so final answer can stream cleanly
           streamedAnswerChars = 0;
           // Close Thought + Planning before Exploring tools slide in
@@ -836,7 +1057,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             id,
             turn
           });
-          post('tool.start', { toolName: name });
+          // Seal mid-turn prose once per turn — not on every parallel tool
+          if (sealedContentTurn !== turn) {
+            sealedContentTurn = turn;
+            post('tool.start', { toolName: name, turn });
+          }
         },
         onTerminalEvent: async (ev) => {
           post('terminal.run', {
@@ -854,13 +1079,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             status: ev.status
           });
         },
-        onToolResult: async (name, result) => {
+        onToolResult: async (name, result, callId) => {
           const kind = toolKind(name);
           const turn = currentTurn || 1;
-          const id = activeToolItems.get(name) || `tl_tool_${turn}_${name}`;
+          const id =
+            activeToolItems.get(callId || name) ||
+            (callId ? `tl_${String(callId)}` : `tl_tool_${turn}_${name}`);
           const detail = resultDetail(kind, result, name);
           postTimeline({
-            kind: result.success ? kind : 'error',
+            // Keep explore/action kind so UI groups correctly; status carries failure
+            kind,
             label: result.success
               ? `${kindVerb(kind)} · ${name}`
               : `Failed · ${name}`,
@@ -1026,6 +1254,42 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'focus.input' });
   }
 
+  /**
+   * Attach current editor selection (with line range) to the chat composer.
+   */
+  public attachEditorSelection() {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      void vscode.window.showWarningMessage('Agent K: 에디터에서 텍스트를 선택한 뒤 다시 시도하세요.');
+      return;
+    }
+    const { document, selection } = editor;
+    const text = document.getText(selection);
+    if (!text.trim()) {
+      void vscode.window.showWarningMessage('Agent K: 선택된 텍스트가 없습니다.');
+      return;
+    }
+    const startLine = selection.start.line + 1;
+    const endLine = selection.end.line + 1;
+    const path = document.uri.fsPath;
+    const label = path.replace(/\\/g, '/').split('/').pop() || path;
+    void vscode.commands.executeCommand('agent-k.chat.focusInput');
+    this._view?.webview.postMessage({
+      type: 'attachments.add',
+      items: [
+        {
+          type: 'snippet',
+          path,
+          label,
+          content: text,
+          startLine,
+          endLine,
+          id: `sel_${Date.now().toString(36)}`
+        }
+      ]
+    });
+  }
+
   /** RW-C7-05/06/10: open in-chat panels */
   public openDesignMode() {
     this._view?.webview.postMessage({ type: 'ui.design.open' });
@@ -1035,6 +1299,48 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
   public openArtifacts() {
     this._view?.webview.postMessage({ type: 'ui.artifacts.open' });
+  }
+
+  /** Reveal chat then send plan Build / Review from editor */
+  public async revealChat(): Promise<void> {
+    await vscode.commands.executeCommand('workbench.view.extension.agent-k');
+    this.focusInput();
+  }
+
+  public async buildPlanFromEditor(uri?: vscode.Uri): Promise<void> {
+    const payload = await readPlanFromEditor(uri);
+    if (!payload) {
+      void vscode.window.showWarningMessage(
+        'Agent K: `.agentk/plans` 아래 plan_*.md 파일을 연 뒤 Build를 실행하세요.'
+      );
+      return;
+    }
+    await this.revealChat();
+    this._view?.webview.postMessage({
+      type: 'plan.buildFromEditor',
+      content: payload.content,
+      slug: payload.slug,
+      title: payload.title,
+      filePath: payload.filePath
+    });
+  }
+
+  public async openPlanReviewFromEditor(uri?: vscode.Uri): Promise<void> {
+    const payload = await readPlanFromEditor(uri);
+    if (!payload) {
+      void vscode.window.showWarningMessage(
+        'Agent K: `.agentk/plans` 아래 plan_*.md 파일을 연 뒤 Review를 여세요.'
+      );
+      return;
+    }
+    await this.revealChat();
+    this._view?.webview.postMessage({
+      type: 'plan.openReviewFromEditor',
+      content: payload.content,
+      slug: payload.slug,
+      title: payload.title,
+      filePath: payload.filePath
+    });
   }
 }
 
@@ -1063,6 +1369,22 @@ export function activate(context: vscode.ExtensionContext) {
   );
   outputChannel.appendLine('[Agent K] WebviewViewProvider registered: agent-k.chat');
 
+  const planCodeLens = new PlanCodeLensProvider();
+  context.subscriptions.push(
+    vscode.languages.registerCodeLensProvider(
+      [{ language: 'markdown', pattern: '**/.agentk/plans/**/*.md' }],
+      planCodeLens
+    ),
+    vscode.window.onDidChangeActiveTextEditor((ed) => {
+      updatePlanDocumentContext(ed);
+      planCodeLens.refresh();
+    }),
+    vscode.workspace.onDidSaveTextDocument((doc) => {
+      if (PlanStorage.isPlanDocumentUri(doc.uri)) planCodeLens.refresh();
+    })
+  );
+  updatePlanDocumentContext(vscode.window.activeTextEditor);
+
   // Force the webview view to re-resolve after provider registration (avoids stale "no data provider")
   setTimeout(() => {
     void vscode.commands.executeCommand('workbench.view.extension.agent-k');
@@ -1073,6 +1395,7 @@ export function activate(context: vscode.ExtensionContext) {
     RuntimeServices.setDebugLogServer(debugLogServer);
     RuntimeServices.setMcpClient(mcpClient);
     PlanStorage.setExtensionContext(context);
+    DebugStorage.setExtensionContext(context);
 
     const memoryStore = new MemoryStore(context.secrets, context);
     RuntimeServices.setMemoryStore(memoryStore);
@@ -1132,9 +1455,21 @@ export function activate(context: vscode.ExtensionContext) {
         provider.focusInput();
       }),
 
+      vscode.commands.registerCommand('agent-k.chat.attachSelection', () => {
+        provider.attachEditorSelection();
+      }),
+
       vscode.commands.registerCommand('agent-k.plan.open', () => {
         vscode.window.showInformationMessage('[Agent K] Plan mode: create a new plan');
         provider.switchMode();
+      }),
+
+      vscode.commands.registerCommand('agent-k.plan.build', (uri?: vscode.Uri) => {
+        void provider.buildPlanFromEditor(uri);
+      }),
+
+      vscode.commands.registerCommand('agent-k.plan.openReview', (uri?: vscode.Uri) => {
+        void provider.openPlanReviewFromEditor(uri);
       }),
 
       vscode.commands.registerCommand('agent-k.debug.open', () => {

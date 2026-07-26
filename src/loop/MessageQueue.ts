@@ -138,26 +138,35 @@ export class MessageQueue {
   }
 
   /**
-   * RW-P0-04: Apply now — promote a queued message to immediate resynthesize.
-   * Caller must abort + resynthesize; this only marks action and clears debounce.
+   * Apply now — take ONE queued message out for immediate resynthesize.
+   * Leaves other queued items untouched (do not drain).
    */
-  applyNow(messageId: string): QueuedMessage | null {
-    const msg = this.queue.find(m => m.id === messageId && m.status === 'queued');
-    if (!msg) return null;
+  take(messageId: string): QueuedMessage | null {
+    const idx = this.queue.findIndex(
+      (m) => m.id === messageId && m.status === 'queued'
+    );
+    if (idx < 0) return null;
+    const msg = this.queue[idx];
     msg.action = 'resynthesize';
-    msg.status = 'processing';
-    this._isInterrupted = true;
+    msg.status = 'completed';
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
     this.notify();
-    return msg;
+    return { ...msg };
   }
 
   /**
-   * Drain all queued texts (Apply now empty-input path / resynth batch).
-   * Returns texts in enqueue order; marks those items completed.
+   * @deprecated use take() — applyNow left items stuck in "processing"
+   */
+  applyNow(messageId: string): QueuedMessage | null {
+    return this.take(messageId);
+  }
+
+  /**
+   * Drain all queued texts (Enter interrupt batch / idle flush).
+   * Only status === 'queued' — never touches in-flight or completed.
    */
   drain(): string[] {
     const texts: string[] = [];
@@ -177,7 +186,13 @@ export class MessageQueue {
 
   /** Active queued messages (for QueueUI). */
   getQueued(): QueuedMessage[] {
-    return this.queue.filter(m => m.status === 'queued' || m.status === 'processing');
+    return this.queue.filter((m) => m.status === 'queued');
+  }
+
+  /** Drop completed/interrupted history so the list stays small. */
+  pruneSettled(): void {
+    this.queue = this.queue.filter((m) => m.status === 'queued');
+    this.notify();
   }
 
   clear(): void {

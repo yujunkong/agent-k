@@ -9,6 +9,8 @@ interface DebugModeUIProps {
   hypotheses: Hypothesis[];
   activeHypothesisId: string | null;
   onSelectHypothesis: (id: string) => void;
+  /** Analyze stage → user Approve equivalent before Fix */
+  onConfirmFix?: () => void;
 }
 
 const STAGE_LABELS: Record<string, string> = {
@@ -20,7 +22,13 @@ const STAGE_LABELS: Record<string, string> = {
   cleanup: '🧹 Cleanup'
 };
 
-export function DebugModeUI({ currentStage, hypotheses, activeHypothesisId, onSelectHypothesis }: DebugModeUIProps) {
+export function DebugModeUI({
+  currentStage,
+  hypotheses,
+  activeHypothesisId,
+  onSelectHypothesis,
+  onConfirmFix,
+}: DebugModeUIProps) {
   return (
     <div className="debug-mode-ui" style={{
       padding: 12, borderRadius: 6,
@@ -48,6 +56,7 @@ export function DebugModeUI({ currentStage, hypotheses, activeHypothesisId, onSe
           {hypotheses.map(h => (
             <button
               key={h.id}
+              type="button"
               onClick={() => onSelectHypothesis(h.id)}
               disabled={!!activeHypothesisId}
               style={{
@@ -74,6 +83,29 @@ export function DebugModeUI({ currentStage, hypotheses, activeHypothesisId, onSe
           fontSize: '0.85em'
         }}>
           Investigating: <strong>{hypotheses.find(h => h.id === activeHypothesisId)?.title}</strong>
+        </div>
+      )}
+
+      {/* Analyze → Fix gate (Plan Approve equivalent) */}
+      {currentStage === 'analyze' && (
+        <div style={{ marginTop: 12 }}>
+          <p style={{ fontSize: '0.85em', opacity: 0.75, marginBottom: 8 }}>
+            Root cause confirmed? Fix starts only when you approve.
+          </p>
+          <button
+            type="button"
+            className="settings-btn primary"
+            onClick={() => onConfirmFix?.()}
+            style={{
+              padding: '8px 16px',
+              fontWeight: 600,
+              background: 'var(--vscode-button-background, #0078d4)',
+              color: '#fff',
+              cursor: 'pointer',
+            }}
+          >
+            Confirm &amp; Fix
+          </button>
         </div>
       )}
     </div>

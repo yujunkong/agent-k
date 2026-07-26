@@ -7,6 +7,7 @@
  */
 import type { ToolInput, ToolOutput } from '../types';
 import { RuntimeServices, type PendingAskQuestion } from '../../core/RuntimeServices';
+import { normalizeMcqQuestion } from '../../chat/normalizeAskQuestion';
 
 export type PendingQuestion = PendingAskQuestion & {
   answer?: string;
@@ -32,15 +33,17 @@ export class AskQuestionTool {
     }
 
     const optionsRaw = input.options;
-    const options = Array.isArray(optionsRaw)
+    const optionsIn = Array.isArray(optionsRaw)
       ? (optionsRaw as unknown[]).map((o) => String(o)).filter(Boolean)
       : undefined;
+
+    const normalized = normalizeMcqQuestion(questionText, optionsIn);
 
     const qid = `q-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const pending: PendingQuestion = {
       id: qid,
-      question: questionText,
-      options: options && options.length > 0 ? options : undefined,
+      question: normalized.question,
+      options: normalized.options,
       required: true,
       answered: false,
     };

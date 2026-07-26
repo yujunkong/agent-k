@@ -9,7 +9,7 @@
  * 5. Risks — 위험 요소 및 완화 방안
  * 6. Approval — 서명/승인 섹션
  * 
- * 경로: `.agentk/plans/PLAN-<slug>.md`
+ * 경로: `.agentk/plans/tmp/plan_<hash>.md`
  */
 
 export interface PlanDocument {
@@ -175,14 +175,31 @@ export class PlanGenerator {
   }
 
   /**
-   * Extract TODO items from plan content
+   * Extract TODO checklist items from plan markdown.
+   * Prefers the ## TODOs section; accepts `- [ ] **Step N**: …`, Phase lines, plain checkboxes.
+   * Skips Approval boilerplate checkboxes when scanning the whole doc.
    */
   extractTodos(content: string): string[] {
+    const section = content.match(/##\s+TODOs?\b[^\n]*\n+([\s\S]*?)(?=\n##\s|$)/i);
+    const slice = section?.[1] ?? content;
     const todos: string[] = [];
-    const todoRegex = /- \[ \] \*\*Step \d+\*\*: (.+)/g;
-    let match;
-    while ((match = todoRegex.exec(content)) !== null) {
-      todos.push(match[1].trim());
+    const seen = new Set<string>();
+    for (const raw of slice.split('\n')) {
+      const m = raw.match(/^\s*[-*]\s+\[ \]\s+(.+)$/);
+      if (!m) continue;
+      let text = m[1].trim();
+      // Strip markdown bold / Step N: prefixes for cleaner labels
+      text = text
+        .replace(/^\*\*Step\s+\d+\*\*\s*:\s*/i, '')
+        .replace(/^Step\s+\d+\s*:\s*/i, '')
+        .replace(/^\*\*/g, '')
+        .replace(/\*\*$/g, '')
+        .trim();
+      if (!text || seen.has(text)) continue;
+      // Skip approval boilerplate when no ## TODOs section was found
+      if (!section && /I have reviewed|I understand the risks/i.test(text)) continue;
+      seen.add(text);
+      todos.push(text);
     }
     return todos;
   }

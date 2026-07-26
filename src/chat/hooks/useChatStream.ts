@@ -12,6 +12,12 @@ interface UseChatStreamOptions {
   model?: string;
   /** Override idle timeout (ms). Default 30s. */
   idleTimeoutMs?: number;
+  /** Plan mode FSM stage — injected into host system prompt */
+  planStage?: string;
+  /** Debug mode FSM stage — injected into host system prompt */
+  debugStage?: string;
+  /** Thinking effort for host / direct API */
+  thinkingEffort?: 'off' | 'low' | 'medium' | 'high';
 }
 
 interface UseChatStreamReturn {
@@ -57,6 +63,12 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
   /** Correlate host chat.stream events */
   const hostRequestIdRef = useRef<string | null>(null);
   const idleTimeoutMs = options.idleTimeoutMs ?? IDLE_TIMEOUT_MS;
+  const planStageRef = useRef(options.planStage);
+  const debugStageRef = useRef(options.debugStage);
+  const thinkingEffortRef = useRef(options.thinkingEffort);
+  planStageRef.current = options.planStage;
+  debugStageRef.current = options.debugStage;
+  thinkingEffortRef.current = options.thinkingEffort;
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -151,8 +163,14 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             if (data.content) onDelta({ content: String(data.content) });
             break;
           case 'tool.start':
-            // Seal any early model prose as openingLead; clear body for final answer
-            onDelta({ clearContent: true });
+            // Seal in-progress prose into turnProse (after Thought); clear body
+            onDelta({
+              clearContent: true,
+              sealTurn:
+                data.turn != null && Number.isFinite(Number(data.turn))
+                  ? Number(data.turn)
+                  : undefined
+            });
             break;
           case 'file.edit': {
             const lines = Array.isArray(data.lines) ? data.lines : [];
@@ -250,6 +268,11 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
               },
             });
             break;
+          case 'debug.stage':
+            onDelta({
+              debugStage: data.stage != null ? String(data.stage) : undefined,
+            });
+            break;
           case 'complete':
             finish(() => onComplete());
             break;
@@ -283,6 +306,9 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         type: 'chat.send',
         requestId: hostRequestId,
         mode,
+        planStage: planStageRef.current,
+        debugStage: debugStageRef.current,
+        thinkingEffort: thinkingEffortRef.current || 'medium',
         messages: messages.map((m) => ({
           role: m.role,
           content: m.content
@@ -356,7 +382,11 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             temperature: 0.7,
             max_tokens: 4096,
             // Prefer Thought UI when server supports reasoning_content
-            enable_thinking: true
+            enable_thinking: (thinkingEffortRef.current || 'medium') !== 'off',
+            reasoning_effort:
+              (thinkingEffortRef.current || 'medium') === 'off'
+                ? undefined
+                : thinkingEffortRef.current || 'medium',
           }),
           signal: controller.signal
         });

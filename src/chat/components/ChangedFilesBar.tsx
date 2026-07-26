@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import type { FileEditPreview } from '../types';
 import { languageBadge } from '../editDiffPreview';
+import { IconRefresh } from './Icons';
 
 export interface ChangedFilesBarProps {
   files: FileEditPreview[];
@@ -38,7 +39,8 @@ export function ChangedFilesBar({
           className="changed-files-bar__toggle"
           aria-expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
-          title={expanded ? 'Collapse file list' : 'Expand file list'}
+          title={expanded ? '파일 목록 접기' : '파일 목록 펼치기'}
+          aria-label={expanded ? '파일 목록 접기' : '파일 목록 펼치기'}
         >
           <span className="changed-files-bar__chevron" aria-hidden>
             {expanded ? '▾' : '▸'}
@@ -55,24 +57,29 @@ export function ChangedFilesBar({
           {onUndoAll ? (
             <button
               type="button"
-              className="changed-files-bar__link"
+              className="changed-files-bar__icon-btn"
               onClick={onUndoAll}
-              title="Undo all edits in this session (restore earliest checkpoint)"
+              title="이번 세션의 모든 수정 되돌리기"
+              aria-label="모든 수정 되돌리기"
             >
-              Undo All
+              <IconRefresh size={13} />
             </button>
           ) : null}
           {onReview ? (
             <button
               type="button"
-              className="changed-files-bar__review"
+              className="changed-files-bar__icon-btn"
               onClick={() => {
                 setExpanded(true);
                 onReview();
               }}
-              title="Review changed files"
+              title="변경된 파일 검토"
+              aria-label="변경된 파일 검토"
             >
-              Review
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
             </button>
           ) : null}
         </div>

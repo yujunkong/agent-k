@@ -5,6 +5,7 @@
  * LiteLLM, Ollama, LM Studio 등 모든 OpenAI 호환 서버와 통신
  */
 import type { LLMProviderConfig, LLMProviderInterface, StreamChatOptions, StreamChunk } from './types';
+import { parseThinkingEffort, thinkingEffortToProviderOpts } from '../agent/thinkingEffort';
 
 export class LiteLLMProvider implements LLMProviderInterface {
   readonly id: string;
@@ -35,9 +36,10 @@ export class LiteLLMProvider implements LLMProviderInterface {
   async *streamChat(options: StreamChatOptions): AsyncGenerator<StreamChunk> {
     const { messages, model, temperature = 0.7, maxTokens = 16384, signal, tools } = options;
     const modelName = model || this.config.model;
-    // Tool turns keep thinking ON for Thought UI, but AgentLoop truncates/nudges
-    // so Qwen does not get stuck in plan-only loops.
-    const enableThinking = options.enableThinking ?? true;
+    const effort = parseThinkingEffort(options.thinkingEffort);
+    const mapped = thinkingEffortToProviderOpts(effort);
+    const enableThinking =
+      options.enableThinking !== undefined ? options.enableThinking : mapped.enableThinking;
 
     try {
       const response = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
@@ -53,6 +55,12 @@ export class LiteLLMProvider implements LLMProviderInterface {
           temperature,
           max_tokens: maxTokens,
           enable_thinking: enableThinking,
+          ...(mapped.reasoningEffort
+            ? { reasoning_effort: mapped.reasoningEffort }
+            : {}),
+          ...(mapped.thinkingBudget != null && enableThinking
+            ? { thinking_budget: mapped.thinkingBudget }
+            : {}),
           ...(tools && tools.length > 0 ? { tools, tool_choice: 'auto' } : {})
         }),
         signal

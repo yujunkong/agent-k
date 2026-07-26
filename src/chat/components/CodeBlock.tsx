@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { highlightCode, isHighlighterReady } from '../shiki/highlighter';
+import { highlightCode, isHighlighterReady, normalizeLang } from '../shiki/highlighter';
+import { IconCheck, IconCopy } from './Icons';
 
 interface CodeBlockProps {
   language: string;
@@ -12,37 +13,42 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
   const [ready, setReady] = useState(isHighlighterReady());
   const [copied, setCopied] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const lang = normalizeLang(language);
 
   useEffect(() => {
+    if (ready) return;
     const checkReady = setInterval(() => {
       if (isHighlighterReady()) {
         setReady(true);
         clearInterval(checkReady);
       }
     }, 100);
-    return () => clearInterval(checkReady);
-  }, []);
+    // Don't wait forever — fallback highlighter kicks in via highlightCode
+    const giveUp = setTimeout(() => {
+      clearInterval(checkReady);
+      setReady(true);
+    }, 2500);
+    return () => {
+      clearInterval(checkReady);
+      clearTimeout(giveUp);
+    };
+  }, [ready]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (!language || !ready) {
-      setHighlighted('');
-      return;
-    }
 
     debounceRef.current = setTimeout(() => {
       const isDark =
         document.body.classList.contains('vscode-dark') ||
         document.body.classList.contains('vscode-high-contrast') ||
         !document.body.classList.contains('vscode-light');
-      highlightCode(code, language, isDark).then(setHighlighted);
-    }, streaming ? 50 : 0);
+      highlightCode(code, lang, isDark).then(setHighlighted);
+    }, streaming ? 80 : 0);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [code, language, ready, streaming]);
+  }, [code, lang, ready, streaming]);
 
   const handleCopy = async () => {
     try {
@@ -54,7 +60,7 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
     }
   };
 
-  const label = (language || 'text').toLowerCase();
+  const label = lang === 'plaintext' && !language ? 'text' : (language || lang).toLowerCase();
   const useShiki = Boolean(highlighted && highlighted.includes('shiki'));
 
   return (
@@ -65,10 +71,10 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
           type="button"
           className="ak-code__copy"
           onClick={handleCopy}
-          title="Copy code"
-          aria-label="Copy code"
+          title={copied ? '복사됨' : '코드 복사'}
+          aria-label={copied ? '복사됨' : '코드 복사'}
         >
-          {copied ? 'Copied' : 'Copy'}
+          {copied ? <IconCheck size={13} /> : <IconCopy size={13} />}
         </button>
       </div>
       {useShiki ? (

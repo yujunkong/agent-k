@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StreamingMarkdown } from '../StreamingMarkdown';
 import { stripFakeToolMarkup } from '../displaySanitize';
 import { MessageSteps } from './MessageSteps';
 import { FileEditCard } from './FileEditCard';
-import { isValidOpeningLead, sanitizeOpeningLead, stripDuplicateOpeningLead } from '../openingLead';
+import { IconCopy, IconEdit, IconRefresh, IconTrash } from './Icons';
 
 interface MessageBubbleProps {
   message: any;
@@ -15,39 +15,63 @@ interface MessageBubbleProps {
   onOpenFile?: (path: string) => void;
 }
 
+/** Fold legacy openingLead into body (no top-of-bubble lead slot). */
+function foldLeadIntoBody(lead: string, body: string): string {
+  if (!lead) return body;
+  if (!body) return lead;
+  if (body.startsWith(lead) || body.includes(lead)) return body;
+  if (/\s$/.test(lead) || /^\s/.test(body)) return `${lead}${body}`.trim();
+  if (/[가-힣a-zA-Z]$/.test(lead) && /^[가-힣a-zA-Z]/.test(body)) {
+    return `${lead} ${body}`.trim();
+  }
+  return `${lead}${body}`.trim();
+}
+
+function formatWorkedLabel(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 800) return 'Worked briefly';
+  if (ms < 60_000) {
+    const sec = ms / 1000;
+    return `Worked for ${sec >= 10 ? Math.round(sec) : sec.toFixed(1)}s`;
+  }
+  const m = Math.floor(ms / 60_000);
+  const s = Math.round((ms % 60_000) / 1000);
+  return s > 0 ? `Worked for ${m}m ${s}s` : `Worked for ${m}m`;
+}
+
+function resolveWorkedMs(message: any): number {
+  if (typeof message.workedDurationMs === 'number' && message.workedDurationMs >= 0) {
+    return message.workedDurationMs;
+  }
+  const steps = Array.isArray(message.steps) ? message.steps : [];
+  const sum = steps.reduce(
+    (acc: number, s: { durationMs?: number }) =>
+      acc + (typeof s.durationMs === 'number' ? s.durationMs : 0),
+    0
+  );
+  return sum;
+}
+
 /**
  * Cursor-quiet message chrome: muted steps + prose, minimal decoration.
- * Order: opening lead → Thought/tools/edits (timeline) → final answer.
+ * Order: Thought → mid-turn prose → tools → final answer.
+ * When done: collapse all steps under "Worked for …" (expandable).
  */
 export function MessageBubble({ message, isStreaming, onEdit, onRetry, onDelete, onCopy, onOpenFile }: MessageBubbleProps) {
   const isAssistant = message.role === 'assistant';
   const isUser = message.role === 'user';
 
-  // Assistant: strip fake [todo_write] etc.; never inject raw HTML
   const rawContent = typeof message.content === 'string' ? message.content : '';
   const rawLead =
     isAssistant && typeof message.openingLead === 'string'
       ? message.openingLead.trim()
       : '';
   const stripped = isAssistant ? stripFakeToolMarkup(rawContent) : rawContent;
-  // While streaming, keep a short lead in place; repair demotions only when complete
-  const repaired = isAssistant
-    ? isStreaming && rawLead && (isValidOpeningLead(rawLead) || rawLead.length <= 220)
-      ? { lead: rawLead, content: stripDuplicateOpeningLead(stripped, rawLead) }
-      : sanitizeOpeningLead(rawLead, stripped)
-    : { lead: '', content: stripped };
-  const lead = repaired.lead;
-  const displayContent =
-    isAssistant && lead
-      ? stripDuplicateOpeningLead(repaired.content, lead)
-      : repaired.content;
+  const displayContent = isAssistant ? foldLeadIntoBody(rawLead, stripped) : stripped;
 
   const hasSteps = Array.isArray(message.steps) && message.steps.length > 0;
   const fileEdits = Array.isArray(message.fileEdits) ? message.fileEdits : [];
   const terminalRuns = Array.isArray(message.terminalRuns) ? message.terminalRuns : [];
   const turnProse = Array.isArray(message.turnProse) ? message.turnProse : [];
-  // While streaming with a timeline, show body inside the timeline (not below),
-  // so the next tool round can seal it as turnProse without a bottom flicker.
   const liveInTimeline = !!(
     isAssistant &&
     isStreaming &&
@@ -55,11 +79,46 @@ export function MessageBubble({ message, isStreaming, onEdit, onRetry, onDelete,
     displayContent.trim()
   );
 
+  const stepsDone =
+    isAssistant &&
+    hasSteps &&
+    !isStreaming &&
+    message.status !== 'streaming';
+
+  const stepsHaveError =
+    hasSteps &&
+    (message.steps as Array<{ itemStatus?: string }>).some(
+      (s) => s.itemStatus === 'error'
+    );
+
+  const [workedOpen, setWorkedOpen] = useState(false);
+  useEffect(() => {
+    // New run / still streaming → show live timeline; collapse when finished
+    if (isStreaming || message.status === 'streaming') {
+      setWorkedOpen(true);
+    } else if (stepsDone) {
+      setWorkedOpen(false);
+    }
+  }, [message.id, isStreaming, message.status, stepsDone]);
+
+  const workedLabel = formatWorkedLabel(resolveWorkedMs(message));
+
+  const stepsBlock = hasSteps ? (
+    <MessageSteps
+      steps={message.steps}
+      fileEdits={fileEdits}
+      terminalRuns={terminalRuns}
+      turnProse={turnProse}
+      liveProse={liveInTimeline ? displayContent : undefined}
+      liveProseStreaming={liveInTimeline}
+      onOpenFile={onOpenFile}
+    />
+  ) : null;
+
   return (
     <div
       className={`message-bubble ${message.role}`}
       style={{
-        // Cursor-like: assistant is nearly chrome-free; full width in sidebar
         backgroundColor: isAssistant
           ? 'transparent'
           : isUser
@@ -95,24 +154,33 @@ export function MessageBubble({ message, isStreaming, onEdit, onRetry, onDelete,
         </div>
       ) : null}
 
-      {/* Cursor: short ack first, then Thought / Exploring — never a full dump */}
-      {isAssistant && lead ? (
-        <div className="message-opening-lead">
-          <StreamingMarkdown content={lead} isStreaming={false} />
+      {stepsDone ? (
+        <div
+          className={[
+            'ak-worked',
+            workedOpen ? 'ak-worked--open' : '',
+            stepsHaveError ? 'ak-worked--error' : ''
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          <button
+            type="button"
+            className="ak-worked__toggle"
+            onClick={() => setWorkedOpen((v) => !v)}
+            aria-expanded={workedOpen}
+          >
+            <span className="ak-worked__chevron" aria-hidden>
+              {workedOpen ? '▾' : '▸'}
+            </span>
+            <span className="ak-worked__label">{workedLabel}</span>
+          </button>
+          {workedOpen ? (
+            <div className="ak-worked__body">{stepsBlock}</div>
+          ) : null}
         </div>
-      ) : null}
-
-      {/* Cursor-style: Thought / Exploring / edit cards / mid-turn prose */}
-      {hasSteps ? (
-        <MessageSteps
-          steps={message.steps}
-          fileEdits={fileEdits}
-          terminalRuns={terminalRuns}
-          turnProse={turnProse}
-          liveProse={liveInTimeline ? displayContent : undefined}
-          liveProseStreaming={liveInTimeline}
-          onOpenFile={onOpenFile}
-        />
+      ) : hasSteps ? (
+        stepsBlock
       ) : fileEdits.length > 0 ? (
         <div className="ak-file-edits" style={{ margin: '4px 0 8px' }}>
           {fileEdits.map((fe: any) => (
@@ -129,7 +197,6 @@ export function MessageBubble({ message, isStreaming, onEdit, onRetry, onDelete,
         </div>
       ) : null}
 
-      {/* Only show toolStatus when no steps (legacy path) */}
       {!hasSteps && message.toolStatus ? (
         <div
           className="message-tool-status"
@@ -149,7 +216,7 @@ export function MessageBubble({ message, isStreaming, onEdit, onRetry, onDelete,
         {isAssistant ? (
           displayContent && !liveInTimeline ? (
             <StreamingMarkdown content={displayContent} isStreaming={!!isStreaming} />
-          ) : isStreaming && !hasSteps && !lead ? (
+          ) : isStreaming && !hasSteps && !displayContent.trim() ? (
             <span style={{ opacity: 0.55, color: 'var(--vscode-descriptionForeground)' }}>
               …
             </span>
@@ -164,42 +231,57 @@ export function MessageBubble({ message, isStreaming, onEdit, onRetry, onDelete,
       {message.attachments && message.attachments.length > 0 && (
         <div className="message-attachments">
           {message.attachments.map((att: any, i: number) => {
-            const name = String(att.path || '')
-              .replace(/\\/g, '/')
-              .replace(/\/+$/, '')
-              .split('/')
-              .pop();
+            const isLog = att.type === 'log' || att.type === 'snippet';
+            const name = isLog
+              ? att.label || 'log'
+              : String(att.path || '')
+                  .replace(/\\/g, '/')
+                  .replace(/\/+$/, '')
+                  .split('/')
+                  .pop();
+            const range =
+              att.startLine != null
+                ? att.endLine != null && att.endLine !== att.startLine
+                  ? ` (${att.startLine}-${att.endLine})`
+                  : ` (${att.startLine})`
+                : '';
             return (
               <span
-                key={i}
+                key={att.id || i}
                 className={`attachment-tag attachment-tag--${att.type || 'file'}`}
-                title={att.path}
+                title={isLog ? (att.content || '').slice(0, 200) : att.path}
               >
-                <span aria-hidden>{att.type === 'folder' ? '📁' : '📄'}</span>
-                {name || att.path}
+                <span aria-hidden>
+                  {att.type === 'folder' ? '📁' : isLog ? '📋' : '📄'}
+                </span>
+                {(name || att.path) + range}
               </span>
             );
           })}
         </div>
       )}
 
-      <div
-        className="message-actions"
-        style={{
-          display: 'flex',
-          gap: 6,
-          marginTop: 8,
-          opacity: 0.65
-        }}
-      >
+      <div className="message-actions" role="group" aria-label="메시지 작업">
         {isUser && (
-          <button type="button" className="msg-action-btn" onClick={() => onEdit?.(message.id, message.content)} title="Edit">
-            Edit
+          <button
+            type="button"
+            className="msg-action-btn"
+            onClick={() => onEdit?.(message.id, message.content)}
+            title="메시지 편집"
+            aria-label="메시지 편집"
+          >
+            <IconEdit />
           </button>
         )}
         {(isAssistant || message.role === 'tool') && message.status !== 'streaming' && (
-          <button type="button" className="msg-action-btn" onClick={() => onRetry?.(message.id)} title="Regenerate">
-            Retry
+          <button
+            type="button"
+            className="msg-action-btn"
+            onClick={() => onRetry?.(message.id)}
+            title="다시 생성"
+            aria-label="다시 생성"
+          >
+            <IconRefresh />
           </button>
         )}
         <button
@@ -207,18 +289,25 @@ export function MessageBubble({ message, isStreaming, onEdit, onRetry, onDelete,
           className="msg-action-btn"
           onClick={() =>
             onCopy?.(
-              [lead, ...turnProse.map((p: { content: string }) => p.content), displayContent]
+              [...turnProse.map((p: { content: string }) => p.content), displayContent]
                 .filter(Boolean)
                 .join('\n\n') || displayContent
             )
           }
-          title="Copy message"
+          title="메시지 복사"
+          aria-label="메시지 복사"
         >
-          Copy
+          <IconCopy />
         </button>
         {message.role !== 'system' && (
-          <button type="button" className="msg-action-btn" onClick={() => onDelete?.(message.id)} title="Delete">
-            Delete
+          <button
+            type="button"
+            className="msg-action-btn"
+            onClick={() => onDelete?.(message.id)}
+            title="메시지 삭제"
+            aria-label="메시지 삭제"
+          >
+            <IconTrash />
           </button>
         )}
       </div>

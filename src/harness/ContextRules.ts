@@ -37,8 +37,8 @@ export interface ContextRulesConfig {
  * A티어 기본 컨텍스트 규칙.
  */
 export const TIER_A_CONTEXT_RULES: ContextRulesConfig = {
-  maxActiveTools: 10,
-  maxToolCallsPerTurn: 4,
+  maxActiveTools: 12,
+  maxToolCallsPerTurn: 12,
   defaultReadLines: 250,
   maxToolResultChars: 32000,
   maxTurns: 15,
@@ -54,7 +54,7 @@ export const TIER_A_CONTEXT_RULES: ContextRulesConfig = {
  */
 export const TIER_B_CONTEXT_RULES: ContextRulesConfig = {
   maxActiveTools: 40,
-  maxToolCallsPerTurn: 8,
+  maxToolCallsPerTurn: 16,
   defaultReadLines: 500,
   maxToolResultChars: 64000,
   maxTurns: 25,

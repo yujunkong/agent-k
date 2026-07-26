@@ -102,12 +102,20 @@ const processListTool: ToolDefinition = {
 
 const askQuestionTool: ToolDefinition = {
   name: 'ask_question',
-  description: 'Ask the user a question when you need clarification or additional information.',
+  description:
+    'Ask the user a clarifying REQUIREMENT question (shows Clarifying Questions UI). ' +
+    'In PLAN mode: ask about scope, constraints, success criteria, compatibility, UX — NEVER "which bug/option should I fix now" menus. ' +
+    'MUST use this instead of listing questions in chat prose. Prefer multiple-choice options. Call once per question.',
   parameters: {
     type: 'object',
     properties: {
       question: { type: 'string', description: 'Question to ask the user' },
-      options: { type: 'array', items: { type: 'string' }, description: 'Answer options', optional: true }
+      options: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Answer options (recommended in Plan mode)',
+        optional: true
+      }
     },
     required: ['question']
   },

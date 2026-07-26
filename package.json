@@ -59,9 +59,28 @@
         "icon": "$(symbol-method)"
       },
       {
+        "command": "agent-k.chat.focusInput",
+        "title": "Focus Chat Input"
+      },
+      {
+        "command": "agent-k.chat.attachSelection",
+        "title": "Agent K: Attach Selection to Chat",
+        "icon": "$(mention)"
+      },
+      {
         "command": "agent-k.plan.open",
         "title": "Plan Mode: Create Plan",
         "icon": "$(book)"
+      },
+      {
+        "command": "agent-k.plan.build",
+        "title": "Agent K: Build Plan",
+        "icon": "$(play)"
+      },
+      {
+        "command": "agent-k.plan.openReview",
+        "title": "Agent K: Open Plan Review",
+        "icon": "$(eye)"
       },
       {
         "command": "agent-k.debug.open",
@@ -130,6 +149,17 @@
           "description": "API key (LiteLLM master_key or empty for direct MLX)",
           "secret": true
         },
+        "agent-k.thinking.effort": {
+          "type": "string",
+          "enum": [
+            "off",
+            "low",
+            "medium",
+            "high"
+          ],
+          "default": "medium",
+          "description": "Thinking / reasoning effort (Off · Low · Medium · High). Affects Thought depth for models that support enable_thinking / reasoning_effort."
+        },
         "agent-k.mode.default": {
           "type": "string",
           "enum": [
@@ -143,10 +173,10 @@
         },
         "agent-k.maxTurns": {
           "type": "integer",
-          "default": 20,
+          "default": 25,
           "minimum": 5,
           "maximum": 100,
-          "description": "Maximum agent loop turns"
+          "description": "Maximum agent-loop turns per run (Ask/Agent/Plan/Debug). Small/local models usually need 25–40; raise if you hit Max turns often."
         },
         "agent-k.permission.level": {
           "type": "string",
@@ -304,6 +334,12 @@
         "key": "ctrl+l",
         "mac": "cmd+l",
         "when": "view == agent-k.chat"
+      },
+      {
+        "command": "agent-k.chat.attachSelection",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "editorHasSelection"
       }
     ],
     "menus": {
@@ -317,6 +353,30 @@
           "command": "agent-k.openSettings",
           "when": "view == agent-k.chat",
           "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "agent-k.plan.build",
+          "when": "agent-k.isPlanDocument",
+          "group": "navigation@1"
+        },
+        {
+          "command": "agent-k.plan.openReview",
+          "when": "agent-k.isPlanDocument",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "agent-k.chat.attachSelection",
+          "when": "editorHasSelection",
+          "group": "agent-k@1"
+        },
+        {
+          "command": "agent-k.plan.build",
+          "when": "agent-k.isPlanDocument",
+          "group": "agent-k@2"
         }
       ]
     }

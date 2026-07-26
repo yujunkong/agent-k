@@ -4,3 +4,9 @@ node_modules
 .vscode-test/
 *.vsix
 .agent-k-index/
+# Plan drafts (project-root temp). Keep folder visible; ignore file contents.
+.agentk/plans/tmp/*
+!.agentk/plans/tmp/.gitkeep
+# Debug session drafts
+.agentk/debug/tmp/*
+!.agentk/debug/tmp/.gitkeep

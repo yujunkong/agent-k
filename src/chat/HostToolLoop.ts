@@ -43,6 +43,7 @@ export interface HostToolLoopConfig {
 const HOST_READ_TOOLS = new Set([
   'glob',
   'read_file',
+  'read_files',
   'grep',
   'list_dir',
   'file_search',
@@ -54,9 +55,11 @@ const TOOL_PROTOCOL = `You are Agent K running with host-executed tools.
 When you need workspace info, respond with ONLY a JSON array of tool calls (no markdown fences, no prose):
 [{"name":"glob","arguments":{"pattern":"**/*","path":"."}}]
 or [{"name":"codebase_search","arguments":{"query":"where is TipTapEditor"}}]
+or [{"name":"read_files","arguments":{"paths":["src/a.ts","src/b.ts"],"limit":250}}]
 or [{"name":"read_file","arguments":{"path":"src/foo.ts","offset":1,"limit":250}}]
-Available read tools: glob, read_file, grep, codebase_search, list_dir, file_search, read_lints.
-Prefer search then windowed read_file (offset/limit). After tool results, answer in clear natural language. Do NOT dump tool JSON as the final answer.`;
+Available read tools: glob, read_file, read_files, grep, codebase_search, list_dir, file_search, read_lints.
+Batch exploration: prefer read_files (up to 12 paths) or many read_file calls in ONE turn — do not drip 2–4 files per round.
+Prefer search then windowed reads (offset/limit). After tool results, answer in clear natural language. Do NOT dump tool JSON as the final answer.`;
 
 export async function runHostToolLoop(config: HostToolLoopConfig): Promise<void> {
   const maxTurns = config.maxTurns ?? 4;
@@ -113,35 +116,98 @@ export async function runHostToolLoop(config: HostToolLoopConfig): Promise<void>
       messages.push({ role: 'assistant', content: assistantText });
 
       const resultBlocks: string[] = [];
-      for (const tc of toolCalls) {
-        if (config.signal?.aborted) break;
+      const { isParallelReadTool, mapPool } = await import('../loop/parallelRead');
 
+      // Cap tool calls per turn (same as AgentLoop)
+      const capped = toolCalls.slice(0, 12);
+      let idx = 0;
+      while (idx < capped.length) {
+        if (config.signal?.aborted) break;
+        const head = capped[idx];
+        if (isParallelReadTool(head.name)) {
+          const batch = [];
+          while (
+            idx < capped.length &&
+            isParallelReadTool(capped[idx].name) &&
+            batch.length < 16
+          ) {
+            batch.push(capped[idx++]);
+          }
+          for (const tc of batch) {
+            config.onStatus(`🔧 Running ${tc.name}…`);
+            config.onToolStart?.(tc.name, tc.arguments as Record<string, unknown>);
+          }
+          const outcomes = await mapPool(batch, 8, async (tc) => {
+            const result = await executeHostTool(
+              tc.name,
+              tc.arguments as ToolInput,
+              config.mode
+            );
+            return { tc, result };
+          });
+          for (const { tc, result } of outcomes) {
+            let data = result.data;
+            if (
+              result.success &&
+              data &&
+              typeof data === 'object' &&
+              Array.isArray((data as { files?: string[] }).files)
+            ) {
+              const filesField = (data as { files: unknown }).files;
+              // read_files returns objects; glob returns string[]
+              if (
+                Array.isArray(filesField) &&
+                filesField.every((f) => typeof f === 'string')
+              ) {
+                data = {
+                  ...(data as object),
+                  files: relativizePaths(filesField as string[])
+                };
+              }
+            }
+            const serialized = result.success
+              ? JSON.stringify(data ?? { ok: true }, null, 0).slice(0, 120_000)
+              : JSON.stringify({ error: result.error || 'tool failed' });
+            config.onToolEnd?.(
+              tc.name,
+              serialized,
+              result.success ? undefined : result.error
+            );
+            resultBlocks.push(`Tool ${tc.name} result:\n${serialized}`);
+          }
+          continue;
+        }
+
+        const tc = capped[idx++];
         const name = tc.name;
         config.onStatus(`🔧 Running ${name}…`);
         config.onToolStart?.(name, tc.arguments as Record<string, unknown>);
 
         const result = await executeHostTool(name, tc.arguments as ToolInput, config.mode);
         let data = result.data;
-        // Prefer workspace-relative paths in model context
         if (
           result.success &&
           data &&
           typeof data === 'object' &&
           Array.isArray((data as { files?: string[] }).files)
         ) {
-          data = {
-            ...(data as object),
-            files: relativizePaths((data as { files: string[] }).files)
-          };
+          const filesField = (data as { files: unknown }).files;
+          if (
+            Array.isArray(filesField) &&
+            filesField.every((f) => typeof f === 'string')
+          ) {
+            data = {
+              ...(data as object),
+              files: relativizePaths(filesField as string[])
+            };
+          }
         }
         const serialized = result.success
           ? JSON.stringify(data ?? { ok: true }, null, 0).slice(0, 120_000)
           : JSON.stringify({ error: result.error || 'tool failed' });
 
         config.onToolEnd?.(name, serialized, result.success ? undefined : result.error);
-        resultBlocks.push(
-          `Tool ${name} result:\n${serialized}`
-        );
+        resultBlocks.push(`Tool ${name} result:\n${serialized}`);
       }
 
       messages.push({
@@ -246,6 +312,7 @@ async function executeHostTool(
     executeGlob,
     executeFileSearch,
     executeReadFile,
+    executeReadFiles,
     executeListDir,
     executeReadLints,
     executeCodebaseSearch
@@ -256,6 +323,7 @@ async function executeHostTool(
     glob: executeGlob,
     file_search: executeFileSearch,
     read_file: executeReadFile,
+    read_files: executeReadFiles,
     list_dir: executeListDir,
     read_lints: executeReadLints,
     codebase_search: executeCodebaseSearch

@@ -1,15 +1,16 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { FileEditCard } from './FileEditCard';
 import { TerminalRunCard } from './TerminalRunCard';
 import { StreamingMarkdown } from '../StreamingMarkdown';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 
 /**
- * Cursor-style sequential steps:
+ * Cursor-style sequential steps (per turn):
  *   ▸ Thought for 2.1s
- *   ▸ Exploring          ← live: tools slide in underneath
- *   ▸ Explored 10 files  ← done: collapsed summary, expand for detail
- *   ▸ Planning next moves ← between tool batch and next LLM turn
+ *   mid-turn prose (intent)   ← after Thought, before tools
+ *   ▸ Exploring / Explored
+ *   ▸ Editing / Ran …
+ *   ▸ Planning next moves
  */
 
 export interface MessageStep {
@@ -45,6 +46,8 @@ type TurnGroup = {
 
 const STEPS_FG = 'var(--vscode-descriptionForeground, #9d9d9d)';
 const STEPS_LIVE = 'var(--vscode-foreground, #cccccc)';
+/** Group header when any tool in the group failed — rose, a bit darker than pink */
+const STEPS_ERROR = '#e2556f';
 const STEPS_MUTED =
   'color-mix(in srgb, var(--vscode-descriptionForeground, #9d9d9d) 72%, transparent)';
 
@@ -131,7 +134,13 @@ function summarizeExplored(steps: MessageStep[]): string {
 
   // Mixed explore batch → Cursor-style "Explored …"
   if (tools.length >= 2 || (searches.length && reads.length) || webs.length) {
-    const n = tools.length;
+    const n = tools.reduce((acc, s) => {
+      if (s.toolName === 'read_files') {
+        const m = s.detail?.match(/^(\d+)\s+files?/i);
+        return acc + (m ? Number(m[1]) : 1);
+      }
+      return acc + 1;
+    }, 0);
     if (reads.length && !searches.length && !webs.length) {
       return n === 1
         ? `Explored · ${fileBasename(reads[0].detail) || '1 file'}`
@@ -263,17 +272,29 @@ function ChevronRow({
   title,
   expanded,
   live,
+  hasError,
   onToggle,
   children
 }: {
   title: string;
   expanded: boolean;
   live: boolean;
+  /** Any tool in this group failed */
+  hasError?: boolean;
   onToggle: () => void;
   children?: React.ReactNode;
 }) {
+  const titleColor = hasError ? STEPS_ERROR : live ? STEPS_LIVE : STEPS_FG;
   return (
-    <div className={`ak-step-row${live ? ' ak-step-row--live' : ''}`} style={{ marginBottom: 2 }}>
+    <div
+      className={[
+        'ak-step-row',
+        live ? 'ak-step-row--live' : '',
+        hasError ? 'ak-step-row--error' : ''
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <button
         type="button"
         onClick={() => {
@@ -281,31 +302,24 @@ function ChevronRow({
           onToggle();
         }}
         className="ak-step-chevron-btn"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          width: '100%',
-          background: 'none',
-          border: 'none',
-          padding: '2px 0',
-          margin: 0,
-          cursor: live && !children ? 'default' : 'pointer',
-          color: 'inherit',
-          font: 'inherit',
-          textAlign: 'left'
-        }}
         aria-expanded={expanded}
         aria-busy={live || undefined}
+        style={{
+          cursor: live && !children ? 'default' : 'pointer'
+        }}
       >
-        <span style={{ width: 10, flexShrink: 0, opacity: 0.65, fontSize: 10 }}>
+        <span
+          className="ak-step-chevron"
+          aria-hidden
+          style={hasError ? { color: STEPS_ERROR, opacity: 0.9 } : undefined}
+        >
           {expanded ? '▾' : '▸'}
         </span>
         <span
           className="ak-step-title"
           style={{
-            fontWeight: live ? 500 : 400,
-            color: live ? STEPS_LIVE : STEPS_FG
+            fontWeight: live || hasError ? 500 : 400,
+            color: titleColor
           }}
         >
           {title}
@@ -334,7 +348,7 @@ function ToolSlideList({
     <div
       className="ak-tool-slide-list"
       style={{
-        padding: '2px 0 6px 16px',
+        padding: '2px 0 6px 0',
         color: STEPS_MUTED,
         maxHeight,
         overflow: 'hidden'
@@ -358,21 +372,29 @@ function ToolSlideList({
             fontSize: 11.5
           }}
         >
-          <span style={{ opacity: 0.5, flexShrink: 0 }}>
+          <span
+            style={{
+              opacity: s.itemStatus === 'error' ? 0.95 : 0.5,
+              flexShrink: 0,
+              color: s.itemStatus === 'error' ? '#f87171' : undefined
+            }}
+            title={s.itemStatus === 'error' ? s.detail || 'failed' : undefined}
+          >
             {s.itemStatus === 'error' ? '✗' : s.itemStatus === 'running' ? '›' : '·'}
           </span>
           <span
             style={{
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              flex: 1
+              flex: 1,
+              color: s.itemStatus === 'error' ? '#fca5a5' : undefined
             }}
           >
             {toolRowLabel(s)}
             {s.detail ? (
-              <span style={{ opacity: 0.7 }}>
+              <span style={{ opacity: 0.75 }}>
                 {' '}
-                {shortPath(s.detail)}
+                {s.itemStatus === 'error' ? s.detail : shortPath(s.detail)}
               </span>
             ) : null}
           </span>
@@ -516,7 +538,8 @@ export function MessageSteps({
         fontSize: 12,
         lineHeight: 1.45,
         fontFamily: 'var(--vscode-font-family)',
-        color: STEPS_FG,
+        /* Do NOT set muted color on the container — turn prose must stay bright.
+           Step rows set STEPS_FG themselves. */
         width: '100%',
         maxWidth: '100%'
       }}
@@ -529,6 +552,8 @@ export function MessageSteps({
         const plan = planningStep(g.steps);
         const exploreSummary = summarizeExplored(g.steps);
         const actionSummary = summarizeActions(g.steps);
+        const exploreHasError = explores.some((t) => t.itemStatus === 'error');
+        const actionHasError = actions.some((t) => t.itemStatus === 'error');
 
         const thoughtLive = g.live && th?.itemStatus === 'running';
         const exploreLive =
@@ -587,18 +612,20 @@ export function MessageSteps({
         }
 
         return (
-          <div
-            key={g.turn}
-            className="message-steps-turn"
-            style={{
-              marginBottom: 6,
-              paddingBottom: 2,
-              borderBottom:
-                g.turn !== groups[groups.length - 1].turn
-                  ? '1px solid rgba(255,255,255,0.06)'
-                  : 'none'
-            }}
-          >
+          <Fragment key={g.turn}>
+            <div
+              className="message-steps-turn"
+              style={{
+                marginBottom: turnNotes.length || (isLastGroup && showLiveProse) ? 2 : 6,
+                paddingBottom: 2,
+                borderBottom:
+                  !turnNotes.length &&
+                  !(isLastGroup && showLiveProse) &&
+                  g.turn !== groups[groups.length - 1].turn
+                    ? '1px solid rgba(255,255,255,0.06)'
+                    : 'none'
+              }}
+            >
             {showThought && th ? (
               <ChevronRow
                 title={formatThoughtTitle(th, thoughtLive)}
@@ -612,11 +639,28 @@ export function MessageSteps({
               </ChevronRow>
             ) : null}
 
+            {/* Thought → prose → tools (same order as the LLM stream) */}
+            {turnNotes.map((note) => (
+              <div key={note.id} className="message-content message-turn-prose">
+                <StreamingMarkdown content={note.content} isStreaming={false} />
+              </div>
+            ))}
+
+            {showLiveProse ? (
+              <div className="message-content message-turn-prose message-turn-prose--live">
+                <StreamingMarkdown
+                  content={liveProse!}
+                  isStreaming={!!liveProseStreaming}
+                />
+              </div>
+            ) : null}
+
             {showExplore ? (
               <ChevronRow
                 title={exploreLive ? 'Exploring' : exploreSummary || 'Explored'}
                 expanded={exploreExpanded && shownExplore.length > 0}
                 live={!!exploreLive}
+                hasError={exploreHasError}
                 onToggle={() =>
                   setOpenExplore((p) => ({ ...p, [g.turn]: !exploreExpanded }))
                 }
@@ -646,6 +690,7 @@ export function MessageSteps({
                 }
                 expanded={actionExpanded && shownAction.length > 0}
                 live={!!actionLive}
+                hasError={actionHasError}
                 onToggle={() =>
                   setOpenAction((p) => ({ ...p, [g.turn]: !actionExpanded }))
                 }
@@ -686,22 +731,6 @@ export function MessageSteps({
               </div>
             ) : null}
 
-            {/* Mid-turn prose: full assistant voice (not muted step chrome) */}
-            {turnNotes.map((note) => (
-              <div key={note.id} className="message-content message-turn-prose">
-                <StreamingMarkdown content={note.content} isStreaming={false} />
-              </div>
-            ))}
-
-            {showLiveProse ? (
-              <div className="message-content message-turn-prose message-turn-prose--live">
-                <StreamingMarkdown
-                  content={liveProse!}
-                  isStreaming={!!liveProseStreaming}
-                />
-              </div>
-            ) : null}
-
             {showPlanning ? (
               <ChevronRow
                 title="Planning next moves"
@@ -710,7 +739,8 @@ export function MessageSteps({
                 onToggle={() => {}}
               />
             ) : null}
-          </div>
+            </div>
+          </Fragment>
         );
       })}
     </div>

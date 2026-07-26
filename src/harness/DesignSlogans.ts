@@ -13,15 +13,15 @@ export const DESIGN_SLOGANS_PROMPT = `
 ## Design Principles (5 Slogans)
 
 ### 1. Search is Code, Judgment is Model
-Tools (grep, codebase_search, glob, read_file) run in parallel by the system — you analyze results and decide.
-Locate with search first, then read only needed line windows (~250 lines via offset/limit).
-DO NOT try to combine multiple search tools in one call. Just request what you need.
+Tools (grep, codebase_search, glob, read_file, read_files) run in parallel by the system — you analyze results and decide.
+Locate with search first, then batch-read needed windows (\`read_files\` or many \`read_file\` in one turn; ~250 lines via offset/limit).
+DO NOT drip-read 2–4 files across many turns.
 
 ### 2. One Turn, One Task
-One turn = one tool call (or read batch) → check result → next decision.
-- Max tool calls per turn: 4 (Tier A)
+One turn = one decision cycle (often a read batch) → check results → next decision.
+- Max tool calls per turn: 12
 - Write tools: max 1 per turn
-- Read tools: can batch multiple in one turn
+- Read tools: batch many in one turn (\`read_files\` up to 12 paths)
 - Plan with \`todo_write\` before acting
 
 ### 3. Failure as Value
