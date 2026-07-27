@@ -883,13 +883,14 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Live turn progress — Cursor-style shimmer on the label text itself */
+/* Unused legacy name kept for any remaining refs */
 @keyframes ak-text-shimmer {
-  0% {
-    background-position: 100% 50%;
-  }
+  0%,
   100% {
-    background-position: -100% 50%;
+    opacity: 0.92;
+  }
+  50% {
+    opacity: 1;
   }
 }
 
@@ -945,34 +946,65 @@ body {
   height: 5px;
 }
 
-/* Exploring / Thinking / Planning — soft brightness shimmer (never erase glyphs) */
-.ak-step-row--live .ak-step-title,
-.ak-explore-mid-thought--live .ak-step-title {
+/* Live chrome title ONLY (Exploring / Thought header) — never nested sub-rows */
+.ak-step-row--live > .ak-step-chevron-btn > .ak-step-title,
+.ak-explore-mid-thought--live > .ak-explore-mid-thought__btn > .ak-step-title {
+  flex: 0 0 auto !important;
+  min-width: max-content !important;
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
   font-weight: 500;
-  /* Opaque stops only — transparent mixes made letters look wiped out */
-  color: transparent !important;
-  background-image: linear-gradient(
-    90deg,
-    var(--vscode-descriptionForeground, #9d9d9d) 0%,
-    var(--vscode-foreground, #e8e8e8) 38%,
-    var(--vscode-descriptionForeground, #9d9d9d) 72%,
-    var(--vscode-foreground, #e8e8e8) 100%
-  );
-  background-size: 220% 100%;
-  background-repeat: no-repeat;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: ak-text-shimmer 1.7s linear infinite;
+  color: var(--vscode-foreground, #e8e8e8) !important;
+  -webkit-text-fill-color: var(--vscode-foreground, #e8e8e8) !important;
+  background-image: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  animation: ak-live-title-pulse 1.6s ease-in-out infinite;
+}
+
+/* Finished / nested Thought rows inside live Exploring must stay plain text */
+.ak-step-row--live .ak-explore-scroll .ak-step-title,
+.ak-explore-scroll .ak-explore-mid-thought:not(.ak-explore-mid-thought--live) .ak-step-title {
+  animation: none !important;
+  opacity: 1 !important;
+  color: inherit !important;
+  -webkit-text-fill-color: unset !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+@keyframes ak-live-title-pulse {
+  0%,
+  100% {
+    color: color-mix(in srgb, var(--vscode-foreground, #e8e8e8) 72%, #9d9d9d) !important;
+    -webkit-text-fill-color: color-mix(
+      in srgb,
+      var(--vscode-foreground, #e8e8e8) 72%,
+      #9d9d9d
+    ) !important;
+    opacity: 0.92;
+  }
+  50% {
+    color: var(--vscode-foreground, #e8e8e8) !important;
+    -webkit-text-fill-color: var(--vscode-foreground, #e8e8e8) !important;
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ak-step-row--live .ak-step-title,
-  .ak-explore-mid-thought--live .ak-step-title {
+  .ak-step-row--live > .ak-step-chevron-btn > .ak-step-title,
+  .ak-explore-mid-thought--live > .ak-explore-mid-thought__btn > .ak-step-title {
     animation: none;
     color: var(--vscode-foreground, #e8e8e8) !important;
-    background-image: none;
-    -webkit-text-fill-color: unset;
+    -webkit-text-fill-color: var(--vscode-foreground, #e8e8e8) !important;
+    opacity: 1;
   }
 }
 

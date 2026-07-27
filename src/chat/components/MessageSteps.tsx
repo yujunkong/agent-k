@@ -659,7 +659,7 @@ function ExploreStreamList({
                   cursor: body || thoughtLive ? 'pointer' : 'default',
                   textAlign: 'left',
                   whiteSpace: 'nowrap',
-                  overflow: 'hidden'
+                  overflow: thoughtLive ? 'visible' : 'hidden'
                 }}
               >
                 <span style={{ opacity: 0.7, flexShrink: 0, width: 10 }}>
@@ -668,10 +668,10 @@ function ExploreStreamList({
                 <span
                   className="ak-step-title"
                   style={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    flex: '0 1 auto',
-                    minWidth: 0,
+                    overflow: thoughtLive ? 'visible' : 'hidden',
+                    textOverflow: thoughtLive ? 'clip' : 'ellipsis',
+                    flex: thoughtLive ? '0 0 auto' : '0 1 auto',
+                    minWidth: thoughtLive ? 'max-content' : 0,
                     fontWeight: thoughtLive ? 500 : 400
                   }}
                 >
