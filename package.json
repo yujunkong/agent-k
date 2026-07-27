@@ -153,8 +153,16 @@
         "agent-k.provider.apiKey": {
           "type": "string",
           "default": "sk-agent-k-local",
-          "description": "API key (LiteLLM master_key or empty for direct MLX)",
+          "description": "Active provider API key (LiteLLM master_key, OpenCode Zen/Go key, etc.)",
           "secret": true
+        },
+        "agent-k.provider.apiKeys": {
+          "type": "object",
+          "default": {},
+          "description": "API keys by provider type (opencode-zen and opencode-go use different keys)",
+          "additionalProperties": {
+            "type": "string"
+          }
         },
         "agent-k.github.token": {
           "type": "string",

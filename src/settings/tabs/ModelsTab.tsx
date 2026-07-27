@@ -37,6 +37,25 @@ function metaFor(type: string): ProviderFieldMeta {
   return isProviderType(type) ? PROVIDER_FIELDS[type] : PROVIDER_FIELDS.litellm;
 }
 
+function readApiKeyMap(): Record<string, string> {
+  const raw = configManager.get('agent-k.provider.apiKeys');
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof v === 'string' && v.trim()) out[k] = v;
+  }
+  return out;
+}
+
+/** Prefer per-type key; fall back to active apiKey when types match. */
+function resolveApiKeyForType(type: string, map: Record<string, string>): string {
+  if (map[type]) return map[type];
+  const activeType = String(configManager.get('agent-k.provider.type') || '');
+  const activeKey = String(configManager.get('agent-k.provider.apiKey') || '');
+  if (activeType === type && activeKey) return activeKey;
+  return '';
+}
+
 export function ModelsTab() {
   const initialType = String(configManager.get('agent-k.provider.type') || 'litellm');
   const [providerType, setProviderType] = useState<string>(initialType);
@@ -44,8 +63,9 @@ export function ModelsTab() {
   const [baseUrl, setBaseUrl] = useState<string>(
     configManager.get('agent-k.provider.baseUrl') || initialMeta.defaultBaseUrl
   );
-  const [apiKey, setApiKey] = useState<string>(
-    configManager.get('agent-k.provider.apiKey') || ''
+  const [apiKeyMap, setApiKeyMap] = useState<Record<string, string>>(() => readApiKeyMap());
+  const [apiKey, setApiKey] = useState<string>(() =>
+    resolveApiKeyForType(initialType, readApiKeyMap())
   );
   const [apiKeyReveal, setApiKeyReveal] = useState(false);
   const [githubToken, setGithubToken] = useState<string>(
@@ -60,15 +80,27 @@ export function ModelsTab() {
   const [savedFlash, setSavedFlash] = useState(false);
 
   const fields = useMemo(() => metaFor(providerType), [providerType]);
-  const apiKeyStored = !!configManager.get('agent-k.provider.apiKey') || !!apiKey;
+  const apiKeyStored =
+    !!apiKeyMap[providerType] ||
+    !!apiKey ||
+    (String(configManager.get('agent-k.provider.type') || '') === providerType &&
+      !!configManager.get('agent-k.provider.apiKey'));
 
   const handleProviderTypeChange = (next: string) => {
+    // Keep Zen / Go (and other) keys separate when switching
+    setApiKeyMap((prev) => {
+      const nextMap = { ...prev };
+      if (apiKey.trim()) nextMap[providerType] = apiKey.trim();
+      setApiKey(resolveApiKeyForType(next, nextMap));
+      return nextMap;
+    });
     setProviderType(next);
     const meta = metaFor(next);
     setBaseUrl(meta.defaultBaseUrl);
     if (!meta.needsApiKey) {
       setApiKey('');
     }
+    setApiKeyReveal(false);
     setTestStatus('idle');
     setTestDetail('');
   };
@@ -78,36 +110,40 @@ export function ModelsTab() {
     const activeModel = String(
       configManager.get('agent-k.provider.model') || meta.defaultModel || ''
     ).trim();
+    const nextMap = { ...apiKeyMap };
+    if (meta.needsApiKey) {
+      if (apiKey.trim()) nextMap[providerType] = apiKey.trim();
+    } else {
+      delete nextMap[providerType];
+    }
+    const activeKey = meta.needsApiKey
+      ? apiKey.trim() || nextMap[providerType] || ''
+      : '';
     const values: Record<string, unknown> = {
       'agent-k.provider.type': providerType,
-      'agent-k.provider.model': activeModel || meta.defaultModel
+      'agent-k.provider.model': activeModel || meta.defaultModel,
+      'agent-k.provider.apiKeys': nextMap,
+      'agent-k.provider.apiKey': activeKey
     };
     if (meta.needsBaseUrl) {
       values['agent-k.provider.baseUrl'] = baseUrl.replace(/\/$/, '');
     } else {
       values['agent-k.provider.baseUrl'] = meta.defaultBaseUrl.replace(/\/$/, '');
     }
-    if (meta.needsApiKey) {
-      if (apiKey) {
-        values['agent-k.provider.apiKey'] = apiKey;
-      }
-    } else {
-      values['agent-k.provider.apiKey'] = '';
-    }
     if (githubToken) {
       values['agent-k.github.token'] = githubToken;
     } else if (!githubStored) {
       values['agent-k.github.token'] = '';
     }
+    setApiKeyMap(nextMap);
     configManager.update(values);
     const hostPayload: Record<string, unknown> = {
       'agent-k.provider.type': values['agent-k.provider.type'],
       'agent-k.provider.model': values['agent-k.provider.model'],
-      'agent-k.provider.baseUrl': values['agent-k.provider.baseUrl']
+      'agent-k.provider.baseUrl': values['agent-k.provider.baseUrl'],
+      'agent-k.provider.apiKey': activeKey,
+      'agent-k.provider.apiKeys': nextMap
     };
-    if ('agent-k.provider.apiKey' in values) {
-      hostPayload['agent-k.provider.apiKey'] = values['agent-k.provider.apiKey'];
-    }
     if ('agent-k.github.token' in values) {
       hostPayload['agent-k.github.token'] = values['agent-k.github.token'];
       setGithubStored(!!values['agent-k.github.token']);
@@ -179,7 +215,11 @@ export function ModelsTab() {
       {fields.needsApiKey ? (
         <div className="settings-field">
           <label>
-            API Key{fields.apiKeyOptional ? ' (optional)' : ''}
+            {providerType === 'opencode-zen'
+              ? 'Zen API Key'
+              : providerType === 'opencode-go'
+                ? 'Go API Key'
+                : `API Key${fields.apiKeyOptional ? ' (optional)' : ''}`}
             {apiKeyStored && !apiKeyReveal ? (
               <span className="settings-stored-badge"> stored</span>
             ) : null}
@@ -192,9 +232,13 @@ export function ModelsTab() {
               placeholder={
                 apiKeyStored && !apiKey
                   ? '•••••••• (leave blank to keep, or type to replace)'
-                  : fields.apiKeyOptional
-                    ? 'sk-… or empty'
-                    : 'sk-…'
+                  : providerType === 'opencode-zen'
+                    ? 'Zen sk-…'
+                    : providerType === 'opencode-go'
+                      ? 'Go sk-…'
+                      : fields.apiKeyOptional
+                        ? 'sk-… or empty'
+                        : 'sk-…'
               }
               autoComplete="off"
             />
@@ -212,8 +256,17 @@ export function ModelsTab() {
                 className="settings-btn secondary settings-btn--tiny settings-btn--danger"
                 onClick={() => {
                   setApiKey('');
-                  configManager.update({ 'agent-k.provider.apiKey': '' });
-                  persistToHost({ 'agent-k.provider.apiKey': '' });
+                  const nextMap = { ...apiKeyMap };
+                  delete nextMap[providerType];
+                  setApiKeyMap(nextMap);
+                  configManager.update({
+                    'agent-k.provider.apiKey': '',
+                    'agent-k.provider.apiKeys': nextMap
+                  });
+                  persistToHost({
+                    'agent-k.provider.apiKey': '',
+                    'agent-k.provider.apiKeys': nextMap
+                  });
                 }}
                 title="Clear API key"
               >
