@@ -99,23 +99,49 @@ export function buildWriteFileDiffPreview(
 }
 
 export function guessLanguageFromPath(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toLowerCase() || '';
+  const base = filePath.replace(/\\/g, '/').split('/').pop() || '';
+  const ext = base.includes('.') ? base.split('.').pop()?.toLowerCase() || '' : '';
   const map: Record<string, string> = {
     ts: 'typescript',
-    tsx: 'typescript',
+    tsx: 'tsx',
     js: 'javascript',
-    jsx: 'javascript',
+    jsx: 'jsx',
+    mjs: 'javascript',
+    cjs: 'javascript',
     py: 'python',
     rs: 'rust',
     go: 'go',
     md: 'markdown',
     json: 'json',
     css: 'css',
+    scss: 'scss',
     html: 'html',
+    htm: 'html',
     yml: 'yaml',
-    yaml: 'yaml'
+    yaml: 'yaml',
+    toml: 'toml',
+    xml: 'xml',
+    sql: 'sql',
+    sh: 'bash',
+    bash: 'bash',
+    zsh: 'bash',
+    dockerfile: 'dockerfile',
+    java: 'java',
+    kt: 'kotlin',
+    cs: 'csharp',
+    cpp: 'cpp',
+    cc: 'cpp',
+    cxx: 'cpp',
+    h: 'c',
+    hpp: 'cpp',
+    c: 'c',
+    rb: 'ruby',
+    php: 'php',
+    swift: 'swift'
   };
-  return map[ext] || ext || 'text';
+  if (base.toLowerCase() === 'dockerfile') return 'dockerfile';
+  if (base.toLowerCase() === 'cargo.toml') return 'toml';
+  return map[ext] || (ext || 'plaintext');
 }
 
 export function languageBadge(filePath: string): string {

@@ -62,6 +62,31 @@ export interface SettingsOpenPayload {}
 
 export interface FocusInputPayload {}
 
+/** ADDON-T06: webview → host session meta sync (see HostSessionBridge) */
+export interface HostSessionMeta {
+  id: string;
+  title: string;
+  mode: string;
+  messageCount: number;
+  createdAt: number;
+  updatedAt: number;
+  summary?: string;
+}
+
+export interface HostSessionsPersistPayload {
+  sessions: HostSessionMeta[];
+  currentId: string | null;
+}
+
+export interface HostSessionsReadyPayload {}
+
+/** ADDON-T07: webview → host checkpoint list/restore */
+export interface CheckpointListPayload {}
+
+export interface CheckpointRestorePayload {
+  id: string;
+}
+
 // ─── Extension → Webview ──────────────────────────────
 
 export interface StreamDeltaPayload {
@@ -122,6 +147,27 @@ export interface MentionResultsPayload {
   results: { label: string; description?: string; detail?: string }[];
 }
 
+/** ADDON-T06: host → webview session hydration (SessionManager restore) */
+export interface HostSessionsHydratePayload {
+  sessions: HostSessionMeta[];
+  currentId: string | null;
+}
+
+/** ADDON-T07: host → webview checkpoint summaries (no file contents) */
+export interface CheckpointSummary {
+  id: string;
+  label: string;
+  timestamp: number;
+  turnNumber: number;
+  mode: string;
+  trigger: string;
+  fileCount: number;
+}
+
+export interface CheckpointListResultPayload {
+  checkpoints: CheckpointSummary[];
+}
+
 // ─── 메시지 래퍼 ──────────────────────────────────────
 
 export type WebviewMessage =
@@ -136,7 +182,12 @@ export type WebviewMessage =
   | { type: 'switch.mode'; payload: SwitchModePayload }
   | { type: 'mention.request'; payload: MentionRequestPayload }
   | { type: 'settings.open'; payload: SettingsOpenPayload }
-  | { type: 'focus.input'; payload: FocusInputPayload };
+  | { type: 'focus.input'; payload: FocusInputPayload }
+  | { type: 'host.sessions.persist'; payload: HostSessionsPersistPayload }
+  | { type: 'host.sessions.ready'; payload?: HostSessionsReadyPayload }
+  | { type: 'checkpoint.list'; payload?: CheckpointListPayload }
+  | { type: 'checkpoint.restore'; payload: CheckpointRestorePayload }
+  | { type: 'session.compact'; payload?: Record<string, never> };
 
 /** Host → Webview stream events for chat.send tool loop */
 export interface ChatStreamEvent {
@@ -172,7 +223,9 @@ export type ExtensionMessage =
   | ChatStreamEvent
   | { type: 'session.new'; payload?: Record<string, never> }
   | { type: 'mode.switch'; payload?: Record<string, never> }
-  | { type: 'focus.input'; payload?: Record<string, never> };
+  | { type: 'focus.input'; payload?: Record<string, never> }
+  | { type: 'host.sessions.hydrate'; payload: HostSessionsHydratePayload }
+  | { type: 'checkpoint.listResult'; payload: CheckpointListResultPayload };
 
 // ─── 유틸리티 ──────────────────────────────────────────
 
@@ -184,7 +237,13 @@ const VALID_TYPES = new Set<string>([
   'tool.call.start', 'tool.call.end', 'tool.result',
   'timeline.update', 'mode.changed', 'history.loaded',
   'settings.loaded', 'mention.results',
-  'session.new', 'mode.switch'
+  'session.new', 'mode.switch',
+  // ADDON-T06: host session persistence
+  'host.sessions.persist', 'host.sessions.ready', 'host.sessions.hydrate',
+  // ADDON-T07: checkpoint list/restore UX
+  'checkpoint.list', 'checkpoint.listResult', 'checkpoint.restore',
+  // ADDON-T10: /compact best-effort host hook
+  'session.compact'
 ]);
 
 export function validateMessageType(type: string): boolean {

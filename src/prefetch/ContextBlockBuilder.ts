@@ -4,7 +4,7 @@
  * Prefetch 결과를 시스템 프롬프트에 주입 가능한 블록으로 변환
  */
 export interface PrefetchResult {
-  type: 'file_read' | 'grep_result' | 'stack_frame' | 'symbol_info';
+  type: 'file_read' | 'grep_result' | 'stack_frame' | 'symbol_info' | 'task_context' | 'ide_context';
   source: string;
   content: string;
   summary: string;
@@ -61,7 +61,9 @@ export class ContextBlockBuilder {
       file_read: '📄 File',
       grep_result: '🔍 Search',
       stack_frame: '⚠️ Stack Frame',
-      symbol_info: '🔣 Symbol'
+      symbol_info: '🔣 Symbol',
+      task_context: '🎯 Task Context',
+      ide_context: '💻 IDE',
     };
 
     return `[${typeLabel[result.type] || '📎'} ${result.source}] ${result.summary}`;

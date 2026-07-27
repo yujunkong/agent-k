@@ -49,6 +49,9 @@ html, body {
   );
   --ak-card-border: rgba(255, 255, 255, 0.1);
   --ak-chrome-border: rgba(255, 255, 255, 0.08);
+  /* Shared left edge for user text, Thought/Explore titles, assistant markdown */
+  --ak-thread-inset: 12px;
+  --ak-step-gutter: 12px;
 
   position: absolute;
   inset: 0;
@@ -880,7 +883,16 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Live turn progress — blink next to Thinking / Exploring / Planning */
+/* Live turn progress — Cursor-style shimmer on the label text itself */
+@keyframes ak-text-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: -100% 50%;
+  }
+}
+
 @keyframes ak-live-blink {
   0%,
   100% {
@@ -933,8 +945,63 @@ body {
   height: 5px;
 }
 
-.ak-step-row--live .ak-step-title {
-  color: var(--vscode-foreground, #ccc);
+/* Exploring / Thinking / Planning — soft brightness shimmer (never erase glyphs) */
+.ak-step-row--live .ak-step-title,
+.ak-explore-mid-thought--live .ak-step-title {
+  font-weight: 500;
+  /* Opaque stops only — transparent mixes made letters look wiped out */
+  color: transparent !important;
+  background-image: linear-gradient(
+    90deg,
+    var(--vscode-descriptionForeground, #9d9d9d) 0%,
+    var(--vscode-foreground, #e8e8e8) 38%,
+    var(--vscode-descriptionForeground, #9d9d9d) 72%,
+    var(--vscode-foreground, #e8e8e8) 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ak-text-shimmer 1.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ak-step-row--live .ak-step-title,
+  .ak-explore-mid-thought--live .ak-step-title {
+    animation: none;
+    color: var(--vscode-foreground, #e8e8e8) !important;
+    background-image: none;
+    -webkit-text-fill-color: unset;
+  }
+}
+
+.ak-tool-slide-list {
+  padding: 2px 0 6px var(--ak-thread-inset, 12px);
+  box-sizing: border-box;
+}
+
+/* Nested explore tool rows: one rail under the title column */
+.ak-tool-slide-list.ak-explore-scroll {
+  margin-left: var(--ak-thread-inset, 12px);
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ak-explore-nested-thought {
+  margin-top: 2px;
+  padding-left: 0;
+}
+
+/* Mid-Thought rows inside Exploring — no thread inset (already indented by explore rail) */
+.ak-explore-scroll .ak-explore-mid-thought__btn.ak-step-chevron-btn {
+  padding-left: 0;
+}
+
+/* Prose inside explore rail — don't re-apply thread inset */
+.ak-explore-scroll .ak-explore-inline-prose,
+.ak-explore-scroll .message-turn-prose {
+  padding-left: 0 !important;
 }
 
 .ak-tool-slide-in {
@@ -963,7 +1030,7 @@ body {
 }
 
 .message-steps-thought-body {
-  padding: 2px 0 8px 0;
+  padding: 2px 0 8px var(--ak-thread-inset, 12px);
   color: color-mix(in srgb, var(--vscode-descriptionForeground, #9d9d9d) 85%, transparent);
   font-size: 12px;
   line-height: 1.5;
@@ -981,8 +1048,9 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Exploring mid-Thought — short nested pane */
+/* Nested under Exploring — already inside the explore rail */
 .message-steps-thought-body--mid {
+  padding-left: 0;
   max-height: 96px;
   font-size: 11.5px;
   opacity: 0.92;
@@ -1038,8 +1106,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  /* right pad reserves hover Edit/Copy / Stop without layout jump */
-  padding: 8px 36px 8px 10px;
+  /* left matches assistant thread column; right reserves hover actions */
+  padding: 8px 36px 8px var(--ak-thread-inset, 12px);
   border-radius: 10px;
   background: color-mix(
     in srgb,
@@ -1118,7 +1186,8 @@ body {
   background: transparent;
   border: none;
   border-radius: 0;
-  padding: 0 2px;
+  /* Same horizontal inset as .user-turn so Thought/Explore share the chat text column */
+  padding: 0;
   margin-bottom: 14px;
 }
 
@@ -1191,6 +1260,7 @@ body {
 
 .message-opening-lead {
   margin: 2px 0 8px;
+  padding-left: var(--ak-thread-inset, 12px);
   font-size: 13px;
   line-height: 1.4;
   font-weight: 500;
@@ -1222,7 +1292,7 @@ body {
   box-sizing: border-box;
   font-family: var(--vscode-font-family);
   margin-left: 0;
-  padding-left: 0;
+  padding-left: var(--ak-thread-inset, 12px);
   opacity: 1;
 }
 
@@ -1255,8 +1325,13 @@ body {
   opacity: 1;
 }
 
-/* Step rows: title shares left edge with opening lead; ▸ hangs in bubble padding */
+/*
+ * Thread column: Thought / Explore titles share the same left edge as
+ * assistant markdown and user-turn text (--ak-thread-inset).
+ * Chevron sits in a fixed gutter to the left of that column (no negative hang).
+ */
 .message-steps {
+  --ak-step-gutter: 12px;
   margin-left: 0;
   padding-left: 0;
 }
@@ -1279,7 +1354,7 @@ body {
   gap: 6px;
   width: 100%;
   margin: 0;
-  padding: 2px 0;
+  padding: 2px 0 2px var(--ak-thread-inset, 12px);
   border: none;
   background: none;
   color: inherit;
@@ -1290,7 +1365,7 @@ body {
 
 .ak-step-chevron {
   position: absolute;
-  left: -12px;
+  left: calc(var(--ak-thread-inset, 12px) - var(--ak-step-gutter, 12px));
   top: 50%;
   transform: translateY(-50%);
   width: 10px;
@@ -1298,10 +1373,12 @@ body {
   opacity: 0.65;
   line-height: 1;
   pointer-events: none;
+  text-align: center;
 }
 
 .ak-step-title {
   min-width: 0;
+  flex: 0 1 auto;
 }
 
 .ak-step-row--error .ak-step-title {
@@ -1324,7 +1401,7 @@ body {
   gap: 6px;
   width: 100%;
   margin: 0;
-  padding: 2px 0;
+  padding: 2px 0 2px var(--ak-thread-inset, 12px);
   border: none;
   background: none;
   color: var(--vscode-descriptionForeground, #9d9d9d);
@@ -1358,9 +1435,10 @@ body {
 
 .ak-worked__body {
   margin-top: 6px;
-  padding-left: 16px;
-  margin-left: 2px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  /* Keep same thread column as live steps / final answer — no extra indent */
+  padding-left: 0;
+  margin-left: 0;
+  border-left: none;
 }
 
 .ak-worked__body .message-steps {
@@ -1369,7 +1447,7 @@ body {
 
 .ak-worked__body .message-turn-prose {
   margin-left: 0;
-  padding-left: 2px;
+  padding-left: var(--ak-thread-inset, 12px);
 }
 
 .ak-worked__body .ak-step-row,
@@ -1381,7 +1459,7 @@ body {
 /* Diff / terminal cards stick under Edited / Ran (not after wrap-up prose) */
 .ak-cards-under-action {
   margin: 2px 0 8px;
-  padding-left: 2px;
+  padding-left: var(--ak-thread-inset, 12px);
 }
 
 .ak-cards-under-action .ak-file-edit-card,
@@ -1474,16 +1552,41 @@ body {
 
 .ak-file-edit-diff__line--add {
   background: rgba(74, 222, 128, 0.1);
+}
+
+.ak-file-edit-diff__line--add .ak-file-edit-diff__mark,
+.ak-file-edit-diff__line--add .ak-file-edit-diff__ln {
   color: #86efac;
 }
 
 .ak-file-edit-diff__line--delete {
   background: rgba(239, 68, 68, 0.1);
+}
+
+.ak-file-edit-diff__line--delete .ak-file-edit-diff__mark,
+.ak-file-edit-diff__line--delete .ak-file-edit-diff__ln {
   color: #fca5a5;
 }
 
 .ak-file-edit-diff__line--context {
   background: transparent;
+}
+
+.ak-file-edit-diff__line--context .ak-file-edit-diff__mark,
+.ak-file-edit-diff__line--context .ak-file-edit-diff__ln {
+  color: var(--vscode-foreground, #ccc);
+}
+
+/* Fallback when Shiki hasn't painted tokens yet */
+.ak-file-edit-diff__line--add .ak-file-edit-diff__text {
+  color: #86efac;
+}
+
+.ak-file-edit-diff__line--delete .ak-file-edit-diff__text {
+  color: #fca5a5;
+}
+
+.ak-file-edit-diff__line--context .ak-file-edit-diff__text {
   color: var(--vscode-foreground, #ccc);
 }
 
@@ -1500,9 +1603,15 @@ body {
 }
 
 .ak-file-edit-diff__text {
+  flex: 1;
+  min-width: 0;
   padding-right: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: pre;
+  font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .ak-file-edit-expand {
@@ -1708,6 +1817,12 @@ body {
   min-width: 0;
   box-sizing: border-box;
   color: var(--vscode-foreground, #e8e8e8);
+  padding-left: var(--ak-thread-inset, 12px);
+}
+
+/* Steps already inset titles — don't double-pad prose nested in the timeline */
+.message-steps .message-content.message-turn-prose {
+  padding-left: var(--ak-thread-inset, 12px);
 }
 
 .message-content .markdown-body {
@@ -1999,6 +2114,16 @@ body.vscode-light .code-block-header {
 .ak-code__body .shiki span {
   /* Shiki sets color via style=; don't override */
   background: transparent !important;
+}
+
+/* Token colors must win over inherited mono text */
+.ak-code__body .shiki span[style*='color'],
+.ak-file-edit-diff__text span[style*='color'] {
+  background: transparent !important;
+}
+
+.ak-file-edit-diff__text span {
+  font: inherit;
 }
 
 .ak-code__pre {
@@ -2457,6 +2582,56 @@ body.vscode-high-contrast .ak-code__cursor {
 .changed-files-bar__li {
   margin: 0;
   padding: 0;
+}
+
+/* ADDON-T07: Checkpoints dropdown */
+.changed-files-bar__checkpoints {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.changed-files-bar__checkpoint-empty {
+  padding: 6px 12px;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.changed-files-bar__checkpoint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.changed-files-bar__checkpoint-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changed-files-bar__checkpoint-time {
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.changed-files-bar__checkpoint-restore {
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--vscode-foreground, #e8e8e8);
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+
+.changed-files-bar__checkpoint-restore:hover {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .changed-files-bar__file {

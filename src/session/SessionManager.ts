@@ -1,7 +1,8 @@
 /**
- * SessionManager - 세션 저장/복원/리스트/삭제 (C4-T29)
- * 
- * workspaceState 기반 세션 관리
+ * SessionManager - 세션 저장/복원/리스트/삭제 (C4-T29 / ADDON-T06)
+ *
+ * Extension host 영속: optional vscode.Memento (workspaceState)로 세션 메타를
+ * 저장한다. Memento 없이도(단위 테스트) in-memory로 동작.
  */
 export interface Session {
   id: string;
@@ -15,15 +16,43 @@ export interface Session {
   summary?: string;
 }
 
+/**
+ * Duck-typed subset of vscode.Memento — avoids importing the `vscode`
+ * module so this class stays testable outside the extension host.
+ */
+export interface HostMemento {
+  get: (key: string) => any;
+  update: (key: string, value: any) => Thenable<void> | void;
+}
+
+/** Shape persisted under STORAGE_KEY in the host Memento */
+interface PersistedState {
+  sessions: Session[];
+  currentId: string | null;
+}
+
+/** ChatSessionStore (webview) meta shape — kept loose to avoid a circular import */
+export interface ChatMetaLike {
+  id: string;
+  title: string;
+  mode: string;
+  messageCount: number;
+  createdAt: number;
+  updatedAt: number;
+  summary?: string;
+}
+
 const MAX_SESSIONS = 50;
-const STORAGE_PREFIX = 'agent-k.session.';
+const STORAGE_KEY = 'agent-k.host.sessions';
 
 export class SessionManager {
   private sessions: Map<string, Session> = new Map();
   private currentSessionId: string | null = null;
   private onChange: ((sessions: Session[]) => void) | null = null;
+  private readonly memento?: HostMemento;
 
-  constructor() {
+  constructor(memento?: HostMemento) {
+    this.memento = memento;
     this.loadFromStorage();
   }
 
@@ -57,6 +86,7 @@ export class SessionManager {
   setCurrentSession(sessionId: string): void {
     if (this.sessions.has(sessionId)) {
       this.currentSessionId = sessionId;
+      this.saveToStorage();
     }
   }
 
@@ -72,6 +102,11 @@ export class SessionManager {
   getAllSessions(): Session[] {
     return Array.from(this.sessions.values())
       .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  /** Alias for getAllSessions — matches ChatSessionStore.list() naming */
+  list(): Session[] {
+    return this.getAllSessions();
   }
 
   deleteSession(sessionId: string): boolean {
@@ -97,6 +132,30 @@ export class SessionManager {
     return this.sessions.size;
   }
 
+  /**
+   * ADDON-T06: sync a ChatSessionStore (webview) meta into the host record.
+   * Pragmatic — persists meta/summary/messageCount, not full message bodies.
+   */
+  upsertFromChatMeta(meta: ChatMetaLike): Session {
+    const existing = this.sessions.get(meta.id);
+    const session: Session = {
+      id: meta.id,
+      label: meta.title || existing?.label || 'Session',
+      mode: meta.mode || existing?.mode || 'agent',
+      messageCount: meta.messageCount,
+      createdAt: existing?.createdAt ?? meta.createdAt,
+      updatedAt: meta.updatedAt,
+      modelId: existing?.modelId,
+      tokenCount: existing?.tokenCount,
+      summary: meta.summary ?? existing?.summary
+    };
+    this.sessions.set(session.id, session);
+    this.trimExcess();
+    this.saveToStorage();
+    this.notify();
+    return session;
+  }
+
   private trimExcess(): void {
     if (this.sessions.size <= MAX_SESSIONS) return;
 
@@ -110,28 +169,31 @@ export class SessionManager {
   }
 
   private loadFromStorage(): void {
+    if (!this.memento) return;
     try {
-      const stored = localStorage.getItem(`${STORAGE_PREFIX}index`);
-      if (stored) {
-        const ids: string[] = JSON.parse(stored);
-        for (const id of ids) {
-          const data = localStorage.getItem(`${STORAGE_PREFIX}${id}`);
-          if (data) {
-            this.sessions.set(id, JSON.parse(data));
-          }
+      const stored = this.memento.get(STORAGE_KEY) as PersistedState | undefined;
+      if (stored && Array.isArray(stored.sessions)) {
+        for (const s of stored.sessions) {
+          if (s && s.id) this.sessions.set(s.id, s);
         }
+        this.currentSessionId = stored.currentId ?? null;
       }
-    } catch { /* storage not available */ }
+    } catch {
+      /* corrupt/unavailable storage — start empty */
+    }
   }
 
   private saveToStorage(): void {
+    if (!this.memento) return;
     try {
-      const ids = Array.from(this.sessions.keys());
-      localStorage.setItem(`${STORAGE_PREFIX}index`, JSON.stringify(ids));
-      for (const [id, session] of this.sessions) {
-        localStorage.setItem(`${STORAGE_PREFIX}${id}`, JSON.stringify(session));
-      }
-    } catch { /* storage not available */ }
+      const state: PersistedState = {
+        sessions: Array.from(this.sessions.values()),
+        currentId: this.currentSessionId
+      };
+      void this.memento.update(STORAGE_KEY, state);
+    } catch {
+      /* quota / readonly memento */
+    }
   }
 
   private notify(): void {

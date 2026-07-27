@@ -4,7 +4,7 @@ import type { ChatMessage, Mode, Attachment, StreamDelta } from '../types';
 /** No-token idle timeout — Ask path default */
 const IDLE_TIMEOUT_MS = 30_000;
 /** Host agent loops wait on LLM between tools; need longer + heartbeats */
-const HOST_IDLE_TIMEOUT_MS = 120_000;
+const HOST_IDLE_TIMEOUT_MS = 180_000;
 
 interface UseChatStreamOptions {
   baseUrl?: string;
@@ -284,7 +284,14 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             break;
           case 'error':
             finish(() =>
-              onError(String(data.error || 'Host tool loop error'))
+              onError(
+                String(
+                  data.error ||
+                    data.message ||
+                    data.detail ||
+                    'Host tool loop error'
+                )
+              )
             );
             break;
           default:

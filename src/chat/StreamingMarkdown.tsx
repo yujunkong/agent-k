@@ -36,6 +36,16 @@ function nextId(prefix: string): string {
 
 const STREAMING_CURSOR = '<span class="streaming-cursor">█</span>';
 
+/** Test/helper entry — parse markdown to structured nodes (no React). */
+export function parseStreamingMarkdown(
+  content: string,
+  streaming = false
+): ParsedNode[] {
+  const parser = new MarkdownParser();
+  parser.setStreaming(streaming);
+  return parser.feed(content);
+}
+
 export function StreamingMarkdown({ content, isStreaming }: StreamingMarkdownProps) {
   const [nodes, setNodes] = useState<ParsedNode[]>([]);
   const parserRef = useRef<MarkdownParser>(new MarkdownParser());
@@ -243,7 +253,7 @@ class MarkdownParser {
     this.buffer = '';
   }
 
-  /** Push in-progress table/code/heading so streaming (and truncated ends) still render. */
+  /** Push in-progress table/code/heading/mermaid so streaming (and truncated ends) still render. */
   private flushIncompleteBlocks() {
     if (this.state === 'table' && this.currentNode.rows && this.currentNode.rows.length > 0) {
       this.nodes.push({
@@ -264,6 +274,15 @@ class MarkdownParser {
       });
       return;
     }
+    if (this.state === 'mermaid' && (this.currentNode.definition || '').length > 0) {
+      this.nodes.push({
+        id: nextId('mermaid'),
+        type: 'mermaid',
+        definition: this.currentNode.definition || '',
+        isComplete: !this.streaming
+      });
+      return;
+    }
     if (this.state === 'heading' && (this.currentNode.text != null || this.currentNode.level)) {
       this.nodes.push({
         id: nextId('heading'),
@@ -273,6 +292,42 @@ class MarkdownParser {
         isComplete: !this.streaming
       });
     }
+  }
+
+  /** Enter code or mermaid fence after ```lang */
+  private openFence(lang: string): void {
+    this.codeLang = lang;
+    this.codeContent = '';
+    if (lang === 'mermaid') {
+      this.currentNode = { type: 'mermaid', definition: '' };
+      this.state = 'mermaid';
+    } else {
+      this.state = 'code';
+    }
+  }
+
+  /**
+   * Close current fence. If the same ``` is glued to the next language
+   * (```markdown … ```mermaid), open that fence instead of leaking "mermaid" as text.
+   */
+  private closeFence(i: number, remaining: string): number {
+    const after = remaining.slice(3);
+    const langMatch = after.match(/^(\w+)/);
+    if (langMatch) {
+      this.openFence(langMatch[1]);
+      let consumed = 3 + langMatch[1].length;
+      // Drop the newline right after the language tag
+      if (after[langMatch[1].length] === '\n') consumed += 1;
+      else if (after[langMatch[1].length] === '\r' && after[langMatch[1].length + 1] === '\n') {
+        consumed += 2;
+      }
+      return i + consumed;
+    }
+    this.codeLang = '';
+    this.codeContent = '';
+    this.currentNode = {};
+    this.state = 'text';
+    return i + 3;
   }
 
   private processTable(i: number, remaining: string): number {
@@ -324,18 +379,17 @@ class MarkdownParser {
   }
 
   private processCode(i: number, remaining: string): number {
-    if (remaining.startsWith('```')) {
+    // Closing fence only at line start (CommonMark); mid-line ``` stays in content
+    const atLineStart = i === 0 || this.buffer[i - 1] === '\n';
+    if (atLineStart && remaining.startsWith('```')) {
       this.finalizeNode({
         id: nextId('code'),
         type: 'code',
         lang: this.codeLang,
-        code: this.codeContent,
+        code: this.codeContent.replace(/\n$/, ''),
         isComplete: true
       });
-      this.codeLang = '';
-      this.codeContent = '';
-      this.state = 'text';
-      return i + 3;
+      return this.closeFence(i, remaining);
     }
     this.codeContent += remaining[0];
     return i + 1;
@@ -358,17 +412,15 @@ class MarkdownParser {
   }
 
   private processMermaid(i: number, remaining: string): number {
-    if (remaining.startsWith('```')) {
+    const atLineStart = i === 0 || this.buffer[i - 1] === '\n';
+    if (atLineStart && remaining.startsWith('```')) {
       this.finalizeNode({
-        ...this.currentNode,
         id: nextId('mermaid'),
         type: 'mermaid',
-        definition: this.currentNode.definition || '',
+        definition: (this.currentNode.definition || '').replace(/^\n/, '').replace(/\n$/, ''),
         isComplete: true
       });
-      this.currentNode = {};
-      this.state = 'text';
-      return i + 3;
+      return this.closeFence(i, remaining);
     }
     this.currentNode.definition = (this.currentNode.definition || '') + remaining[0];
     return i + 1;
@@ -481,14 +533,12 @@ class MarkdownParser {
     if (atLineStart && remaining.startsWith('```')) {
       const after = remaining.slice(3);
       const langMatch = after.match(/^(\w+)/);
-      this.codeLang = langMatch ? langMatch[1] : '';
-      if (this.codeLang === 'mermaid') {
-        this.currentNode = { type: 'mermaid', definition: '' };
-        this.state = 'mermaid';
-      } else {
-        this.state = 'code';
-      }
-      return i + 3 + (this.codeLang ? this.codeLang.length : 0);
+      const lang = langMatch ? langMatch[1] : '';
+      this.openFence(lang);
+      let consumed = 3 + lang.length;
+      if (after[lang.length] === '\n') consumed += 1;
+      else if (after[lang.length] === '\r' && after[lang.length + 1] === '\n') consumed += 2;
+      return i + consumed;
     }
     
     // Check for math block

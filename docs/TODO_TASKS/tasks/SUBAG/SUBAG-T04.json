@@ -1,0 +1,24 @@
+{
+  "id": "SUBAG-T04",
+  "phase": "SUBAG",
+  "title": "Depth=1 가드 + PROJECT RULES 요약 주입",
+  "description": "손자 서브에이전트 금지(자식 tool 목록에서 task_run 제거). 자식 시스템 프롬프트에 ProjectRulesLoader 요약(truncate)만 주입해 핸드오프 공백 완화.",
+  "files": [
+    "src/subagents/SubAgentRuntime.ts",
+    "src/tools/orchestration/TaskTool.ts",
+    "src/harness/ProjectRulesLoader.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["SUBAG-T03"],
+  "acceptanceCriteria": [
+    "depth≥1 자식은 task_run/Task 도구 미노출",
+    "자식이 task_run 호출 시도 시 명확한 거부 메시지",
+    "PROJECT RULES 요약이 자식 시스템 프롬프트에 포함 (상한 truncate)",
+    "단위 테스트: depth guard"
+  ],
+  "estimatedHours": 3,
+  "tags": ["subag", "p0", "depth", "safety"],
+  "prdRefs": ["docs/PRDs/08_Subagents/PRD-Subagents.md"],
+  "source": "PRD-Subagents §3.4"
+}

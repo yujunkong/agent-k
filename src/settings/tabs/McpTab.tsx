@@ -1,8 +1,9 @@
 /**
  * McpTab — shows configured MCP servers (agent-k.mcp.servers) and wiring hints.
  * Connection runs in the extension host on activate / agent-k.mcp.reload.
+ * ADDON-T15: exposes the deferred-schema token budget (agent-k.mcp.maxSchemaTokens).
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { configManager } from '../../core/ConfigManager';
 import { parseMcpServersMap } from '../../mcp/parseMcpServers';
 
@@ -14,6 +15,16 @@ export function McpTab() {
       undefined;
     return parseMcpServersMap(raw);
   }, []);
+
+  const [maxSchemaTokens, setMaxSchemaTokens] = useState<number>(
+    Number(configManager.get('agent-k.mcp.maxSchemaTokens')) || 8000
+  );
+
+  const handleSaveBudget = () => {
+    const tokens = Math.min(200000, Math.max(500, Math.floor(maxSchemaTokens) || 8000));
+    setMaxSchemaTokens(tokens);
+    configManager.set('agent-k.mcp.maxSchemaTokens', tokens);
+  };
 
   return (
     <div className="settings-tab-content">
@@ -39,6 +50,24 @@ export function McpTab() {
           ))}
         </ul>
       )}
+      <div className="settings-field">
+        <label>Deferred Schema Token Budget</label>
+        <input
+          type="number"
+          value={maxSchemaTokens}
+          onChange={(e) => setMaxSchemaTokens(parseInt(e.target.value, 10) || 8000)}
+          min={500}
+          max={200000}
+          step={500}
+        />
+        <p className="settings-muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+          Servers whose tool schema payload estimate exceeds this token budget stay deferred
+          (lazy-loaded) instead of being registered up front. Default 8000.
+        </p>
+        <button onClick={handleSaveBudget} className="settings-btn primary" style={{ marginTop: 8 }}>
+          Save
+        </button>
+      </div>
       <div className="settings-actions">
         <p className="settings-muted">
           Tools register as <code>mcp_&lt;server&gt;_&lt;tool&gt;</code> (e.g.{' '}

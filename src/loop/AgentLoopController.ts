@@ -18,6 +18,9 @@ import type { ToolInput, ToolOutput } from '../tools/types';
 import type { ModelTier } from '../harness/ModelTiers';
 import { PrefetchEngine } from '../prefetch/PrefetchEngine';
 import { createAutoVerificationHook } from '../hooks/autoVerificationHook';
+import { resolveVerificationHookOptions } from '../verification/config';
+import { configManager } from '../core/ConfigManager';
+import { RunTimeoutGuard, resolveTurnTimeoutMs } from './turnTimeout';
 import { validateTurnStructure } from '../harness/PromptTurnStructure';
 import { isDontDoViolation } from '../harness/DontDoMedium';
 import { routeByHeuristics, shouldForcePlan } from '../harness/RoutingHeuristics';
@@ -73,6 +76,12 @@ export interface LoopConfig {
   onDebugStage?: (stage: import('../debug/DebugModeController').DebugStage) => void;
   /** Thinking / reasoning effort (off|low|medium|high) */
   thinkingEffort?: import('../agent/thinkingEffort').ThinkingEffort;
+  /**
+   * ADDON-T02: whole-run wall-clock limit for the whole run (ms).
+   * 0 disables. Default from agent-k.turnTimeoutMs (900000 idle).
+   * Timer resets on LLM/tool activity (idle semantics).
+   */
+  turnTimeoutMs?: number;
   /** Provider 없을 때 단위/AC 테스트용 고정 응답 */
   mockResponse?: {
     content?: string;
@@ -123,9 +132,11 @@ export interface LoopConfig {
     turn?: number;
     status?: 'running' | 'done' | 'error';
   }) => void | Promise<void>;
+  /** ADDON-T11: provider-reported token usage per stream pass (status bar cost tracker) */
+  onUsage?: (usage: { promptTokens?: number; completionTokens?: number }) => void;
 }
 
-export type LoopStatus = 'idle' | 'streaming' | 'tool_executing' | 'stopped' | 'completed' | 'error' | 'doom_loop';
+export type LoopStatus = 'idle' | 'streaming' | 'tool_executing' | 'stopped' | 'completed' | 'error' | 'doom_loop' | 'timeout';
 
 export interface LoopState {
   status: LoopStatus;
@@ -152,6 +163,9 @@ export class AgentLoopController {
   private config: LoopConfig;
   private _state: LoopState;
   private abortController: AbortController | null = null;
+  /** ADDON-T02: whole-run wall-clock timer */
+  private runTimeoutGuard = new RunTimeoutGuard();
+  private timedOut = false;
   private messages: AgentMessage[] = [];
 
   // HARB: 하네스 컴포넌트
@@ -207,9 +221,14 @@ export class AgentLoopController {
       startTime: Date.now()
     };
 
-    // HARB: 하네스 컴포넌트 초기화
+    // HARB: 하네스 컴포넌트 초기화 (ADDON-T01: tier + settings → test verification)
     this.prefetchEngine = new PrefetchEngine();
-    this.autoVerificationHook = createAutoVerificationHook();
+    const testOverride = configManager.get('agent-k.verification.testEnabled');
+    const verOpts = resolveVerificationHookOptions(this.currentTier, {
+      testEnabled:
+        typeof testOverride === 'boolean' ? testOverride : undefined,
+    });
+    this.autoVerificationHook = createAutoVerificationHook(verOpts);
     this.compactionEngine = new ContextCompactionEngine(this.contextBudget);
   }
 
@@ -276,6 +295,7 @@ export class AgentLoopController {
     this._state.status = 'streaming';
     this._state.startTime = Date.now();
     this._state.currentTurn = 0;
+    this._state.error = undefined;
     this.emptyFinalRetried = false;
     this.wrapUpRetried = false;
     this.toolIntentNudged = false;
@@ -291,12 +311,18 @@ export class AgentLoopController {
       { role: 'user', content: userMessage }
     ];
 
-    await this.runLoop();
+    this.armRunTimeout();
+    try {
+      await this.runLoop();
+    } finally {
+      this.clearRunTimeout();
+    }
   }
 
   async continue(messages: AgentMessage[]): Promise<void> {
     this.abortController = new AbortController();
     this._state.status = 'streaming';
+    this._state.error = undefined;
     this.messages = messages;
     this.emptyFinalRetried = false;
     this.wrapUpRetried = false;
@@ -308,17 +334,64 @@ export class AgentLoopController {
     this.planAskQuestionNudged = false;
     this.askedQuestionThisRun = false;
     this.doomDetector.reset();
-    await this.runLoop();
+    this.armRunTimeout();
+    try {
+      await this.runLoop();
+    } finally {
+      this.clearRunTimeout();
+    }
+  }
+
+  /** ADDON-T02: resolve wall-clock ms (0 = disabled). */
+  resolveTurnTimeoutMs(): number {
+    return resolveTurnTimeoutMs(
+      this.config.turnTimeoutMs,
+      configManager.get('agent-k.turnTimeoutMs')
+    );
+  }
+
+  private clearRunTimeout(): void {
+    this.runTimeoutGuard.clear();
+  }
+
+  /** Keep long plan/agent runs alive while tools / streams are still progressing. */
+  private bumpRunTimeout(): void {
+    this.runTimeoutGuard.bump();
+  }
+
+  private armRunTimeout(): void {
+    this.timedOut = false;
+    const ms = this.resolveTurnTimeoutMs();
+    this.runTimeoutGuard.arm(ms, {
+      onTimeout: (limitMs) => {
+        this.timedOut = true;
+        this._state.status = 'timeout';
+        this._state.error = `Run idle timeout after ${limitMs}ms with no activity (agent-k.turnTimeoutMs)`;
+        this.abortController?.abort();
+        this.config.onStatus?.('timeout');
+        this.config.onError?.(new Error(this._state.error));
+        void import('../core/RuntimeServices')
+          .then(({ RuntimeServices }) => {
+            RuntimeServices.cancelReproduce();
+            RuntimeServices.cancelQuestion('agent loop timed out');
+          })
+          .catch(() => {
+            /* ignore */
+          });
+      },
+    });
   }
 
   private async runLoop(): Promise<void> {
     while (this._state.currentTurn < this._state.totalTurns) {
       if (this.abortController?.signal.aborted) {
-        this._state.status = 'stopped';
+        this._state.status = this.timedOut ? 'timeout' : 'stopped';
+        this.config.onStatus?.(this._state.status);
         return;
       }
 
       this._state.currentTurn++;
+      this.bumpRunTimeout();
       this._state.status = 'streaming';
       this.config.onStatus?.(this._state.status);
       this.config.onTurnStart?.(this._state.currentTurn);
@@ -327,7 +400,10 @@ export class AgentLoopController {
       const lastUserMsg = [...this.messages].reverse().find(m => m.role === 'user');
       if (lastUserMsg) {
         try {
-          const prefetchResult = await this.prefetchEngine.prefetch(lastUserMsg.content);
+          const prefetchResult = await this.prefetchEngine.prefetch(
+            lastUserMsg.content,
+            this.config.mode
+          );
           if (prefetchResult) {
             this.injectPrefetchBlock(prefetchResult);
           }
@@ -715,7 +791,11 @@ export class AgentLoopController {
     // HARB: provider가 설정되어 있으면 실제 LLM 호출
     if (this.config.provider) {
       try {
-        const schemas = toolRegistry.getSchemas(this.config.mode, this.currentTier)
+        const schemaMode =
+          this.config.mode === 'plan' && this.config.planStage === 'build'
+            ? 'agent'
+            : this.config.mode;
+        const schemas = toolRegistry.getSchemas(schemaMode, this.currentTier)
           .filter((s) => {
             if (this.config.mode !== 'debug') return true;
             const name = s?.function?.name as string | undefined;
@@ -1086,90 +1166,100 @@ export class AgentLoopController {
       { id: string; name: string; arguments: string }
     >();
 
-    for await (const chunk of stream) {
-      if (chunk.content) {
-        fullContent += chunk.content;
-        // Mirror onReasoning: push answer tokens live (Thought already streams)
-        void this.config.onAssistantDelta?.(chunk.content);
-      }
-      if (chunk.finishReason === 'length') {
-        hitLengthLimit = true;
-      }
-      const anyChunk = chunk as {
-        reasoning?: string;
-        reasoning_content?: string;
-      };
-      if (anyChunk.reasoning_content) {
-        reasoningContent += anyChunk.reasoning_content;
-        void this.config.onReasoning?.(reasoningContent);
-      }
-      if (anyChunk.reasoning) {
-        reasoningContent += anyChunk.reasoning;
-        void this.config.onReasoning?.(reasoningContent);
-      }
-      if (chunk.toolCalls) {
-        for (const tc of chunk.toolCalls as any[]) {
-          const idx = typeof tc.index === 'number' ? tc.index : 0;
-          const prev = toolCallAcc.get(idx) || {
-            id: tc.id || `call_${Date.now()}_${idx}`,
-            name: '',
-            arguments: ''
-          };
-          if (tc.id) prev.id = tc.id;
-          const fn = tc.function || {};
-          if (fn.name) prev.name = fn.name;
-          if (typeof fn.arguments === 'string') {
-            prev.arguments += fn.arguments;
-          } else if (fn.arguments && typeof fn.arguments === 'object') {
-            prev.arguments = JSON.stringify(fn.arguments);
+    this.bumpRunTimeout();
+    const streamHeartbeat = setInterval(() => this.bumpRunTimeout(), 30_000);
+    try {
+      for await (const chunk of stream) {
+        this.bumpRunTimeout();
+        if (chunk.content) {
+          fullContent += chunk.content;
+          // Mirror onReasoning: push answer tokens live (Thought already streams)
+          void this.config.onAssistantDelta?.(chunk.content);
+        }
+        if (chunk.finishReason === 'length') {
+          hitLengthLimit = true;
+        }
+        const anyChunk = chunk as {
+          reasoning?: string;
+          reasoning_content?: string;
+        };
+        if (anyChunk.reasoning_content) {
+          reasoningContent += anyChunk.reasoning_content;
+          void this.config.onReasoning?.(reasoningContent);
+        }
+        if (anyChunk.reasoning) {
+          reasoningContent += anyChunk.reasoning;
+          void this.config.onReasoning?.(reasoningContent);
+        }
+        if (chunk.toolCalls) {
+          for (const tc of chunk.toolCalls as any[]) {
+            const idx = typeof tc.index === 'number' ? tc.index : 0;
+            const prev = toolCallAcc.get(idx) || {
+              id: tc.id || `call_${Date.now()}_${idx}`,
+              name: '',
+              arguments: ''
+            };
+            if (tc.id) prev.id = tc.id;
+            const fn = tc.function || {};
+            if (fn.name) prev.name = fn.name;
+            if (typeof fn.arguments === 'string') {
+              prev.arguments += fn.arguments;
+            } else if (fn.arguments && typeof fn.arguments === 'object') {
+              prev.arguments = JSON.stringify(fn.arguments);
+            }
+            if (tc.name && !prev.name) prev.name = tc.name;
+            toolCallAcc.set(idx, prev);
           }
-          if (tc.name && !prev.name) prev.name = tc.name;
-          toolCallAcc.set(idx, prev);
+        }
+        if (chunk.usage) {
+          this.config.onUsage?.(chunk.usage);
+        }
+        if (chunk.done) break;
+        if (chunk.error) {
+          this.config.onError?.(new Error(chunk.error));
+          return null;
         }
       }
-      if (chunk.done) break;
-      if (chunk.error) {
-        this.config.onError?.(new Error(chunk.error));
-        return null;
+
+      if (hitLengthLimit && fullContent.trim()) {
+        const note =
+          '\n\n*(응답이 길이 제한으로 잘렸을 수 있습니다. Regenerate로 이어서 요청하세요.)*';
+        fullContent += note;
+        void this.config.onAssistantDelta?.(note);
       }
-    }
 
-    if (hitLengthLimit && fullContent.trim()) {
-      const note =
-        '\n\n*(응답이 길이 제한으로 잘렸을 수 있습니다. Regenerate로 이어서 요청하세요.)*';
-      fullContent += note;
-      void this.config.onAssistantDelta?.(note);
-    }
+      let toolCalls: Array<{ id: string; name: string; arguments: ToolInput }> = [
+        ...toolCallAcc.values()
+      ]
+        .filter((t) => t.name && toolRegistry.getTool(t.name))
+        .map((t) => {
+          let args: ToolInput = {};
+          try {
+            args = t.arguments ? JSON.parse(t.arguments) : {};
+          } catch {
+            args = { raw: t.arguments } as ToolInput;
+          }
+          return { id: t.id, name: t.name, arguments: args };
+        });
 
-    let toolCalls: Array<{ id: string; name: string; arguments: ToolInput }> = [
-      ...toolCallAcc.values()
-    ]
-      .filter((t) => t.name && toolRegistry.getTool(t.name))
-      .map((t) => {
-        let args: ToolInput = {};
-        try {
-          args = t.arguments ? JSON.parse(t.arguments) : {};
-        } catch {
-          args = { raw: t.arguments } as ToolInput;
-        }
-        return { id: t.id, name: t.name, arguments: args };
-      });
+      // Unknown native tool names only — keep prose path if we have content
+      if (toolCallAcc.size > 0 && toolCalls.length === 0 && !fullContent.trim()) {
+        return {
+          content:
+            '모델이 등록되지 않은 도구 이름을 호출했습니다. 분석을 본문으로 이어갑니다.',
+          reasoning: reasoningContent,
+          toolCalls: []
+        };
+      }
 
-    // Unknown native tool names only — keep prose path if we have content
-    if (toolCallAcc.size > 0 && toolCalls.length === 0 && !fullContent.trim()) {
       return {
-        content:
-          '모델이 등록되지 않은 도구 이름을 호출했습니다. 분석을 본문으로 이어갑니다.',
+        content: fullContent,
         reasoning: reasoningContent,
-        toolCalls: []
+        toolCalls
       };
+    } finally {
+      clearInterval(streamHeartbeat);
     }
-
-    return {
-      content: fullContent,
-      reasoning: reasoningContent,
-      toolCalls
-    };
   }
 
   /** Fallback prose when the model returns empty after successful tools */
@@ -1564,8 +1654,13 @@ export class AgentLoopController {
       return { success: false, error: `Unknown tool: ${name}` };
     }
 
-    // Mode check (C1-T18 이중 가드)
-    if (tool && !modeRegistry.isToolAllowed(this.config.mode, name)) {
+    // Mode check (C1-T18 이중 가드) — Plan build stage may use write tools (ADDON-T03)
+    const { isWriteToolName } = await import('../plan/writeGate');
+    const planBuildWrite =
+      this.config.mode === 'plan' &&
+      this.config.planStage === 'build' &&
+      isWriteToolName(name);
+    if (tool && !planBuildWrite && !modeRegistry.isToolAllowed(this.config.mode, name)) {
       return {
         success: false,
         error: `Tool "${name}" is not allowed in ${this.config.mode} mode. Allowed tools: ${modeRegistry.getModeConfig(this.config.mode).allowedTools.join(', ')}`
@@ -1584,15 +1679,49 @@ export class AgentLoopController {
         };
       }
     }
-    // Plan 모드: 쓰기/터미널/browser 이중 가드 (RW-C5-05-R2) — never claim success
+    // Plan 모드: research/questions/planning/review — 쓰기 차단; build만 허용 (ADDON-T03)
     if (this.config.mode === 'plan') {
       const toolDef = toolRegistry.getTool(name);
-      const writeNames = new Set(['edit_file', 'write_file', 'run_terminal_cmd', 'delete_file']);
-      if (writeNames.has(name) || (toolDef && (toolDef.category === 'edit' || toolDef.category === 'terminal' || toolDef.category === 'web'))) {
+      const { planWriteGate } = await import('../plan/writeGate');
+      const gate = planWriteGate(this.config.mode, this.config.planStage, name);
+      if (!gate.allowed) {
+        return { success: false, error: gate.error };
+      }
+      // Non-write web/browser still blocked during planning (not build)
+      if (
+        (this.config.planStage || 'research') !== 'build' &&
+        toolDef &&
+        toolDef.category === 'web'
+      ) {
         return {
           success: false,
-          error: `[Plan Mode] Writing/terminal/browser tools are disabled during planning. "${name}" is not allowed until the plan is approved and mode switches to Agent.`
+          error: `[Plan Mode] Browser/web tools are disabled during planning. "${name}" is not allowed until build.`,
         };
+      }
+    }
+
+    // Agent soft gate: complex task → suggest Plan (ADDON-T03)
+    if (this.config.mode === 'agent') {
+      const force =
+        configManager.get('agent-k.plan.forceOnComplex') === true;
+      if (force) {
+        const { PlanEnforcement } = await import('../plan/PlanEnforcement');
+        const { agentComplexWriteGate } = await import('../plan/writeGate');
+        const enforcement = new PlanEnforcement();
+        const lastUser = [...this.messages].reverse().find((m) => m.role === 'user');
+        const suggest = lastUser
+          ? enforcement.shouldSuggestPlan(lastUser.content)
+          : false;
+        const soft = agentComplexWriteGate({
+          mode: 'agent',
+          forceOnComplex: true,
+          shouldSuggestPlan: suggest,
+          toolName: name,
+          alreadyWarned: false,
+        });
+        if (!soft.allowed) {
+          return { success: false, error: soft.error };
+        }
       }
     }
 
@@ -1613,6 +1742,8 @@ export class AgentLoopController {
     }
 
     // Dispatch to executor
+    this.bumpRunTimeout();
+    const toolHeartbeat = setInterval(() => this.bumpRunTimeout(), 30_000);
     try {
       const { executeGrep, executeGlob, executeFileSearch, executeReadFile, executeReadFiles, executeListDir, executeCodebaseSearch, executeLspDefinition, executeLspReferences, executeReadLints } = await import('../tools/executors');
       
@@ -1800,27 +1931,31 @@ export class AgentLoopController {
         return result;
       }
 
-      // ─── task / task_run (RW-C7-04-R2) ────────────────
+      // ─── task / task_run (RW-C7-04-R2 / ADDON-T09) ────────────────
       if (name === 'task' || name === 'task_run') {
-        const { getTaskTool } = await import('../tools/orchestration/TaskTool');
+        const { getTaskTool, formatTaskToolResult, taskResultToSummary } = await import('../tools/orchestration/TaskTool');
         const taskTool = getTaskTool();
         const result = await taskTool.execute({
           description: (args.description as string) || 'sub-task',
           prompt: (args.prompt as string) || (args.task as string) || (args.description as string) || '',
           type: (args.type as any) ||
             ((args.mode as string) === 'ask' ? 'search' : (args.mode as string) === 'debug' ? 'debug' : 'general'),
-          timeout: (args.timeout as number) || 120_000
+          timeout: (args.timeout as number) || 120_000,
+          maxTurns: (args.maxTurns as number) || 5,
+          modelId: (args.modelId as string) || undefined
         });
-        // Parent receives summary only (AC)
+        // Parent receives summary only (AC) — child ran in its own AgentLoopController
+        // instance with a fresh message history, never the parent's transcript.
         return {
           success: result.status === 'completed',
           data: {
             taskId: result.taskId,
             summary: result.summary,
             status: result.status,
-            duration: result.duration
+            duration: result.duration,
+            formatted: formatTaskToolResult(taskResultToSummary(result))
           },
-          error: result.status === 'error' ? result.summary : undefined
+          error: result.status !== 'completed' ? result.summary : undefined
         };
       }
 
@@ -2128,13 +2263,18 @@ export class AgentLoopController {
       };
     } catch (error: any) {
       return { success: false, error: error.message };
+    } finally {
+      clearInterval(toolHeartbeat);
     }
   }
 
   stop(): void {
+    this.clearRunTimeout();
     this.abortController?.abort();
-    this._state.status = 'stopped';
-    this.config.onStatus?.('stopped');
+    if (this._state.status !== 'timeout') {
+      this._state.status = 'stopped';
+      this.config.onStatus?.('stopped');
+    }
     // RW-C6-05-R2 / RW-C5-02: Stop cancels pending UI waits
     void import('../core/RuntimeServices').then(({ RuntimeServices }) => {
       RuntimeServices.cancelReproduce();

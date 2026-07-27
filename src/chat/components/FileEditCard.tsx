@@ -1,8 +1,10 @@
 /**
  * Cursor-style file edit card: header opens file, hover chevron expands diff.
+ * Diff lines use Shiki (or fallback) token colors.
  */
-import React, { useState } from 'react';
-import { languageBadge, type EditDiffLine } from '../editDiffPreview';
+import React, { useEffect, useMemo, useState } from 'react';
+import { languageBadge, guessLanguageFromPath, type EditDiffLine } from '../editDiffPreview';
+import { highlightLineHtml, isDarkTheme } from '../shiki/highlightLine';
 
 export interface FileEditCardProps {
   path: string;
@@ -16,6 +18,53 @@ export interface FileEditCardProps {
 function basename(p: string): string {
   const parts = p.replace(/\\/g, '/').split('/');
   return parts[parts.length - 1] || p;
+}
+
+function escapeText(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function DiffCodeLine({
+  text,
+  lang,
+  htmlCache
+}: {
+  text: string;
+  lang: string;
+  htmlCache: Map<string, string>;
+}) {
+  const key = `${lang}\0${text}`;
+  const [html, setHtml] = useState(
+    () => htmlCache.get(key) || escapeText(text)
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const cached = htmlCache.get(key);
+    if (cached) {
+      setHtml(cached);
+      return;
+    }
+    void highlightLineHtml(text, lang, isDarkTheme()).then((h) => {
+      if (cancelled) return;
+      htmlCache.set(key, h);
+      setHtml(h);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [key, text, lang, htmlCache]);
+
+  return (
+    <span
+      className="ak-file-edit-diff__text"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
 }
 
 export function FileEditCard({
@@ -33,6 +82,8 @@ export function FileEditCard({
   const visible = expanded ? lines : lines.slice(0, previewCount);
   const canExpand = lines.length > previewCount;
   const showExpand = canExpand || hovered;
+  const lang = useMemo(() => guessLanguageFromPath(path), [path]);
+  const htmlCache = useMemo(() => new Map<string, string>(), [path]);
 
   return (
     <div
@@ -87,7 +138,7 @@ export function FileEditCard({
               >
                 <span className="ak-file-edit-diff__ln">{line.lineNumber}</span>
                 <span className="ak-file-edit-diff__mark">{mark}</span>
-                <span className="ak-file-edit-diff__text">{line.text}</span>
+                <DiffCodeLine text={line.text} lang={lang} htmlCache={htmlCache} />
               </div>
             );
           })}

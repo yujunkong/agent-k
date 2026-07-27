@@ -16,9 +16,16 @@ import { DebugStorage } from './debug/DebugStorage';
 import { MemoryStore } from './memories/MemoryStore';
 import { PermissionGate } from './permission/PermissionGate';
 import { CheckpointManager } from './checkpoint/CheckpointManager';
+import { SessionManager } from './session/SessionManager';
+import { fromHostSnapshot, toHostSnapshot } from './session/HostSessionBridge';
 import { getSkillRegistry } from './skills/SkillRegistry';
 import * as path from 'path';
 import { configManager, AGENT_K_VSCODE_CONFIG_KEYS } from './core/ConfigManager';
+import { SessionUsageTracker } from './telemetry/StatusBarCost';
+import { WorktreeManager } from './worktree/WorktreeManager';
+import { BestOfN, type BoNTrial } from './worktree/BestOfN';
+import { AdoptWinner } from './worktree/AdoptWinner';
+import { AgentReviewLoop } from './review/AgentReviewLoop';
 
 /** RW-P0-03: VS Code workspace config ↔ ConfigManager singleton bridge */
 function agentKSubKey(fullKey: string): string {
@@ -60,6 +67,29 @@ function bindAgentKConfigBridge(context: vscode.ExtensionContext): void {
 const debugLogServer = new DebugLogServer();
 // RW-C7-03: MCPClient 전역 인스턴스
 const mcpClient = new MCPClient();
+// ADDON-T11: 세션 토큰/비용 트래커 (Status Bar에 반영)
+const sessionUsageTracker = new SessionUsageTracker();
+let usageStatusBarItem: vscode.StatusBarItem | undefined;
+
+/** ADDON-T11: Status Bar 텍스트/표시 여부 갱신. 실패해도 activate/turn을 막지 않는다. */
+function updateUsageStatusBar(): void {
+  try {
+    if (!usageStatusBarItem) return;
+    const enabled = vscode.workspace
+      .getConfiguration('agent-k')
+      .get('telemetry.statusBarEnabled', true);
+    const totals = sessionUsageTracker.getTotals();
+    if (!enabled || totals.totalTokens <= 0) {
+      usageStatusBarItem.hide();
+      return;
+    }
+    usageStatusBarItem.text = sessionUsageTracker.formatStatusBar();
+    usageStatusBarItem.tooltip = sessionUsageTracker.formatTooltip();
+    usageStatusBarItem.show();
+  } catch {
+    /* status bar is best-effort — never break the agent loop */
+  }
+}
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'agent-k.chat';
@@ -550,6 +580,104 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       void this.restoreCheckpoint(String(message.id));
       return;
     }
+    // ADDON-T07: Checkpoints dropdown — summaries only (no file contents)
+    if (message.type === 'checkpoint.list') {
+      this.sendCheckpointList();
+      return;
+    }
+    // ADDON-T06: webview mounted — send host-restored session metas
+    if (message.type === 'host.sessions.ready') {
+      this.sendSessionHydration();
+      return;
+    }
+    // ADDON-T06: webview session list changed — sync into host SessionManager
+    if (message.type === 'host.sessions.persist' && Array.isArray(message.sessions)) {
+      this.persistSessionsToHost(message.sessions, message.currentId);
+      return;
+    }
+    // ADDON-T10: /compact — pragmatic stub, real compaction runs client-side
+    if (message.type === 'session.compact') {
+      void vscode.window.showInformationMessage(
+        'Agent K: context compaction requested (older turns will be summarized).'
+      );
+      return;
+    }
+    // ADDON-T13: /bon slash command → same flow as the command palette entry
+    if (message.type === 'host.bestOfN') {
+      void vscode.commands.executeCommand('agent-k.bestOfN.run');
+      return;
+    }
+  }
+
+  /** ADDON-T07: summarize checkpoints (id/label/timestamp/turn/mode) → webview */
+  private sendCheckpointList(): void {
+    const webview = this._view?.webview;
+    if (!webview) return;
+    const mgr = RuntimeServices.getCheckpointManager();
+    const checkpoints = mgr ? mgr.list() : [];
+    void webview.postMessage({
+      type: 'checkpoint.listResult',
+      checkpoints: [...checkpoints]
+        .reverse()
+        .map((c) => ({
+          id: c.id,
+          label: c.label,
+          timestamp: c.timestamp,
+          turnNumber: c.metadata.turnNumber,
+          mode: c.metadata.mode,
+          trigger: c.metadata.trigger,
+          fileCount: c.fileSnapshots.length
+        }))
+    });
+  }
+
+  /** ADDON-T06: SessionManager (workspaceState) → webview ChatSessionStore metas */
+  private sendSessionHydration(): void {
+    const webview = this._view?.webview;
+    if (!webview) return;
+    const mgr = RuntimeServices.getSessionManager();
+    if (!mgr) return;
+    const current = mgr.getCurrentSession();
+    const { metas, currentId } = fromHostSnapshot({
+      sessions: mgr.getAllSessions(),
+      currentId: current?.id ?? null
+    });
+    void webview.postMessage({
+      type: 'host.sessions.hydrate',
+      sessions: metas,
+      currentId
+    });
+  }
+
+  /** ADDON-T06: webview ChatSessionStore metas → SessionManager (workspaceState) */
+  private persistSessionsToHost(sessions: unknown[], currentId?: unknown): void {
+    const mgr = RuntimeServices.getSessionManager();
+    if (!mgr) return;
+    const webviewMetas = sessions
+      .filter((s): s is Record<string, unknown> => Boolean(s) && typeof s === 'object')
+      .map((s) => ({
+        id: String(s.id ?? ''),
+        title: String(s.title ?? 'Session'),
+        mode: String(s.mode ?? 'agent'),
+        messageCount: Number(s.messageCount) || 0,
+        createdAt: Number(s.createdAt) || Date.now(),
+        updatedAt: Number(s.updatedAt) || Date.now(),
+        summary: s.summary != null ? String(s.summary) : undefined
+      }))
+      .filter((s) => s.id);
+    const snapshot = toHostSnapshot(webviewMetas, currentId != null ? String(currentId) : null);
+    for (const record of snapshot.sessions) {
+      mgr.upsertFromChatMeta({
+        id: record.id,
+        title: record.label,
+        mode: record.mode,
+        messageCount: record.messageCount,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+        summary: record.summary
+      });
+    }
+    if (snapshot.currentId) mgr.setCurrentSession(snapshot.currentId);
   }
 
   private async restoreCheckpoint(id: string): Promise<void> {
@@ -995,6 +1123,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return 'todos';
       }
 
+      // ADDON-T09: task_run running badge — show the sub-agent's task description
+      if (name === 'task_run') {
+        const label = String(args.description ?? args.task ?? '').trim();
+        return label ? (label.length > 60 ? `${label.slice(0, 57)}…` : label) : 'running';
+      }
+
       if (Array.isArray(args.paths) && args.paths.length) {
         const n = args.paths.length;
         const first = String(args.paths[0] ?? '');
@@ -1042,6 +1176,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       if (Array.isArray(data)) return `${data.length} result(s)`;
       if (data && typeof data === 'object') {
         const obj = data as Record<string, unknown>;
+        // ADDON-T09: task_run completed/timeout/cancelled badge (SubAgentResult status)
+        if (toolName === 'task_run' && typeof obj.status === 'string') {
+          return String(obj.status);
+        }
         if (Array.isArray(obj.files)) return `${obj.files.length} file(s)`;
         if (typeof obj.count === 'number' && toolName === 'read_files') {
           return `${obj.count} file(s)`;
@@ -1149,7 +1287,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       const maxTurns =
         Number.isFinite(configuredTurns) && configuredTurns >= 5
           ? Math.min(100, Math.floor(configuredTurns))
-          : modeConfig.maxTurns || 25;
+          : modeConfig.maxTurns;
+      const configuredTimeout = Number(configManager.get('agent-k.turnTimeoutMs'));
+      const turnTimeoutMs = Number.isFinite(configuredTimeout)
+        ? Math.max(0, Math.floor(configuredTimeout))
+        : undefined;
 
       // Plan/Debug: append FSM stage prompt
       let customSystemPrompt: string | undefined;
@@ -1196,6 +1338,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       const loop = new AgentLoopController({
         mode,
         maxTurns,
+        turnTimeoutMs,
         modelId: model,
         tier: 'A',
         contextBudget: modelContext.maxInputTokens,
@@ -1286,6 +1429,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               label: 'Doom loop — stopped',
               status: 'error',
               id: `tl_doom_${currentTurn}`
+            });
+          }
+          if (status === 'timeout') {
+            postTimeline({
+              kind: 'error',
+              label: 'Run timed out',
+              status: 'error',
+              id: `tl_timeout_${currentTurn}`
+            });
+            post('status', { status: 'timeout' });
+            // Use `error` field — webview reads data.error (not data.message).
+            // onError also fires from the loop; prefer a single clear payload here
+            // and skip duplicate empty-message fallbacks in the webview.
+            post('error', {
+              error:
+                'Agent run idle-timed out (agent-k.turnTimeoutMs) — no LLM/tool activity. Increase the setting or set 0 to disable.',
             });
           }
         },
@@ -1401,6 +1560,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             turn: ev.turn != null ? Number(ev.turn) : currentTurn || 1,
             status: ev.status
           });
+        },
+        onUsage: (usage) => {
+          try {
+            const tracker = RuntimeServices.getSessionUsageTracker() || sessionUsageTracker;
+            tracker.recordUsage(usage.promptTokens || 0, usage.completionTokens || 0);
+            updateUsageStatusBar();
+          } catch {
+            /* usage tracking is best-effort */
+          }
         },
         onToolResult: async (name, result, callId) => {
           const kind = toolKind(name);
@@ -1521,6 +1689,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           post('delta', { content: full });
         },
         onError: (err) => {
+          // Timeout already posted a user-facing error from onStatus — avoid
+          // a second event that the webview would ignore (finished=true) or
+          // that could race with the wrong field name.
+          if (/timed out/i.test(err.message || '')) {
+            return;
+          }
           postTimeline({
             kind: 'error',
             label: 'Error',
@@ -1528,7 +1702,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             status: 'error',
             id: `tl_error_${currentTurn || 0}`
           });
-          post('error', { error: err.message || String(err) });
+          post('error', { error: err.message || String(err) || 'Agent loop failed' });
         }
       });
 
@@ -1603,7 +1777,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
 
         if (this._hostLoopRequestId === requestId) {
-          post('complete');
+          // Don't send complete after a timeout/error already ended the stream
+          const st = loop.state?.status;
+          if (st !== 'timeout' && st !== 'error') {
+            post('complete');
+          }
         }
       } finally {
         clearInterval(heartbeat);
@@ -1683,7 +1861,64 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   public openDesignMode() {
     this._view?.webview.postMessage({ type: 'ui.design.open' });
   }
-  public openReview() {
+  /** ADDON-T14: run diff review (+ optional LM pass) and seed FindingList */
+  public async openReview() {
+    const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (repoRoot) {
+      try {
+        const loop = new AgentReviewLoop(repoRoot);
+        let provider: { complete: (prompt: string) => Promise<string> } | undefined;
+        try {
+          const { LiteLLMProvider } = await import('./providers/LiteLLMProvider');
+          const cfg = vscode.workspace.getConfiguration('agent-k');
+          const apiKey = cfg.get<string>('provider.apiKey') || undefined;
+          const baseUrl = String(cfg.get('provider.baseUrl') || 'http://127.0.0.1:52415');
+          const model = String(cfg.get('provider.model') || cfg.get('model') || 'gpt-4o-mini');
+          const providerType = String(cfg.get('provider.type') || 'litellm') as
+            | 'litellm'
+            | 'openai'
+            | 'anthropic'
+            | 'ollama'
+            | 'lmstudio';
+          const litellm = new LiteLLMProvider({
+            id: 'agent-k-review',
+            name: 'Agent K Review',
+            type: providerType,
+            baseUrl,
+            apiKey,
+            model,
+          });
+          provider = {
+            complete: async (prompt: string) => {
+              let out = '';
+              for await (const chunk of litellm.streamChat({
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.1,
+                maxTokens: 2000,
+              })) {
+                if (chunk.content) out += chunk.content;
+                if (chunk.error) break;
+              }
+              return out;
+            },
+          };
+        } catch {
+          provider = undefined;
+        }
+        const result = await loop.reviewWithLM(provider);
+        this._view?.webview.postMessage({
+          type: 'ui.review.open',
+          findings: result.findings,
+          diffSummary: result.diffSummary,
+        });
+        if (!result.diffSummary) {
+          void vscode.window.showInformationMessage('Agent K Review: no git diff to review.');
+        }
+        return;
+      } catch {
+        /* fall through to demo panel — e.g. not a git repo */
+      }
+    }
     this._view?.webview.postMessage({ type: 'ui.review.open' });
   }
   public openArtifacts() {
@@ -1779,6 +2014,29 @@ export function activate(context: vscode.ExtensionContext) {
     void vscode.commands.executeCommand('workbench.view.extension.agent-k');
   }, 100);
 
+  // ADDON-T11: Status Bar 토큰/비용 표시. 실패해도 나머지 activate에 영향 없음.
+  try {
+    usageStatusBarItem = vscode.window.createStatusBarItem(
+      'agent-k.usage',
+      vscode.StatusBarAlignment.Right,
+      100
+    );
+    context.subscriptions.push(usageStatusBarItem);
+    RuntimeServices.setSessionUsageTracker(sessionUsageTracker);
+    updateUsageStatusBar();
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('agent-k.telemetry.statusBarEnabled')) {
+          updateUsageStatusBar();
+        }
+      })
+    );
+  } catch (err) {
+    outputChannel.appendLine(
+      `[Agent K] usage status bar init failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
   try {
     RuntimeServices.setWorkspaceState(context.workspaceState);
     RuntimeServices.setDebugLogServer(debugLogServer);
@@ -1796,7 +2054,15 @@ export function activate(context: vscode.ExtensionContext) {
 
     bindAgentKConfigBridge(context);
 
-    RuntimeServices.setCheckpointManager(new CheckpointManager());
+    const checkpointManager = new CheckpointManager();
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (workspaceRoot) {
+      checkpointManager.setPersistRoot(workspaceRoot);
+    }
+    RuntimeServices.setCheckpointManager(checkpointManager);
+
+    // ADDON-T06: host-side session persistence (survives Extension Host restart)
+    RuntimeServices.setSessionManager(new SessionManager(context.workspaceState));
     const permissionGate = new PermissionGate(
       configManager.get('agent-k.permission.level') || 'accept_edits'
     );
@@ -1908,6 +2174,107 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(
           lines.length ? `[Agent K] MCP reload: ${lines.join(' | ')}` : '[Agent K] MCP: no servers'
         );
+      }),
+
+      // ADDON-T13: Best-of-N — prompt task/N, run parallel worktree trials, adopt or clean up
+      vscode.commands.registerCommand('agent-k.bestOfN.run', async () => {
+        const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!repoRoot) {
+          void vscode.window.showWarningMessage(
+            'Agent K: Best-of-N requires an open workspace folder.'
+          );
+          return;
+        }
+
+        const task = await vscode.window.showInputBox({
+          prompt: 'Best-of-N: describe the task to run in parallel worktrees',
+          placeHolder: 'e.g. Add input validation to the signup form'
+        });
+        if (!task?.trim()) return;
+
+        const nPick = await vscode.window.showQuickPick(['2', '3', '4'], {
+          placeHolder: 'Number of parallel trials (N)'
+        });
+        if (!nPick) return;
+        const n = Number(nPick) || 2;
+
+        const cfg = vscode.workspace.getConfiguration('agent-k');
+        const model = String(cfg.get('provider.model') || 'default-model');
+
+        const manager = new WorktreeManager(repoRoot);
+        const bestOfN = new BestOfN(manager);
+
+        let trials: BoNTrial[] = [];
+        try {
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Agent K: Running Best-of-${n}…`,
+              cancellable: false
+            },
+            async () => {
+              trials = await bestOfN.run({
+                n,
+                models: Array(n).fill(model),
+                prompts: Array(n).fill(task),
+                task
+              });
+            }
+          );
+        } catch (err) {
+          void vscode.window.showErrorMessage(`[Agent K] Best-of-N failed: ${err}`);
+          await bestOfN.cleanup().catch(() => {});
+          return;
+        }
+
+        if (!trials.length) {
+          void vscode.window.showWarningMessage(
+            '[Agent K] Best-of-N produced no trials (worktree creation may have failed).'
+          );
+          return;
+        }
+
+        const items = trials.map((t) => ({
+          label: `${t.id} — ${t.status}`,
+          description: `${t.model} · ${t.duration != null ? `${(t.duration / 1000).toFixed(1)}s` : 'n/a'}`,
+          detail: (t.output || t.error || '').slice(0, 200),
+          trial: t
+        }));
+
+        const picked = await vscode.window.showQuickPick(items, {
+          placeHolder: 'Select a trial to adopt into this workspace (Esc cancels and cleans up all worktrees)'
+        });
+
+        if (!picked) {
+          await bestOfN.cleanup().catch(() => {});
+          void vscode.window.showInformationMessage(
+            '[Agent K] Best-of-N cancelled — worktrees cleaned up.'
+          );
+          return;
+        }
+
+        const adopter = new AdoptWinner(manager, repoRoot);
+        try {
+          const result = await adopter.adopt(picked.trial);
+          if (result.success) {
+            await Promise.all(
+              trials
+                .filter((t) => t.id !== picked.trial.id)
+                .map((t) => manager.remove(t.worktree.path).catch(() => {}))
+            );
+            void vscode.window.showInformationMessage(
+              `[Agent K] Adopted ${picked.trial.id} (${result.filesChanged} file(s) changed).`
+            );
+          } else {
+            void vscode.window.showErrorMessage(
+              `[Agent K] Adopt failed: ${result.error || 'unknown error'}`
+            );
+            await bestOfN.cleanup().catch(() => {});
+          }
+        } catch (err) {
+          void vscode.window.showErrorMessage(`[Agent K] Adopt failed: ${err}`);
+          await bestOfN.cleanup().catch(() => {});
+        }
       })
     );
 

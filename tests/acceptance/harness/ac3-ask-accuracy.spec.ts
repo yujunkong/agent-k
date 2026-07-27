@@ -18,6 +18,7 @@ export function quoteMatchesFileBytes(filePath: string, quotedSnippet: string): 
 
 suite('HARB AC-3: Ask Mode Accuracy', () => {
   let file: string;
+  let dir: string;
 
   suiteSetup(() => {
     registerReadTools();
@@ -25,9 +26,15 @@ suite('HARB AC-3: Ask Mode Accuracy', () => {
   });
 
   setup(() => {
-    const dir = fs.mkdtempSync(path.join(process.cwd(), '.harb-ac3-'));
+    dir = fs.mkdtempSync(path.join(process.cwd(), '.harb-ac3-'));
     file = path.join(dir, 'sample.ts');
     fs.writeFileSync(file, 'export const ANSWER = 42;\n', 'utf-8');
+  });
+
+  teardown(() => {
+    if (dir && fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   test('AC-3: ask mode blocks edit_file; read quote matches disk', async () => {

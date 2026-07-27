@@ -1,11 +1,14 @@
 /**
  * SideChatSession - 병렬 읽기 전용 세션 (C4-T22)
- * 
- * 메인 Agent 병렬 읽기 전용 세션
- * grep/read/search만, 쓰기/터미널/Review 금지
- * `@side-결과`로 메인 컨텍스트 합류
+ *
+ * @deprecated ADDON-T16: unsupported in this build. `executeQuery` previously
+ * faked a "Side exploration for: ..." summary without doing any real work
+ * (no AgentLoop, no tool calls). Rather than keep that misleading stub, it
+ * now returns a clearly-labeled unsupported result — callers must not treat
+ * `findings`/`summary` as real exploration output. No command/UI in this
+ * extension registers a `/side` entry point; this class is unused dead code
+ * kept only for the merge-block/API shape until a real implementation lands.
  */
-import { modeRegistry } from '../agent/modeRegistry';
 import type { Mode } from '../agent/types';
 
 export interface SideChatResult {
@@ -17,9 +20,12 @@ export interface SideChatResult {
   timestamp: number;
 }
 
+const UNSUPPORTED_MESSAGE = 'Side chat is unsupported in this build.';
+
+/** @deprecated ADDON-T16 — see file header. */
 export class SideChatSession {
   private readonly sessionId: string;
-  private mode: Mode = 'ask'; // Side chat is always read-only (ask mode)
+  private readonly mode: Mode = 'ask'; // Side chat is always read-only (ask mode)
   private results: SideChatResult[] = [];
 
   constructor() {
@@ -30,16 +36,16 @@ export class SideChatSession {
     return this.sessionId;
   }
 
+  /**
+   * @deprecated Does not run any real exploration (no AgentLoop, no tools).
+   * Returns an explicit unsupported result instead of pretending to search.
+   */
   async executeQuery(query: string): Promise<SideChatResult> {
-    // Side chat uses ask mode — read-only tools only
-    const allowedTools = modeRegistry.getModeConfig('ask').allowedTools;
-
-    // Stub: in real implementation, runs a lightweight agent loop
     const result: SideChatResult = {
       sessionId: this.sessionId,
       query,
-      summary: `Side exploration for: ${query}`,
-      findings: [],
+      summary: UNSUPPORTED_MESSAGE,
+      findings: ['unsupported'],
       sources: [],
       timestamp: Date.now()
     };

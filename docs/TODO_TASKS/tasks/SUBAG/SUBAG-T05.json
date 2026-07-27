@@ -1,0 +1,26 @@
+{
+  "id": "SUBAG-T05",
+  "phase": "SUBAG",
+  "title": "model inherit/fast + readonly 강제",
+  "description": "정의·호출의 model 필드를 실제 LiteLLM/provider 선택에 연결. readonly면 edit/write/위험 shell 차단(ask 화이트리스트).",
+  "files": [
+    "src/subagents/SubAgentRuntime.ts",
+    "src/tools/orchestration/TaskTool.ts",
+    "src/core/ConfigManager.ts",
+    "package.json"
+  ],
+  "priority": "P1",
+  "status": "pending",
+  "dependencies": ["SUBAG-T04"],
+  "acceptanceCriteria": [
+    "inherit = 부모와 동일 모델",
+    "fast = 설정 agent-k.subagents.fastModel (또는 tier A 기본)",
+    "readonly=true일 때 write/edit 도구 스키마 미포함",
+    "호출 인자 model/readonly가 정의 기본값을 오버라이드 가능",
+    "설정 키 문서화"
+  ],
+  "estimatedHours": 4,
+  "tags": ["subag", "p1", "model", "readonly"],
+  "prdRefs": ["docs/PRDs/08_Subagents/PRD-Subagents.md"],
+  "source": "PRD-Subagents §3.1–3.2"
+}

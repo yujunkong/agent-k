@@ -7,9 +7,13 @@ export default defineConfig({
   root: 'src/chat',
   base: '',
   resolve: {
-    // Webview cannot import real vscode — stub for transitive extension-host imports
+    // Webview cannot import real vscode / Node builtins — stub for transitive
+    // extension-host-only imports (e.g. ideContextInjector.ts's execFileSync).
     alias: {
-      vscode: resolve(__dirname, 'src/chat/vscode-shim.ts')
+      vscode: resolve(__dirname, 'src/chat/vscode-shim.ts'),
+      child_process: resolve(__dirname, 'src/chat/node-shims.ts'),
+      fs: resolve(__dirname, 'src/chat/node-shims.ts'),
+      path: resolve(__dirname, 'src/chat/node-shims.ts'),
     }
   },
   // Webview loads chat.js as a classic/non-module script — strip Vite/ESM env bits

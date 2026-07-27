@@ -1,0 +1,44 @@
+{
+  "id": "ADDON-T03",
+  "phase": "ADDON",
+  "title": "Plan/write 강제 게이트 (복잡 작업·Plan 모드 write 차단)",
+  "description": "docs/addon.md P0 갭#3. Plan FSM·승인은 있으나 소형 모델이 계획 없이 write하는 경로를 구조적으로 막는지 강화. Plan 모드/미승인 시 write·edit·delete 거부. 복잡 작업 휴리스틱(다파일/새기능) 시 plan 유도 옵션.",
+  "files": [
+    "src/plan/PlanModeController.ts",
+    "src/plan/PlanEnforcement.ts",
+    "src/tools/registry.ts",
+    "src/agent/modeRegistry.ts",
+    "src/loop/AgentLoopController.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "Plan 모드에서 미승인 시 write/edit/delete 도구 실행 거부 + 명확한 tool_result 에러",
+    "승인(Build) 후에만 쓰기 도구 허용",
+    "Agent 모드 옵션: 복잡 작업 시 plan 유도 또는 soft-block (설정)",
+    "기존 Ask/Agent 정상 경로 회귀 없음",
+    "단위 테스트로 enforcement 케이스 커버"
+  ],
+  "estimatedHours": 5,
+  "tags": [
+    "addon",
+    "p0",
+    "plan",
+    "enforcement",
+    "write-gate"
+  ],
+  "prdRefs": [
+    "docs/addon.md#B",
+    "PRD-C5_Plan_Mode.md"
+  ],
+  "source": "docs/addon.md §16.2 / §19.4 / 갭 Top#3",
+  "completedCriteria": [
+    "✅ implemented"
+  ],
+  "implementationNotes": {
+    "completedAt": "2026-07-27T22:36:32.864518+09:00",
+    "verification": "npm run check-types; npm run test:addon (136+ passing)",
+    "notes": "implemented"
+  }
+}

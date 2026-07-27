@@ -1,0 +1,42 @@
+{
+  "id": "ADDON-T07",
+  "phase": "ADDON",
+  "title": "체크포인트 자동 스냅샷 + 롤백 UX 제품화",
+  "description": "docs/addon.md P1 / 갭 Top#5. CheckpointManager 모듈을 write/edit 전 자동 스냅샷 + 웹뷰 원클릭 롤백까지 연결.",
+  "files": [
+    "src/checkpoint/CheckpointManager.ts",
+    "src/tools/writeExecutors.ts",
+    "src/chat/ChatApp.tsx",
+    "src/chat/protocol.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "write/edit 전 영향 파일 자동 체크포인트 생성",
+    "웹뷰에서 체크포인트 목록·롤백 가능",
+    "롤백 후 파일 내용 복원 확인",
+    "상한(예: 50) 초과 시 prune"
+  ],
+  "estimatedHours": 6,
+  "tags": [
+    "addon",
+    "p1",
+    "checkpoint",
+    "rollback",
+    "ux"
+  ],
+  "prdRefs": [
+    "docs/addon.md §18.3",
+    "PRD-Infra-09_Checkpoints_Rollback.md"
+  ],
+  "source": "docs/addon.md 갭 Top#5",
+  "completedCriteria": [
+    "✅ CheckpointManager max=50 + disk persist + Checkpoints UI"
+  ],
+  "implementationNotes": {
+    "completedAt": "2026-07-27T22:36:32.864518+09:00",
+    "verification": "npm run check-types; npm run test:addon (136+ passing)",
+    "notes": "CheckpointManager max=50 + disk persist + Checkpoints UI"
+  }
+}

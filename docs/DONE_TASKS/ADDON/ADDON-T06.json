@@ -1,0 +1,41 @@
+{
+  "id": "ADDON-T06",
+  "phase": "ADDON",
+  "title": "SessionManager ↔ ChatSessionStore 호스트 영속 통합",
+  "description": "docs/addon.md P1. 실세션은 webview localStorage. SessionManager는 고아. workspaceState/globalState와 동기화해 VS Code 재시작 후 세션 복원.",
+  "files": [
+    "src/session/SessionManager.ts",
+    "src/chat/ChatSessionStore.ts",
+    "src/chat/ChatViewProvider.ts",
+    "src/extension.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "세션 메타/메시지 요약이 Extension host workspaceState에 저장",
+    "웹뷰 로드 시 host에서 복원 가능",
+    "기존 ChatSessionStore 마이그레이션 경로",
+    "SessionManager가 extension.ts에서 실제 사용됨 (고아 해소)"
+  ],
+  "estimatedHours": 5,
+  "tags": [
+    "addon",
+    "p1",
+    "session",
+    "persistence"
+  ],
+  "prdRefs": [
+    "docs/addon.md",
+    "PRD-Infra-19_Session_Manager.md"
+  ],
+  "source": "docs/addon.md §2",
+  "completedCriteria": [
+    "✅ SessionManager memento + HostSessionBridge + ChatSessionStore hydrate/persist"
+  ],
+  "implementationNotes": {
+    "completedAt": "2026-07-27T22:36:32.864518+09:00",
+    "verification": "npm run check-types; npm run test:addon (136+ passing)",
+    "notes": "SessionManager memento + HostSessionBridge + ChatSessionStore hydrate/persist"
+  }
+}

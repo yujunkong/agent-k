@@ -8,12 +8,30 @@ interface CodeBlockProps {
   streaming?: boolean;
 }
 
+function looksLikeMarkdown(code: string): boolean {
+  const t = code.trim();
+  if (!t) return false;
+  return (
+    /^#{1,6}\s/m.test(t) ||
+    /^\s*[-*]\s+\[[ xX]\]/m.test(t) ||
+    /^\s*[-*]\s+\S/m.test(t) ||
+    /^\|.+\|/m.test(t) ||
+    /\[.+\]\(.+\)/.test(t)
+  );
+}
+
 export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
   const [highlighted, setHighlighted] = useState<string>('');
   const [ready, setReady] = useState(isHighlighterReady());
   const [copied, setCopied] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-  const lang = normalizeLang(language);
+  let lang = normalizeLang(language);
+  if (
+    (lang === 'plaintext' || lang === 'text' || !language) &&
+    looksLikeMarkdown(code)
+  ) {
+    lang = 'markdown';
+  }
 
   useEffect(() => {
     if (ready) return;
@@ -60,8 +78,18 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
     }
   };
 
-  const label = lang === 'plaintext' && !language ? 'text' : (language || lang).toLowerCase();
-  const useShiki = Boolean(highlighted && highlighted.includes('shiki'));
+  const label =
+    lang === 'markdown' && (!language || /^(text|plaintext|txt|plain)?$/i.test(language))
+      ? 'markdown'
+      : lang === 'plaintext' && !language
+        ? 'text'
+        : (language || lang).toLowerCase();
+  const useHighlighted = Boolean(
+    highlighted &&
+      (highlighted.includes('shiki') ||
+        highlighted.includes('style="color:') ||
+        highlighted.includes("style='color:"))
+  );
 
   return (
     <div className="ak-code">
@@ -77,7 +105,7 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
           {copied ? <IconCheck size={13} /> : <IconCopy size={13} />}
         </button>
       </div>
-      {useShiki ? (
+      {useHighlighted ? (
         <div className="ak-code__body">
           <div dangerouslySetInnerHTML={{ __html: highlighted }} />
           {streaming ? <span className="ak-code__cursor" aria-hidden /> : null}

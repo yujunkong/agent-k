@@ -15,6 +15,7 @@ export const DESIGN_SLOGANS_PROMPT = `
 ### 1. Search is Code, Judgment is Model
 Tools (grep, codebase_search, glob, read_file, read_files) run in parallel by the system — you analyze results and decide.
 Locate with search first, then batch-read needed windows (\`read_files\` or many \`read_file\` in one turn; ~250 lines via offset/limit).
+**Never invent file paths** — if the path did not come from the user or a prior tool result, call \`glob\` / \`file_search\` / \`codebase_search\` first. ENOENT = wrong path (not a permission block).
 DO NOT drip-read 2–4 files across many turns.
 
 ### 2. One Turn, One Task

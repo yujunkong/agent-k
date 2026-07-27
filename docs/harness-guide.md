@@ -54,5 +54,5 @@ npm run compile
 npm run test:harness   # AC-1..4 (6 tests)
 ```
 
-See also: `TODO_TASKS/HARB_AGENT_HANDOFF.md`, `TODO_TASKS/reports/harb-residual-reverify-2026-07-25.md`
+See also: `docs/TODO_TASKS/HARB_AGENT_HANDOFF.md`, `docs/TODO_TASKS/reports/harb-residual-reverify-2026-07-25.md`
 

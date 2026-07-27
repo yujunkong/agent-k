@@ -1,6 +1,12 @@
 /**
  * Multi-session chat persistence (webview localStorage).
  * Migrates legacy single-key `agent-k.chat.history` on first load.
+ *
+ * ADDON-T06: webview localStorage does not survive an Extension Host
+ * restart. Host-side sync (meta + summary + messageCount only, not full
+ * message bodies) is wired through `ChatViewProvider`, not here — this
+ * class stays a pure webview-local store. See `applyHostHydration` /
+ * `exportMetasForHost` and `src/session/HostSessionBridge.ts`.
  */
 import type { ChatMessage, Mode } from './types';
 
@@ -210,6 +216,46 @@ export class ChatSessionStore {
     this.currentId = id;
     this.persistCurrent();
     return session;
+  }
+
+  /** ADDON-T06: metas to send host-ward on `host.sessions.persist` */
+  exportMetasForHost(): ChatSessionMeta[] {
+    return this.list();
+  }
+
+  /**
+   * ADDON-T06: merge host-restored metas (SessionManager/workspaceState)
+   * that are unknown locally — e.g. localStorage was cleared by an
+   * Extension Host restart. Never overwrites a session this webview
+   * already has (host only carries meta, not full message bodies).
+   */
+  applyHostHydration(metas: ChatSessionMeta[]): void {
+    if (!Array.isArray(metas) || metas.length === 0) return;
+    let changed = false;
+    for (const meta of metas) {
+      if (!meta?.id || this.index.includes(meta.id)) continue;
+      if (this.readSession(meta.id)) continue;
+      const session: ChatSession = {
+        id: meta.id,
+        title: meta.title || 'Restored chat',
+        mode: meta.mode,
+        messageCount: meta.messageCount,
+        createdAt: meta.createdAt,
+        updatedAt: meta.updatedAt,
+        messages: []
+      };
+      this.writeSession(session);
+      this.index.push(meta.id);
+      changed = true;
+    }
+    if (!changed) return;
+    this.index.sort((a, b) => {
+      const sa = this.readSession(a)?.updatedAt || 0;
+      const sb = this.readSession(b)?.updatedAt || 0;
+      return sb - sa;
+    });
+    this.trimExcess();
+    this.persistIndex();
   }
 
   delete(id: string): ChatSession | null {

@@ -17,6 +17,12 @@ export const AGENT_K_VSCODE_CONFIG_KEYS = [
   'agent-k.mcp.servers',
   'agent-k.thinking.effort',
   'agent-k.maxTurns',
+  'agent-k.verification.testEnabled',
+  'agent-k.turnTimeoutMs',
+  'agent-k.plan.forceOnComplex',
+  'agent-k.telemetry.statusBarEnabled',
+  'agent-k.mcp.maxSchemaTokens',
+  'agent-k.search.localEmbedding',
 ] as const;
 
 /** Webview FeaturesTab keys — in-memory until contributed to package.json */
@@ -116,6 +122,9 @@ export class ConfigManager {
       'agent-k.thinking.effort': 'medium',
       'agent-k.context.budget': 100000,
       'agent-k.telemetry.enabled': true,
+      'agent-k.telemetry.statusBarEnabled': true,
+      'agent-k.mcp.maxSchemaTokens': 8000,
+      'agent-k.search.localEmbedding': false,
       'agent-k.budget.dailyTokens': 10000000,
       'agent-k.budget.monthlyTokens': 100000000,
       'agent-k.harness.enabled': true,

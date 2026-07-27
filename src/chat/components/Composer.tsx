@@ -19,7 +19,8 @@ import {
   filterSlashCommands,
   replaceTriggerRange,
   type ActiveTrigger,
-  type MentionHit
+  type MentionHit,
+  type SlashCommand
 } from '../composerPalette';
 
 interface ComposerProps {
@@ -59,11 +60,8 @@ interface ComposerProps {
   /** Prefill composer (e.g. Stop on user bubble → same text for resend) */
   seedText?: string | null;
   seedNonce?: number;
-  /** Slash command actions (/new, /agent, …) */
-  onSlashCommand?: (cmd: {
-    action: 'newChat' | 'settings' | 'mode';
-    mode?: Mode;
-  }) => void;
+  /** Slash command actions (/new, /agent, /compact, /cost, /model, /permissions, /help, …) */
+  onSlashCommand?: (cmd: SlashCommand) => void;
 }
 
 function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
@@ -325,10 +323,7 @@ export function Composer({
       );
       applyTextAndCursor(next, nextCursor);
       closePalette();
-      onSlashCommand?.({
-        action: cmd.action,
-        mode: cmd.mode
-      });
+      onSlashCommand?.(cmd);
     },
     [text, onSlashCommand]
   );

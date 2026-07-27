@@ -264,7 +264,9 @@ const taskRunTool: ToolDefinition = {
     properties: {
       description: { type: 'string', description: 'Task description for the sub-agent' },
       subtasks: { type: 'array', items: { type: 'string' }, description: 'Subtasks to complete', optional: true },
-      mode: { type: 'string', enum: ['agent', 'ask', 'plan', 'debug'], description: 'Mode for the sub-agent (default: agent)', optional: true }
+      mode: { type: 'string', enum: ['agent', 'ask', 'plan', 'debug'], description: 'Mode for the sub-agent (default: agent)', optional: true },
+      maxTurns: { type: 'number', description: 'Max turns for the sub-agent loop (default 5)', optional: true },
+      modelId: { type: 'string', description: 'Model id override for the sub-agent', optional: true }
     },
     required: ['description']
   },

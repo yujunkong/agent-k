@@ -1,0 +1,39 @@
+{
+  "id": "ADDON-T16",
+  "phase": "ADDON",
+  "title": "Side chat stub 해소 (구현 또는 기능 제거·숨김)",
+  "description": "docs/addon.md P2. SideChatSession.executeQuery가 stub. 최소 질의 구현 또는 UI/명령에서 제거하고 문서 정합.",
+  "files": [
+    "src/sidechat/SideChatSession.ts",
+    "src/extension.ts",
+    "docs/production-features.md"
+  ],
+  "priority": "P2",
+  "status": "done",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "stub이 사용자에게 노출되지 않거나 실제 동작",
+    "선택: 경량 side query(읽기 전용) 구현 또는 명령/UI 제거",
+    "문서/설정 탭과 상태 일치"
+  ],
+  "estimatedHours": 3,
+  "tags": [
+    "addon",
+    "p2",
+    "sidechat",
+    "cleanup"
+  ],
+  "prdRefs": [
+    "docs/addon.md",
+    "PRD-12_Side_Chat.md"
+  ],
+  "source": "docs/addon.md Side chat stub",
+  "completedCriteria": [
+    "✅ SideChatSession deprecated unsupported result"
+  ],
+  "implementationNotes": {
+    "completedAt": "2026-07-27T22:36:32.864518+09:00",
+    "verification": "npm run check-types; npm run test:addon (136+ passing)",
+    "notes": "SideChatSession deprecated unsupported result"
+  }
+}

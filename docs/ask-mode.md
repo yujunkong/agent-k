@@ -25,8 +25,9 @@ Ask Mode (Read-only mode) is Agent-K's safe exploration mode. When in Ask mode, 
 2. AgentLoopController.executeTool: verifies tool is allowed for current mode
 3. ModeBadge.tsx shows 🔒 read-only indicator in Ask mode
 
-## Side Chat (@side-)
-Ask mode supports parallel `@side-` sessions for non-blocking research:
-- SideChatSession starts in read-only mode
-- Results merged via getMergeBlock()
-- Max 5 concurrent sessions
+## Side Chat (@side-) — unsupported (ADDON-T16)
+`SideChatSession` is **not wired to any command or UI** and does not run real
+exploration (no AgentLoop, no tool calls). `executeQuery()` returns an
+explicit `{ summary: 'Side chat is unsupported in this build.', findings: ['unsupported'] }`
+result rather than pretending to search. Treat this as dead/deprecated code
+until a real implementation lands — do not build on `@side-` today.

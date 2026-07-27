@@ -1,0 +1,24 @@
+{
+  "id": "SUBAG-T10",
+  "phase": "SUBAG",
+  "title": "worktree:true compose (Layer B 옵션)",
+  "description": "겹치는 파일 편집이 필요한 서브에이전트만 git worktree에서 실행. 기존 WorktreeManager/BestOfN API 재사용. 기본 false.",
+  "files": [
+    "src/subagents/SubAgentRuntime.ts",
+    "src/worktree/WorktreeManager.ts",
+    "src/tools/orchestration/TaskTool.ts"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": ["SUBAG-T05"],
+  "acceptanceCriteria": [
+    "task_run.worktree=true 시 격리 checkout에서 자식 실행",
+    "실패/취소 시 worktree 정리 정책 명시",
+    "readonly/explore에는 worktree 불필요(무시 또는 경고)",
+    "BoN과 코드 경로 공유, UI Comparison 강제 아님"
+  ],
+  "estimatedHours": 5,
+  "tags": ["subag", "p2", "worktree"],
+  "prdRefs": ["docs/PRDs/08_Subagents/PRD-Subagents.md"],
+  "source": "PRD-Subagents Layer B / W5"
+}

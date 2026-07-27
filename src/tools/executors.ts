@@ -365,6 +365,40 @@ async function matchGlobFiles(
   return results;
 }
 
+/** When read misses, suggest real workspace paths by basename (steers model to glob). */
+async function suggestPathsForMissing(requested: string): Promise<string[]> {
+  try {
+    const pathMod = require('path') as typeof import('path');
+    const { getWorkspaceRoot } = await import('./writeExecutors');
+    const cwd = getWorkspaceRoot() || process.cwd();
+    const normalized = String(requested || '').replace(/\\/g, '/');
+    const base = pathMod.basename(normalized);
+    if (!base || base === '.' || base === '..') return [];
+    const exact = await matchGlobFiles(`**/${base}`, cwd, 8);
+    const hits =
+      exact.length > 0
+        ? exact
+        : await matchGlobFiles(`**/*${base.replace(/[.*+?^${}()|[\]\\]/g, '')}*`, cwd, 8);
+    return hits.slice(0, 5).map((f) =>
+      pathMod.relative(cwd, f).split(pathMod.sep).join('/')
+    );
+  } catch {
+    return [];
+  }
+}
+
+function formatMissingReadError(requested: string, errMsg: string, hints: string[]): string {
+  const hintPart =
+    hints.length > 0
+      ? ` Similar paths: ${hints.join(', ')}. Re-read one of these, or call glob/file_search.`
+      : ' Call glob or file_search with the filename, then read the returned path.';
+  return (
+    `Cannot read file: ${errMsg}. Path not found — do not invent paths;` +
+    ` locate with glob/file_search/codebase_search/grep first.${hintPart}` +
+    (requested ? ` (requested: ${requested})` : '')
+  );
+}
+
 export async function executeReadFile(input: ToolInput): Promise<ToolOutput> {
   const { path: filePath, offset, maxChars = 50000 } = input;
   // Cursor-like: default window ~250 lines (ContextRules) — never dump whole files by accident
@@ -429,7 +463,18 @@ export async function executeReadFile(input: ToolInput): Promise<ToolOutput> {
       metadata: { duration: 0 }
     };
   } catch (error: any) {
-    return { success: false, error: `Cannot read file: ${error.message}`, metadata: { duration: 0 } };
+    const msg = String(error?.message || error || '');
+    const isMissing =
+      error?.code === 'ENOENT' || /ENOENT|no such file|not found/i.test(msg);
+    if (isMissing) {
+      const hints = await suggestPathsForMissing(String(filePath || ''));
+      return {
+        success: false,
+        error: formatMissingReadError(String(filePath || ''), msg, hints),
+        metadata: { duration: 0 }
+      };
+    }
+    return { success: false, error: `Cannot read file: ${msg}`, metadata: { duration: 0 } };
   }
 }
 
@@ -579,6 +624,26 @@ export async function executeCodebaseSearch(input: ToolInput): Promise<ToolOutpu
     return { success: false, error: 'query is required', metadata: { duration: 0 } };
   }
 
+  // 0) ADDON-T17: optional local TF-IDF similarity (agent-k.search.localEmbedding)
+  try {
+    const embedded = await searchViaLocalEmbedding(query, maxResults);
+    if (embedded.length > 0) {
+      return {
+        success: true,
+        data: {
+          query,
+          method: 'embedding',
+          results: embedded,
+          count: embedded.length,
+          note: 'Local TF-IDF similarity (not a real embedding model). Use read_file with offset/limit around startLine–endLine.'
+        },
+        metadata: { duration: 0 }
+      };
+    }
+  } catch {
+    // fall through to index/grep
+  }
+
   // 1) Warm chunk index if present (substring) — returns path + line ranges
   try {
     const indexed = await searchViaChunkIndex(query, maxResults);
@@ -618,22 +683,13 @@ export async function executeCodebaseSearch(input: ToolInput): Promise<ToolOutpu
 let chunkIndexer: import('../indexing/CodebaseIndexer').CodebaseIndexer | null = null;
 let chunkIndexRoot: string | null = null;
 
-async function searchViaChunkIndex(
-  query: string,
-  maxResults: number
-): Promise<
-  Array<{
-    path: string;
-    startLine: number;
-    endLine: number;
-    snippet: string;
-  }>
-> {
+/** Shared lazy-init/warm for the workspace chunk index (index + local embedding paths). */
+async function ensureChunkIndexer(): Promise<import('../indexing/CodebaseIndexer').CodebaseIndexer | null> {
   const path = require('path');
   const { getWorkspaceRoot } = await import('./writeExecutors');
   const { CodebaseIndexer } = await import('../indexing/CodebaseIndexer');
   const root = getWorkspaceRoot();
-  if (!root) return [];
+  if (!root) return null;
 
   if (!chunkIndexer || chunkIndexRoot !== root) {
     const indexDir = path.join(root, '.agent-k-index');
@@ -653,14 +709,63 @@ async function searchViaChunkIndex(
     }
   }
 
-  if (chunkIndexer.getStats().totalChunks === 0) return [];
+  return chunkIndexer.getStats().totalChunks === 0 ? null : chunkIndexer;
+}
 
-  const hits = chunkIndexer.search(query, maxResults);
+async function searchViaChunkIndex(
+  query: string,
+  maxResults: number
+): Promise<
+  Array<{
+    path: string;
+    startLine: number;
+    endLine: number;
+    snippet: string;
+  }>
+> {
+  const indexer = await ensureChunkIndexer();
+  if (!indexer) return [];
+
+  const hits = indexer.search(query, maxResults);
   return hits.map((c) => ({
     path: c.filePath,
     startLine: c.startLine,
     endLine: c.endLine,
     snippet: c.content.slice(0, 1200)
+  }));
+}
+
+/** ADDON-T17: local TF-IDF similarity ranking, gated by agent-k.search.localEmbedding. */
+async function searchViaLocalEmbedding(
+  query: string,
+  maxResults: number
+): Promise<
+  Array<{
+    path: string;
+    startLine: number;
+    endLine: number;
+    snippet: string;
+    score: number;
+  }>
+> {
+  const { configManager } = await import('../core/ConfigManager');
+  if (!configManager.get('agent-k.search.localEmbedding')) return [];
+
+  const indexer = await ensureChunkIndexer();
+  if (!indexer) return [];
+
+  const { SemanticSearch } = await import('../indexing/SemanticSearch');
+  const semantic = new SemanticSearch(indexer);
+  semantic.enableLocalEmbedding(true);
+  const { results, method } = semantic.search(query, maxResults);
+  if (method !== 'embedding') return [];
+
+  return results.map((r) => ({
+    path: r.filePath,
+    startLine: r.line,
+    endLine: r.line,
+    snippet: r.content.slice(0, 1200),
+    score: r.score
   }));
 }
 

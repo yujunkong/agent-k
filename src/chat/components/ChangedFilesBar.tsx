@@ -7,6 +7,13 @@ import React, { useState } from 'react';
 import type { FileEditPreview } from '../types';
 import { languageBadge } from '../editDiffPreview';
 
+/** ADDON-T07: lightweight checkpoint summary (no file contents over the wire) */
+export interface CheckpointSummary {
+  id: string;
+  label: string;
+  timestamp: number;
+}
+
 export interface ChangedFilesBarProps {
   files: FileEditPreview[];
   onOpenFile?: (path: string) => void;
@@ -15,6 +22,18 @@ export interface ChangedFilesBarProps {
   /** While agent is running — show Stop like Cursor */
   isStreaming?: boolean;
   onStop?: () => void;
+  /** ADDON-T07: recent checkpoints dropdown (minimal — button + list) */
+  checkpoints?: CheckpointSummary[];
+  onListCheckpoints?: () => void;
+  onRestoreCheckpoint?: (id: string) => void;
+}
+
+function formatCheckpointTime(ts: number): string {
+  try {
+    return new Date(ts).toLocaleTimeString();
+  } catch {
+    return '';
+  }
 }
 
 function basename(p: string): string {
@@ -35,12 +54,24 @@ export function ChangedFilesBar({
   onUndoAll,
   onReview,
   isStreaming = false,
-  onStop
+  onStop,
+  checkpoints,
+  onListCheckpoints,
+  onRestoreCheckpoint
 }: ChangedFilesBarProps) {
   const [expanded, setExpanded] = useState(false);
   const [hoverPath, setHoverPath] = useState<string | null>(null);
+  const [showCheckpoints, setShowCheckpoints] = useState(false);
 
   if (!files.length) return null;
+
+  const toggleCheckpoints = () => {
+    setShowCheckpoints((v) => {
+      const next = !v;
+      if (next) onListCheckpoints?.();
+      return next;
+    });
+  };
 
   return (
     <div className="changed-files-bar">
@@ -97,8 +128,49 @@ export function ChangedFilesBar({
               Review
             </button>
           ) : null}
+          {!isStreaming && onUndoAll && onListCheckpoints ? (
+            <button
+              type="button"
+              className="changed-files-bar__link"
+              aria-expanded={showCheckpoints}
+              onClick={toggleCheckpoints}
+              title="최근 체크포인트 목록"
+            >
+              Checkpoints
+            </button>
+          ) : null}
         </div>
       </div>
+
+      {showCheckpoints ? (
+        <ul className="changed-files-bar__checkpoints" role="list">
+          {!checkpoints || checkpoints.length === 0 ? (
+            <li className="changed-files-bar__checkpoint-empty">체크포인트 없음</li>
+          ) : (
+            checkpoints.slice(0, 8).map((cp) => (
+              <li key={cp.id} className="changed-files-bar__checkpoint-row">
+                <span className="changed-files-bar__checkpoint-label" title={cp.label}>
+                  {cp.label}
+                </span>
+                <span className="changed-files-bar__checkpoint-time">
+                  {formatCheckpointTime(cp.timestamp)}
+                </span>
+                <button
+                  type="button"
+                  className="changed-files-bar__checkpoint-restore"
+                  onClick={() => {
+                    onRestoreCheckpoint?.(cp.id);
+                    setShowCheckpoints(false);
+                  }}
+                  title="이 체크포인트로 복원"
+                >
+                  Restore
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      ) : null}
 
       {expanded ? (
         <ul className="changed-files-bar__list" role="list">

@@ -16,7 +16,16 @@ export type SlashCommand = {
   label: string;
   description: string;
   /** What ChatApp should do */
-  action: 'newChat' | 'settings' | 'mode';
+  action:
+    | 'newChat'
+    | 'settings'
+    | 'mode'
+    | 'compact'
+    | 'cost'
+    | 'model'
+    | 'permissions'
+    | 'help'
+    | 'bestOfN';
   mode?: 'ask' | 'agent' | 'plan' | 'debug';
 };
 
@@ -60,8 +69,70 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     label: '/settings',
     description: '설정 열기',
     action: 'settings'
+  },
+  {
+    id: 'compact',
+    label: '/compact',
+    description: '오래된 컨텍스트 요약(compaction)',
+    action: 'compact'
+  },
+  {
+    id: 'cost',
+    label: '/cost',
+    description: '이번 세션 토큰/비용 확인',
+    action: 'cost'
+  },
+  {
+    id: 'model',
+    label: '/model',
+    description: '모델 설정 열기',
+    action: 'model'
+  },
+  {
+    id: 'permissions',
+    label: '/permissions',
+    description: '권한 설정 열기',
+    action: 'permissions'
+  },
+  {
+    id: 'help',
+    label: '/help',
+    description: '사용 가능한 명령 목록',
+    action: 'help'
+  },
+  {
+    id: 'bon',
+    label: '/bon',
+    description: 'Best-of-N: worktree N개에서 병렬 실행 후 비교',
+    action: 'bestOfN'
   }
 ];
+
+/**
+ * ADDON-T10: resolve a raw `/foo` (or `/foo args`) token typed+submitted
+ * outright (not via palette selection) into a known SlashCommand, or a
+ * friendly error for unknown commands.
+ */
+export function resolveSlashCommand(
+  raw: string
+): { ok: true; cmd: SlashCommand } | { ok: false; error: string } {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed.startsWith('/')) {
+    return { ok: false, error: 'Not a slash command (must start with "/").' };
+  }
+  const id = trimmed.slice(1).split(/\s+/)[0]?.toLowerCase() || '';
+  if (!id) {
+    return { ok: false, error: 'Empty command. Type /help to see available commands.' };
+  }
+  const cmd = SLASH_COMMANDS.find((c) => c.id === id);
+  if (!cmd) {
+    return {
+      ok: false,
+      error: `Unknown command "/${id}". Type /help to see available commands.`
+    };
+  }
+  return { ok: true, cmd };
+}
 
 export type ActiveTrigger =
   | {

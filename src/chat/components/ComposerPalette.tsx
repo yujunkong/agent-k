@@ -16,6 +16,7 @@ import {
   IconList,
   IconMessage,
   IconPlus,
+  IconRefresh,
   IconSettings
 } from './Icons';
 
@@ -35,7 +36,12 @@ interface ComposerPaletteProps {
 
 function SlashIcon({ cmd }: { cmd: SlashCommand }) {
   if (cmd.action === 'newChat') return <IconPlus size={14} />;
-  if (cmd.action === 'settings') return <IconSettings size={14} />;
+  if (cmd.action === 'settings' || cmd.action === 'model' || cmd.action === 'permissions') {
+    return <IconSettings size={14} />;
+  }
+  if (cmd.action === 'compact') return <IconRefresh size={14} />;
+  if (cmd.action === 'cost') return <IconMessage size={14} />;
+  if (cmd.action === 'help') return <IconList size={14} />;
   if (cmd.mode === 'agent') return <IconInfinity size={14} />;
   if (cmd.mode === 'plan') return <IconList size={14} />;
   if (cmd.mode === 'debug') return <IconBug size={14} />;

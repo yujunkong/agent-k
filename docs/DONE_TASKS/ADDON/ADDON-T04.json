@@ -1,0 +1,45 @@
+{
+  "id": "ADDON-T04",
+  "phase": "ADDON",
+  "title": "작업유형별 컨텍스트 전략 템플릿 (bug/refactor/feature/review)",
+  "description": "docs/addon.md P0 갭#4. Prefetch/Assembler는 있으나 작업유형별 필수 컨텍스트가 템플릿화되지 않음. bug_fix/refactor/new_feature/code_review별 required/optional/maxTokens 전략을 ContextAssembler에 연결. 진단·관련테스트·git diff 안정 주입.",
+  "files": [
+    "src/prefetch/PrefetchEngine.ts",
+    "src/prefetch/ContextBlockBuilder.ts",
+    "src/agent/ContextAssembler.ts",
+    "src/harness/ContextRules.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "TaskType별 CONTEXT_STRATEGIES(또는 동등) 정의 및 Assembler 연동",
+    "bug_fix: failing test/diagnostics/recent changes 우선 주입",
+    "refactor: target+tests+symbols 우선",
+    "토큰 예산 초과 시 optional부터 드롭",
+    "모드/사용자 힌트/휴리스틱으로 TaskType 선택 가능",
+    "단위 테스트: 전략별 포함 항목 검증"
+  ],
+  "estimatedHours": 6,
+  "tags": [
+    "addon",
+    "p0",
+    "context",
+    "prefetch",
+    "harness"
+  ],
+  "prdRefs": [
+    "docs/addon.md#B",
+    "PRD-Harness-09_Prefetch_Pattern.md",
+    "PRD-Infra-02_Context_Assembly.md"
+  ],
+  "source": "docs/addon.md §16.1 / §19.1 / 갭 Top#4",
+  "completedCriteria": [
+    "✅ implemented"
+  ],
+  "implementationNotes": {
+    "completedAt": "2026-07-27T22:36:32.864518+09:00",
+    "verification": "npm run check-types; npm run test:addon (136+ passing)",
+    "notes": "implemented"
+  }
+}

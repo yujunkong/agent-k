@@ -9,6 +9,8 @@ import type { MCPClient } from '../mcp/MCPClient';
 import type { MemoryStore } from '../memories/MemoryStore';
 import type { PermissionGate } from '../permission/PermissionGate';
 import type { CheckpointManager } from '../checkpoint/CheckpointManager';
+import type { SessionManager } from '../session/SessionManager';
+import type { SessionUsageTracker } from '../telemetry/StatusBarCost';
 
 let workspaceState: vscode.Memento | undefined;
 let debugLogServer: DebugLogServer | undefined;
@@ -16,6 +18,9 @@ let mcpClient: MCPClient | undefined;
 let memoryStore: MemoryStore | undefined;
 let permissionGate: PermissionGate | undefined;
 let checkpointManager: CheckpointManager | undefined;
+let sessionManager: SessionManager | undefined;
+/** ADDON-T11: session token/cost tracker shared by AgentLoop → status bar */
+let sessionUsageTracker: SessionUsageTracker | undefined;
 
 /** Reproduce wait bridge (RW-C6-05-R2) */
 type ReproduceResolver = (confirmed: boolean) => void;
@@ -85,6 +90,24 @@ export const RuntimeServices = {
 
   getCheckpointManager(): CheckpointManager | undefined {
     return checkpointManager;
+  },
+
+  /** ADDON-T06: extension.activate에서 workspaceState 기반 SessionManager 주입 */
+  setSessionManager(mgr: SessionManager): void {
+    sessionManager = mgr;
+  },
+
+  getSessionManager(): SessionManager | undefined {
+    return sessionManager;
+  },
+
+  /** ADDON-T11: extension.activate에서 주입, status bar가 읽어감 */
+  setSessionUsageTracker(tracker: SessionUsageTracker): void {
+    sessionUsageTracker = tracker;
+  },
+
+  getSessionUsageTracker(): SessionUsageTracker | undefined {
+    return sessionUsageTracker;
   },
 
   /**

@@ -25,24 +25,29 @@ export class TestFinder {
     const ext = path.extname(sourceFile);
     const basename = path.basename(sourceFile, ext);
 
-    // 1. Same directory: file.test.ts
+    // 1. Same directory — prefer basename.test/spec, then other tests that mention basename
     try {
       const entries = fs.readdirSync(dir);
+      const candidates: string[] = [];
       for (const entry of entries) {
         const fullPath = path.join(dir, entry);
         if (!fs.statSync(fullPath).isFile()) continue;
-
-        for (const pattern of TEST_PATTERNS) {
-          if (pattern.test(entry)) {
-            tests.push({ filePath: fullPath, type: 'same_dir', framework: detectFramework(entry) });
-            break;
-          }
-        }
-
-        // Check for __tests__ directory patterns
-        if (entry.startsWith(basename) && entry.includes('.test.')) {
-          // Already captured above
-        }
+        if (!TEST_PATTERNS.some((pattern) => pattern.test(entry))) continue;
+        candidates.push(entry);
+      }
+      const preferred = candidates.filter(
+        (e) =>
+          e.startsWith(`${basename}.test.`) ||
+          e.startsWith(`${basename}.spec.`) ||
+          e.startsWith(`test_${basename}`)
+      );
+      const picked = preferred.length > 0 ? preferred : candidates.filter((e) => e.includes(basename));
+      for (const entry of picked) {
+        tests.push({
+          filePath: path.join(dir, entry),
+          type: 'same_dir',
+          framework: detectFramework(entry),
+        });
       }
     } catch { /* ignore */ }
 

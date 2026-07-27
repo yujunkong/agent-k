@@ -4,6 +4,8 @@ node_modules
 .vscode-test/
 *.vsix
 .agent-k-index/
+# Harness acceptance test temp dirs (mkdtemp under cwd)
+.harb-ac*/
 # Plan drafts (project-root temp). Keep folder visible; ignore file contents.
 .agentk/plans/tmp/*
 !.agentk/plans/tmp/.gitkeep

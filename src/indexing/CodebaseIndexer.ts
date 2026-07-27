@@ -105,6 +105,14 @@ export class CodebaseIndexer {
   }
 
   /**
+   * ADDON-T17: expose all indexed chunks (e.g. for SemanticSearch's local
+   * TF-IDF similarity ranking, which needs the full corpus, not substring hits).
+   */
+  getAllChunks(): IndexedChunk[] {
+    return [...this.chunks];
+  }
+
+  /**
    * Get indexed stats
    */
   getStats(): { totalChunks: number; totalFiles: number; indexSize: string } {

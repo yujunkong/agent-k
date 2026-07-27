@@ -1,0 +1,43 @@
+{
+  "id": "ADDON-T05",
+  "phase": "ADDON",
+  "title": "IDE 컨텍스트 안정 주입 보강 (진단/심볼/git diff 턴 시작 시)",
+  "description": "docs/addon.md P0. Prefetch 존재하나 턴 시작 시 diagnostics·커서 심볼·git diff가 빠지는 케이스 보완. T04 전략과 연동해 항상 붙는 최소 세트 보장.",
+  "files": [
+    "src/prefetch/PrefetchEngine.ts",
+    "src/prefetch/ContextBlockBuilder.ts",
+    "src/loop/AgentLoopController.ts"
+  ],
+  "priority": "P0",
+  "status": "done",
+  "dependencies": [
+    "ADDON-T04"
+  ],
+  "acceptanceCriteria": [
+    "턴 시작 시 active editor diagnostics 요약이 컨텍스트에 포함(있을 때)",
+    "git diff HEAD 요약(상한 truncate) 옵션 주입",
+    "심볼/호버 정보가 가능할 때 첨부 (실패해도 루프 비차단)",
+    "주입 실패가 agent 루프를 throw로 깨지 않음"
+  ],
+  "estimatedHours": 4,
+  "tags": [
+    "addon",
+    "p0",
+    "context",
+    "diagnostics",
+    "git"
+  ],
+  "prdRefs": [
+    "docs/addon.md",
+    "PRD-Harness-09_Prefetch_Pattern.md"
+  ],
+  "source": "docs/addon.md §6 / §16.1",
+  "completedCriteria": [
+    "✅ implemented"
+  ],
+  "implementationNotes": {
+    "completedAt": "2026-07-27T22:36:32.864518+09:00",
+    "verification": "npm run check-types; npm run test:addon (136+ passing)",
+    "notes": "implemented"
+  }
+}

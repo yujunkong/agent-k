@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { MessageBubble } from './components/MessageBubble';
 import { Composer } from './components/Composer';
 import { ChangedFilesBar } from './components/ChangedFilesBar';
+import type { CheckpointSummary } from './components/ChangedFilesBar';
 import type { FileEditPreview } from './types';
 import { useChatStream } from './hooks/useChatStream';
 import { configManager } from '../core/ConfigManager';
@@ -81,6 +82,8 @@ import {
   getRegisteredModels,
   persistProviderModel
 } from './providerModels';
+// ADDON-T10: slash command UX (/compact /cost /model /permissions /help)
+import { SLASH_COMMANDS, resolveSlashCommand, type SlashCommand } from './composerPalette';
 
 const MODE_LABELS: Record<Mode, string> = {
   ask: 'Ask',
@@ -233,6 +236,8 @@ export function ChatApp() {
   const [sessionList, setSessionList] = useState<ChatSessionMeta[]>(() => sessionStore.list());
   /** Open tabs only (persisted). History stays in the History panel — not auto-opened as tabs. */
   const [openTabIds, setOpenTabIds] = useState<string[]>(() => sessionStore.getOpenTabIds());
+  /** ADDON-T07: recent checkpoints for the Checkpoints dropdown (host-populated) */
+  const [checkpoints, setCheckpoints] = useState<CheckpointSummary[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const active = sessionStore.loadActive();
     return sanitizeLoadedMessages(active.messages || []);
@@ -365,6 +370,8 @@ export function ChatApp() {
       ) => Promise<void>)
     | null
   >(null);
+  /** ADDON-T10: handleSend (defined earlier) calls runSlashCommand (defined later) */
+  const runSlashCommandRef = useRef<((cmd: SlashCommand) => void) | null>(null);
   const turnNumberRef = useRef(0);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
@@ -667,21 +674,28 @@ export function ChatApp() {
       if (data.type === 'ui.design.open') setShowDesignMode(true);
       if (data.type === 'ui.review.open') {
         setShowReview(true);
-        // Static sample findings when git review not available in webview
-        setReviewFindings((prev) =>
-          prev.length
-            ? prev
-            : [
-                {
-                  id: 'f-demo',
-                  file: 'src/example.ts',
-                  line: 1,
-                  severity: 'warning',
-                  message: 'Review session started. Run Agent Review on dirty files.',
-                  suggestion: 'Open a dirty workspace and Accept Fix to apply patches.'
-                }
-              ]
-        );
+        // ADDON-T14: host runs the real git-diff review; only fall back to a
+        // demo finding when there's no repo/diff to inspect.
+        if (Array.isArray(data.findings) && data.findings.length) {
+          setReviewFindings(data.findings as ReviewFinding[]);
+        } else if (Array.isArray(data.findings)) {
+          setReviewFindings([]);
+        } else {
+          setReviewFindings((prev) =>
+            prev.length
+              ? prev
+              : [
+                  {
+                    id: 'f-demo',
+                    file: 'src/example.ts',
+                    line: 1,
+                    severity: 'warning',
+                    message: 'Review session started. Run Agent Review on dirty files.',
+                    suggestion: 'Open a dirty workspace and Accept Fix to apply patches.'
+                  }
+                ]
+          );
+        }
       }
       if (data.type === 'ui.artifacts.open') setShowArtifacts(true);
       if (data.type === 'settings.open') {
@@ -748,17 +762,59 @@ export function ChatApp() {
         if (typeof data.providerType === 'string') {
           setProviderType(data.providerType);
         }
+        return;
+      }
+      // ADDON-T07: Checkpoints dropdown list refresh
+      if (data.type === 'checkpoint.listResult') {
+        const list = Array.isArray(data.checkpoints) ? data.checkpoints : [];
+        setCheckpoints(
+          list.map((c: any) => ({
+            id: String(c.id),
+            label: String(c.label || 'Checkpoint'),
+            timestamp: Number(c.timestamp) || Date.now()
+          }))
+        );
+        return;
+      }
+      // ADDON-T06: host-restored session metas (workspaceState survives restarts)
+      if (data.type === 'host.sessions.hydrate') {
+        const metas = Array.isArray(data.sessions) ? data.sessions : [];
+        sessionStore.applyHostHydration(metas);
+        setSessionList(sessionStore.list());
+        return;
       }
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
   }, [handleNewChat]);
 
+  // ADDON-T06: request host session hydration once on mount
+  useEffect(() => {
+    try {
+      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      api?.postMessage?.({ type: 'host.sessions.ready' });
+    } catch {
+      /* no host bridge (browser preview) */
+    }
+  }, []);
+
   useEffect(() => {
     const delay = streaming ? 400 : 0;
     const t = window.setTimeout(() => {
       sessionStore.saveMessages(sessionId, messages, mode);
-      setSessionList(sessionStore.list());
+      const list = sessionStore.list();
+      setSessionList(list);
+      // ADDON-T06: mirror session metas to host SessionManager (workspaceState)
+      try {
+        const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        api?.postMessage?.({
+          type: 'host.sessions.persist',
+          sessions: sessionStore.exportMetasForHost(),
+          currentId: sessionStore.getCurrentId()
+        });
+      } catch {
+        /* no host bridge (browser preview) */
+      }
     }, delay);
     return () => window.clearTimeout(t);
   }, [messages, sessionId, mode, streaming]);
@@ -1086,6 +1142,17 @@ export function ChatApp() {
   ) => {
     if (!text.trim() && files.length === 0) return;
     setError(null);
+
+    // ADDON-T10: raw "/command" typed + Enter (not via composer palette Tab-select)
+    if (files.length === 0 && text.trim().startsWith('/')) {
+      const resolved = resolveSlashCommand(text);
+      if (resolved.ok) {
+        runSlashCommandRef.current?.(resolved.cmd);
+        return;
+      }
+      setError(resolved.error);
+      return;
+    }
 
     const epoch = ++sendEpochRef.current;
     const effectiveMode = opts?.modeOverride ?? mode;
@@ -1912,6 +1979,88 @@ export function ChatApp() {
     setError(null);
   }, [mode, streaming, cleanupStreamingAssistants]);
 
+  /** ADDON-T10: append a lightweight system notice (never sent back to the model — host filters role=system) */
+  const pushSystemNotice = useCallback((content: string) => {
+    const notice: ChatMessage = {
+      id: uuidv4(),
+      role: 'system',
+      content,
+      timestamp: Date.now(),
+      status: 'complete'
+    };
+    setMessages((prev) => [...prev, notice]);
+  }, []);
+
+  /**
+   * ADDON-T10: dispatch a resolved SlashCommand — shared by the composer
+   * palette (Tab-select) and raw `/foo` + Enter (resolveSlashCommand).
+   */
+  const runSlashCommand = useCallback(
+    (cmd: SlashCommand) => {
+      if (cmd.action === 'newChat') {
+        handleNewChat();
+        return;
+      }
+      if (cmd.action === 'settings') {
+        setShowSettings(true);
+        setSettingsTab('models');
+        return;
+      }
+      if (cmd.action === 'mode' && cmd.mode) {
+        handleModeChange(cmd.mode);
+        return;
+      }
+      if (cmd.action === 'compact') {
+        try {
+          const api =
+            (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+          api?.postMessage?.({ type: 'session.compact', sessionId, messageCount: messages.length });
+        } catch {
+          /* no host bridge (browser preview) */
+        }
+        pushSystemNotice(
+          'Compaction requested — older turns will be summarized to free up context. (This is a best-effort request; full compaction may not be wired for every provider yet.)'
+        );
+        return;
+      }
+      if (cmd.action === 'cost') {
+        const tokens = uxState.contextTokens || 0;
+        const content =
+          tokens > 0
+            ? `Cost: ~${tokens.toLocaleString()} tokens used this session (model: ${providerModel}). Actual billing depends on your provider's pricing.`
+            : 'Cost: no usage recorded yet this session — see the Status Bar for live token/cost details.';
+        pushSystemNotice(content);
+        return;
+      }
+      if (cmd.action === 'model') {
+        setShowSettings(true);
+        setSettingsTab('models');
+        return;
+      }
+      if (cmd.action === 'permissions') {
+        setShowSettings(true);
+        setSettingsTab('permission');
+        return;
+      }
+      if (cmd.action === 'help') {
+        const lines = SLASH_COMMANDS.map((c) => `${c.label} — ${c.description}`);
+        pushSystemNotice(['Available commands:', ...lines].join('\n'));
+        return;
+      }
+      if (cmd.action === 'bestOfN') {
+        try {
+          const api =
+            (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+          api?.postMessage?.({ type: 'host.bestOfN' });
+        } catch {
+          /* ignore */
+        }
+      }
+    },
+    [handleNewChat, handleModeChange, pushSystemNotice, sessionId, messages.length, uxState.contextTokens, providerModel]
+  );
+  runSlashCommandRef.current = runSlashCommand;
+
   // ─── C5-C7 핸들러 ─────────────────────────────────────
 
   /** Mark in-bubble ask_question rows done so the live blink stops immediately */
@@ -2428,6 +2577,29 @@ export function ChatApp() {
     handleOpenFile(first.absPath || first.path);
   }, [sessionFileEdits, handleOpenFile]);
 
+  /** ADDON-T07: Checkpoints dropdown — refresh from host */
+  const handleListCheckpoints = useCallback(() => {
+    try {
+      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      api?.postMessage?.({ type: 'checkpoint.list' });
+    } catch {
+      /* no host bridge (browser preview) */
+    }
+  }, []);
+
+  /** ADDON-T07: restore a specific checkpoint picked from the dropdown */
+  const handleRestoreCheckpoint = useCallback((id: string) => {
+    try {
+      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      api?.postMessage?.({ type: 'checkpoint.restore', id });
+      setMessages((prev) =>
+        prev.map((m) => (m.fileEdits?.length ? { ...m, fileEdits: [] } : m))
+      );
+    } catch {
+      setError('체크포인트 복원 요청에 실패했습니다.');
+    }
+  }, []);
+
   // ─── Render ────────────────────────────────────────────
   return (
     <div className="chat-container" data-ak-ui="v0.0.2">
@@ -2661,6 +2833,9 @@ export function ChatApp() {
           onReview={handleReviewEdits}
           isStreaming={streaming}
           onStop={handleStop}
+          checkpoints={checkpoints}
+          onListCheckpoints={handleListCheckpoints}
+          onRestoreCheckpoint={handleRestoreCheckpoint}
         />
         <Composer
           onSend={handleSend}
@@ -2668,20 +2843,7 @@ export function ChatApp() {
           onStop={handleStop}
           seedText={composerSeed?.text ?? null}
           seedNonce={composerSeed?.nonce ?? 0}
-          onSlashCommand={(cmd) => {
-            if (cmd.action === 'newChat') {
-              handleNewChat();
-              return;
-            }
-            if (cmd.action === 'settings') {
-              setShowSettings(true);
-              setSettingsTab('models');
-              return;
-            }
-            if (cmd.action === 'mode' && cmd.mode) {
-              handleModeChange(cmd.mode);
-            }
-          }}
+          onSlashCommand={runSlashCommand}
           onRegenerate={() => {
             stepStartRef.current = {};
             let toolsStarted = false;

@@ -14,6 +14,7 @@
  * - UXForMedium: 중급 모델 UX
  * - MinimalMemories: 최소 메모리
  * - RoutingHeuristics: 라우팅 휴리스틱
+ * - ProjectRulesLoader: 프로젝트 규칙 파일 자동 로드 (ADDON-T08)
  */
 
 // ModelTiers
@@ -112,3 +113,12 @@ export {
   shouldForcePlan,
 } from './RoutingHeuristics';
 export type { RoutingSignal, RoutingDecision } from './RoutingHeuristics';
+
+// ProjectRulesLoader (ADDON-T08)
+export {
+  PROJECT_RULES_FILES,
+  loadProjectRulesFromFs,
+  formatProjectRulesBlock,
+  getProjectRulesCached,
+  invalidateProjectRulesCache,
+} from './ProjectRulesLoader';

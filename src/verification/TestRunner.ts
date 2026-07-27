@@ -23,6 +23,40 @@ export class TestRunner {
     return ALLOWED_COMMANDS.some(cmd => command.startsWith(cmd));
   }
 
+  /**
+   * ADDON-T01: run only related test files (prefer vitest, then jest).
+   * Paths are quoted; command stays on allowlist via `npx vitest` / `npx jest`.
+   */
+  async runRelatedTestFiles(
+    testFiles: string[],
+    cwd?: string,
+    timeout = 60000
+  ): Promise<TestResult> {
+    if (testFiles.length === 0) {
+      return {
+        success: true,
+        passed: 0,
+        failed: 0,
+        output: '',
+        duration: 0,
+      };
+    }
+
+    const quoted = testFiles
+      .map((f) => (f.includes(' ') ? `"${f}"` : f))
+      .join(' ');
+    // vitest first (this repo), jest fallback
+    const command = `npx vitest run ${quoted}`;
+    const result = await this.runTest(command, cwd, timeout);
+    if (
+      result.error &&
+      /vitest|ENOENT|not found|Cannot find/i.test(result.error + result.output)
+    ) {
+      return this.runTest(`npx jest --passWithNoTests ${quoted}`, cwd, timeout);
+    }
+    return result;
+  }
+
   async runTest(command: string, cwd?: string, timeout = 60000): Promise<TestResult> {
     if (!this.isAllowed(command)) {
       return {

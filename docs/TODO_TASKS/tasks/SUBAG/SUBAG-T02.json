@@ -1,0 +1,23 @@
+{
+  "id": "SUBAG-T02",
+  "phase": "SUBAG",
+  "title": "Builtin explore 서브에이전트 (fast / readonly)",
+  "description": "코드베이스 탐색 전용 내장 정의. ask 모드 도구만, fast 모델 기본, 중간 grep/read 결과는 부모에 미전파.",
+  "files": [
+    "src/subagents/BuiltinAgents.ts",
+    "src/subagents/AgentRegistry.ts"
+  ],
+  "priority": "P0",
+  "status": "pending",
+  "dependencies": ["SUBAG-T01"],
+  "acceptanceCriteria": [
+    "builtin explore가 레지스트리에 항상 존재",
+    "readonly=true, model=fast(또는 동등), maxTurns 기본 ≥8",
+    "시스템 프롬프트가 paths/symbols/short excerpts만 반환하도록 명시",
+    "description에 Use proactively for multi-file research 포함"
+  ],
+  "estimatedHours": 4,
+  "tags": ["subag", "p0", "explore", "builtin"],
+  "prdRefs": ["docs/PRDs/08_Subagents/PRD-Subagents.md"],
+  "source": "PRD-Subagents §3.2 / Cursor Explore"
+}

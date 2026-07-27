@@ -116,6 +116,11 @@
         "command": "agent-k.mcp.disconnect",
         "title": "MCP: Disconnect All",
         "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "agent-k.bestOfN.run",
+        "title": "Agent K: Run Best-of-N",
+        "icon": "$(git-compare)"
       }
     ],
     "configuration": {
@@ -178,6 +183,23 @@
           "maximum": 100,
           "description": "Maximum agent-loop turns per run (Ask/Agent/Plan/Debug). Small/local models usually need 25–40; raise if you hit Max turns often."
         },
+        "agent-k.verification.testEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "After edit/write, run related unit tests and inject failures into the agent loop (ADDON-T01). Default off (safe). Tier B also enables tests when this is unset."
+        },
+        "agent-k.turnTimeoutMs": {
+          "type": "integer",
+          "default": 900000,
+          "minimum": 0,
+          "maximum": 7200000,
+          "description": "Idle timeout for one agent run in milliseconds (ADDON-T02). Resets on LLM/tool activity so long plan builds keep running. Fires only after this long with no progress. 0 disables. Default 900000 (15 minutes)."
+        },
+        "agent-k.plan.forceOnComplex": {
+          "type": "boolean",
+          "default": false,
+          "description": "ADDON-T03: In Agent mode, block the first write on complex/multi-file tasks and ask to use Plan mode first."
+        },
         "agent-k.permission.level": {
           "type": "string",
           "enum": [
@@ -223,6 +245,23 @@
           "type": "boolean",
           "default": true,
           "description": "Enable telemetry collection"
+        },
+        "agent-k.telemetry.statusBarEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "ADDON-T11: show session token count and estimated cost in the Status Bar. Hidden automatically when session usage is 0."
+        },
+        "agent-k.mcp.maxSchemaTokens": {
+          "type": "integer",
+          "default": 8000,
+          "minimum": 500,
+          "maximum": 200000,
+          "description": "ADDON-T15: token budget for MCP tool schemas per server. Servers whose schema payload estimate exceeds this stay deferred (lazy-loaded) to avoid context explosion."
+        },
+        "agent-k.search.localEmbedding": {
+          "type": "boolean",
+          "default": false,
+          "description": "ADDON-T17: use a local TF-IDF/bag-of-words similarity ranking over the codebase index for codebase_search instead of grep fallback. Not a real embedding model — lexical overlap only."
         },
         "agent-k.budget.dailyTokens": {
           "type": "integer",
@@ -397,6 +436,7 @@
     "lint": "eslint src",
     "test": "vscode-test",
     "test:harness": "node --import tsx ./node_modules/mocha/bin/mocha.js --ui tdd --extension ts 'tests/acceptance/harness/ac*.spec.ts'",
+    "test:addon": "node --import tsx ./node_modules/mocha/bin/mocha.js --ui tdd --extension ts 'tests/unit/verification/auto-verification-test-loop.test.ts' 'tests/unit/loop/wall-clock-timeout.test.ts' 'tests/unit/plan/write-gate.test.ts' 'tests/unit/prefetch/task-context-strategy.test.ts' 'tests/unit/prefetch/ide-context-injector.test.ts' 'tests/unit/addon/p0-smoke.test.ts' 'tests/unit/orchestration/task-tool.test.ts' 'tests/unit/prefetch/lsp-cursor-context.test.ts' 'tests/unit/review/agent-review-loop.test.ts' 'tests/unit/sidechat/side-chat-unsupported.test.ts' 'tests/unit/harness/project-rules-loader.test.ts' 'tests/unit/telemetry/status-bar-cost.test.ts' 'tests/unit/mcp/schema-budget.test.ts' 'tests/unit/indexing/semantic-local-embedding.test.ts' 'tests/unit/session/session-manager.test.ts' 'tests/unit/session/host-session-bridge.test.ts' 'tests/unit/checkpoint/checkpoint-manager-persist.test.ts' 'tests/unit/chat/slash-commands.test.ts' 'tests/unit/chat/host-stream-error.test.ts'",
     "dev:webview": "vite"
   },
   "devDependencies": {

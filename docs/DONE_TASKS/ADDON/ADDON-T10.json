@@ -1,0 +1,40 @@
+{
+  "id": "ADDON-T10",
+  "phase": "ADDON",
+  "title": "슬래시 명령 UX (/compact /cost /model /permissions)",
+  "description": "docs/addon.md P1. 채팅 입력 `/`로 내장 명령 실행. compact=컨텍스트 요약, cost=토큰/비용, model=모델 변경, permissions=권한 UI.",
+  "files": [
+    "src/chat/components/Composer.tsx",
+    "src/chat/ChatApp.tsx",
+    "src/compaction/CompactionEngine.ts",
+    "src/extension.ts"
+  ],
+  "priority": "P1",
+  "status": "done",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "Composer에서 / 명령 파싱·자동완성",
+    "/compact /cost /model /permissions 동작",
+    "알 수 없는 명령에 친절한 에러",
+    "일반 메시지와 충돌 없음"
+  ],
+  "estimatedHours": 5,
+  "tags": [
+    "addon",
+    "p1",
+    "slash",
+    "ux"
+  ],
+  "prdRefs": [
+    "docs/addon.md §18.2"
+  ],
+  "source": "docs/addon.md §18.2",
+  "completedCriteria": [
+    "✅ /compact /cost /model /permissions /help slash commands"
+  ],
+  "implementationNotes": {
+    "completedAt": "2026-07-27T22:36:32.864518+09:00",
+    "verification": "npm run check-types; npm run test:addon (136+ passing)",
+    "notes": "/compact /cost /model /permissions /help slash commands"
+  }
+}

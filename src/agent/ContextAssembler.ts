@@ -18,6 +18,7 @@ import { injectDesignSlogans } from '../harness/DesignSlogans';
 import { injectCursorPattern } from '../harness/CursorPattern';
 import { injectTurnStructure } from '../harness/PromptTurnStructure';
 import { injectDontDoMedium } from '../harness/DontDoMedium';
+import { getProjectRulesCached, formatProjectRulesBlock } from '../harness/ProjectRulesLoader';
 
 export interface ContextSlot {
   name: string;
@@ -52,6 +53,24 @@ export class ContextAssembler {
     return RuntimeServices.getMemoryStore() || this.memoryStore;
   }
 
+  /**
+   * ADDON-T08: explicit projectRules wins; else lazily read vscode's workspace root
+   * (try/catch — unavailable in unit tests / webview) and load rules files from fs.
+   * Never throws.
+   */
+  private resolveProjectRules(explicit?: string): string {
+    if (explicit) return explicit;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const vscode = require('vscode');
+      const root = vscode?.workspace?.workspaceFolders?.[0]?.uri?.fsPath;
+      if (!root) return '';
+      return getProjectRulesCached(root);
+    } catch {
+      return '';
+    }
+  }
+
   assemble(
     mode: Mode,
     messages: Array<{ role: string; content: string }>,
@@ -62,6 +81,8 @@ export class ContextAssembler {
       stickyContext?: string;
       recentTurns?: number;
       tier?: 'A' | 'B' | 'C'; // HARB: 티어 정보
+      /** ADDON-T08: pre-loaded rules content (skips fs/vscode lookup when set) */
+      projectRules?: string;
     }
   ): ContextAssembly {
     const modeConfig = modeRegistry.getModeConfig(mode);
@@ -94,6 +115,10 @@ export class ContextAssembler {
 
     const memoryStore = this.resolveMemoryStore();
 
+    // ADDON-T08: auto-load AGENTS.md / .cursorrules / .agentrules / .clinerules into
+    // the rules slot. Never throws — falls back to no-op when vscode/fs are unavailable.
+    const projectRulesBlock = formatProjectRulesBlock(this.resolveProjectRules(options?.projectRules));
+
     const slots: ContextSlot[] = [
       {
         name: 'system',
@@ -105,7 +130,9 @@ export class ContextAssembler {
       {
         name: 'rules',
         budgetPercent: 5,
-        content: (options?.additionalRules || []).join('\n'),
+        content: [(options?.additionalRules || []).join('\n'), projectRulesBlock]
+          .filter(Boolean)
+          .join('\n\n'),
         priority: 90,
         protected_: true
       },

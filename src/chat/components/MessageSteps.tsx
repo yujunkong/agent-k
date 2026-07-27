@@ -382,7 +382,7 @@ function ChevronRow({
   onToggle: () => void;
   children?: React.ReactNode;
 }) {
-  const titleColor = hasError ? STEPS_ERROR : live ? STEPS_LIVE : STEPS_FG;
+  const titleColor = hasError ? STEPS_ERROR : live ? undefined : STEPS_FG;
   return (
     <div
       className={[
@@ -417,19 +417,56 @@ function ChevronRow({
           className="ak-step-title"
           style={{
             fontWeight: live || hasError ? 500 : 400,
-            color: titleColor
+            ...(titleColor ? { color: titleColor } : null)
           }}
         >
           {title}
         </span>
-        {live ? (
-          <span className="ak-live-blink" title="In progress" aria-hidden>
-            <span className="ak-live-blink__dot" />
-          </span>
-        ) : null}
       </button>
       {expanded ? children : null}
     </div>
+  );
+}
+
+/** ADDON-T09: task_run detail carries a lifecycle word — render as a small status pill */
+const TASK_STATUS_WORDS = new Set([
+  'running',
+  'completed',
+  'error',
+  'timeout',
+  'cancelled'
+]);
+
+function taskStatusColor(status: string): string {
+  switch (status) {
+    case 'completed':
+      return '#22c55e';
+    case 'timeout':
+    case 'cancelled':
+      return '#f59e0b';
+    case 'error':
+      return '#f87171';
+    default:
+      return STEPS_LIVE;
+  }
+}
+
+function TaskStatusBadge({ status }: { status: string }) {
+  const color = taskStatusColor(status);
+  return (
+    <span
+      style={{
+        marginLeft: 6,
+        padding: '0 6px',
+        borderRadius: 8,
+        fontSize: 10,
+        opacity: 0.9,
+        border: `1px solid ${color}`,
+        color
+      }}
+    >
+      {status}
+    </span>
   );
 }
 
@@ -455,7 +492,6 @@ function ToolSlideList({
     <div
       className="ak-tool-slide-list"
       style={{
-        padding: '2px 0 6px 0',
         color: STEPS_MUTED,
         maxHeight,
         overflow: 'hidden'
@@ -498,7 +534,9 @@ function ToolSlideList({
             }}
           >
             {toolRowLabel(s)}
-            {s.detail ? (
+            {s.toolName === 'task_run' && s.detail && TASK_STATUS_WORDS.has(s.detail) ? (
+              <TaskStatusBadge status={s.detail} />
+            ) : s.detail ? (
               <span style={{ opacity: 0.75 }}>
                 {' '}
                 {s.itemStatus === 'error' ? s.detail : formatExploreDetail(s.detail)}
@@ -548,7 +586,6 @@ function ExploreStreamList({
       ref={listRef}
       className="ak-tool-slide-list ak-explore-scroll"
       style={{
-        padding: '2px 0 6px 0',
         color: STEPS_MUTED,
         maxHeight,
         overflowX: 'hidden',
@@ -574,8 +611,8 @@ function ExploreStreamList({
           return (
             <div
               key={`prose-${s.id}`}
-              className="message-content message-turn-prose"
-              style={{ margin: '6px 0 4px', paddingLeft: 2 }}
+              className="message-content message-turn-prose ak-explore-inline-prose"
+              style={{ margin: '6px 0 4px' }}
             >
               <StreamingMarkdown content={text} isStreaming={false} />
             </div>
@@ -588,11 +625,20 @@ function ExploreStreamList({
           const expanded =
             thoughtLive || (openThoughtIds[s.id] ?? false);
           return (
-            <div key={`th-${s.id}`} style={{ padding: '1px 0' }}>
+            <div
+              key={`th-${s.id}`}
+              className={
+                thoughtLive
+                  ? 'ak-explore-mid-thought ak-explore-mid-thought--live'
+                  : 'ak-explore-mid-thought'
+              }
+              style={{ padding: '1px 0' }}
+            >
               <button
                 type="button"
-                className="ak-step-chevron-btn"
+                className="ak-step-chevron-btn ak-explore-mid-thought__btn"
                 aria-expanded={expanded}
+                aria-busy={thoughtLive || undefined}
                 onClick={() => {
                   if (!body && !thoughtLive) return;
                   setOpenThoughtIds((p) => ({
@@ -620,24 +666,20 @@ function ExploreStreamList({
                   {body || thoughtLive ? (expanded ? '▾' : '▸') : '·'}
                 </span>
                 <span
+                  className="ak-step-title"
                   style={{
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    flex: 1,
-                    fontWeight: thoughtLive ? 500 : 400,
-                    color: thoughtLive ? STEPS_LIVE : undefined
+                    flex: '0 1 auto',
+                    minWidth: 0,
+                    fontWeight: thoughtLive ? 500 : 400
                   }}
                 >
                   {title}
                 </span>
-                {thoughtLive ? (
-                  <span className="ak-live-blink ak-live-blink--sm" aria-hidden>
-                    <span className="ak-live-blink__dot" />
-                  </span>
-                ) : null}
               </button>
               {expanded && (body || thoughtLive) ? (
-                <div style={{ paddingLeft: 18, marginTop: 2 }}>
+                <div className="ak-explore-nested-thought">
                   <ThoughtBody text={body} live={!!thoughtLive} compact />
                 </div>
               ) : null}
@@ -698,8 +740,8 @@ function ExploreStreamList({
       })}
       {footerProse?.trim() ? (
         <div
-          className="message-content message-turn-prose message-turn-prose--live"
-          style={{ margin: '8px 0 4px', paddingLeft: 2 }}
+          className="message-content message-turn-prose message-turn-prose--live ak-explore-inline-prose"
+          style={{ margin: '8px 0 4px' }}
         >
           <StreamingMarkdown
             content={footerProse}

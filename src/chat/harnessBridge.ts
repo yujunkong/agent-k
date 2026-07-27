@@ -31,7 +31,7 @@ export async function buildHarnessTurnContext(
   tier: ModelTier = 'A'
 ): Promise<HarnessTurnContext> {
   const prefetchEngine = new PrefetchEngine();
-  const prefetchRaw = await prefetchEngine.prefetch(userText);
+  const prefetchRaw = await prefetchEngine.prefetch(userText, mode);
   const prefetchBlock = prefetchRaw
     ? `<prefetch>\n${prefetchRaw}\n</prefetch>`
     : '';

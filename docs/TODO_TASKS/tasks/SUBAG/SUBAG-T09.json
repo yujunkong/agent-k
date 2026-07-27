@@ -1,0 +1,25 @@
+{
+  "id": "SUBAG-T09",
+  "phase": "SUBAG",
+  "title": "Resume + child transcript 영속",
+  "description": "완료/중단된 서브에이전트를 agentId로 resume. .agentk/subagents/<id>/transcript.json에 자식 메시지만 저장. UI Resume 버튼.",
+  "files": [
+    "src/subagents/transcriptStore.ts",
+    "src/subagents/SubAgentRuntime.ts",
+    "src/tools/orchestration/TaskTool.ts",
+    "src/chat/components/SubAgentCard.tsx"
+  ],
+  "priority": "P2",
+  "status": "pending",
+  "dependencies": ["SUBAG-T07"],
+  "acceptanceCriteria": [
+    "task_run.resume = agentId로 이전 자식 컨텍스트 이어가기",
+    "디스크 영속 경로 문서화 (.agentk/subagents/)",
+    "없는 ID는 친절한 에러",
+    "UI Resume → host resume 메시지"
+  ],
+  "estimatedHours": 6,
+  "tags": ["subag", "p2", "resume"],
+  "prdRefs": ["docs/PRDs/08_Subagents/PRD-Subagents.md"],
+  "source": "PRD-Subagents W4 / Cursor resume"
+}

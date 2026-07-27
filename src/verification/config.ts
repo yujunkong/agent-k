@@ -26,14 +26,22 @@ export function getVerificationConfig(tier: VerificationTier = 'A'): Verificatio
   return { ...TIER_CONFIGS[tier] };
 }
 
-export function injectVerificationError(
-  lintErrors: string,
-  retryCount: number,
-  maxRetries: number
-): string | null {
-  if (!lintErrors) return null;
-  if (retryCount >= maxRetries) {
-    return `<system>Maximum retries (${maxRetries}) reached. Lint errors persist.\n${lintErrors}\nPlease ask the user for guidance.</system>`;
-  }
-  return `<system>Lint errors detected. Retry ${retryCount + 1}/${maxRetries}.\n${lintErrors}\nFix the issues above and try again.</system>`;
+/**
+ * ADDON-T01: merge tier defaults with optional overrides.
+ * - Tier A: lint only (safe default)
+ * - Tier B: lint + related tests
+ * - `testEnabled` override wins when provided (settings / LoopConfig)
+ */
+export function resolveVerificationHookOptions(
+  tier: VerificationTier = 'A',
+  overrides?: Partial<Pick<VerificationConfig, 'lintEnabled' | 'testEnabled' | 'maxRetries'>>
+): Pick<VerificationConfig, 'lintEnabled' | 'testEnabled' | 'maxRetries' | 'tier'> {
+  const base = getVerificationConfig(tier);
+  return {
+    tier,
+    lintEnabled: overrides?.lintEnabled ?? base.lintEnabled,
+    testEnabled: overrides?.testEnabled ?? base.testEnabled,
+    maxRetries: overrides?.maxRetries ?? base.maxRetries,
+  };
 }
+

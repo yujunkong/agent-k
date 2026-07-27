@@ -1,0 +1,39 @@
+{
+  "id": "ADDON-T17",
+  "phase": "ADDON",
+  "title": "시맨틱 임베딩 검색 기반 마련 (후순위, placeholder 제거 경로)",
+  "description": "docs/addon.md P2 후순위. embeddingSearch placeholder를 로컬 인덱스+간단 임베딩 또는 명시적 'unsupported'로 정리. 본격 RAG는 인덱스 안정화 후.",
+  "files": [
+    "src/indexing/CodebaseIndexer.ts",
+    "src/search/SemanticSearch.ts",
+    "src/tools/executors.ts"
+  ],
+  "priority": "P2",
+  "status": "done",
+  "dependencies": [],
+  "acceptanceCriteria": [
+    "codebase_search가 placeholder가 아닌 명확한 동작(로컬 유사도 또는 grep 폴백+경고)",
+    "설정으로 embedding on/off",
+    "문서에 한계 명시"
+  ],
+  "estimatedHours": 8,
+  "tags": [
+    "addon",
+    "p2",
+    "semantic-search",
+    "indexing"
+  ],
+  "prdRefs": [
+    "docs/addon.md",
+    "PRD-Infra-03_Indexing_SemanticSearch.md"
+  ],
+  "source": "docs/addon.md §18.4 / §19",
+  "completedCriteria": [
+    "✅ local TF-IDF embedding + agent-k.search.localEmbedding"
+  ],
+  "implementationNotes": {
+    "completedAt": "2026-07-27T22:36:32.864518+09:00",
+    "verification": "npm run check-types; npm run test:addon (136+ passing)",
+    "notes": "local TF-IDF embedding + agent-k.search.localEmbedding"
+  }
+}
