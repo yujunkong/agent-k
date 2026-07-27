@@ -58,8 +58,8 @@ const STEPS_FG = 'var(--vscode-descriptionForeground, #9d9d9d)';
 const STEPS_LIVE = 'var(--vscode-foreground, #cccccc)';
 /** Group header when any tool in the group failed — rose, a bit darker than pink */
 const STEPS_ERROR = '#e2556f';
-const STEPS_MUTED =
-  'color-mix(in srgb, var(--vscode-descriptionForeground, #9d9d9d) 72%, transparent)';
+/** Explore/tool list body — opaque muted (never mix with transparent; that looked like a wipe) */
+const STEPS_MUTED = 'var(--vscode-descriptionForeground, #9d9d9d)';
 
 /** UI display cap for Thought body (host may send more) */
 const THOUGHT_DISPLAY_MAX = 16000;
@@ -413,18 +413,62 @@ function ChevronRow({
         >
           {expanded ? '▾' : '▸'}
         </span>
-        <span
-          className="ak-step-title"
+        <LiveStepTitle
+          title={title}
+          live={!!live && !hasError}
           style={{
             fontWeight: live || hasError ? 500 : 400,
             ...(titleColor ? { color: titleColor } : null)
           }}
-        >
-          {title}
-        </span>
+        />
       </button>
       {expanded ? children : null}
     </div>
+  );
+}
+
+/**
+ * Live Exploring/Thinking label: opaque base glyphs + moving highlight.
+ * Never puts transparent fill on the readable text (webview-safe).
+ */
+function LiveStepTitle({
+  title,
+  live,
+  style,
+  className
+}: {
+  title: string;
+  live: boolean;
+  style?: React.CSSProperties;
+  className?: string;
+}) {
+  if (!live) {
+    return (
+      <span
+        className={['ak-step-title', className].filter(Boolean).join(' ')}
+        style={style}
+      >
+        {title}
+      </span>
+    );
+  }
+  return (
+    <span
+      className={[
+        'ak-step-title',
+        'ak-step-title--live-shimmer',
+        className
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={style}
+      data-text={title}
+    >
+      <span className="ak-step-title__base">{title}</span>
+      <span className="ak-step-title__shine" aria-hidden>
+        {title}
+      </span>
+    </span>
   );
 }
 
@@ -560,16 +604,11 @@ function ToolSlideList({
 function ExploreStreamList({
   rows,
   live,
-  maxHeight,
-  footerProse,
-  footerProseStreaming
+  maxHeight
 }: {
   rows: Array<{ type: 'tool' | 'thought' | 'prose'; step: MessageStep }>;
   live: boolean;
   maxHeight: number;
-  /** Live assistant intent — append at bottom of Explored, never above */
-  footerProse?: string;
-  footerProseStreaming?: boolean;
 }) {
   const [openThoughtIds, setOpenThoughtIds] = useState<Record<string, boolean>>({});
   const listRef = useRef<HTMLDivElement>(null);
@@ -579,7 +618,7 @@ function ExploreStreamList({
     const el = listRef.current;
     if (!el || !live || !stickRef.current) return;
     el.scrollTop = el.scrollHeight;
-  }, [rows, footerProse, live]);
+  }, [rows, live]);
 
   return (
     <div
@@ -665,8 +704,9 @@ function ExploreStreamList({
                 <span style={{ opacity: 0.7, flexShrink: 0, width: 10 }}>
                   {body || thoughtLive ? (expanded ? '▾' : '▸') : '·'}
                 </span>
-                <span
-                  className="ak-step-title"
+                <LiveStepTitle
+                  title={title}
+                  live={!!thoughtLive}
                   style={{
                     overflow: thoughtLive ? 'visible' : 'hidden',
                     textOverflow: thoughtLive ? 'clip' : 'ellipsis',
@@ -674,9 +714,7 @@ function ExploreStreamList({
                     minWidth: thoughtLive ? 'max-content' : 0,
                     fontWeight: thoughtLive ? 500 : 400
                   }}
-                >
-                  {title}
-                </span>
+                />
               </button>
               {expanded && (body || thoughtLive) ? (
                 <div className="ak-explore-nested-thought">
@@ -738,17 +776,6 @@ function ExploreStreamList({
           </div>
         );
       })}
-      {footerProse?.trim() ? (
-        <div
-          className="message-content message-turn-prose message-turn-prose--live ak-explore-inline-prose"
-          style={{ margin: '8px 0 4px' }}
-        >
-          <StreamingMarkdown
-            content={footerProse}
-            isStreaming={!!footerProseStreaming}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -1285,11 +1312,10 @@ export function MessageSteps({
           sealedProseTexts.some(
             (t) => t === liveTrim || liveTrim.includes(t) || t.includes(liveTrim)
           );
-        const footerLive =
-          isLast && showLiveProse && isExploring && !liveAlreadyShown
-            ? liveProse
-            : undefined;
-        // Live wrap-up after cards — never between Explored and Edited/Ran
+        // While Exploring: keep live intent directly under the explore chrome.
+        // After explore settles: keep it below Edited/Ran cards (never between).
+        const showLiveUnderExplore =
+          isLast && showLiveProse && isExploring && !liveAlreadyShown;
         const showLiveBelow =
           isLast && showLiveProse && !isExploring && !liveAlreadyShown;
 
@@ -1308,7 +1334,10 @@ export function MessageSteps({
             <div
               className="message-steps-turn"
               style={{
-                marginBottom: p.proseAfter.length || footerLive || showLiveBelow ? 2 : 6,
+                marginBottom:
+                  p.proseAfter.length || showLiveUnderExplore || showLiveBelow
+                    ? 2
+                    : 6,
                 paddingBottom: 2
               }}
             >
@@ -1358,16 +1387,23 @@ export function MessageSteps({
                     }))
                   }
                 >
-                  {shownRows.length > 0 || footerLive ? (
+                  {shownRows.length > 0 ? (
                     <ExploreStreamList
                       rows={shownRows}
                       live={!!exploreChromeLive}
-                      maxHeight={exploreChromeLive ? 240 : 360}
-                      footerProse={footerLive}
-                      footerProseStreaming={!!liveProseStreaming}
+                      maxHeight={exploreChromeLive ? 280 : 360}
                     />
                   ) : null}
                 </ChevronRow>
+              ) : null}
+
+              {showLiveUnderExplore ? (
+                <div className="message-content message-turn-prose message-turn-prose--live">
+                  <StreamingMarkdown
+                    content={liveProse!}
+                    isStreaming={!!liveProseStreaming}
+                  />
+                </div>
               ) : null}
 
               {/* Implementation chrome + cards — stick under Explored (Cursor-like) */}

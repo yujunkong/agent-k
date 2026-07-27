@@ -1,12 +1,12 @@
 /**
- * Registered models for Composer dropdown + Settings.
- * Server /v1/models is only a picker source in Settings — never dumped into the chat UI.
+ * Provider model catalog for Composer dropdown.
+ * Populated from server /v1/models after a successful connection — no manual register list.
  */
 import { configManager } from '../core/ConfigManager';
 
-const REGISTERED_KEY = 'agent-k.provider.models';
-/** @deprecated leftover from dumping /v1/models into the UI */
-const LEGACY_AVAILABLE_KEY = 'agent-k.provider.availableModels';
+const AVAILABLE_KEY = 'agent-k.provider.availableModels';
+/** @deprecated was a manual allow-list; migrated into availableModels */
+const LEGACY_REGISTERED_KEY = 'agent-k.provider.models';
 
 function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
   try {
@@ -36,70 +36,83 @@ function uniqSorted(ids: string[]): string[] {
   );
 }
 
-/** Models the user explicitly registered (Composer dropdown source). */
-export function getRegisteredModels(): string[] {
-  const raw = configManager.get(REGISTERED_KEY);
-  const current = String(configManager.get('agent-k.provider.model') || '').trim();
-  let ids: string[] = Array.isArray(raw)
+function readStringList(key: string): string[] {
+  const raw = configManager.get(key);
+  return Array.isArray(raw)
     ? raw.filter((x): x is string => typeof x === 'string' && !!x.trim())
     : [];
+}
 
-  // Migrate: old sessions cached the entire /v1/models catalog — drop it
-  const legacy = configManager.get(LEGACY_AVAILABLE_KEY);
-  if (Array.isArray(legacy) && legacy.length > 20 && ids.length === 0) {
-    ids = current ? [current] : [];
-    configManager.set(REGISTERED_KEY, ids);
-    configManager.set(LEGACY_AVAILABLE_KEY, []);
-  } else if (ids.length === 0 && current) {
+/** Models shown in the chat Composer dropdown (from last successful /v1/models). */
+export function getComposerModels(): string[] {
+  const current = String(configManager.get('agent-k.provider.model') || '').trim();
+  let ids = readStringList(AVAILABLE_KEY);
+
+  // One-time migrate: old manual register list → composer catalog
+  if (ids.length === 0) {
+    const legacy = readStringList(LEGACY_REGISTERED_KEY);
+    if (legacy.length > 0) {
+      ids = legacy;
+      configManager.set(AVAILABLE_KEY, ids);
+    }
+  }
+
+  if (ids.length === 0 && current) {
     ids = [current];
   } else if (current && !ids.includes(current)) {
-    ids = [...ids, current];
+    ids = [current, ...ids];
   }
 
   return uniqSorted(ids);
 }
 
-export function setRegisteredModels(ids: string[]): void {
+/** Cache server catalog for Composer. */
+export function setAvailableModels(ids: string[]): string[] {
   const unique = uniqSorted(ids);
-  configManager.set(REGISTERED_KEY, unique);
-  // Clear legacy dump so it can't leak back into the UI
-  if (configManager.get(LEGACY_AVAILABLE_KEY)) {
-    configManager.set(LEGACY_AVAILABLE_KEY, []);
-  }
-}
-
-export function addRegisteredModel(id: string): string[] {
-  const next = uniqSorted([...getRegisteredModels(), id]);
-  setRegisteredModels(next);
-  return next;
-}
-
-export function removeRegisteredModel(id: string): string[] {
-  const next = getRegisteredModels().filter((m) => m !== id);
-  setRegisteredModels(next);
-  return next;
+  configManager.set(AVAILABLE_KEY, unique);
+  // Keep legacy key in sync so older listeners don't show stale allow-lists
+  configManager.set(LEGACY_REGISTERED_KEY, unique);
+  return unique;
 }
 
 export function persistProviderModel(model: string): void {
-  const registered = getRegisteredModels();
-  const models = registered.includes(model) ? registered : uniqSorted([...registered, model]);
-  const values: Record<string, unknown> = {
+  const models = getComposerModels();
+  const nextModels = models.includes(model) ? models : uniqSorted([model, ...models]);
+  configManager.update({
     'agent-k.provider.model': model,
-    [REGISTERED_KEY]: models
-  };
-  configManager.update(values);
+    [AVAILABLE_KEY]: nextModels
+  });
   persistToHost({ 'agent-k.provider.model': model });
 }
 
-/** @deprecated use getRegisteredModels */
-export function getCachedAvailableModels(): string[] {
-  return getRegisteredModels();
+/** @deprecated use getComposerModels */
+export function getRegisteredModels(): string[] {
+  return getComposerModels();
 }
 
-/** @deprecated no-op for full catalog; use setRegisteredModels / addRegisteredModel */
+/** @deprecated use setAvailableModels */
+export function setRegisteredModels(ids: string[]): void {
+  setAvailableModels(ids);
+}
+
+/** @deprecated */
+export function addRegisteredModel(id: string): string[] {
+  return setAvailableModels([...getComposerModels(), id]);
+}
+
+/** @deprecated */
+export function removeRegisteredModel(id: string): string[] {
+  return setAvailableModels(getComposerModels().filter((m) => m !== id));
+}
+
+/** @deprecated use getComposerModels */
+export function getCachedAvailableModels(): string[] {
+  return getComposerModels();
+}
+
+/** @deprecated use setAvailableModels */
 export function setCachedAvailableModels(ids: string[]): void {
-  // Intentionally do not store full server catalogs
-  void ids;
+  setAvailableModels(ids);
 }
 
 function testViaExtensionHost(
@@ -172,9 +185,9 @@ async function testViaDirectFetch(
   const found = model ? modelIds.includes(model) : false;
   const detail =
     model && found
-      ? `OK — model "${model}" listed (${modelIds.length} models on server)`
+      ? `OK — model "${model}" listed (${modelIds.length} models)`
       : modelIds.length > 0
-        ? `OK — server reachable (${modelIds.length} models on server). Add only the ones you need below.`
+        ? `OK — ${modelIds.length} models loaded into Composer`
         : 'OK — server reachable (no models in list).';
 
   return { ok: found || modelIds.length > 0 || !model, status: response.status, detail, modelIds };
@@ -187,10 +200,7 @@ export type ProviderModelsResult = {
   modelIds: string[];
 };
 
-/**
- * Probe the provider. Returns server model ids for Settings "Add" picker only —
- * does NOT write them into the Composer registered list.
- */
+/** Probe the provider and return /v1/models ids. */
 export async function fetchProviderModels(opts?: {
   baseUrl?: string;
   apiKey?: string;
@@ -256,4 +266,32 @@ export async function fetchProviderModels(opts?: {
     }
     return { ok: false, detail: msg || 'Connection failed', modelIds: [] };
   }
+}
+
+/**
+ * Fetch /v1/models and cache for Composer.
+ * Returns the cached list (empty on failure).
+ */
+export async function refreshComposerModels(opts?: {
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+}): Promise<ProviderModelsResult> {
+  const result = await fetchProviderModels(opts);
+  if (result.ok && result.modelIds.length > 0) {
+    setAvailableModels(result.modelIds);
+    const active = String(
+      opts?.model ?? configManager.get('agent-k.provider.model') ?? ''
+    ).trim();
+    if (active && !result.modelIds.includes(active)) {
+      // Keep user's current id selectable even if server renamed it
+      setAvailableModels([active, ...result.modelIds]);
+    } else if (!active && result.modelIds[0]) {
+      configManager.set('agent-k.provider.model', result.modelIds[0]);
+    }
+  }
+  return {
+    ...result,
+    modelIds: result.ok ? getComposerModels() : result.modelIds
+  };
 }

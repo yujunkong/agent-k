@@ -111,6 +111,7 @@ export class ConfigManager {
       'agent-k.provider.baseUrl': 'http://127.0.0.1:52415',
       'agent-k.provider.model': 'mlx-community/Qwen3.6-35B-A3B-4bit',
       'agent-k.provider.models': ['mlx-community/Qwen3.6-35B-A3B-4bit'],
+      'agent-k.provider.availableModels': ['mlx-community/Qwen3.6-35B-A3B-4bit'],
       'agent-k.provider.apiKey': '',
       'agent-k.github.token': '',
       'agent-k.mode.default': 'agent',
@@ -256,7 +257,7 @@ export class ConfigManager {
         if (typeof value !== 'number' || value < 1000) return 'Context budget must be at least 1000';
         return null;
       case 'agent-k.provider.type':
-        if (!['litellm', 'openai', 'anthropic', 'ollama', 'lmstudio'].includes(value)) return 'Invalid provider type';
+        if (!['litellm', 'openai', 'anthropic', 'ollama', 'lmstudio', 'opencode-zen', 'opencode-go'].includes(value)) return 'Invalid provider type';
         return null;
       case 'agent-k.permission.level':
         if (!['ask', 'accept_edits', 'auto', 'bypass'].includes(value)) return 'Invalid permission level';

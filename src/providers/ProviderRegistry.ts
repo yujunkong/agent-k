@@ -7,7 +7,15 @@
 import type { LLMProviderConfig, LLMProviderInterface, ProviderType, ProviderEvent, ProviderEventListener } from './types';
 import { LiteLLMProvider } from './LiteLLMProvider';
 
-const PROVIDER_TYPES: ProviderType[] = ['litellm', 'openai', 'anthropic', 'ollama', 'lmstudio'];
+const PROVIDER_TYPES: ProviderType[] = [
+  'litellm',
+  'openai',
+  'anthropic',
+  'ollama',
+  'lmstudio',
+  'opencode-zen',
+  'opencode-go'
+];
 
 export class ProviderRegistry {
   private providers: Map<string, LLMProviderInterface> = new Map();
@@ -64,10 +72,10 @@ export class ProviderRegistry {
       case 'openai':
       case 'ollama':
       case 'lmstudio':
-        provider = new LiteLLMProvider(config);
-        break;
+      case 'opencode-zen':
+      case 'opencode-go':
       case 'anthropic':
-        // Anthropic uses a different API, but for now use LiteLLM as proxy
+        // Anthropic / OpenCode gateways: OpenAI-compatible chat completions
         provider = new LiteLLMProvider(config);
         break;
       default:

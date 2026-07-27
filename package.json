@@ -133,7 +133,9 @@
             "openai",
             "anthropic",
             "ollama",
-            "lmstudio"
+            "lmstudio",
+            "opencode-zen",
+            "opencode-go"
           ],
           "default": "litellm",
           "description": "LLM provider type"

@@ -54,7 +54,35 @@ export const PROVIDER_FIELDS: Record<ProviderType, ProviderFieldMeta> = {
     defaultBaseUrl: 'http://127.0.0.1:1234',
     defaultModel: 'local-model',
     hint: 'LM Studio local server — base URL only (no API key).'
+  },
+  'opencode-zen': {
+    needsBaseUrl: true,
+    needsApiKey: true,
+    apiKeyOptional: false,
+    defaultBaseUrl: 'https://opencode.ai/zen',
+    defaultModel: 'kimi-k2.6',
+    hint:
+      'OpenCode Zen (pay-as-you-go). API key from opencode.ai/auth. Models load into Composer after Test Connection.'
+  },
+  'opencode-go': {
+    needsBaseUrl: true,
+    needsApiKey: true,
+    apiKeyOptional: false,
+    defaultBaseUrl: 'https://opencode.ai/zen/go',
+    defaultModel: 'kimi-k2.6',
+    hint:
+      'OpenCode Go (subscription). Same key platform as Zen; curated coding models. Test Connection fills Composer.'
   }
+};
+
+export const PROVIDER_LABELS: Record<ProviderType, string> = {
+  litellm: 'LiteLLM / OpenAI-compatible',
+  openai: 'OpenAI',
+  anthropic: 'Anthropic (via proxy)',
+  ollama: 'Ollama',
+  lmstudio: 'LM Studio',
+  'opencode-zen': 'OpenCode Zen',
+  'opencode-go': 'OpenCode Go'
 };
 
 export function isProviderType(v: string): v is ProviderType {

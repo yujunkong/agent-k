@@ -1,7 +1,14 @@
 /**
  * Provider 타입 정의
  */
-export type ProviderType = 'litellm' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio';
+export type ProviderType =
+  | 'litellm'
+  | 'openai'
+  | 'anthropic'
+  | 'ollama'
+  | 'lmstudio'
+  | 'opencode-zen'
+  | 'opencode-go';
 
 export interface LLMProviderConfig {
   id: string;

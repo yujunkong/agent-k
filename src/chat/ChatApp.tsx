@@ -79,8 +79,9 @@ import {
 import { sealBodyBeforeTools, resolveSealTurn } from './sealTurnProse';
 import { stripFakeToolMarkup } from './displaySanitize';
 import {
-  getRegisteredModels,
-  persistProviderModel
+  getComposerModels,
+  persistProviderModel,
+  refreshComposerModels
 } from './providerModels';
 // ADDON-T10: slash command UX (/compact /cost /model /permissions /help)
 import { SLASH_COMMANDS, resolveSlashCommand, type SlashCommand } from './composerPalette';
@@ -329,7 +330,7 @@ export function ChatApp() {
   const [providerType, setProviderType] = useState(() =>
     String(configManager.get('agent-k.provider.type') || 'litellm')
   );
-  const [registeredModels, setRegisteredModels] = useState<string[]>(() => getRegisteredModels());
+  const [composerModels, setComposerModels] = useState<string[]>(() => getComposerModels());
   const [modelContextBudget, setModelContextBudget] = useState<number>(() =>
     Number(configManager.get('agent-k.context.budget')) || 100000
   );
@@ -339,9 +340,11 @@ export function ChatApp() {
   );
 
   useEffect(() => {
+    const syncModels = () => setComposerModels(getComposerModels());
     const unsubs = [
       configManager.on('agent-k.provider.model', (_k, v) => {
         setProviderModel(String(v || ''));
+        syncModels();
       }),
       configManager.on('agent-k.provider.baseUrl', (_k, v) => {
         setProviderBaseUrl(String(v || ''));
@@ -349,15 +352,13 @@ export function ChatApp() {
       configManager.on('agent-k.provider.apiKey', (_k, v) => {
         setProviderApiKey(String(v || ''));
       }),
-      configManager.on('agent-k.provider.models', () => {
-        setRegisteredModels(getRegisteredModels());
-      }),
+      configManager.on('agent-k.provider.availableModels', syncModels),
+      configManager.on('agent-k.provider.models', syncModels),
       configManager.on('agent-k.thinking.effort', (_k, v) => {
         setThinkingEffort(parseThinkingEffort(v));
       })
     ];
-    // One-time migrate / prune bloated legacy catalog
-    setRegisteredModels(getRegisteredModels());
+    syncModels();
     return () => unsubs.forEach((u) => u());
   }, []);
 
@@ -2483,7 +2484,7 @@ export function ChatApp() {
     setProviderBaseUrl(String(configManager.get('agent-k.provider.baseUrl') || providerBaseUrl));
     setProviderApiKey(String(configManager.get('agent-k.provider.apiKey') || ''));
     setProviderModel(String(configManager.get('agent-k.provider.model') || providerModel));
-    setRegisteredModels(getRegisteredModels());
+    setComposerModels(getComposerModels());
   }, [providerBaseUrl, providerModel]);
 
   const handleToggleHistory = useCallback((e?: React.MouseEvent) => {
@@ -2542,10 +2543,35 @@ export function ChatApp() {
   }, []);
 
   const composerModelOptions = useMemo(() => {
-    const ids = [...registeredModels];
+    const ids = [...composerModels];
     if (providerModel && !ids.includes(providerModel)) ids.unshift(providerModel);
     return ids;
-  }, [registeredModels, providerModel]);
+  }, [composerModels, providerModel]);
+
+  // Load /v1/models into Composer whenever the provider endpoint changes
+  useEffect(() => {
+    let cancelled = false;
+    const base = providerBaseUrl.replace(/\/$/, '');
+    if (!base) return;
+    void (async () => {
+      const result = await refreshComposerModels({
+        baseUrl: base,
+        apiKey: providerApiKey || undefined,
+        model: providerModel
+      });
+      if (cancelled) return;
+      if (result.ok) {
+        setComposerModels(getComposerModels());
+        const active = String(configManager.get('agent-k.provider.model') || '').trim();
+        if (active && active !== providerModel) {
+          setProviderModel(active);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [providerBaseUrl, providerApiKey]);
 
   const sessionFileEdits = useMemo(
     () => collectSessionFileEdits(messages),

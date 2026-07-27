@@ -321,8 +321,10 @@ export async function resolveModelContextInfo(
       }
       case 'openai':
       case 'lmstudio':
-      case 'anthropic': {
-        // Anthropic in Agent K is usually an OpenAI-compatible proxy (LiteLLM etc.)
+      case 'anthropic':
+      case 'opencode-zen':
+      case 'opencode-go': {
+        // Anthropic / OpenCode gateways: OpenAI-compatible proxy
         if (type === 'anthropic') {
           found = await fromLiteLLMModelInfo(root, opts.apiKey, opts.model, opts.signal);
           if (found?.maxInput) source = 'provider';

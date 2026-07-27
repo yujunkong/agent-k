@@ -47,7 +47,7 @@ interface ComposerProps {
   modelLabel: string;
   /** Full model id (for select value) */
   modelId?: string;
-  /** Registered models only (not full /v1/models catalog) */
+  /** Models from provider /v1/models (Composer picker) */
   modelOptions?: string[];
   /** User picked a model from the composer dropdown */
   onModelChange?: (modelId: string) => void;

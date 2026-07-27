@@ -10,12 +10,13 @@ import { parseThinkingEffort, thinkingEffortToProviderOpts } from '../agent/thin
 export class LiteLLMProvider implements LLMProviderInterface {
   readonly id: string;
   readonly name: string;
-  readonly type = 'litellm' as const;
+  readonly type: LLMProviderConfig['type'];
   readonly config: LLMProviderConfig;
 
   constructor(config: LLMProviderConfig) {
     this.id = config.id;
     this.name = config.name;
+    this.type = config.type;
     this.config = config;
   }
 

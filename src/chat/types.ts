@@ -186,7 +186,7 @@ export interface StreamDelta {
 }
 
 export interface ProviderConfig {
-  type: 'litellm' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio';
+  type: 'litellm' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'opencode-zen' | 'opencode-go';
   baseUrl: string;
   apiKey?: string;
   model: string;

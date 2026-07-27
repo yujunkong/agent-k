@@ -299,7 +299,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const cfg = vscode.workspace.getConfiguration('agent-k');
     const providerType = String(
       message.providerType || cfg.get('provider.type') || 'litellm'
-    ) as 'litellm' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio';
+    ) as 'litellm' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'opencode-zen' | 'opencode-go';
     const baseUrl = String(
       message.baseUrl || cfg.get('provider.baseUrl') || 'http://127.0.0.1:52415'
     ).replace(/\/$/, '');
@@ -1217,7 +1217,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       | 'openai'
       | 'anthropic'
       | 'ollama'
-      | 'lmstudio';
+      | 'lmstudio'
+      | 'opencode-zen'
+      | 'opencode-go';
     const fallbackBudget = Number(cfg.get('context.budget')) || 100000;
 
     let deliveredFinal = false;
@@ -1879,7 +1881,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             | 'openai'
             | 'anthropic'
             | 'ollama'
-            | 'lmstudio';
+            | 'lmstudio'
+            | 'opencode-zen'
+            | 'opencode-go';
           const litellm = new LiteLLMProvider({
             id: 'agent-k-review',
             name: 'Agent K Review',

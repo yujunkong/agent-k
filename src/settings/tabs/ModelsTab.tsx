@@ -1,18 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { configManager } from '../../core/ConfigManager';
 import {
   PROVIDER_FIELDS,
+  PROVIDER_LABELS,
   isProviderType,
   type ProviderFieldMeta
 } from '../../providers/providerFields';
 import type { ProviderType } from '../../providers/types';
-import {
-  addRegisteredModel,
-  fetchProviderModels,
-  getRegisteredModels,
-  removeRegisteredModel,
-  setRegisteredModels
-} from '../../chat/providerModels';
+import { refreshComposerModels } from '../../chat/providerModels';
 
 /** Persist settings to extension host (VS Code configuration) */
 function persistToHost(values: Record<string, unknown>): void {
@@ -42,11 +37,6 @@ function metaFor(type: string): ProviderFieldMeta {
   return isProviderType(type) ? PROVIDER_FIELDS[type] : PROVIDER_FIELDS.litellm;
 }
 
-function shortId(id: string): string {
-  const base = id.split('/').pop() || id;
-  return base.length > 40 ? `${base.slice(0, 38)}…` : base;
-}
-
 export function ModelsTab() {
   const initialType = String(configManager.get('agent-k.provider.type') || 'litellm');
   const [providerType, setProviderType] = useState<string>(initialType);
@@ -65,23 +55,12 @@ export function ModelsTab() {
   const [githubStored, setGithubStored] = useState(
     () => !!configManager.get('agent-k.github.token')
   );
-  const [registered, setRegistered] = useState<string[]>(() => getRegisteredModels());
-  const [serverModels, setServerModels] = useState<string[]>([]);
-  const [addPick, setAddPick] = useState('');
-  const [manualId, setManualId] = useState('');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testDetail, setTestDetail] = useState('');
   const [savedFlash, setSavedFlash] = useState(false);
 
   const fields = useMemo(() => metaFor(providerType), [providerType]);
   const apiKeyStored = !!configManager.get('agent-k.provider.apiKey') || !!apiKey;
-
-  useEffect(() => {
-    const unsub = configManager.on('agent-k.provider.models', () => {
-      setRegistered(getRegisteredModels());
-    });
-    return unsub;
-  }, []);
 
   const handleProviderTypeChange = (next: string) => {
     setProviderType(next);
@@ -90,28 +69,18 @@ export function ModelsTab() {
     if (!meta.needsApiKey) {
       setApiKey('');
     }
-    setServerModels([]);
-    setAddPick('');
     setTestStatus('idle');
     setTestDetail('');
   };
 
-  const resolveActiveModel = (models: string[]): string => {
-    const current = String(configManager.get('agent-k.provider.model') || '').trim();
-    if (current && models.includes(current)) return current;
-    return models[0] || current || fields.defaultModel;
-  };
-
   const handleSave = () => {
     const meta = metaFor(providerType);
-    const models = registered.filter(Boolean);
-    setRegisteredModels(models);
-    setRegistered(models);
-    const activeModel = resolveActiveModel(models);
+    const activeModel = String(
+      configManager.get('agent-k.provider.model') || meta.defaultModel || ''
+    ).trim();
     const values: Record<string, unknown> = {
       'agent-k.provider.type': providerType,
-      'agent-k.provider.model': activeModel,
-      'agent-k.provider.models': models
+      'agent-k.provider.model': activeModel || meta.defaultModel
     };
     if (meta.needsBaseUrl) {
       values['agent-k.provider.baseUrl'] = baseUrl.replace(/\/$/, '');
@@ -122,7 +91,6 @@ export function ModelsTab() {
       if (apiKey) {
         values['agent-k.provider.apiKey'] = apiKey;
       }
-      // blank + previously stored → keep existing (Clear already persisted '')
     } else {
       values['agent-k.provider.apiKey'] = '';
     }
@@ -156,11 +124,9 @@ export function ModelsTab() {
     const url = meta.needsBaseUrl ? baseUrl : meta.defaultBaseUrl;
     const key = meta.needsApiKey ? apiKey : '';
     const probeModel =
-      registered[0] ||
-      String(configManager.get('agent-k.provider.model') || '') ||
-      meta.defaultModel;
+      String(configManager.get('agent-k.provider.model') || '') || meta.defaultModel;
 
-    const result = await fetchProviderModels({
+    const result = await refreshComposerModels({
       baseUrl: url,
       apiKey: key,
       model: probeModel
@@ -172,55 +138,27 @@ export function ModelsTab() {
       return;
     }
 
-    setServerModels(result.modelIds);
     setTestStatus('success');
-    setTestDetail(result.detail);
+    setTestDetail(
+      result.modelIds.length > 0
+        ? `OK — ${result.modelIds.length} models available in Composer`
+        : result.detail
+    );
   };
-
-  const handleAddFromServer = () => {
-    if (!addPick) return;
-    const next = addRegisteredModel(addPick);
-    setRegistered(next);
-    setAddPick('');
-  };
-
-  const handleAddManual = () => {
-    const id = manualId.trim();
-    if (!id) return;
-    const next = addRegisteredModel(id);
-    setRegistered(next);
-    setManualId('');
-  };
-
-  const handleRemove = (id: string) => {
-    const next = removeRegisteredModel(id);
-    setRegistered(next);
-  };
-
-  const serverChoices = useMemo(
-    () => serverModels.filter((id) => !registered.includes(id)),
-    [serverModels, registered]
-  );
 
   return (
     <div className="settings-tab-content">
       <h3>Provider &amp; credentials</h3>
-      <p className="settings-hint">{fields.hint}</p>
+      <p className="settings-hint">
+        {fields.hint} Connect once — models from the server appear in the chat Composer dropdown.
+      </p>
 
       <div className="settings-field">
         <label>Provider Type</label>
         <select value={providerType} onChange={(e) => handleProviderTypeChange(e.target.value)}>
           {(Object.keys(PROVIDER_FIELDS) as ProviderType[]).map((t) => (
             <option key={t} value={t}>
-              {t === 'litellm'
-                ? 'LiteLLM / OpenAI-compatible'
-                : t === 'openai'
-                  ? 'OpenAI'
-                  : t === 'anthropic'
-                    ? 'Anthropic'
-                    : t === 'ollama'
-                      ? 'Ollama'
-                      : 'LM Studio'}
+              {PROVIDER_LABELS[t]}
             </option>
           ))}
         </select>
@@ -282,75 +220,6 @@ export function ModelsTab() {
                 Clear
               </button>
             ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      <div className="settings-field">
-        <label>Registered models (Composer dropdown)</label>
-        <p className="settings-hint" style={{ marginTop: 0 }}>
-          Active model is chosen in the chat composer. Only these IDs appear there — not the full
-          server catalog.
-        </p>
-        {registered.length === 0 ? (
-          <p className="settings-hint">None yet — add a model below or Test Connection.</p>
-        ) : (
-          <ul className="settings-model-list">
-            {registered.map((id) => (
-              <li key={id}>
-                <span title={id}>{shortId(id)}</span>
-                <button
-                  type="button"
-                  className="settings-btn secondary settings-btn--tiny"
-                  onClick={() => handleRemove(id)}
-                  disabled={registered.length <= 1}
-                  title="Remove from list"
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="settings-inline-add">
-          <input
-            type="text"
-            value={manualId}
-            onChange={(e) => setManualId(e.target.value)}
-            placeholder="model id…"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleAddManual();
-              }
-            }}
-          />
-          <button type="button" className="settings-btn secondary" onClick={handleAddManual}>
-            Add
-          </button>
-        </div>
-      </div>
-
-      {serverChoices.length > 0 ? (
-        <div className="settings-field">
-          <label>Add from server ({serverChoices.length} available)</label>
-          <div className="settings-inline-add">
-            <select value={addPick} onChange={(e) => setAddPick(e.target.value)}>
-              <option value="">Select a model…</option>
-              {serverChoices.map((id) => (
-                <option key={id} value={id}>
-                  {id}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="settings-btn secondary"
-              onClick={handleAddFromServer}
-              disabled={!addPick}
-            >
-              Add
-            </button>
           </div>
         </div>
       ) : null}
