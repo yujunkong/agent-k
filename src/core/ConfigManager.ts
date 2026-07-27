@@ -112,6 +112,7 @@ export class ConfigManager {
       'agent-k.provider.model': 'mlx-community/Qwen3.6-35B-A3B-4bit',
       'agent-k.provider.models': ['mlx-community/Qwen3.6-35B-A3B-4bit'],
       'agent-k.provider.apiKey': '',
+      'agent-k.github.token': '',
       'agent-k.mode.default': 'agent',
       'agent-k.maxTurns': 25,
       'agent-k.permission.level': 'accept_edits',

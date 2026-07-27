@@ -1,12 +1,12 @@
 /**
  * Settings Hub - Webview 기반 설정 UI
- * 
- * 탭: Models / Secrets / Permission / Queue / Harness / Context / MCP / Privacy
+ *
+ * 탭: Models / Permission / Queue / Harness / Context / MCP / Privacy
+ * (Secrets merged into Models — single provider + credentials surface)
  * ConfigManager와 양방향 동기화
  */
 import React, { useState } from 'react';
 import { ModelsTab } from './tabs/ModelsTab';
-import { SecretsTab } from './tabs/SecretsTab';
 import { PermissionTab } from './tabs/PermissionTab';
 import { QueueTab } from './tabs/QueueTab';
 import { HarnessTab } from './tabs/HarnessTab';
@@ -17,10 +17,18 @@ import { FeaturesTab } from './tabs/FeaturesTab';
 
 interface SettingsPanelProps {
   onClose?: () => void;
-  initialTab?: TabId;
+  initialTab?: TabId | 'secrets';
 }
 
-type TabId = 'models' | 'secrets' | 'permission' | 'queue' | 'harness' | 'context' | 'mcp' | 'features' | 'privacy';
+type TabId =
+  | 'models'
+  | 'permission'
+  | 'queue'
+  | 'harness'
+  | 'context'
+  | 'mcp'
+  | 'features'
+  | 'privacy';
 
 interface TabInfo {
   id: TabId;
@@ -30,7 +38,6 @@ interface TabInfo {
 
 const TABS: TabInfo[] = [
   { id: 'models', label: 'Models', icon: '🤖' },
-  { id: 'secrets', label: 'Secrets', icon: '🔑' },
   { id: 'permission', label: 'Permission', icon: '🔒' },
   { id: 'features', label: 'Features', icon: '⚙️' },
   { id: 'harness', label: 'Harness', icon: '🧪' },
@@ -40,21 +47,34 @@ const TABS: TabInfo[] = [
   { id: 'privacy', label: 'Privacy', icon: '🔐' }
 ];
 
+function normalizeTab(tab: TabId | 'secrets' | undefined): TabId {
+  if (!tab || tab === 'secrets') return 'models';
+  return tab;
+}
+
 export function SettingsPanel({ onClose, initialTab = 'models' }: SettingsPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  const [activeTab, setActiveTab] = useState<TabId>(() => normalizeTab(initialTab));
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'models': return <ModelsTab />;
-      case 'secrets': return <SecretsTab />;
-      case 'permission': return <PermissionTab />;
-      case 'queue': return <QueueTab />;
-      case 'harness': return <HarnessTab />;
-      case 'context': return <ContextTab />;
-      case 'mcp': return <McpTab />;
-      case 'features': return <FeaturesTab />;
-      case 'privacy': return <PrivacyTab />;
-      default: return <ModelsTab />;
+      case 'models':
+        return <ModelsTab />;
+      case 'permission':
+        return <PermissionTab />;
+      case 'queue':
+        return <QueueTab />;
+      case 'harness':
+        return <HarnessTab />;
+      case 'context':
+        return <ContextTab />;
+      case 'mcp':
+        return <McpTab />;
+      case 'features':
+        return <FeaturesTab />;
+      case 'privacy':
+        return <PrivacyTab />;
+      default:
+        return <ModelsTab />;
     }
   };
 
@@ -62,7 +82,11 @@ export function SettingsPanel({ onClose, initialTab = 'models' }: SettingsPanelP
     <div className="settings-panel">
       <div className="settings-header">
         <h2>Settings</h2>
-        {onClose && <button className="settings-close" onClick={onClose}>✕</button>}
+        {onClose && (
+          <button className="settings-close" onClick={onClose}>
+            ✕
+          </button>
+        )}
       </div>
       <div className="settings-body">
         <nav className="settings-nav">
@@ -77,9 +101,7 @@ export function SettingsPanel({ onClose, initialTab = 'models' }: SettingsPanelP
             </button>
           ))}
         </nav>
-        <div className="settings-content">
-          {renderTab()}
-        </div>
+        <div className="settings-content">{renderTab()}</div>
       </div>
     </div>
   );

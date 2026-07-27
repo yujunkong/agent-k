@@ -54,18 +54,27 @@ export function ModelsTab() {
   const [baseUrl, setBaseUrl] = useState<string>(
     configManager.get('agent-k.provider.baseUrl') || initialMeta.defaultBaseUrl
   );
-  const [model, setModel] = useState<string>(
-    configManager.get('agent-k.provider.model') || initialMeta.defaultModel
+  const [apiKey, setApiKey] = useState<string>(
+    configManager.get('agent-k.provider.apiKey') || ''
   );
-  const [apiKey, setApiKey] = useState<string>(configManager.get('agent-k.provider.apiKey') || '');
+  const [apiKeyReveal, setApiKeyReveal] = useState(false);
+  const [githubToken, setGithubToken] = useState<string>(
+    configManager.get('agent-k.github.token') || ''
+  );
+  const [githubReveal, setGithubReveal] = useState(false);
+  const [githubStored, setGithubStored] = useState(
+    () => !!configManager.get('agent-k.github.token')
+  );
   const [registered, setRegistered] = useState<string[]>(() => getRegisteredModels());
   const [serverModels, setServerModels] = useState<string[]>([]);
   const [addPick, setAddPick] = useState('');
   const [manualId, setManualId] = useState('');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testDetail, setTestDetail] = useState('');
+  const [savedFlash, setSavedFlash] = useState(false);
 
   const fields = useMemo(() => metaFor(providerType), [providerType]);
+  const apiKeyStored = !!configManager.get('agent-k.provider.apiKey') || !!apiKey;
 
   useEffect(() => {
     const unsub = configManager.on('agent-k.provider.models', () => {
@@ -78,9 +87,6 @@ export function ModelsTab() {
     setProviderType(next);
     const meta = metaFor(next);
     setBaseUrl(meta.defaultBaseUrl);
-    if (!configManager.get('agent-k.provider.model')) {
-      setModel(meta.defaultModel);
-    }
     if (!meta.needsApiKey) {
       setApiKey('');
     }
@@ -90,16 +96,21 @@ export function ModelsTab() {
     setTestDetail('');
   };
 
+  const resolveActiveModel = (models: string[]): string => {
+    const current = String(configManager.get('agent-k.provider.model') || '').trim();
+    if (current && models.includes(current)) return current;
+    return models[0] || current || fields.defaultModel;
+  };
+
   const handleSave = () => {
     const meta = metaFor(providerType);
-    const models = registered.includes(model)
-      ? registered
-      : [...registered, model].filter(Boolean);
+    const models = registered.filter(Boolean);
     setRegisteredModels(models);
     setRegistered(models);
+    const activeModel = resolveActiveModel(models);
     const values: Record<string, unknown> = {
       'agent-k.provider.type': providerType,
-      'agent-k.provider.model': model,
+      'agent-k.provider.model': activeModel,
       'agent-k.provider.models': models
     };
     if (meta.needsBaseUrl) {
@@ -108,17 +119,34 @@ export function ModelsTab() {
       values['agent-k.provider.baseUrl'] = meta.defaultBaseUrl.replace(/\/$/, '');
     }
     if (meta.needsApiKey) {
-      values['agent-k.provider.apiKey'] = apiKey;
+      if (apiKey) {
+        values['agent-k.provider.apiKey'] = apiKey;
+      }
+      // blank + previously stored → keep existing (Clear already persisted '')
     } else {
       values['agent-k.provider.apiKey'] = '';
     }
+    if (githubToken) {
+      values['agent-k.github.token'] = githubToken;
+    } else if (!githubStored) {
+      values['agent-k.github.token'] = '';
+    }
     configManager.update(values);
-    persistToHost({
+    const hostPayload: Record<string, unknown> = {
       'agent-k.provider.type': values['agent-k.provider.type'],
       'agent-k.provider.model': values['agent-k.provider.model'],
-      'agent-k.provider.baseUrl': values['agent-k.provider.baseUrl'],
-      'agent-k.provider.apiKey': values['agent-k.provider.apiKey']
-    });
+      'agent-k.provider.baseUrl': values['agent-k.provider.baseUrl']
+    };
+    if ('agent-k.provider.apiKey' in values) {
+      hostPayload['agent-k.provider.apiKey'] = values['agent-k.provider.apiKey'];
+    }
+    if ('agent-k.github.token' in values) {
+      hostPayload['agent-k.github.token'] = values['agent-k.github.token'];
+      setGithubStored(!!values['agent-k.github.token']);
+    }
+    persistToHost(hostPayload);
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 2000);
   };
 
   const handleTest = async () => {
@@ -127,11 +155,15 @@ export function ModelsTab() {
     const meta = metaFor(providerType);
     const url = meta.needsBaseUrl ? baseUrl : meta.defaultBaseUrl;
     const key = meta.needsApiKey ? apiKey : '';
+    const probeModel =
+      registered[0] ||
+      String(configManager.get('agent-k.provider.model') || '') ||
+      meta.defaultModel;
 
     const result = await fetchProviderModels({
       baseUrl: url,
       apiKey: key,
-      model
+      model: probeModel
     });
 
     if (!result.ok) {
@@ -140,7 +172,6 @@ export function ModelsTab() {
       return;
     }
 
-    // Server catalog stays local for "Add" — not dumped into Composer
     setServerModels(result.modelIds);
     setTestStatus('success');
     setTestDetail(result.detail);
@@ -150,7 +181,6 @@ export function ModelsTab() {
     if (!addPick) return;
     const next = addRegisteredModel(addPick);
     setRegistered(next);
-    setModel(addPick);
     setAddPick('');
   };
 
@@ -159,16 +189,12 @@ export function ModelsTab() {
     if (!id) return;
     const next = addRegisteredModel(id);
     setRegistered(next);
-    setModel(id);
     setManualId('');
   };
 
   const handleRemove = (id: string) => {
     const next = removeRegisteredModel(id);
     setRegistered(next);
-    if (model === id && next[0]) {
-      setModel(next[0]);
-    }
   };
 
   const serverChoices = useMemo(
@@ -178,7 +204,7 @@ export function ModelsTab() {
 
   return (
     <div className="settings-tab-content">
-      <h3>Provider Configuration</h3>
+      <h3>Provider &amp; credentials</h3>
       <p className="settings-hint">{fields.hint}</p>
 
       <div className="settings-field">
@@ -216,39 +242,58 @@ export function ModelsTab() {
         <div className="settings-field">
           <label>
             API Key{fields.apiKeyOptional ? ' (optional)' : ''}
+            {apiKeyStored && !apiKeyReveal ? (
+              <span className="settings-stored-badge"> stored</span>
+            ) : null}
           </label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder={fields.apiKeyOptional ? 'sk-… or empty' : 'sk-…'}
-            autoComplete="off"
-          />
+          <div className="settings-secret-row">
+            <input
+              type={apiKeyReveal ? 'text' : 'password'}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={
+                apiKeyStored && !apiKey
+                  ? '•••••••• (leave blank to keep, or type to replace)'
+                  : fields.apiKeyOptional
+                    ? 'sk-… or empty'
+                    : 'sk-…'
+              }
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              className="settings-btn secondary settings-btn--tiny"
+              onClick={() => setApiKeyReveal((v) => !v)}
+              title={apiKeyReveal ? 'Hide' : 'Show'}
+            >
+              {apiKeyReveal ? 'Hide' : 'Show'}
+            </button>
+            {apiKey || apiKeyStored ? (
+              <button
+                type="button"
+                className="settings-btn secondary settings-btn--tiny settings-btn--danger"
+                onClick={() => {
+                  setApiKey('');
+                  configManager.update({ 'agent-k.provider.apiKey': '' });
+                  persistToHost({ 'agent-k.provider.apiKey': '' });
+                }}
+                title="Clear API key"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
       <div className="settings-field">
-        <label>Active model</label>
-        <select
-          value={registered.includes(model) ? model : registered[0] || model}
-          onChange={(e) => setModel(e.target.value)}
-          disabled={registered.length === 0}
-        >
-          {(registered.length ? registered : model ? [model] : []).map((id) => (
-            <option key={id} value={id}>
-              {id}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="settings-field">
-        <label>Registered models (Composer list)</label>
+        <label>Registered models (Composer dropdown)</label>
         <p className="settings-hint" style={{ marginTop: 0 }}>
-          Only these appear in the chat model dropdown — not the full server catalog.
+          Active model is chosen in the chat composer. Only these IDs appear there — not the full
+          server catalog.
         </p>
         {registered.length === 0 ? (
-          <p className="settings-hint">None yet — add a model below.</p>
+          <p className="settings-hint">None yet — add a model below or Test Connection.</p>
         ) : (
           <ul className="settings-model-list">
             {registered.map((id) => (
@@ -310,6 +355,53 @@ export function ModelsTab() {
         </div>
       ) : null}
 
+      <h3 style={{ marginTop: 28 }}>Integrations</h3>
+      <p className="settings-hint">Optional credentials for SCM / PR features.</p>
+      <div className="settings-field">
+        <label>
+          GitHub Token
+          {(githubStored || githubToken) && !githubReveal ? (
+            <span className="settings-stored-badge"> stored</span>
+          ) : null}
+        </label>
+        <div className="settings-secret-row">
+          <input
+            type={githubReveal ? 'text' : 'password'}
+            value={githubToken}
+            onChange={(e) => setGithubToken(e.target.value)}
+            placeholder={
+              githubStored && !githubToken
+                ? '•••••••• (leave blank to keep, or type to replace)'
+                : 'ghp_…'
+            }
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            className="settings-btn secondary settings-btn--tiny"
+            onClick={() => setGithubReveal((v) => !v)}
+            title={githubReveal ? 'Hide' : 'Show'}
+          >
+            {githubReveal ? 'Hide' : 'Show'}
+          </button>
+          {githubToken || githubStored ? (
+            <button
+              type="button"
+              className="settings-btn secondary settings-btn--tiny settings-btn--danger"
+              onClick={() => {
+                setGithubToken('');
+                setGithubStored(false);
+                configManager.update({ 'agent-k.github.token': '' });
+                persistToHost({ 'agent-k.github.token': '' });
+              }}
+              title="Clear GitHub token"
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+      </div>
+
       <div className="settings-actions">
         <button type="button" onClick={handleTest} className="settings-btn secondary">
           {testStatus === 'testing' ? 'Testing…' : 'Test Connection'}
@@ -317,6 +409,11 @@ export function ModelsTab() {
         <button type="button" onClick={handleSave} className="settings-btn">
           Save
         </button>
+        {savedFlash ? (
+          <span className="settings-hint" style={{ color: '#22c55e', margin: 0 }}>
+            Saved
+          </span>
+        ) : null}
       </div>
 
       {testStatus === 'success' && (

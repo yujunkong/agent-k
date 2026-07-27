@@ -154,6 +154,12 @@
           "description": "API key (LiteLLM master_key or empty for direct MLX)",
           "secret": true
         },
+        "agent-k.github.token": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub personal access token for PR/issue features (optional)",
+          "secret": true
+        },
         "agent-k.thinking.effort": {
           "type": "string",
           "enum": [

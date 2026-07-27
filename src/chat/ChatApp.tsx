@@ -290,7 +290,16 @@ export function ChatApp() {
   // Settings / History / Design / Review / Artifacts
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'models' | 'secrets' | 'permission' | 'queue' | 'harness' | 'context' | 'mcp' | 'features' | 'privacy'>('models');
+  const [settingsTab, setSettingsTab] = useState<
+    | 'models'
+    | 'permission'
+    | 'queue'
+    | 'harness'
+    | 'context'
+    | 'mcp'
+    | 'features'
+    | 'privacy'
+  >('models');
   const [showDesignMode, setShowDesignMode] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [reviewFindings, setReviewFindings] = useState<ReviewFinding[]>([]);
@@ -699,7 +708,10 @@ export function ChatApp() {
       }
       if (data.type === 'ui.artifacts.open') setShowArtifacts(true);
       if (data.type === 'settings.open') {
-        if (typeof data.tab === 'string') setSettingsTab(data.tab);
+        if (typeof data.tab === 'string') {
+          const tab = data.tab === 'secrets' ? 'models' : data.tab;
+          setSettingsTab(tab as typeof settingsTab);
+        }
         setShowSettings(true);
       }
       if (data.type === 'plan.saved' && data.slug) {
