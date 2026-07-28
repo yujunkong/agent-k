@@ -3,8 +3,15 @@
   "tasks": [
     {
       "label": "npm:compile",
-      "type": "npm",
-      "script": "compile",
+      "type": "shell",
+      "command": "npm.cmd",
+      "args": ["run", "compile"],
+      "options": {
+        "shell": {
+          "executable": "cmd.exe",
+          "args": ["/d", "/c"]
+        }
+      },
       "group": {
         "kind": "build",
         "isDefault": true
@@ -14,8 +21,15 @@
     },
     {
       "label": "npm:watch",
-      "type": "npm",
-      "script": "watch",
+      "type": "shell",
+      "command": "npm.cmd",
+      "args": ["run", "watch"],
+      "options": {
+        "shell": {
+          "executable": "cmd.exe",
+          "args": ["/d", "/c"]
+        }
+      },
       "group": "build",
       "isBackground": true,
       "problemMatcher": ["$tsc-watch", "$esbuild-watch"],
@@ -23,8 +37,15 @@
     },
     {
       "label": "npm:pretest",
-      "type": "npm",
-      "script": "pretest",
+      "type": "shell",
+      "command": "npm.cmd",
+      "args": ["run", "pretest"],
+      "options": {
+        "shell": {
+          "executable": "cmd.exe",
+          "args": ["/d", "/c"]
+        }
+      },
       "group": "test",
       "detail": "Compile tests and extension"
     }

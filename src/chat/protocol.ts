@@ -21,8 +21,8 @@ export interface ChatSendPayload {
   planStage?: 'research' | 'questions' | 'planning' | 'review' | 'build';
   /** Debug FSM stage for stage-specific system prompt */
   debugStage?: string;
-  /** Thinking effort: off | low | medium | high */
-  thinkingEffort?: 'off' | 'low' | 'medium' | 'high';
+  /** Thinking effort: off | low | medium | high | max */
+  thinkingEffort?: 'off' | 'low' | 'medium' | 'high' | 'max';
   baseUrl?: string;
   apiKey?: string;
   model?: string;

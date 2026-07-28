@@ -46,8 +46,8 @@ export interface StreamChatOptions {
    * Qwen / exo thinking channel. Prefer setting via thinkingEffort.
    */
   enableThinking?: boolean;
-  /** off | low | medium | high — mapped to enable_thinking + reasoning_effort / budget */
-  thinkingEffort?: 'off' | 'low' | 'medium' | 'high';
+  /** off | low | medium | high | max — mapped to enable_thinking + reasoning_effort / budget */
+  thinkingEffort?: 'off' | 'low' | 'medium' | 'high' | 'max';
 }
 
 export interface StreamChunk {

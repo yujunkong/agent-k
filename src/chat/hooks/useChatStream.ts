@@ -17,7 +17,7 @@ interface UseChatStreamOptions {
   /** Debug mode FSM stage — injected into host system prompt */
   debugStage?: string;
   /** Thinking effort for host / direct API */
-  thinkingEffort?: 'off' | 'low' | 'medium' | 'high';
+  thinkingEffort?: 'off' | 'low' | 'medium' | 'high' | 'max';
 }
 
 interface UseChatStreamReturn {

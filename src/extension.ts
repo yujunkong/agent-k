@@ -21,6 +21,14 @@ import { fromHostSnapshot, toHostSnapshot } from './session/HostSessionBridge';
 import { getSkillRegistry } from './skills/SkillRegistry';
 import * as path from 'path';
 import { configManager, AGENT_K_VSCODE_CONFIG_KEYS } from './core/ConfigManager';
+import {
+  PROJECT_CONFIG_FILENAMES,
+  PROJECT_CONFIG_PATH,
+  exampleProjectConfig,
+  parseProjectConfigJson,
+  pickProjectConfigValues,
+  unflattenProjectConfig,
+} from './core/ProjectConfig';
 import { SessionUsageTracker } from './telemetry/StatusBarCost';
 import { WorktreeManager } from './worktree/WorktreeManager';
 import { BestOfN, type BoNTrial } from './worktree/BestOfN';
@@ -56,11 +64,112 @@ function bindAgentKConfigBridge(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (!e.affectsConfiguration('agent-k')) return;
+      // VS Code first, then project JSON wins
       configManager.syncFromVSCode(readAgentKFromVSCode());
+      void applyProjectConfigFromDisk();
       const level = configManager.get('agent-k.permission.level') || 'accept_edits';
       RuntimeServices.getPermissionGate()?.setLevel(level);
     })
   );
+}
+
+/** Resolve workspace `.agent-k/settings.json` (legacy root files still supported) */
+async function findProjectConfigUri(): Promise<vscode.Uri | undefined> {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) return undefined;
+  for (const name of PROJECT_CONFIG_FILENAMES) {
+    const uri = vscode.Uri.joinPath(folder.uri, name);
+    try {
+      await vscode.workspace.fs.stat(uri);
+      return uri;
+    } catch {
+      /* try next */
+    }
+  }
+  return undefined;
+}
+
+async function readProjectConfigFile(
+  uri: vscode.Uri
+): Promise<{ text: string; values: Record<string, unknown> } | { error: string }> {
+  try {
+    const bytes = await vscode.workspace.fs.readFile(uri);
+    const text = Buffer.from(bytes).toString('utf8');
+    const parsed = parseProjectConfigJson(text);
+    if (!parsed.ok) return { error: parsed.error };
+    return { text, values: parsed.values };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Apply project JSON on top of current ConfigManager (no VS Code write-back). */
+async function applyProjectConfigFromDisk(): Promise<Record<string, unknown> | null> {
+  const uri = await findProjectConfigUri();
+  if (!uri) return null;
+  const result = await readProjectConfigFile(uri);
+  if ('error' in result) {
+    void vscode.window.showWarningMessage(
+      `Agent K: failed to read ${uri.fsPath}: ${result.error}`
+    );
+    return null;
+  }
+  configManager.syncFromVSCode(result.values);
+  return result.values;
+}
+
+function preferredProjectConfigUri(): vscode.Uri | undefined {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) return undefined;
+  return vscode.Uri.joinPath(folder.uri, PROJECT_CONFIG_PATH);
+}
+
+async function ensureProjectConfigDir(fileUri: vscode.Uri): Promise<void> {
+  const dir = vscode.Uri.joinPath(fileUri, '..');
+  try {
+    await vscode.workspace.fs.stat(dir);
+  } catch {
+    await vscode.workspace.fs.createDirectory(dir);
+  }
+}
+
+let projectConfigPostToWebview:
+  | ((msg: Record<string, unknown>) => void)
+  | undefined;
+
+function bindProjectConfig(context: vscode.ExtensionContext): void {
+  void applyProjectConfigFromDisk().then((values) => {
+    if (values && projectConfigPostToWebview) {
+      projectConfigPostToWebview({ type: 'config.hydrate', values });
+    }
+  });
+
+  const watcher = vscode.workspace.createFileSystemWatcher(
+    '**/{.agent-k/settings.json,.agent-k.json,agent-k.json}'
+  );
+  const reload = () => {
+    void (async () => {
+      configManager.syncFromVSCode(readAgentKFromVSCode());
+      const values = await applyProjectConfigFromDisk();
+      if (values && projectConfigPostToWebview) {
+        projectConfigPostToWebview({ type: 'config.hydrate', values });
+      }
+      const level = configManager.get('agent-k.permission.level') || 'accept_edits';
+      RuntimeServices.getPermissionGate()?.setLevel(level);
+    })();
+  };
+  watcher.onDidCreate(reload);
+  watcher.onDidChange(reload);
+  watcher.onDidDelete(() => {
+    configManager.syncFromVSCode(readAgentKFromVSCode());
+    if (projectConfigPostToWebview) {
+      projectConfigPostToWebview({
+        type: 'config.hydrate',
+        values: readAgentKFromVSCode(),
+      });
+    }
+  });
+  context.subscriptions.push(watcher);
 }
 
 // RW-C6-04: DebugLogServer 전역 인스턴스 (activate/deactivate 수명주기)
@@ -110,6 +219,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     _token: vscode.CancellationToken
   ) {
     this._view = webviewView;
+    projectConfigPostToWebview = (msg) => {
+      void this._view?.webview.postMessage(msg);
+    };
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [this.extensionUri]
@@ -129,6 +241,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       if (this._view === webviewView) {
         RuntimeServices.setAskQuestionNotifier(undefined);
         this._view = undefined;
+        projectConfigPostToWebview = undefined;
       }
     });
   }
@@ -588,6 +701,24 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // ADDON-T06: webview mounted — send host-restored session metas
     if (message.type === 'host.sessions.ready') {
       this.sendSessionHydration();
+      this.sendConfigHydrate();
+      return;
+    }
+    // Project JSON config (.agent-k/settings.json)
+    if (message.type === 'config.project.get') {
+      void this.handleProjectConfigGet();
+      return;
+    }
+    if (message.type === 'config.project.save') {
+      void this.handleProjectConfigSave(String(message.text ?? ''));
+      return;
+    }
+    if (message.type === 'config.project.open') {
+      void this.handleProjectConfigOpen();
+      return;
+    }
+    if (message.type === 'config.project.createExample') {
+      void this.handleProjectConfigCreateExample();
       return;
     }
     // ADDON-T06: webview session list changed — sync into host SessionManager
@@ -607,6 +738,154 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       void vscode.commands.executeCommand('agent-k.bestOfN.run');
       return;
     }
+  }
+
+  /** Push effective ConfigManager values (incl. project JSON) into webview */
+  private sendConfigHydrate(): void {
+    const webview = this._view?.webview;
+    if (!webview) return;
+    void webview.postMessage({
+      type: 'config.hydrate',
+      values: configManager.getAll(),
+    });
+  }
+
+  private async handleProjectConfigGet(): Promise<void> {
+    const webview = this._view?.webview;
+    if (!webview) return;
+    const uri = await findProjectConfigUri();
+    if (!uri) {
+      const nested = unflattenProjectConfig(
+        pickProjectConfigValues(configManager.getAll())
+      );
+      void webview.postMessage({
+        type: 'config.project.result',
+        exists: false,
+        path: preferredProjectConfigUri()?.fsPath ?? null,
+        text: JSON.stringify(nested, null, 2),
+      });
+      return;
+    }
+    const result = await readProjectConfigFile(uri);
+    if ('error' in result) {
+      void webview.postMessage({
+        type: 'config.project.result',
+        exists: true,
+        path: uri.fsPath,
+        error: result.error,
+      });
+      return;
+    }
+    void webview.postMessage({
+      type: 'config.project.result',
+      exists: true,
+      path: uri.fsPath,
+      text: result.text,
+    });
+  }
+
+  private async handleProjectConfigSave(text: string): Promise<void> {
+    const webview = this._view?.webview;
+    const uri = preferredProjectConfigUri() || (await findProjectConfigUri());
+    if (!uri) {
+      void webview?.postMessage({
+        type: 'config.project.saved',
+        ok: false,
+        error: '워크스페이스 폴더가 없습니다.',
+      });
+      return;
+    }
+    const parsed = parseProjectConfigJson(text);
+    if (!parsed.ok) {
+      void webview?.postMessage({
+        type: 'config.project.saved',
+        ok: false,
+        error: parsed.error,
+      });
+      return;
+    }
+    try {
+      // Pretty-print nested form for the file
+      const nested = unflattenProjectConfig(parsed.values);
+      const body = Buffer.from(JSON.stringify(nested, null, 2) + '\n', 'utf8');
+      await ensureProjectConfigDir(uri);
+      await vscode.workspace.fs.writeFile(uri, body);
+      configManager.syncFromVSCode(parsed.values);
+      void webview?.postMessage({
+        type: 'config.project.saved',
+        ok: true,
+        path: uri.fsPath,
+        values: parsed.values,
+      });
+      void webview?.postMessage({
+        type: 'config.hydrate',
+        values: parsed.values,
+      });
+    } catch (err) {
+      void webview?.postMessage({
+        type: 'config.project.saved',
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  private async handleProjectConfigOpen(): Promise<void> {
+    let uri = await findProjectConfigUri();
+    if (!uri) {
+      uri = preferredProjectConfigUri();
+      if (!uri) {
+        void vscode.window.showWarningMessage('워크스페이스 폴더가 없습니다.');
+        return;
+      }
+      const nested = unflattenProjectConfig(
+        pickProjectConfigValues(configManager.getAll())
+      );
+      await ensureProjectConfigDir(uri);
+      await vscode.workspace.fs.writeFile(
+        uri,
+        Buffer.from(JSON.stringify(nested, null, 2) + '\n', 'utf8')
+      );
+    }
+    const doc = await vscode.workspace.openTextDocument(uri);
+    await vscode.window.showTextDocument(doc);
+  }
+
+  private async handleProjectConfigCreateExample(): Promise<void> {
+    const uri = preferredProjectConfigUri();
+    if (!uri) {
+      void vscode.window.showWarningMessage('워크스페이스 폴더가 없습니다.');
+      return;
+    }
+    try {
+      await vscode.workspace.fs.stat(uri);
+      const overwrite = await vscode.window.showWarningMessage(
+        '.agent-k/settings.json already exists. Overwrite with example?',
+        'Overwrite',
+        'Cancel'
+      );
+      if (overwrite !== 'Overwrite') return;
+    } catch {
+      /* create new */
+    }
+    const body = Buffer.from(
+      JSON.stringify(exampleProjectConfig(), null, 2) + '\n',
+      'utf8'
+    );
+    await ensureProjectConfigDir(uri);
+    await vscode.workspace.fs.writeFile(uri, body);
+    const values = await applyProjectConfigFromDisk();
+    void this._view?.webview.postMessage({
+      type: 'config.project.result',
+      exists: true,
+      path: uri.fsPath,
+      text: body.toString('utf8'),
+    });
+    if (values) {
+      void this._view?.webview.postMessage({ type: 'config.hydrate', values });
+    }
+    const doc = await vscode.workspace.openTextDocument(uri);
+    await vscode.window.showTextDocument(doc);
   }
 
   /** ADDON-T07: summarize checkpoints (id/label/timestamp/turn/mode) → webview */
@@ -1384,12 +1663,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           post('status', { status: 'asking' });
         },
         thinkingEffort:
-          (message.thinkingEffort as 'off' | 'low' | 'medium' | 'high') ||
+          (message.thinkingEffort as
+            | 'off'
+            | 'low'
+            | 'medium'
+            | 'high'
+            | 'max') ||
           (configManager.get('agent-k.thinking.effort') as
             | 'off'
             | 'low'
             | 'medium'
-            | 'high') ||
+            | 'high'
+            | 'max') ||
           'medium',
         // Per-turn Thought / Exploring / Planning next moves (Cursor-style)
         onTurnStart: async (turn) => {
@@ -1811,6 +2096,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'settings.open', tab: tab || 'models' });
   }
 
+  /** Command palette: create/open workspace `.agent-k/settings.json` */
+  public openProjectConfig(): void {
+    void this.handleProjectConfigOpen();
+  }
+
   public openProviderSettings() {
     this.openSettings('models');
   }
@@ -2057,6 +2347,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     bindAgentKConfigBridge(context);
+    bindProjectConfig(context);
 
     const checkpointManager = new CheckpointManager();
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -2100,6 +2391,10 @@ export function activate(context: vscode.ExtensionContext) {
 
       vscode.commands.registerCommand('agent-k.openSettings', () => {
         provider.openSettings('models');
+      }),
+
+      vscode.commands.registerCommand('agent-k.openProjectConfig', () => {
+        provider.openProjectConfig();
       }),
 
       vscode.commands.registerCommand('agent-k.provider.add', () => {

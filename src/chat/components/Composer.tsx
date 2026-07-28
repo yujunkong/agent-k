@@ -51,9 +51,11 @@ interface ComposerProps {
   modelOptions?: string[];
   /** User picked a model from the composer dropdown */
   onModelChange?: (modelId: string) => void;
-  /** Thinking effort (Off / Low / Med / High) */
+  /** Thinking effort (Off / Low / Med / High / Max) */
   thinkingEffort?: ThinkingEffort;
   onThinkingEffortChange?: (effort: ThinkingEffort) => void;
+  /** Model-specific effort levels; empty/omitted → hide Thinking control */
+  thinkingOptions?: Array<{ value: ThinkingEffort; label: string; title: string }>;
   /** 0–100 estimated context fill */
   contextUsagePercent?: number;
   contextUsageLabel?: string;
@@ -156,6 +158,7 @@ export function Composer({
   onModelChange,
   thinkingEffort = 'medium',
   onThinkingEffortChange,
+  thinkingOptions,
   contextUsagePercent = 0,
   contextUsageLabel,
   seedText = null,
@@ -854,7 +857,8 @@ export function Composer({
                   {modelLabel}
                 </span>
               )}
-              {onThinkingEffortChange ? (
+              {onThinkingEffortChange &&
+              (thinkingOptions?.length ?? THINKING_EFFORT_OPTIONS.length) > 0 ? (
                 <select
                   className="composer-thinking-select"
                   value={thinkingEffort}
@@ -863,12 +867,13 @@ export function Composer({
                   }
                   disabled={isStreaming}
                   title={
-                    THINKING_EFFORT_OPTIONS.find((o) => o.value === thinkingEffort)
-                      ?.title || 'Thinking 강도'
+                    (thinkingOptions || THINKING_EFFORT_OPTIONS).find(
+                      (o) => o.value === thinkingEffort
+                    )?.title || 'Thinking 강도'
                   }
                   aria-label="Thinking 강도"
                 >
-                  {THINKING_EFFORT_OPTIONS.map((o) => (
+                  {(thinkingOptions || THINKING_EFFORT_OPTIONS).map((o) => (
                     <option key={o.value} value={o.value} title={o.title}>
                       {o.label}
                     </option>

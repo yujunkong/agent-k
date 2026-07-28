@@ -14,6 +14,7 @@ import { ContextTab } from './tabs/ContextTab';
 import { McpTab } from './tabs/McpTab';
 import { PrivacyTab } from './tabs/PrivacyTab';
 import { FeaturesTab } from './tabs/FeaturesTab';
+import { JsonConfigTab } from './tabs/JsonConfigTab';
 
 interface SettingsPanelProps {
   onClose?: () => void;
@@ -28,7 +29,8 @@ type TabId =
   | 'context'
   | 'mcp'
   | 'features'
-  | 'privacy';
+  | 'privacy'
+  | 'json';
 
 interface TabInfo {
   id: TabId;
@@ -44,7 +46,8 @@ const TABS: TabInfo[] = [
   { id: 'context', label: 'Context', icon: '📚' },
   { id: 'mcp', label: 'MCP', icon: '🔌' },
   { id: 'queue', label: 'Queue', icon: '📋' },
-  { id: 'privacy', label: 'Privacy', icon: '🔐' }
+  { id: 'privacy', label: 'Privacy', icon: '🔐' },
+  { id: 'json', label: 'JSON', icon: '{ }' }
 ];
 
 function normalizeTab(tab: TabId | 'secrets' | undefined): TabId {
@@ -73,6 +76,8 @@ export function SettingsPanel({ onClose, initialTab = 'models' }: SettingsPanelP
         return <FeaturesTab />;
       case 'privacy':
         return <PrivacyTab />;
+      case 'json':
+        return <JsonConfigTab />;
       default:
         return <ModelsTab />;
     }

@@ -1,0 +1,27 @@
+{
+  "provider": {
+    "type": "litellm",
+    "baseUrl": "http://127.0.0.1:52415",
+    "model": "mlx-community/Qwen3.6-35B-A3B-4bit"
+  },
+  "thinking": {
+    "effort": "medium"
+  },
+  "maxTurns": 25,
+  "permission": {
+    "level": "accept_edits"
+  },
+  "queue": {
+    "onEnterWhileRunning": "resynthesize",
+    "onStop": "keep",
+    "resynthesizeDebounceMs": 300
+  },
+  "context": {
+    "readMaxLines": 5000
+  },
+  "features": {
+    "browser": true,
+    "mcp": true,
+    "skills": true
+  }
+}

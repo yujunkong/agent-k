@@ -11,6 +11,7 @@
     "AI",
     "Machine Learning"
   ],
+  "icon": "resources/icon.png",
   "activationEvents": [
     "onView:agent-k.chat",
     "onStartupFinished",
@@ -47,6 +48,11 @@
         "command": "agent-k.openSettings",
         "title": "Open Settings",
         "icon": "$(gear)"
+      },
+      {
+        "command": "agent-k.openProjectConfig",
+        "title": "Open Project Config (.agent-k/settings.json)",
+        "icon": "$(json)"
       },
       {
         "command": "agent-k.provider.add",
@@ -176,10 +182,11 @@
             "off",
             "low",
             "medium",
-            "high"
+            "high",
+            "max"
           ],
           "default": "medium",
-          "description": "Thinking / reasoning effort (Off · Low · Medium · High). Affects Thought depth for models that support enable_thinking / reasoning_effort."
+          "description": "Thinking / reasoning effort (Off · Low · Medium · High · Max). Max is used by DeepSeek V4. Hidden in Composer when the selected model does not support thinking."
         },
         "agent-k.mode.default": {
           "type": "string",

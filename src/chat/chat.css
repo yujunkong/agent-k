@@ -30,10 +30,18 @@ html, body {
 }
 
 #chat-root {
-  /* Floating panels share composer surface — avoid theme dropdown gray mismatch */
+  /* Floating panels share composer surface — avoid theme dropdown gray mismatch.
+     Borders/shadows use foreground mix so they stay visible in light AND dark themes
+     (hardcoded rgba(255,255,255,…) vanishes on white backgrounds). */
   --ak-panel-bg: var(--vscode-input-background, #3c3c3c);
-  --ak-panel-border: rgba(255, 255, 255, 0.12);
-  --ak-panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --ak-panel-border: color-mix(
+    in srgb,
+    var(--vscode-foreground, #cccccc) 26%,
+    transparent
+  );
+  --ak-panel-shadow:
+    0 1px 2px color-mix(in srgb, var(--vscode-widget-shadow, #000) 12%, transparent),
+    0 4px 16px color-mix(in srgb, var(--vscode-widget-shadow, #000) 10%, transparent);
   --ak-panel-hover: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
   --ak-panel-selected: var(--vscode-list-activeSelectionBackground, rgba(255, 255, 255, 0.09));
   /* Inline cards (diff / terminal / code) — one surface across the thread */
@@ -47,8 +55,21 @@ html, body {
     var(--vscode-foreground, #fff) 4%,
     var(--ak-card-bg)
   );
-  --ak-card-border: rgba(255, 255, 255, 0.1);
-  --ak-chrome-border: rgba(255, 255, 255, 0.08);
+  --ak-card-border: color-mix(
+    in srgb,
+    var(--vscode-foreground, #cccccc) 16%,
+    transparent
+  );
+  --ak-chrome-border: color-mix(
+    in srgb,
+    var(--vscode-foreground, #cccccc) 12%,
+    transparent
+  );
+  --ak-divider: color-mix(
+    in srgb,
+    var(--vscode-foreground, #cccccc) 10%,
+    transparent
+  );
   /* Shared left edge for user text, Thought/Explore titles, assistant markdown */
   --ak-thread-inset: 12px;
   --ak-step-gutter: 12px;
@@ -667,9 +688,13 @@ body {
   align-items: center;
   gap: 5px;
   padding: 4px 8px 4px 8px;
-  border: 1px solid transparent;
+  border: 1px solid var(--ak-divider);
   border-radius: 999px;
-  background: transparent;
+  background: color-mix(
+    in srgb,
+    var(--vscode-foreground, #ccc) 6%,
+    transparent
+  );
   color: var(--vscode-foreground, #ccc);
   font-size: 12px;
   line-height: 1.3;
@@ -684,7 +709,7 @@ body {
 .mode-selector--btn:hover:not(:disabled),
 .mode-selector--btn.is-open {
   background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
-  border-color: transparent;
+  border-color: var(--ak-panel-border);
 }
 
 .mode-selector--btn:focus,
@@ -692,7 +717,7 @@ body {
 .mode-selector--btn:focus-visible.is-open {
   outline: none;
   box-shadow: none;
-  border-color: transparent;
+  border-color: var(--ak-panel-border);
 }
 
 .mode-selector:disabled {
@@ -2381,14 +2406,17 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .chat-footer {
-  padding: 8px 10px 10px;
+  padding: 10px 12px 12px;
   border-top: 1px solid var(--ak-chrome-border);
   background: var(--vscode-editor-background, #1e1e1e);
   flex: 0 0 auto;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
 /* Pending queue strip (above composer) */
@@ -2523,12 +2551,12 @@ body.vscode-high-contrast .ak-code__cursor {
 /* ── Changed files bar (Cursor-like, above composer) ── */
 .changed-files-bar {
   position: relative;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border: 1px solid var(--ak-panel-border);
+  border-radius: 10px;
   background: color-mix(
     in srgb,
     var(--vscode-sideBar-background, #252526) 92%,
-    #000
+    var(--vscode-editor-background, #1e1e1e)
   );
   overflow: visible;
 }
@@ -2559,7 +2587,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .changed-files-bar__toggle:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--vscode-foreground, #fff) 6%, transparent);
 }
 
 .changed-files-bar__chevron {
@@ -2830,23 +2858,42 @@ body.vscode-high-contrast .ak-code__cursor {
 
 /* ── Cursor-like composer box ── */
 .composer--cursor {
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
 }
 
 .composer-box-wrap {
   position: relative;
   z-index: 2;
   isolation: isolate;
+  min-width: 0;
+  width: 100%;
 }
 
 .composer-box {
   border: 1px solid var(--ak-panel-border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--ak-panel-bg);
+  box-shadow: var(--ak-panel-shadow);
   overflow: visible;
   display: flex;
   flex-direction: column;
   position: relative;
+  min-width: 0;
+  width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.composer-box:focus-within {
+  border-color: color-mix(
+    in srgb,
+    var(--vscode-focusBorder, #007fd4) 65%,
+    var(--ak-panel-border)
+  );
+  box-shadow:
+    var(--ak-panel-shadow),
+    0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 35%, transparent);
 }
 
 /* Flat textarea inside composer box — no nested input chrome */
@@ -2858,7 +2905,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: transparent;
   box-shadow: none;
   outline: none;
-  padding: 8px 12px 4px;
+  padding: 12px 14px 6px;
   resize: none;
   color: var(--vscode-input-foreground, inherit);
   font-family: inherit;
@@ -2866,14 +2913,22 @@ body.vscode-high-contrast .ak-code__cursor {
   line-height: 1.5;
 }
 
+.composer.composer--cursor textarea::placeholder {
+  color: var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground, #9d9d9d));
+  opacity: 0.85;
+}
+
 .composer-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 4px 8px 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 6px 10px 10px;
+  border-top: 1px solid var(--ak-divider);
   background: transparent;
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 6px;
 }
 
 .composer-palette {
@@ -2907,7 +2962,7 @@ body.vscode-high-contrast .ak-code__cursor {
   align-items: baseline;
   gap: 8px;
   padding: 8px 12px 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--ak-divider);
   font-size: 11px;
   flex-shrink: 0;
 }
@@ -3003,10 +3058,10 @@ body.vscode-high-contrast .ak-code__cursor {
   flex: 0 0 38%;
   max-width: 220px;
   min-width: 140px;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid var(--ak-divider);
   padding: 10px 8px;
   overflow: auto;
-  background: rgba(0, 0, 0, 0.15);
+  background: color-mix(in srgb, var(--vscode-foreground, #fff) 4%, transparent);
 }
 
 .composer-palette__tree {
@@ -3089,10 +3144,22 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .composer-toolbar__left,
 .composer-toolbar__right {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
+}
+
+/* Left controls share leftover space; model name truncates first */
+.composer-toolbar__left {
+  flex: 1 1 0;
+  overflow: hidden;
+}
+
+/* Send / attach / stop never shrink or get clipped */
+.composer-toolbar__right {
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .composer-toolbar__left .mode-selector-wrapper {
@@ -3101,7 +3168,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .composer-toolbar__left .mode-selector {
   min-width: 0;
-  max-width: 8rem;
+  max-width: 7.5rem;
   font-size: 11px;
   padding: 3px 8px;
 }
@@ -3109,7 +3176,9 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-model {
   font-size: 11px;
   opacity: 0.7;
-  max-width: 10rem;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 12rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3118,24 +3187,32 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-model-select {
   appearance: none;
   -webkit-appearance: none;
-  background: transparent;
-  border: none;
+  /* width:0 + flex forces native <select> to shrink (otherwise content min-width wins) */
+  flex: 1 1 0;
+  width: 0;
+  min-width: 4.5rem;
+  max-width: 14rem;
+  background-color: transparent;
+  border: 1px solid transparent;
   color: inherit;
   font: inherit;
   font-size: 11px;
   opacity: 0.85;
-  max-width: 12rem;
   cursor: pointer;
-  padding: 2px 14px 2px 4px;
-  border-radius: 3px;
+  padding: 3px 16px 3px 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%23888' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 2px center;
+  background-position: right 6px center;
 }
 
 .composer-model-select:hover:not(:disabled) {
   opacity: 1;
   background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+  border-color: var(--ak-divider);
 }
 
 .composer-model-select:disabled {
@@ -3151,26 +3228,31 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-thinking-select {
   appearance: none;
   -webkit-appearance: none;
+  flex: 0 0 auto;
+  flex-shrink: 0;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--ak-divider);
   color: inherit;
   font: inherit;
   font-size: 11px;
   font-weight: 500;
   opacity: 0.9;
-  max-width: 4.5rem;
+  width: auto;
+  min-width: 3.25rem;
+  max-width: 5rem;
   cursor: pointer;
-  padding: 2px 14px 2px 6px;
+  padding: 3px 16px 3px 8px;
   border-radius: 999px;
-  margin-left: 4px;
+  margin-left: 0;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%23888' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 4px center;
+  background-position: right 6px center;
 }
 
 .composer-thinking-select:hover:not(:disabled) {
   opacity: 1;
   background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+  border-color: var(--ak-panel-border);
 }
 
 .composer-thinking-select:disabled {
@@ -3181,6 +3263,25 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-thinking-select option {
   color: var(--vscode-foreground, #ccc);
   background: var(--ak-panel-bg);
+}
+
+/* Very narrow sidebar: stack so nothing overlaps */
+@media (max-width: 320px) {
+  .composer-toolbar__left {
+    flex: 1 1 100%;
+    order: 2;
+  }
+
+  .composer-toolbar__right {
+    flex: 1 1 100%;
+    order: 1;
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+
+  .composer-model-select {
+    max-width: none;
+  }
 }
 
 .composer-icon-btn {
@@ -3196,10 +3297,11 @@ body.vscode-high-contrast .ak-code__cursor {
   justify-content: center;
   font-size: 14px;
   padding: 0;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 
 .composer-icon-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #ccc) 8%, transparent);
   color: var(--vscode-foreground, #ccc);
 }
 
@@ -3212,6 +3314,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: var(--vscode-button-background, #0e639c);
   color: var(--vscode-button-foreground, #fff);
   font-size: 11px;
+  border-color: transparent;
 }
 
 .composer-icon-btn--send:hover:not(:disabled) {
@@ -3219,9 +3322,13 @@ body.vscode-high-contrast .ak-code__cursor {
   color: #fff;
 }
 
+.composer-icon-btn--send:disabled {
+  opacity: 0.4;
+}
+
 .composer-icon-btn--stop {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.35);
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  border-color: color-mix(in srgb, #ef4444 32%, transparent);
 }
 
 .composer-stop-square {
@@ -3236,7 +3343,7 @@ body.vscode-high-contrast .ak-code__cursor {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 4px;
+  padding: 0 6px 2px;
   font-size: 11px;
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
@@ -3307,8 +3414,8 @@ body.vscode-high-contrast .ak-code__cursor {
   pointer-events: none;
   font-size: 12px;
   color: #67e8f9;
-  background: rgba(15, 23, 32, 0.72);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 28%, #0f1720);
+  border-radius: 12px;
 }
 
 /* Cursor-like teal attachment pills (inside composer box) */
@@ -3316,7 +3423,7 @@ body.vscode-high-contrast .ak-code__cursor {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 8px 10px 0;
+  padding: 10px 12px 0;
 }
 
 .composer-chip {

@@ -55,7 +55,10 @@ import { MessageQueue } from '../loop/MessageQueue';
 import { QueueUI } from './components/MessageQueueUI';
 import { ChatSessionTabs } from './components/ChatSessionTabs';
 import {
+  clampThinkingEffort,
   parseThinkingEffort,
+  resolveThinkingCapability,
+  thinkingOptionsForModel,
   type ThinkingEffort
 } from '../agent/thinkingEffort';
 import { StopHandler } from '../loop/StopHandler';
@@ -356,7 +359,14 @@ export function ChatApp() {
       configManager.on('agent-k.provider.models', syncModels),
       configManager.on('agent-k.thinking.effort', (_k, v) => {
         setThinkingEffort(parseThinkingEffort(v));
-      })
+      }),
+      configManager.on('agent-k.provider.type', (_k, v) => {
+        setProviderType(String(v || 'litellm'));
+      }),
+      configManager.on('agent-k.context.budget', (_k, v) => {
+        const n = Number(v);
+        if (Number.isFinite(n) && n > 0) setModelContextBudget(n);
+      }),
     ];
     syncModels();
     return () => unsubs.forEach((u) => u());
@@ -794,6 +804,11 @@ export function ChatApp() {
         const metas = Array.isArray(data.sessions) ? data.sessions : [];
         sessionStore.applyHostHydration(metas);
         setSessionList(sessionStore.list());
+        return;
+      }
+      // Project / host config → webview ConfigManager
+      if (data.type === 'config.hydrate' && data.values && typeof data.values === 'object') {
+        configManager.syncFromVSCode(data.values as Record<string, unknown>);
         return;
       }
     };
@@ -2538,9 +2553,30 @@ export function ChatApp() {
   }, []);
 
   const handleThinkingEffortChange = useCallback((next: ThinkingEffort) => {
-    setThinkingEffort(next);
-    void configManager.set('agent-k.thinking.effort', next);
-  }, []);
+    const capped = clampThinkingEffort(
+      next,
+      resolveThinkingCapability(providerModel)
+    );
+    setThinkingEffort(capped);
+    void configManager.set('agent-k.thinking.effort', capped);
+  }, [providerModel]);
+
+  // When model changes, snap effort onto levels that model accepts
+  useEffect(() => {
+    const cap = resolveThinkingCapability(providerModel);
+    setThinkingEffort((prev) => {
+      const next = clampThinkingEffort(prev, cap);
+      if (next !== prev) {
+        void configManager.set('agent-k.thinking.effort', next);
+      }
+      return next;
+    });
+  }, [providerModel]);
+
+  const composerThinkingOptions = useMemo(
+    () => thinkingOptionsForModel(providerModel),
+    [providerModel]
+  );
 
   const composerModelOptions = useMemo(() => {
     const ids = [...composerModels];
@@ -3259,7 +3295,12 @@ export function ChatApp() {
           modelOptions={composerModelOptions}
           onModelChange={handleModelChange}
           thinkingEffort={thinkingEffort}
-          onThinkingEffortChange={handleThinkingEffortChange}
+          onThinkingEffortChange={
+            composerThinkingOptions.length > 0
+              ? handleThinkingEffortChange
+              : undefined
+          }
+          thinkingOptions={composerThinkingOptions}
           contextUsagePercent={contextUsagePercent}
           contextUsageLabel={contextUsageLabel}
         />

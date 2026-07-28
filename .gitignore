@@ -5,6 +5,15 @@ node_modules
 *.vsix
 !agent-k.vsix
 .agent-k-index/
+# Project settings may contain secrets — commit example only
+.agent-k/settings.json
+!.agent-k/settings.example.json
+# Local scratch / screenshots (DLP / enterprise scanners)
+PLAN.md
+스크린샷*.png
+*.local.json
+.env
+.env.*
 # Harness acceptance test temp dirs (mkdtemp under cwd)
 .harb-ac*/
 # Plan drafts (project-root temp). Keep folder visible; ignore file contents.
