@@ -2,51 +2,31 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "npm:compile",
-      "type": "shell",
-      "command": "npm.cmd",
-      "args": ["run", "compile"],
-      "options": {
-        "shell": {
-          "executable": "cmd.exe",
-          "args": ["/d", "/c"]
-        }
-      },
+      "type": "npm",
+      "script": "compile",
+      "label": "npm: compile",
       "group": {
         "kind": "build",
         "isDefault": true
       },
-      "problemMatcher": ["$tsc", "$esbuild"],
-      "detail": "Compile extension + webview"
+      "problemMatcher": ["$tsc"],
+      "detail": "Compile extension + webview (Win/macOS/Linux)"
     },
     {
-      "label": "npm:watch",
-      "type": "shell",
-      "command": "npm.cmd",
-      "args": ["run", "watch"],
-      "options": {
-        "shell": {
-          "executable": "cmd.exe",
-          "args": ["/d", "/c"]
-        }
-      },
+      "type": "npm",
+      "script": "watch",
+      "label": "npm: watch",
       "group": "build",
       "isBackground": true,
-      "problemMatcher": ["$tsc-watch", "$esbuild-watch"],
+      "problemMatcher": ["$tsc-watch"],
       "detail": "Watch for changes and rebuild"
     },
     {
-      "label": "npm:pretest",
-      "type": "shell",
-      "command": "npm.cmd",
-      "args": ["run", "pretest"],
-      "options": {
-        "shell": {
-          "executable": "cmd.exe",
-          "args": ["/d", "/c"]
-        }
-      },
+      "type": "npm",
+      "script": "pretest",
+      "label": "npm: pretest",
       "group": "test",
+      "problemMatcher": ["$tsc"],
       "detail": "Compile tests and extension"
     }
   ]

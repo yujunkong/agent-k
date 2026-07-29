@@ -6,13 +6,13 @@ import type { FileEditPreview, TerminalRunPreview } from '../types';
 
 /**
  * Curiosity phases (Cursor-style):
- *   ▸ Thought (main)     ← outside — what to dig next
- *   ▸ Exploring          ← tools + mid Thoughts (think → act inside)
- *   ▸ Explored           ← dig wrap-up; mid Thoughts stay inside when expanded
- *   ▸ Thought (main)     ← outside again — next work after Explored
+ *   ▸ Exploring N files…   ← collapsed; rolling status while tools/thoughts run
+ *   ▸ Explored N files…    ← settled; expand to see Thought + tool rows
+ *   ▸ Thought (main)       ← only when no explore chrome yet
  *
- * While Exploring is open, every later Thought is mid (inside).
- * Main Thought only appears after that dig has closed to Explored.
+ * Rolling under Exploring:
+ *   new file tool → ~500ms activity flash → "Planning next moves" while tools run
+ *   Thinking only → "Thinking"
  */
 
 export interface MessageStep {
@@ -32,6 +32,8 @@ export interface MessageStep {
   durationMs?: number;
 }
 
+type ExploreRow = { type: 'tool' | 'thought' | 'prose'; step: MessageStep };
+
 interface MessageStepsProps {
   steps: MessageStep[];
   /** Edit cards placed after the turn that produced them */
@@ -40,10 +42,13 @@ interface MessageStepsProps {
   terminalRuns?: TerminalRunPreview[];
   /** Sealed mid-turn assistant prose (between turns) */
   turnProse?: Array<{ id: string; turn: number; content: string }>;
-  /** Currently streaming prose after the latest turn (before seal / final) */
+  /**
+   * Live assistant prose while streaming — always appended after the full
+   * timeline (never inserted above existing steps).
+   */
   liveProse?: string;
   liveProseStreaming?: boolean;
-  /** Host still running this assistant message — keep Exploring open */
+  /** Host still running this assistant message */
   isStreaming?: boolean;
   onOpenFile?: (path: string) => void;
 }
@@ -157,14 +162,17 @@ function fileBasename(detail?: string): string | undefined {
   if (!detail?.trim()) return undefined;
   const norm = detail.replace(/\\/g, '/').split('/').filter(Boolean);
   const base = norm[norm.length - 1] || detail.trim();
+  if (!base || base === '.' || base === '..') return undefined;
   return base.length > 40 ? `${base.slice(0, 38)}…` : base;
 }
 
-function summarizeExplored(steps: MessageStep[]): string {
+/** Count explore tools — live "Exploring N files…" or settled "Explored N files…" */
+function summarizeExplored(steps: MessageStep[], live = false): string {
   const tools = exploreSteps(steps);
-  if (!tools.length) return '';
+  if (!tools.length) return live ? 'Exploring' : '';
+  const prefix = live ? 'Exploring' : 'Explored';
   const errors = tools.filter((s) => s.itemStatus === 'error');
-  if (errors.length && !tools.some((s) => s.itemStatus === 'done')) {
+  if (!live && errors.length && !tools.some((s) => s.itemStatus === 'done')) {
     return errors.length === 1
       ? `Failed · ${errors[0].toolName || errors[0].label}`
       : `Failed · ${errors.length} tools`;
@@ -190,29 +198,174 @@ function summarizeExplored(steps: MessageStep[]): string {
     } else if (s.kind === 'reading') {
       fileCount += 1;
     } else {
+      // Unknown explore tools still count toward the header total as searches
       searchCount += 1;
     }
   }
 
-  // Cursor: "Explored 22 files, 7 searches"
+  // Cursor-style counts only — never "Explored · ." from a bare path
   if (fileCount && searchCount) {
-    return `Explored ${fileCount} ${fileCount === 1 ? 'file' : 'files'}, ${searchCount} ${
+    return `${prefix} ${fileCount} ${fileCount === 1 ? 'file' : 'files'}, ${searchCount} ${
       searchCount === 1 ? 'search' : 'searches'
     }`;
   }
   if (fileCount) {
-    return fileCount === 1
-      ? `Explored · ${fileBasename(tools[0].detail) || '1 file'}`
-      : `Explored ${fileCount} files`;
+    return `${prefix} ${fileCount} ${fileCount === 1 ? 'file' : 'files'}`;
   }
   if (searchCount) {
-    return searchCount === 1
-      ? `Explored · ${fileBasename(tools[0].detail) || 'search'}`
-      : `Explored · ${searchCount} searches`;
+    return `${prefix} ${searchCount} ${searchCount === 1 ? 'search' : 'searches'}`;
   }
-  return tools.length === 1
-    ? `Explored · ${fileBasename(tools[0].detail) || '1 item'}`
-    : `Explored ${tools.length} items`;
+  return `${prefix} ${tools.length} ${tools.length === 1 ? 'item' : 'items'}`;
+}
+
+/**
+ * Rolling line under collapsed Exploring.
+ *
+ * - New file tool → flash activity ~500ms (e.g. "Reading foo.ts"), then fold into Exploring counts
+ * - While file tool(s) still run → "Planning next moves"
+ * - While only Thinking runs → "Thinking"
+ * - Between tools (waiting on model) → "Planning next moves"
+ */
+function useExploringRollingStatus(
+  rows: ExploreRow[],
+  active: boolean
+): string | undefined {
+  const [flash, setFlash] = useState<{ toolId: string; label: string } | null>(
+    null
+  );
+  const lastFlashedToolIdRef = useRef<string | null>(null);
+
+  const lastTool = useMemo(() => {
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].type === 'tool') return rows[i];
+    }
+    return undefined;
+  }, [rows]);
+
+  const runningToolCount = useMemo(
+    () =>
+      rows.filter((r) => r.type === 'tool' && r.step.itemStatus === 'running')
+        .length,
+    [rows]
+  );
+
+  const thinkingLive = useMemo(
+    () =>
+      rows.some(
+        (r) => r.type === 'thought' && r.step.itemStatus === 'running'
+      ),
+    [rows]
+  );
+
+  useEffect(() => {
+    if (!active) {
+      lastFlashedToolIdRef.current = null;
+      setFlash(null);
+      return;
+    }
+    if (!lastTool) return;
+    const id = lastTool.step.id;
+    if (id === lastFlashedToolIdRef.current) return;
+    lastFlashedToolIdRef.current = id;
+    const label = formatRollingTool({
+      ...lastTool.step,
+      // Flash always reads as the live verb for the brief window
+      itemStatus: 'running'
+    });
+    setFlash({ toolId: id, label });
+    const t = window.setTimeout(() => {
+      setFlash((prev) => (prev?.toolId === id ? null : prev));
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [active, lastTool?.step.id]);
+
+  if (!active) return undefined;
+  if (flash?.label) return flash.label;
+  if (runningToolCount > 0) return 'Planning next moves';
+  if (thinkingLive) return 'Thinking';
+
+  const last = [...rows]
+    .reverse()
+    .find((r) => r.type === 'tool' || r.type === 'thought');
+  if (!last) return 'Planning next moves';
+  if (last.type === 'thought') return 'Thinking';
+  return 'Planning next moves';
+}
+
+/** Collapsed Exploring chrome with timed rolling status */
+function ExploringChrome({
+  title,
+  expanded,
+  live,
+  hasError,
+  rows,
+  onToggle,
+  children
+}: {
+  title: string;
+  expanded: boolean;
+  live: boolean;
+  hasError?: boolean;
+  rows: ExploreRow[];
+  onToggle: () => void;
+  children?: React.ReactNode;
+}) {
+  const rollingStatus = useExploringRollingStatus(
+    rows,
+    !!live && !expanded
+  );
+  return (
+    <ChevronRow
+      title={title}
+      expanded={expanded}
+      live={live}
+      hasError={hasError}
+      rollingStatus={rollingStatus}
+      onToggle={onToggle}
+    >
+      {children}
+    </ChevronRow>
+  );
+}
+
+function formatRollingTool(s: MessageStep): string {
+  const name = (s.toolName || '').toLowerCase();
+  const detail = fileBasename(s.detail) || shortPath(s.detail);
+  const live = s.itemStatus === 'running';
+  let verb: string;
+  switch (name) {
+    case 'read_file':
+    case 'read_files':
+      verb = live ? 'Reading' : 'Read';
+      break;
+    case 'grep':
+      verb = live ? 'Grepping' : 'Grepped';
+      break;
+    case 'glob':
+    case 'file_search':
+      verb = live ? 'Searching' : 'Searched';
+      break;
+    case 'list_dir':
+      verb = live ? 'Listing' : 'Listed';
+      break;
+    case 'codebase_search':
+      verb = live ? 'Searching codebase' : 'Searched codebase';
+      break;
+    case 'read_lints':
+      verb = live ? 'Checking lints' : 'Checked lints';
+      break;
+    case 'web_search':
+      verb = live ? 'Searching web' : 'Searched web';
+      break;
+    case 'web_fetch':
+      verb = live ? 'Fetching' : 'Fetched';
+      break;
+    default:
+      if (s.kind === 'reading') verb = live ? 'Reading' : 'Read';
+      else if (s.kind === 'searching') verb = live ? 'Searching' : 'Searched';
+      else verb = live ? 'Working' : toolRowLabel(s);
+  }
+  return detail ? `${verb} ${detail}` : verb;
 }
 
 function summarizeActions(steps: MessageStep[]): string {
@@ -371,6 +524,7 @@ function ChevronRow({
   expanded,
   live,
   hasError,
+  rollingStatus,
   onToggle,
   children
 }: {
@@ -379,10 +533,15 @@ function ChevronRow({
   live: boolean;
   /** Any tool in this group failed */
   hasError?: boolean;
+  /** Collapsed + live: one-line activity under the header (Cursor Exploring) */
+  rollingStatus?: string;
   onToggle: () => void;
   children?: React.ReactNode;
 }) {
   const titleColor = hasError ? STEPS_ERROR : live ? undefined : STEPS_FG;
+  const showRolling = !expanded && !!live && !!rollingStatus?.trim();
+  // Shimmer belongs on the rolling activity line (e.g. Thinking), not "Exploring N files…"
+  const shimmerHeader = !!live && !hasError && rollingStatus == null;
   return (
     <div
       className={[
@@ -415,13 +574,25 @@ function ChevronRow({
         </span>
         <LiveStepTitle
           title={title}
-          live={!!live && !hasError}
+          live={shimmerHeader}
           style={{
             fontWeight: live || hasError ? 500 : 400,
-            ...(titleColor ? { color: titleColor } : null)
+            ...(titleColor ? { color: titleColor } : null),
+            ...(!shimmerHeader && live && !hasError
+              ? { color: STEPS_FG }
+              : null)
           }}
         />
       </button>
+      {showRolling ? (
+        <div
+          key={rollingStatus}
+          className="ak-step-rolling ak-step-rolling--live"
+          aria-live="polite"
+        >
+          <LiveStepTitle title={rollingStatus!} live />
+        </div>
+      ) : null}
       {expanded ? children : null}
     </div>
   );
@@ -645,15 +816,68 @@ function ExploreStreamList({
       {rows.map((row) => {
         const s = row.step;
         if (row.type === 'prose') {
+          // Legacy sealed asides — show as nested Thought, not bare markdown
           const text = (s.detail || '').trim();
           if (!text) return null;
+          const thoughtLive = live && s.itemStatus === 'running';
+          const title = formatThoughtTitle(
+            { ...s, kind: 'thinking', label: 'Thought' },
+            thoughtLive
+          );
+          const expanded =
+            thoughtLive || (openThoughtIds[s.id] ?? false);
           return (
             <div
               key={`prose-${s.id}`}
-              className="message-content message-turn-prose ak-explore-inline-prose"
-              style={{ margin: '6px 0 4px' }}
+              className={
+                thoughtLive
+                  ? 'ak-explore-mid-thought ak-explore-mid-thought--live'
+                  : 'ak-explore-mid-thought'
+              }
+              style={{ padding: '1px 0' }}
             >
-              <StreamingMarkdown content={text} isStreaming={false} />
+              <button
+                type="button"
+                className="ak-step-chevron-btn ak-explore-mid-thought__btn"
+                aria-expanded={expanded}
+                onClick={() => {
+                  setOpenThoughtIds((p) => ({
+                    ...p,
+                    [s.id]: !expanded
+                  }));
+                }}
+                style={{
+                  display: 'flex',
+                  gap: 8,
+                  width: '100%',
+                  padding: 0,
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'inherit',
+                  font: 'inherit',
+                  fontSize: 11.5,
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                <span style={{ opacity: 0.7, flexShrink: 0, width: 10 }}>
+                  {expanded ? '▾' : '▸'}
+                </span>
+                <LiveStepTitle
+                  title={title}
+                  live={!!thoughtLive}
+                  style={{
+                    flex: '0 1 auto',
+                    minWidth: 0,
+                    fontWeight: thoughtLive ? 500 : 400
+                  }}
+                />
+              </button>
+              {expanded ? (
+                <div className="ak-explore-nested-thought">
+                  <ThoughtBody text={text} live={!!thoughtLive} compact />
+                </div>
+              ) : null}
             </div>
           );
         }
@@ -829,7 +1053,6 @@ export function MessageSteps({
   const [openAction, setOpenAction] = useState<Record<string, boolean>>({});
   const wasLiveRef = React.useRef<Record<string, boolean>>({});
 
-  type ExploreRow = { type: 'tool' | 'thought' | 'prose'; step: MessageStep };
   type CuriosityPhase = {
     id: string;
     openingThought?: MessageStep;
@@ -865,9 +1088,6 @@ export function MessageSteps({
     const hasExploreTools = (p: CuriosityPhase) =>
       p.rows.some((r) => r.type === 'tool');
 
-    const toolsRunning = (p: CuriosityPhase) =>
-      p.rows.some((r) => r.type === 'tool' && r.step.itemStatus === 'running');
-
     const closeExplore = () => {
       if (cur && !cur.resolved && hasExploreTools(cur)) cur.resolved = true;
     };
@@ -881,10 +1101,47 @@ export function MessageSteps({
         if (notesConsumed) return;
         notesConsumed = true;
         if (!cur) cur = startPhase(undefined);
+
+        const foldAsideIntoThought = (noteId: string, text: string) => {
+          if (cur!.openingThought) {
+            const prev = String(cur!.openingThought.detail || '').trim();
+            if (prev.includes(text)) return;
+            cur!.openingThought = {
+              ...cur!.openingThought,
+              detail: prev ? `${prev}\n\n${text}` : text
+            };
+            return;
+          }
+          if (hasExploreTools(cur!) && !cur!.resolved) {
+            cur!.rows.push({
+              type: 'thought',
+              step: {
+                id: noteId,
+                kind: 'thinking',
+                label: 'Thought',
+                detail: text,
+                itemStatus: 'done',
+                thoughtRole: 'mid'
+              }
+            });
+            return;
+          }
+          cur!.openingThought = {
+            id: noteId,
+            kind: 'thinking',
+            label: 'Thought',
+            detail: text,
+            itemStatus: 'done',
+            thoughtRole: 'opening'
+          };
+        };
+
         for (const note of notes) {
           const text = String(note.content || '').trim();
           if (!text) continue;
           const payload = { id: note.id, content: text };
+          const digIntent =
+            looksLikeExploreStart(text) || looksLikeExploreContinue(text);
 
           if (looksLikeExploreSettled(text) && hasExploreTools(cur)) {
             cur.resolved = true;
@@ -892,33 +1149,20 @@ export function MessageSteps({
             continue;
           }
 
-          // New dig intent after tools → close Explored; prose with next main Thought
-          if (
-            (looksLikeExploreStart(text) || looksLikeExploreContinue(text)) &&
-            hasExploreTools(cur) &&
-            !cur.resolved &&
-            !toolsRunning(cur)
-          ) {
-            closeExplore();
+          // After Explored: next dig ack is visible lead
+          if (cur.resolved && digIntent) {
             cur = startPhase(undefined);
             cur.leadProse.push(payload);
             continue;
           }
 
-          // Prefer lead with opening Thought; mid-stream only while tools still running
-          if (hasExploreTools(cur) && toolsRunning(cur) && !cur.resolved) {
-            cur.rows.push({
-              type: 'prose',
-              step: {
-                id: note.id,
-                kind: 'prose',
-                label: 'Note',
-                detail: text,
-                itemStatus: 'done'
-              }
-            });
-          } else if (cur.actions.length > 0) {
-            // After Edited/Ran — wrap-up belongs below cards, not above Exploring
+          // Still Exploring (incl. between tool batches): self-talk → Thought
+          if (hasExploreTools(cur) && !cur.resolved) {
+            foldAsideIntoThought(note.id, text);
+            continue;
+          }
+
+          if (cur.actions.length > 0) {
             cur.proseAfter.push(payload);
           } else {
             cur.leadProse.push(payload);
@@ -1211,19 +1455,21 @@ export function MessageSteps({
       for (const p of phases) {
         const id = p.id;
         const hasTools = p.rows.some((r) => r.type === 'tool');
-        const exploreLive = p.rows.some(
-          (r) => r.type === 'tool' && r.step.itemStatus === 'running'
-        );
-        // Track open Exploring chrome (not just running tools). Otherwise tools
-        // finish → was=false → later resolved never sees a falling edge → stays open.
+        // Exploring chrome is live while unresolved with tools — stay collapsed by default.
+        // Only auto-collapse when Exploring → Explored (falling edge); never force-open.
         const chromeLive = !p.resolved && hasTools;
         const was = wasLiveRef.current[`ex_${id}`];
-        if (chromeLive) next[id] = true;
-        else if (was === true) next[id] = false;
+        if (was === true && !chromeLive) next[id] = false;
         else if (next[id] === undefined) next[id] = false;
         wasLiveRef.current[`ex_${id}`] = chromeLive;
         wasLiveRef.current[id] =
-          p.openingThought?.itemStatus === 'running' || exploreLive || chromeLive;
+          p.openingThought?.itemStatus === 'running' ||
+          p.rows.some(
+            (r) =>
+              (r.type === 'tool' || r.type === 'thought') &&
+              r.step.itemStatus === 'running'
+          ) ||
+          chromeLive;
       }
       return next;
     });
@@ -1243,6 +1489,19 @@ export function MessageSteps({
 
   const showLiveProse = Boolean(liveProse?.trim());
 
+  // Any live chrome still running in the last phase?
+  const lastPhase = phases[phases.length - 1];
+  const timelineBusy = Boolean(
+    isStreaming &&
+      lastPhase &&
+      (lastPhase.openingThought?.itemStatus === 'running' ||
+        lastPhase.rows.some((r) => r.step.itemStatus === 'running') ||
+        lastPhase.actions.some((a) => a.itemStatus === 'running') ||
+        (!lastPhase.resolved && lastPhase.rows.some((r) => r.type === 'tool')))
+  );
+  const showPlanningTail =
+    Boolean(isStreaming) && !showLiveProse && !timelineBusy;
+
   return (
     <div
       className="message-steps"
@@ -1257,7 +1516,8 @@ export function MessageSteps({
     >
       {phases.map((p, phaseIdx) => {
         const tools = p.rows.filter((r) => r.type === 'tool').map((r) => r.step);
-        const exploreSummary = summarizeExplored(tools);
+        const exploreSummary = summarizeExplored(tools, false);
+        const exploringSummary = summarizeExplored(tools, true);
         const exploreHasError =
           tools.some((t) => t.itemStatus === 'error') &&
           !tools.some((t) => t.itemStatus === 'done' || t.itemStatus === 'running');
@@ -1266,10 +1526,14 @@ export function MessageSteps({
           (r) => r.type === 'thought' && r.step.itemStatus === 'running'
         );
         const isLast = phaseIdx === phases.length - 1;
-        // Settled → Explored (collapsed). Unresolved → Exploring (kept open).
-        const exploreBlink = exploreLive || midThoughtLive;
+        const showExplore =
+          tools.length > 0 || p.rows.some((r) => r.type === 'thought');
+        const openingInExplore =
+          !!p.openingThought &&
+          showExplore &&
+          p.openingThought.itemStatus === 'running';
+        const exploreBlink = exploreLive || midThoughtLive || openingInExplore;
         const isExploring = !p.resolved && tools.length > 0;
-        // Blink while tools/thoughts run, or last open dig still streaming
         const exploreChromeLive =
           isExploring && (exploreBlink || (Boolean(isStreaming) && isLast));
 
@@ -1279,65 +1543,41 @@ export function MessageSteps({
           !!th &&
           th.itemStatus === 'running' &&
           !exploreLive &&
-          !midThoughtLive;
-        const showThought = Boolean(th) && (Boolean(reasoning) || thoughtLive);
-        const showExplore =
-          tools.length > 0 || p.rows.some((r) => r.type === 'thought');
+          !midThoughtLive &&
+          !showExplore;
+        const showThought =
+          Boolean(th) &&
+          (Boolean(reasoning) || thoughtLive) &&
+          !showExplore;
         const actions = p.actions;
         const actionLive = actions.some((a) => a.itemStatus === 'running');
         const actionHasError = actions.some((a) => a.itemStatus === 'error');
         const actionSummary = summarizeActions(actions);
 
         const thoughtExpanded = thoughtLive || (openThought[p.id] ?? false);
-        // Exploring stays open; Explored uses openExplore (auto-collapses on resolve)
-        const exploreExpanded = isExploring || (openExplore[p.id] ?? false);
+        const exploreExpanded = openExplore[p.id] ?? false;
         const actionExpanded = actionLive || (openAction[p.id] ?? false);
 
-        const shownRows: ExploreRow[] = isExploring
-          ? p.rows.slice(-Math.max(10, liveTail(tools, 8).length + 4))
-          : p.rows;
+        const exploreDisplayRows: ExploreRow[] = (() => {
+          const base = isExploring
+            ? p.rows.slice(-Math.max(10, liveTail(tools, 8).length + 4))
+            : p.rows;
+          if (!th || !showExplore) return base;
+          if (base.some((r) => r.type === 'thought' && r.step.id === th.id)) {
+            return base;
+          }
+          return [{ type: 'thought' as const, step: th }, ...base];
+        })();
 
         const turnEdits = cardsByPhase.edits.get(p.id) || [];
         const turnTerms = cardsByPhase.terms.get(p.id) || [];
-        const sealedProseTexts = [
-          ...p.leadProse.map((n) => n.content.trim()),
-          ...p.proseAfter.map((n) => n.content.trim()),
-          ...p.rows
-            .filter((r) => r.type === 'prose')
-            .map((r) => (r.step.detail || '').trim())
-        ].filter(Boolean);
-        const liveTrim = (liveProse || '').trim();
-        const liveAlreadyShown =
-          !!liveTrim &&
-          sealedProseTexts.some(
-            (t) => t === liveTrim || liveTrim.includes(t) || t.includes(liveTrim)
-          );
-        // While Exploring: keep live intent directly under the explore chrome.
-        // After explore settles: keep it below Edited/Ran cards (never between).
-        const showLiveUnderExplore =
-          isLast && showLiveProse && isExploring && !liveAlreadyShown;
-        const showLiveBelow =
-          isLast && showLiveProse && !isExploring && !liveAlreadyShown;
-
-        // Only while the agent is actually working — never when idle.
-        // Fill the gap when Thought / Exploring / Edited / live prose aren't live.
-        const hasLiveFront =
-          thoughtLive ||
-          midThoughtLive ||
-          exploreChromeLive ||
-          actionLive ||
-          (showLiveBelow && !!liveProseStreaming);
-        const showPlanning = isLast && !!isStreaming && !hasLiveFront;
 
         return (
           <Fragment key={p.id}>
             <div
               className="message-steps-turn"
               style={{
-                marginBottom:
-                  p.proseAfter.length || showLiveUnderExplore || showLiveBelow
-                    ? 2
-                    : 6,
+                marginBottom: p.proseAfter.length ? 2 : 6,
                 paddingBottom: 2
               }}
             >
@@ -1357,7 +1597,6 @@ export function MessageSteps({
                 </ChevronRow>
               ) : null}
 
-              {/* Intent that belongs with the opening Thought — before Exploring tools */}
               {p.leadProse.map((note) => (
                 <div
                   key={note.id}
@@ -1371,15 +1610,20 @@ export function MessageSteps({
               ))}
 
               {showExplore ? (
-                <ChevronRow
+                <ExploringChrome
                   title={
                     isExploring
-                      ? 'Exploring'
+                      ? exploringSummary || 'Exploring'
                       : exploreSummary || 'Explored'
                   }
-                  expanded={exploreExpanded && shownRows.length > 0}
+                  expanded={exploreExpanded && exploreDisplayRows.length > 0}
                   live={!!exploreChromeLive}
                   hasError={exploreHasError}
+                  rows={
+                    th && showExplore
+                      ? [{ type: 'thought' as const, step: th }, ...p.rows]
+                      : p.rows
+                  }
                   onToggle={() =>
                     setOpenExplore((prev) => ({
                       ...prev,
@@ -1387,26 +1631,16 @@ export function MessageSteps({
                     }))
                   }
                 >
-                  {shownRows.length > 0 ? (
+                  {exploreDisplayRows.length > 0 ? (
                     <ExploreStreamList
-                      rows={shownRows}
+                      rows={exploreDisplayRows}
                       live={!!exploreChromeLive}
                       maxHeight={exploreChromeLive ? 280 : 360}
                     />
                   ) : null}
-                </ChevronRow>
+                </ExploringChrome>
               ) : null}
 
-              {showLiveUnderExplore ? (
-                <div className="message-content message-turn-prose message-turn-prose--live">
-                  <StreamingMarkdown
-                    content={liveProse!}
-                    isStreaming={!!liveProseStreaming}
-                  />
-                </div>
-              ) : null}
-
-              {/* Implementation chrome + cards — stick under Explored (Cursor-like) */}
               {actions.length > 0 ? (
                 <ChevronRow
                   title={
@@ -1462,7 +1696,6 @@ export function MessageSteps({
                 </div>
               ) : null}
 
-              {/* Settled wrap-up AFTER Explored + Edited/Ran + cards */}
               {p.proseAfter.map((note) => (
                 <div
                   key={note.id}
@@ -1474,31 +1707,13 @@ export function MessageSteps({
                   />
                 </div>
               ))}
-
-              {showLiveBelow ? (
-                <div className="message-content message-turn-prose message-turn-prose--live">
-                  <StreamingMarkdown
-                    content={liveProse!}
-                    isStreaming={!!liveProseStreaming}
-                  />
-                </div>
-              ) : null}
-
-              {showPlanning ? (
-                <ChevronRow
-                  title="Planning next moves"
-                  expanded={false}
-                  live
-                  onToggle={() => {}}
-                />
-              ) : null}
             </div>
           </Fragment>
         );
       })}
 
-      {/* No dig phases yet — show planning only while the agent is running */}
-      {!phases.length && isStreaming ? (
+      {/* Chronological tail only — never inject above earlier steps */}
+      {!phases.length && isStreaming && !showLiveProse ? (
         <ChevronRow
           title="Planning next moves"
           expanded={false}
@@ -1506,6 +1721,25 @@ export function MessageSteps({
           onToggle={() => {}}
         />
       ) : null}
+
+      {phases.length > 0 && showPlanningTail ? (
+        <ChevronRow
+          title="Planning next moves"
+          expanded={false}
+          live
+          onToggle={() => {}}
+        />
+      ) : null}
+
+      {showLiveProse ? (
+        <div className="message-content message-turn-prose message-turn-prose--live">
+          <StreamingMarkdown
+            content={liveProse!}
+            isStreaming={!!liveProseStreaming}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
+

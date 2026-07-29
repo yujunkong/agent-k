@@ -30,6 +30,10 @@ html, body {
 }
 
 #chat-root {
+  /* Resize with Agent K panel — compact chrome via @container */
+  container-type: inline-size;
+  container-name: ak-chat;
+
   /* Floating panels share composer surface — avoid theme dropdown gray mismatch.
      Borders/shadows use foreground mix so they stay visible in light AND dark themes
      (hardcoded rgba(255,255,255,…) vanishes on white backgrounds). */
@@ -343,8 +347,81 @@ body {
   gap: 6px;
   padding: 6px 12px;
   background: transparent;
-  border-bottom: none;
+  border-bottom: 1px solid var(--ak-chrome-border);
   font-size: 12px;
+}
+
+.plan-mode-header:empty {
+  display: none;
+  padding: 0;
+}
+
+.debug-mode-ui {
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin: 6px 12px 8px;
+  background: var(--vscode-editor-background, #1e1e1e);
+  border: 1px solid var(--vscode-panel-border, #333);
+}
+
+.debug-mode-ui__label {
+  font-size: 0.8em;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.debug-mode-ui__hypo {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  background: var(--vscode-editor-inactiveSelectionBackground, rgba(255, 255, 255, 0.03));
+  border: 1px solid transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85em;
+  color: inherit;
+}
+
+.debug-mode-ui__hypo.is-active {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.debug-mode-ui__hypo:disabled {
+  cursor: default;
+}
+
+.debug-mode-ui__hypo-title {
+  font-weight: 500;
+}
+
+.debug-mode-ui__hypo-desc {
+  font-size: 0.8em;
+  opacity: 0.6;
+  margin-top: 2px;
+}
+
+.debug-mode-ui__active {
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin-top: 8px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  font-size: 0.85em;
+}
+
+.debug-mode-ui__fix-gate {
+  margin-top: 4px;
+}
+
+.debug-mode-ui__fix-gate p {
+  font-size: 0.85em;
+  opacity: 0.75;
+  margin-bottom: 8px;
 }
 
 .plan-mode-header__row {
@@ -680,7 +757,7 @@ body {
   position: relative;
   min-width: 0;
   /* Menu must escape composer-box clipping */
-  z-index: 5;
+  z-index: 70;
 }
 
 .mode-selector {
@@ -749,16 +826,23 @@ body {
   position: absolute;
   left: 0;
   bottom: calc(100% + 6px);
-  z-index: 60;
+  z-index: 80;
   margin: 0;
   padding: 4px;
   list-style: none;
   min-width: 11.5rem;
   border-radius: 10px;
   border: 1px solid var(--ak-panel-border);
-  background: var(--ak-panel-bg);
+  /* Opaque — vscode input-bg can be translucent and show the textarea through */
+  background: var(
+    --vscode-editorWidget-background,
+    var(--vscode-menu-background, #252526)
+  );
   box-shadow: var(--ak-panel-shadow);
   color: var(--vscode-foreground, #e0e0e0);
+  opacity: 1;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .mode-selector__item {
@@ -861,7 +945,7 @@ body {
   padding: 8px;
 }
 
-/* Fixed pane between header and composer — ONLY this region scrolls */
+/* Thread scroller — background scrolls; footer chrome stays fixed */
 .message-list {
   flex: 1 1 auto;
   min-height: 0;
@@ -877,6 +961,7 @@ body {
   -webkit-overflow-scrolling: touch;
   /* block layout: flex-column on scroller can prevent clipping in webviews */
   display: block;
+  background: transparent;
 }
 
 .message-list > .message-bubble {
@@ -977,6 +1062,7 @@ body {
  * No rectangular overlay — only glyph-shaped highlight (no “box” sweep).
  */
 .ak-step-row--live > .ak-step-chevron-btn > .ak-step-title--live-shimmer,
+.ak-step-rolling--live > .ak-step-title--live-shimmer,
 .ak-explore-mid-thought--live
   > .ak-explore-mid-thought__btn
   > .ak-step-title--live-shimmer {
@@ -988,7 +1074,8 @@ body {
   overflow: visible !important;
   text-overflow: clip !important;
   font-weight: 600;
-  color: var(--vscode-foreground, #e8e8e8) !important;
+  /* Muted base so the bright shine band reads clearly */
+  color: var(--vscode-descriptionForeground, #8b8b8b) !important;
   -webkit-text-fill-color: unset !important;
   background: none !important;
   background-image: none !important;
@@ -998,10 +1085,11 @@ body {
 .ak-step-title--live-shimmer .ak-step-title__base {
   position: relative;
   z-index: 0;
+  /* Slightly darker than before — shimmer highlight pops more */
   color: color-mix(
     in srgb,
-    var(--vscode-foreground, #e8e8e8) 78%,
-    var(--vscode-descriptionForeground, #9d9d9d)
+    var(--vscode-descriptionForeground, #8b8b8b) 72%,
+    var(--vscode-editor-background, #1e1e1e) 28%
   );
   -webkit-text-fill-color: unset;
   background: none;
@@ -1020,9 +1108,9 @@ body {
     90deg,
     rgba(255, 255, 255, 0) 0%,
     rgba(255, 255, 255, 0) 32%,
-    rgba(255, 255, 255, 0.35) 42%,
-    rgba(255, 255, 255, 0.95) 50%,
-    rgba(255, 255, 255, 0.35) 58%,
+    color-mix(in srgb, var(--vscode-foreground, #fff) 45%, transparent) 42%,
+    color-mix(in srgb, var(--vscode-foreground, #fff) 92%, transparent) 50%,
+    color-mix(in srgb, var(--vscode-foreground, #fff) 45%, transparent) 58%,
     rgba(255, 255, 255, 0) 68%,
     rgba(255, 255, 255, 0) 100%
   );
@@ -1266,7 +1354,7 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.55;
   color: var(--vscode-foreground, #e8e8e8);
 }
 
@@ -1352,7 +1440,7 @@ body {
   margin: 2px 0 8px;
   padding-left: var(--ak-thread-inset, 12px);
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.55;
   font-weight: 500;
   color: var(--vscode-foreground, #ccc);
   width: 100%;
@@ -1373,7 +1461,7 @@ body {
   margin: 6px 0 8px;
   padding: 0;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.55;
   font-weight: 400;
   color: var(--vscode-foreground, #e8e8e8);
   width: 100%;
@@ -1432,9 +1520,44 @@ body {
 }
 
 .ak-step-row {
-  margin-bottom: 2px;
+  margin-bottom: 6px;
   margin-left: 0;
   padding-left: 0;
+}
+
+/* Collapsed Exploring — quiet one-line activity under the header */
+.ak-step-rolling {
+  margin: 8px 0 10px;
+  padding: 0 0 0 var(--ak-thread-inset, 12px);
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  animation: ak-rolling-fade 0.35s ease;
+}
+
+.ak-step-rolling--live {
+  opacity: 1;
+}
+
+.ak-step-rolling--live > .ak-step-title--live-shimmer {
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.65;
+  max-width: 100%;
+}
+
+@keyframes ak-rolling-fade {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 0.9;
+  }
 }
 
 .ak-step-chevron-btn {
@@ -1901,7 +2024,7 @@ body {
   overflow-wrap: break-word;
   word-break: normal;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.55;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -1922,7 +2045,7 @@ body {
   min-width: 0;
   box-sizing: border-box;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.55;
   color: var(--vscode-foreground, #e8e8e8);
 }
 
@@ -1932,11 +2055,11 @@ body {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  margin: 0 0 0.2em;
+  margin: 0 0 0.28em;
   overflow-wrap: break-word;
   word-break: normal;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: 1.55;
   color: var(--vscode-foreground, #e8e8e8);
 }
 
@@ -2009,7 +2132,7 @@ body {
 
 .message-content .markdown-body li {
   margin: 0.02em 0;
-  line-height: 1.4;
+  line-height: 1.55;
   font-size: 13px;
 }
 
@@ -2198,18 +2321,19 @@ body.vscode-light .code-block-header {
 
 .ak-code__body .shiki,
 .ak-code__body .shiki code {
+  /* Default for unstyled text only — token spans keep inline colors */
   color: var(--vscode-editor-foreground, #e1e4e8);
 }
 
 .ak-code__body .shiki span {
-  /* Shiki sets color via style=; don't override */
   background: transparent !important;
 }
 
-/* Token colors must win over inherited mono text */
+/* Token colors must win over inherited mono text (webview CSS can be aggressive) */
 .ak-code__body .shiki span[style*='color'],
 .ak-file-edit-diff__text span[style*='color'] {
   background: transparent !important;
+  -webkit-text-fill-color: unset !important;
 }
 
 .ak-file-edit-diff__text span {
@@ -2397,6 +2521,43 @@ body.vscode-high-contrast .ak-code__cursor {
   background: color-mix(in srgb, var(--vscode-errorForeground, #f48771) 18%, transparent);
 }
 
+.msg-action-btn--regen {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 13px;
+  opacity: 1;
+  border: 1px solid var(--ak-divider, rgba(255, 255, 255, 0.14));
+  border-radius: 5px;
+}
+
+.msg-action-btn--regen-primary {
+  border-color: color-mix(
+    in srgb,
+    var(--vscode-button-background, #0e639c) 55%,
+    transparent
+  );
+  background: color-mix(
+    in srgb,
+    var(--vscode-button-background, #0e639c) 22%,
+    transparent
+  );
+  color: var(--vscode-foreground, #e8e8e8);
+}
+
+.msg-action-btn--regen-primary:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--vscode-button-background, #0e639c) 36%,
+    transparent
+  );
+}
+
+.message-bubble.assistant:last-of-type .message-actions,
+.message-bubble--latest .message-actions {
+  opacity: 1;
+}
+
 .msg-stop-square {
   display: block;
   width: 10px;
@@ -2406,17 +2567,55 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .chat-footer {
-  padding: 10px 12px 12px;
-  border-top: 1px solid var(--ak-chrome-border);
+  padding: 8px 12px 12px;
+  /* Same surface as thread — no hard split between chat / composer panes */
+  border-top: none;
   background: var(--vscode-editor-background, #1e1e1e);
   flex: 0 0 auto;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 0;
+  min-width: 240px;
   width: 100%;
+  overflow: visible;
+  z-index: 3;
+}
+
+/*
+ * Cursor-like shell (after base list/footer rules so these win):
+ * - empty: composer under tabs (top); empty background fills the rest — no scroll
+ * - active: thread scrolls; queue / changed-files / composer stay pinned bottom
+ */
+.chat-main--empty > .chat-footer {
+  order: 1;
+  border-top: none;
+  padding: 16px 14px 8px;
+  background: transparent;
+}
+
+.chat-main--empty > .message-list {
+  order: 2;
+  flex: 1 1 auto;
   overflow: hidden;
+  overflow-y: hidden;
+  padding-top: 4px;
+}
+
+.chat-main--active > .message-list {
+  order: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.chat-main--active > .chat-footer {
+  order: 2;
+  /* Soft fade so long threads tuck under pinned queue / files / composer */
+  box-shadow: 0 -12px 24px -16px color-mix(
+    in srgb,
+    var(--vscode-editor-background, #1e1e1e) 90%,
+    transparent
+  );
 }
 
 /* Pending queue strip (above composer) */
@@ -2859,14 +3058,14 @@ body.vscode-high-contrast .ak-code__cursor {
 /* ── Cursor-like composer box ── */
 .composer--cursor {
   gap: 8px;
-  min-width: 0;
+  min-width: 240px;
   width: 100%;
 }
 
 .composer-box-wrap {
   position: relative;
   z-index: 2;
-  isolation: isolate;
+  /* Do not isolate — mode menu must paint above the textarea */
   min-width: 0;
   width: 100%;
 }
@@ -2880,7 +3079,7 @@ body.vscode-high-contrast .ak-code__cursor {
   display: flex;
   flex-direction: column;
   position: relative;
-  min-width: 0;
+  min-width: 240px;
   width: 100%;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -2923,12 +3122,14 @@ body.vscode-high-contrast .ak-code__cursor {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 10px 10px;
+  padding: 8px 10px 10px;
   border-top: 1px solid var(--ak-divider);
   background: transparent;
+  /* Keep one row — wrapping puts send above mode and looks broken */
+  flex-wrap: nowrap;
   min-width: 0;
-  flex-wrap: wrap;
-  row-gap: 6px;
+  min-height: 40px;
+  box-sizing: border-box;
 }
 
 .composer-palette {
@@ -2936,17 +3137,30 @@ body.vscode-high-contrast .ak-code__cursor {
   left: 0;
   right: 0;
   bottom: calc(100% + 6px);
-  z-index: 40;
+  z-index: 80;
   max-height: 320px;
   display: flex;
   flex-direction: row;
   align-items: stretch;
   border-radius: 10px;
   border: 1px solid var(--ak-panel-border);
-  background: var(--ak-panel-bg);
+  /* Opaque — vscode input-bg can be translucent and show chat through */
+  background: var(
+    --vscode-editorWidget-background,
+    var(--vscode-menu-background, #252526)
+  );
   box-shadow: var(--ak-panel-shadow);
   overflow: hidden;
   color: var(--vscode-foreground, #e0e0e0);
+  opacity: 1;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Empty shell: composer is at the top — open palette downward */
+.chat-main--empty .composer-palette {
+  bottom: auto;
+  top: calc(100% + 6px);
 }
 
 .composer-palette__main {
@@ -2955,6 +3169,7 @@ body.vscode-high-contrast .ak-code__cursor {
   display: flex;
   flex-direction: column;
   max-height: 320px;
+  background: inherit;
 }
 
 .composer-palette__header {
@@ -3061,7 +3276,14 @@ body.vscode-high-contrast .ak-code__cursor {
   border-left: 1px solid var(--ak-divider);
   padding: 10px 8px;
   overflow: auto;
-  background: color-mix(in srgb, var(--vscode-foreground, #fff) 4%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--vscode-foreground, #fff) 4%,
+    var(
+      --vscode-editorWidget-background,
+      var(--vscode-menu-background, #252526)
+    )
+  );
 }
 
 .composer-palette__tree {
@@ -3150,10 +3372,17 @@ body.vscode-high-contrast .ak-code__cursor {
   min-width: 0;
 }
 
-/* Left controls share leftover space; model name truncates first */
+/* Left controls share leftover space; model name truncates first.
+   overflow must stay visible so mode / thinking menus aren't clipped. */
 .composer-toolbar__left {
   flex: 1 1 0;
-  overflow: hidden;
+  overflow: visible;
+}
+
+/* Empty shell: composer at top — open mode menu downward */
+.chat-main--empty .mode-selector__menu {
+  bottom: auto;
+  top: calc(100% + 6px);
 }
 
 /* Send / attach / stop never shrink or get clipped */
@@ -3171,6 +3400,62 @@ body.vscode-high-contrast .ak-code__cursor {
   max-width: 7.5rem;
   font-size: 11px;
   padding: 3px 8px;
+}
+
+/* Narrow Agent K panel: mode = icon + chevron only; keep toolbar single-row */
+@container ak-chat (max-width: 480px) {
+  .mode-selector__label {
+    display: none;
+  }
+
+  .composer-toolbar__left .mode-selector,
+  .mode-selector {
+    max-width: none;
+    gap: 3px;
+    padding: 4px 7px;
+  }
+
+  .mode-selector__chevron {
+    margin-left: 0;
+  }
+
+  .composer-model-select {
+    min-width: 3.5rem;
+    max-width: 7rem;
+  }
+
+  .composer-thinking-select {
+    min-width: 2.75rem;
+    max-width: 4.5rem;
+  }
+}
+
+/* Fallback when container queries unavailable (webview viewport ≈ panel width) */
+@media (max-width: 480px) {
+  .mode-selector__label {
+    display: none;
+  }
+
+  .composer-toolbar__left .mode-selector,
+  .mode-selector {
+    max-width: none;
+    gap: 3px;
+    padding: 4px 7px;
+  }
+
+  .mode-selector__chevron {
+    margin-left: 0;
+  }
+
+  .composer-model-select {
+    min-width: 3.5rem;
+    max-width: 7rem;
+  }
+
+  .composer-thinking-select {
+    min-width: 2.75rem;
+    max-width: 4.5rem;
+  }
 }
 
 .composer-model {
@@ -3265,25 +3550,6 @@ body.vscode-high-contrast .ak-code__cursor {
   background: var(--ak-panel-bg);
 }
 
-/* Very narrow sidebar: stack so nothing overlaps */
-@media (max-width: 320px) {
-  .composer-toolbar__left {
-    flex: 1 1 100%;
-    order: 2;
-  }
-
-  .composer-toolbar__right {
-    flex: 1 1 100%;
-    order: 1;
-    justify-content: flex-end;
-    margin-left: 0;
-  }
-
-  .composer-model-select {
-    max-width: none;
-  }
-}
-
 .composer-icon-btn {
   width: 28px;
   height: 28px;
@@ -3361,22 +3627,67 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .composer-usage__regen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   border: none;
+  border-radius: 5px;
   background: transparent;
   color: inherit;
   cursor: pointer;
   opacity: 0.55;
   font-size: 13px;
-  padding: 0 4px;
+  padding: 0;
+  flex-shrink: 0;
 }
 
 .composer-usage__regen:hover:not(:disabled) {
   opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 }
 
 .composer-usage__regen:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+.message-continue-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--ak-card-border, rgba(255, 255, 255, 0.12));
+  background: color-mix(
+    in srgb,
+    var(--vscode-button-background, #0e639c) 14%,
+    transparent
+  );
+}
+
+.message-continue-banner__btn {
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+}
+
+.message-continue-banner__btn:hover {
+  background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.message-continue-banner__hint {
+  font-size: 11px;
+  opacity: 0.75;
 }
 
 .composer-actions {
@@ -4166,6 +4477,13 @@ body.vscode-high-contrast .ak-code__cursor {
 .clarifying-questions__req {
   color: #f87171;
   margin-left: 4px;
+}
+
+.clarifying-questions__multi-hint {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.75;
 }
 
 .clarifying-questions__options {

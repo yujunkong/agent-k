@@ -29,7 +29,8 @@ interface UseChatStreamReturn {
     mode: Mode,
     onDelta: (delta: StreamDelta) => void,
     onComplete: () => void,
-    onError: (err: string) => void
+    onError: (err: string) => void,
+    opts?: { planStageOverride?: string }
   ) => Promise<void>;
   stop: () => void;
   regenerate: (
@@ -94,7 +95,8 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       mode: Mode,
       onDelta: (delta: StreamDelta) => void,
       onComplete: () => void,
-      onError: (err: string) => void
+      onError: (err: string) => void,
+      opts?: { planStageOverride?: string }
     ) => {
       const api = getVsCodeApi();
       if (!api) {
@@ -163,7 +165,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             if (data.content) onDelta({ content: String(data.content) });
             break;
           case 'tool.start':
-            // Seal in-progress prose into turnProse (after Thought); clear body
+            // Seal in-progress self-talk into Thought; clear body
             onDelta({
               clearContent: true,
               sealTurn:
@@ -271,6 +273,9 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                   ? data.options.map((o: unknown) => String(o))
                   : undefined,
                 required: data.required !== false,
+                allowMultiple: Boolean(
+                  data.allowMultiple ?? data.allow_multiple
+                )
               },
             });
             break;
@@ -319,7 +324,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         type: 'chat.send',
         requestId: hostRequestId,
         mode,
-        planStage: planStageRef.current,
+        planStage: opts?.planStageOverride || planStageRef.current,
         debugStage: debugStageRef.current,
         thinkingEffort: thinkingEffortRef.current || 'medium',
         messages: messages.map((m) => ({
@@ -342,11 +347,12 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       mode: Mode,
       onDelta: (delta: StreamDelta) => void,
       onComplete: () => void,
-      onError: (err: string) => void
+      onError: (err: string) => void,
+      opts?: { planStageOverride?: string }
     ) => {
       // Agent path: host executes tools (glob/read_file). Ask stays webview completions.
       if (needsHostToolLoop(mode)) {
-        await sendViaHost(messages, mode, onDelta, onComplete, onError);
+        await sendViaHost(messages, mode, onDelta, onComplete, onError, opts);
         return;
       }
 

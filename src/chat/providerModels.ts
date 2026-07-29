@@ -1,11 +1,11 @@
 /**
  * Provider model catalog for Composer dropdown.
- * Populated from server /v1/models after a successful connection — no manual register list.
+ * Persisted to VS Code settings so reconnect / webview reload does not wipe picks.
  */
 import { configManager } from '../core/ConfigManager';
 
 const AVAILABLE_KEY = 'agent-k.provider.availableModels';
-/** @deprecated was a manual allow-list; migrated into availableModels */
+/** @deprecated was a manual register list; migrated into availableModels */
 const LEGACY_REGISTERED_KEY = 'agent-k.provider.models';
 
 function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
@@ -66,23 +66,39 @@ export function getComposerModels(): string[] {
   return uniqSorted(ids);
 }
 
-/** Cache server catalog for Composer. */
+/** Cache server catalog for Composer — always persist to host settings. */
 export function setAvailableModels(ids: string[]): string[] {
   const unique = uniqSorted(ids);
-  configManager.set(AVAILABLE_KEY, unique);
-  // Keep legacy key in sync so older listeners don't show stale allow-lists
-  configManager.set(LEGACY_REGISTERED_KEY, unique);
+  configManager.update({
+    [AVAILABLE_KEY]: unique,
+    [LEGACY_REGISTERED_KEY]: unique
+  });
+  persistToHost({
+    [AVAILABLE_KEY]: unique,
+    [LEGACY_REGISTERED_KEY]: unique
+  });
   return unique;
 }
 
+/**
+ * Union existing catalog with new ids (never drop models the user already had).
+ */
+export function mergeAvailableModels(ids: string[]): string[] {
+  return setAvailableModels([...getComposerModels(), ...ids]);
+}
+
 export function persistProviderModel(model: string): void {
-  const models = getComposerModels();
-  const nextModels = models.includes(model) ? models : uniqSorted([model, ...models]);
+  const nextModels = uniqSorted([model, ...getComposerModels()]);
   configManager.update({
     'agent-k.provider.model': model,
-    [AVAILABLE_KEY]: nextModels
+    [AVAILABLE_KEY]: nextModels,
+    [LEGACY_REGISTERED_KEY]: nextModels
   });
-  persistToHost({ 'agent-k.provider.model': model });
+  persistToHost({
+    'agent-k.provider.model': model,
+    [AVAILABLE_KEY]: nextModels,
+    [LEGACY_REGISTERED_KEY]: nextModels
+  });
 }
 
 /** @deprecated use getComposerModels */
@@ -97,7 +113,7 @@ export function setRegisteredModels(ids: string[]): void {
 
 /** @deprecated */
 export function addRegisteredModel(id: string): string[] {
-  return setAvailableModels([...getComposerModels(), id]);
+  return mergeAvailableModels([id]);
 }
 
 /** @deprecated */
@@ -269,8 +285,7 @@ export async function fetchProviderModels(opts?: {
 }
 
 /**
- * Fetch /v1/models and cache for Composer.
- * Returns the cached list (empty on failure).
+ * Fetch /v1/models and merge into Composer catalog (never wipe existing picks).
  */
 export async function refreshComposerModels(opts?: {
   baseUrl?: string;
@@ -279,15 +294,17 @@ export async function refreshComposerModels(opts?: {
 }): Promise<ProviderModelsResult> {
   const result = await fetchProviderModels(opts);
   if (result.ok && result.modelIds.length > 0) {
-    setAvailableModels(result.modelIds);
     const active = String(
       opts?.model ?? configManager.get('agent-k.provider.model') ?? ''
     ).trim();
-    if (active && !result.modelIds.includes(active)) {
-      // Keep user's current id selectable even if server renamed it
-      setAvailableModels([active, ...result.modelIds]);
-    } else if (!active && result.modelIds[0]) {
-      configManager.set('agent-k.provider.model', result.modelIds[0]);
+    mergeAvailableModels(
+      active && !result.modelIds.includes(active)
+        ? [active, ...result.modelIds]
+        : result.modelIds
+    );
+    // Only pick a default when nothing is selected yet
+    if (!active && result.modelIds[0]) {
+      persistProviderModel(result.modelIds[0]);
     }
   }
   return {

@@ -106,10 +106,19 @@ export class ContextAssembler {
     // ─── HARB: Tier A 하네스 프롬프트 주입 ─────────────────
     const isTierA = options?.tier === 'A' || (!options?.tier);
     if (isTierA) {
-      systemPrompt = injectVerificationFirst(systemPrompt);
+      // Write-oriented harness only for modes that expose edit/terminal tools.
+      // Ask/Plan must not be told to call write_file — that causes denied-tool noise.
+      if (mode === 'agent' || mode === 'debug') {
+        systemPrompt = injectVerificationFirst(systemPrompt);
+        systemPrompt = injectCursorPattern(systemPrompt);
+        systemPrompt = injectTurnStructure(systemPrompt);
+      } else if (mode === 'ask' || mode === 'plan') {
+        systemPrompt = `${systemPrompt}\n\n## Read-only tool policy (mandatory)
+You do NOT have write_file, edit_file, delete_file, or run_terminal_cmd.
+Never attempt those tools. If the user wants files changed, explain the change in Markdown (or ask them to switch to Agent mode).
+Use only read/search tools (and ask_question / todo_write when appropriate).`;
+      }
       systemPrompt = injectDesignSlogans(systemPrompt);
-      systemPrompt = injectCursorPattern(systemPrompt);
-      systemPrompt = injectTurnStructure(systemPrompt);
       systemPrompt = injectDontDoMedium(systemPrompt);
     }
 

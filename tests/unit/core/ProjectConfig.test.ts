@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import {
+  AGENTK_DIR,
   PROJECT_CONFIG_PATH,
   exampleProjectConfig,
   flattenProjectConfig,
@@ -9,8 +10,13 @@ import {
 } from '../../../src/core/ProjectConfig';
 
 suite('ProjectConfig', () => {
-  test('canonical path is .agent-k/settings.json', () => {
-    assert.strictEqual(PROJECT_CONFIG_PATH, '.agent-k/settings.json');
+  test('canonical path is .agentk/settings.json', () => {
+    assert.strictEqual(PROJECT_CONFIG_PATH, '.agentk/settings.json');
+  });
+
+  test('AGENTK_DIR is the single project root', () => {
+    assert.strictEqual(AGENTK_DIR, '.agentk');
+    assert.ok(PROJECT_CONFIG_PATH.startsWith(`${AGENTK_DIR}/`));
   });
 
   test('flattens nested provider / thinking', () => {

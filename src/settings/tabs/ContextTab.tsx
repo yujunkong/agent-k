@@ -23,7 +23,7 @@ export function ContextTab() {
       <h3>Context Budget</h3>
       <p style={{ fontSize: 12, opacity: 0.75, marginTop: 0 }}>
         Fallback only — Agent K prefers max_input_tokens / context length from the selected provider (LiteLLM, Ollama, OpenAI, …).
-        프로젝트 설정은 Settings → JSON 탭의 <code>.agent-k/settings.json</code>을 권장합니다.
+        프로젝트 설정은 Settings → JSON 탭의 <code>.agentk/settings.json</code>을 권장합니다.
       </p>
       <div className="settings-field">
         <label>Fallback Max Token Budget</label>

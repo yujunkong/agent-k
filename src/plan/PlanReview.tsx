@@ -103,7 +103,7 @@ export function PlanReview({
             className="settings-btn"
             onClick={() => setShowRejectInput((v) => !v)}
           >
-            Request Changes
+            반려
           </button>
           {onDiscard ? (
             <button
@@ -138,13 +138,13 @@ export function PlanReview({
             disabled={!canApprove}
             title={
               !questionsAnswered
-                ? 'Answer all questions first'
+                ? '질문에 모두 답한 뒤 승인할 수 있습니다'
                 : !canApprove
-                  ? 'Plan content or steps required'
-                  : 'Approve and start Build'
+                  ? 'Plan 내용 또는 단계가 필요합니다'
+                  : '승인하면 리뷰를 마치고 계획대로 실행합니다'
             }
           >
-            Approve &amp; Execute
+            승인
           </button>
           {onClose ? (
             <button
@@ -178,7 +178,7 @@ export function PlanReview({
               Cancel
             </button>
             <button type="button" className="settings-btn" onClick={handleReject}>
-              Send Feedback
+              반려 확정
             </button>
           </div>
         </div>

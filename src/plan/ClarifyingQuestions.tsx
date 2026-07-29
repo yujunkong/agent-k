@@ -1,16 +1,17 @@
 /**
  * ClarifyingQuestions - 객관식 질문 UI + ask_question 도구 (C5-T02)
  *
- * Plan/Debug: 항상 라디오 + 기타(자유 입력).
- * 필수 미답 시 다음 단계 차단.
+ * Plan: Complete Questions gate.
+ * Supports single (radio) and multiple (checkbox) selection + 기타.
  */
 import React, { useMemo, useState } from 'react';
 import { renderInlineMarkdown } from '../chat/inlineMarkdown';
 import {
   OTHER_OPTION,
-  isOtherAnswer,
   isOtherOption,
-  normalizeMcqQuestion
+  normalizeMcqQuestion,
+  parseMultiAnswers,
+  formatMultiAnswers
 } from '../chat/normalizeAskQuestion';
 
 export interface Question {
@@ -20,6 +21,7 @@ export interface Question {
   options?: string[];
   required: boolean;
   answer?: string;
+  allowMultiple?: boolean;
 }
 
 interface ClarifyingQuestionsProps {
@@ -28,8 +30,44 @@ interface ClarifyingQuestionsProps {
   onComplete: () => void;
   onCancel: () => void;
   readOnly?: boolean;
-  /** Force radio + 기타 (Plan / Debug). Default true. */
-  forceRadio?: boolean;
+  /**
+   * plan = Complete Questions gate
+   * agent/ask/debug = answer continues when all required are answered
+   */
+  variant?: 'plan' | 'agent' | 'ask' | 'debug';
+}
+
+function selectedSet(answer: string | undefined, opts: string[]): Set<string> {
+  const chosen = new Set(parseMultiAnswers(answer));
+  // Drop bare 기타 marker from selection chips — textarea owns custom text
+  for (const c of [...chosen]) {
+    if (isOtherOption(c)) chosen.delete(c);
+  }
+  // Keep only known options (custom other text is not an option chip)
+  for (const c of [...chosen]) {
+    if (!opts.some((o) => o === c) && !isOtherOption(c)) {
+      // custom free-text lives as "other path"
+    }
+  }
+  return chosen;
+}
+
+function isOtherSelected(answer: string | undefined, opts: string[]): boolean {
+  if (!answer?.trim()) return false;
+  const parts = parseMultiAnswers(answer);
+  if (parts.some((p) => isOtherOption(p))) return true;
+  const presets = opts.filter((o) => !isOtherOption(o));
+  // Custom text that isn't a preset option → other path
+  return parts.some((p) => !presets.includes(p) && !isOtherOption(p));
+}
+
+function otherText(answer: string | undefined, opts: string[]): string {
+  if (!answer?.trim()) return '';
+  const presets = new Set(opts.filter((o) => !isOtherOption(o)));
+  const parts = parseMultiAnswers(answer).filter(
+    (p) => !presets.has(p) && !isOtherOption(p)
+  );
+  return parts.join('\n');
 }
 
 export function ClarifyingQuestions({
@@ -38,39 +76,60 @@ export function ClarifyingQuestions({
   onComplete,
   onCancel,
   readOnly,
-  forceRadio = true
+  variant = 'plan'
 }: ClarifyingQuestionsProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
-  /** Local draft while 기타 is selected but not yet committed */
   const [otherDraft, setOtherDraft] = useState<Record<string, string>>({});
+  const isPlan = variant === 'plan';
 
   const normalized = useMemo(
     () =>
       questions.map((q) => {
         const n = normalizeMcqQuestion(q.question, q.options);
+        const multi = Boolean(q.allowMultiple || q.type === 'multiple');
         return {
           ...q,
-          type: forceRadio ? ('single' as const) : q.options?.length ? q.type : ('single' as const),
+          type: multi ? ('multiple' as const) : ('single' as const),
+          allowMultiple: multi,
           question: n.question,
           options: n.options
         };
       }),
-    [questions, forceRadio]
+    [questions]
   );
 
   const unansweredRequired = normalized.filter((q) => {
     if (!q.required) return false;
     const ans = (q.answer || '').trim();
     if (!ans) return true;
-    if (isOtherOption(ans)) return true; // bare 기타 without detail
+    const opts = q.options || [OTHER_OPTION];
+    if (isOtherSelected(ans, opts)) {
+      const custom = otherDraft[q.id] ?? otherText(ans, opts);
+      if (!custom.trim()) return true;
+    }
     return false;
   });
+
+  const commitAnswer = (
+    q: (typeof normalized)[0],
+    nextSelected: string[],
+    customOther: string
+  ) => {
+    const parts = [...nextSelected];
+    const trimmed = customOther.trim();
+    if (trimmed) parts.push(trimmed);
+    else if (nextSelected.length === 0 && isOtherSelected(q.answer, q.options || [])) {
+      parts.push(OTHER_OPTION);
+    }
+    onAnswer(q.id, formatMultiAnswers(parts));
+  };
 
   const handleComplete = () => {
     if (unansweredRequired.length > 0) {
       const errs: Record<string, string> = {};
       unansweredRequired.forEach((q) => {
-        errs[q.id] = isOtherOption((q.answer || '').trim())
+        const opts = q.options || [OTHER_OPTION];
+        errs[q.id] = isOtherSelected(q.answer, opts)
           ? '기타를 선택한 경우 내용을 입력하세요'
           : '필수 질문에 답해주세요';
       });
@@ -81,20 +140,34 @@ export function ClarifyingQuestions({
   };
 
   return (
-    <div className="clarifying-questions">
+    <div className={`clarifying-questions clarifying-questions--${variant}`}>
       <div className="clarifying-questions__header">
-        <h3>Questions</h3>
+        <h3>{isPlan ? 'Questions' : 'Quick question'}</h3>
         <p>
-          답을 고른 뒤 <strong>Complete Questions</strong>를 눌러야 다음 단계로 진행합니다.
+          {isPlan ? (
+            <>
+              답을 고른 뒤 <strong>Complete Questions</strong>를 눌러야 다음 단계로 진행합니다.
+              {normalized.some((q) => q.allowMultiple) ? (
+                <> 복수 선택은 체크박스로 고를 수 있습니다.</>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {normalized.length > 1
+                ? '모든 필수 질문에 답하면 이어서 진행합니다.'
+                : '선택하면 바로 이어서 진행합니다.'}
+            </>
+          )}
         </p>
       </div>
 
       {normalized.map((q) => {
         const opts = q.options || [OTHER_OPTION];
-        const otherSelected = isOtherAnswer(q.answer, opts);
+        const multi = Boolean(q.allowMultiple);
+        const selected = selectedSet(q.answer, opts);
+        const otherOn = isOtherSelected(q.answer, opts);
         const draft =
-          otherDraft[q.id] ??
-          (otherSelected && q.answer && !isOtherOption(q.answer) ? q.answer : '');
+          otherDraft[q.id] ?? (otherOn ? otherText(q.answer, opts) : '');
 
         return (
           <div key={q.id} className="clarifying-questions__item">
@@ -105,30 +178,67 @@ export function ClarifyingQuestions({
                   *
                 </span>
               ) : null}
+              {multi ? (
+                <span className="clarifying-questions__multi-hint"> · 복수 선택</span>
+              ) : null}
             </div>
 
-            <div className="clarifying-questions__options" role="radiogroup">
+            <div
+              className="clarifying-questions__options"
+              role={multi ? 'group' : 'radiogroup'}
+            >
               {opts.map((opt) => {
                 const isOther = isOtherOption(opt);
-                const selected = isOther
-                  ? otherSelected
-                  : q.answer === opt;
+                const checked = isOther ? otherOn : selected.has(opt);
                 return (
                   <label
                     key={opt}
                     className={`clarifying-questions__option${
-                      selected ? ' clarifying-questions__option--selected' : ''
+                      checked ? ' clarifying-questions__option--selected' : ''
                     }`}
                   >
                     <input
-                      type="radio"
+                      type={multi ? 'checkbox' : 'radio'}
                       name={q.id}
                       value={opt}
-                      checked={selected}
+                      checked={checked}
                       onChange={() => {
                         if (isOther) {
-                          setOtherDraft((prev) => ({ ...prev, [q.id]: draft || '' }));
-                          onAnswer(q.id, draft.trim() || OTHER_OPTION);
+                          if (multi) {
+                            if (otherOn) {
+                              setOtherDraft((prev) => {
+                                const next = { ...prev };
+                                delete next[q.id];
+                                return next;
+                              });
+                              commitAnswer(q, [...selected], '');
+                            } else {
+                              setOtherDraft((prev) => ({
+                                ...prev,
+                                [q.id]: draft || ''
+                              }));
+                              commitAnswer(
+                                q,
+                                [...selected],
+                                draft.trim() || OTHER_OPTION
+                              );
+                            }
+                          } else {
+                            setOtherDraft((prev) => ({
+                              ...prev,
+                              [q.id]: draft || ''
+                            }));
+                            onAnswer(q.id, draft.trim() || OTHER_OPTION);
+                          }
+                        } else if (multi) {
+                          const next = new Set(selected);
+                          if (next.has(opt)) next.delete(opt);
+                          else next.add(opt);
+                          commitAnswer(
+                            q,
+                            [...next],
+                            otherOn ? draft : ''
+                          );
                         } else {
                           setOtherDraft((prev) => {
                             const next = { ...prev };
@@ -153,14 +263,18 @@ export function ClarifyingQuestions({
               })}
             </div>
 
-            {otherSelected ? (
+            {otherOn ? (
               <textarea
                 className="clarifying-questions__textarea"
                 value={draft}
                 onChange={(e) => {
                   const v = e.target.value;
                   setOtherDraft((prev) => ({ ...prev, [q.id]: v }));
-                  onAnswer(q.id, v.trim() || OTHER_OPTION);
+                  if (multi) {
+                    commitAnswer(q, [...selected], v);
+                  } else {
+                    onAnswer(q.id, v.trim() || OTHER_OPTION);
+                  }
                 }}
                 disabled={readOnly}
                 placeholder="기타 — 직접 입력…"
@@ -180,14 +294,16 @@ export function ClarifyingQuestions({
           <button type="button" className="settings-btn" onClick={onCancel}>
             Cancel
           </button>
-          <button
-            type="button"
-            className="settings-btn primary"
-            onClick={handleComplete}
-            disabled={unansweredRequired.length > 0}
-          >
-            Complete Questions
-          </button>
+          {isPlan ? (
+            <button
+              type="button"
+              className="settings-btn primary"
+              onClick={handleComplete}
+              disabled={unansweredRequired.length > 0}
+            >
+              Complete Questions
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

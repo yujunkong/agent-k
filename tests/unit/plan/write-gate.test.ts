@@ -1,11 +1,13 @@
 /**
- * ADDON-T03: plan/write gate unit tests
+ * Plan write gate + ask_question schema visibility
  */
 import * as assert from 'assert';
 import {
   planWriteGate,
   agentComplexWriteGate,
 } from '../../../src/plan/writeGate';
+import { ToolRegistry } from '../../../src/tools/registry';
+import type { ToolDefinition } from '../../../src/agent/types';
 
 suite('ADDON-T03 writeGate', () => {
   test('plan research blocks edit_file', () => {
@@ -50,5 +52,35 @@ suite('ADDON-T03 writeGate', () => {
       alreadyWarned: false,
     });
     assert.strictEqual(g.allowed, true);
+  });
+});
+
+suite('Plan ask_question available across stages', () => {
+  test('getSchemas keeps ask_question in planning/review', () => {
+    const reg = new ToolRegistry();
+    const ask: ToolDefinition = {
+      name: 'ask_question',
+      description: 'Ask',
+      parameters: { type: 'object', properties: {} },
+      modeAllowlist: ['plan', 'agent', 'ask', 'debug'],
+      category: 'session'
+    };
+    const read: ToolDefinition = {
+      name: 'read_file',
+      description: 'Read',
+      parameters: { type: 'object', properties: {} },
+      modeAllowlist: ['plan', 'agent', 'ask', 'debug'],
+      category: 'search'
+    };
+    reg.registerTool(ask);
+    reg.registerTool(read);
+
+    for (const stage of ['research', 'questions', 'planning', 'review'] as const) {
+      const schemas = reg.getSchemas('plan', 'B', { planStage: stage });
+      assert.ok(
+        schemas.some((s) => s?.function?.name === 'ask_question'),
+        `ask_question missing for stage=${stage}`
+      );
+    }
   });
 });

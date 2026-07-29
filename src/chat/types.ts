@@ -45,7 +45,7 @@ export interface ChatMessage {
   openingLead?: string;
   /**
    * Assistant prose sealed between turns (survives clearContent).
-   * Rendered after that turn's Thought, before Exploring / tools.
+   * First dig ack → lead above Exploring; mid-dig seals fold into Thought instead.
    */
   turnProse?: Array<{
     id: string;
@@ -177,6 +177,7 @@ export interface StreamDelta {
     question: string;
     options?: string[];
     required?: boolean;
+    allowMultiple?: boolean;
   };
   /** Host debug FSM stage advance → timeline / controller sync */
   debugStage?: string;

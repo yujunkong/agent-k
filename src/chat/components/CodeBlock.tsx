@@ -20,11 +20,20 @@ function looksLikeMarkdown(code: string): boolean {
   );
 }
 
+function hasHighlightMarkup(html: string): boolean {
+  return (
+    html.includes('shiki') ||
+    html.includes('style="color:') ||
+    html.includes("style='color:")
+  );
+}
+
 export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
   const [highlighted, setHighlighted] = useState<string>('');
   const [ready, setReady] = useState(isHighlighterReady());
   const [copied, setCopied] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const requestGen = useRef(0);
   let lang = normalizeLang(language);
   if (
     (lang === 'plaintext' || lang === 'text' || !language) &&
@@ -41,7 +50,6 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
         clearInterval(checkReady);
       }
     }, 100);
-    // Don't wait forever — fallback highlighter kicks in via highlightCode
     const giveUp = setTimeout(() => {
       clearInterval(checkReady);
       setReady(true);
@@ -55,13 +63,23 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
+    // While the fence is still streaming, keep plain/stable text — avoid
+    // remount/rehighlight flicker. Highlight once the fence closes (or after settle).
+    const delay = streaming ? 180 : ready ? 0 : 40;
+
     debounceRef.current = setTimeout(() => {
+      const gen = ++requestGen.current;
       const isDark =
         document.body.classList.contains('vscode-dark') ||
         document.body.classList.contains('vscode-high-contrast') ||
         !document.body.classList.contains('vscode-light');
-      highlightCode(code, lang, isDark).then(setHighlighted);
-    }, streaming ? 80 : 0);
+      void highlightCode(code, lang, isDark).then((html) => {
+        if (gen !== requestGen.current) return;
+        if (html && hasHighlightMarkup(html)) {
+          setHighlighted(html);
+        }
+      });
+    }, delay);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -84,12 +102,12 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
       : lang === 'plaintext' && !language
         ? 'text'
         : (language || lang).toLowerCase();
-  const useHighlighted = Boolean(
-    highlighted &&
-      (highlighted.includes('shiki') ||
-        highlighted.includes('style="color:') ||
-        highlighted.includes("style='color:"))
-  );
+
+  // Keep last good highlight while a newer pass runs — never flash empty → plain → colored
+  const useHighlighted = Boolean(highlighted && hasHighlightMarkup(highlighted));
+  // During active streaming of this fence, prefer plain for stability unless we already
+  // highlighted an earlier snapshot (then keep it until fence closes).
+  const showHighlight = useHighlighted && (!streaming || highlighted.length > 0);
 
   return (
     <div className="ak-code">
@@ -105,7 +123,7 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
           {copied ? <IconCheck size={13} /> : <IconCopy size={13} />}
         </button>
       </div>
-      {useHighlighted ? (
+      {showHighlight ? (
         <div className="ak-code__body">
           <div dangerouslySetInnerHTML={{ __html: highlighted }} />
           {streaming ? <span className="ak-code__cursor" aria-hidden /> : null}

@@ -58,8 +58,8 @@ export function StreamingMarkdown({ content, isStreaming }: StreamingMarkdownPro
 
   return (
     <div className="markdown-body">
-      {nodes.map((node) => (
-        <React.Fragment key={node.id}>
+      {nodes.map((node, index) => (
+        <React.Fragment key={stableNodeKey(node, index)}>
           {node.type === 'text' && (node.text || '').trim() !== '' && (
             <div className="md-text">{renderInline(node.text || '')}</div>
           )}
@@ -150,6 +150,18 @@ export function StreamingMarkdown({ content, isStreaming }: StreamingMarkdownPro
       )}
     </div>
   );
+}
+
+/** Index-stable keys — nextId() changes every full reparse and remounted CodeBlock (flicker / no highlight). */
+function stableNodeKey(node: ParsedNode, index: number): string {
+  if (node.type === 'code') return `md-code-${index}-${node.lang || 'txt'}`;
+  if (node.type === 'mermaid') return `md-mermaid-${index}`;
+  if (node.type === 'math') return `md-math-${index}`;
+  if (node.type === 'heading') return `md-h${node.level || 1}-${index}`;
+  if (node.type === 'table') return `md-table-${index}`;
+  if (node.type === 'list') return `md-list-${index}-${node.ordered ? 'ol' : 'ul'}`;
+  if (node.type === 'blockquote') return `md-quote-${index}`;
+  return `md-text-${index}`;
 }
 
 function HeadingTag({ level, children }: { level: number; children: React.ReactNode }) {

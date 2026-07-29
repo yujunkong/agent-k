@@ -33,11 +33,17 @@ export interface PendingAskQuestion {
   question: string;
   options?: string[];
   required: boolean;
+  /** Checkbox multi-select when true */
+  allowMultiple?: boolean;
 }
 type AskQuestionResolver = (answer: string) => void;
-let askQuestionResolver: AskQuestionResolver | undefined;
-let askQuestionReject: ((err: Error) => void) | undefined;
-let askQuestionPending: PendingAskQuestion | undefined;
+type AskWaiter = {
+  resolve: AskQuestionResolver;
+  reject: (err: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+  pending: PendingAskQuestion;
+};
+const askWaiters = new Map<string, AskWaiter>();
 let askQuestionNotifier: ((q: PendingAskQuestion) => void) | undefined;
 
 export const RuntimeServices = {
@@ -163,33 +169,40 @@ export const RuntimeServices = {
 
   /**
    * Host AgentLoop waits here until webview posts chat.answer / cancel.
+   * Multiple qids may wait in parallel (batched ask_question).
    */
   waitForQuestion(pending: PendingAskQuestion, timeoutMs = 600_000): Promise<string> {
     return new Promise((resolve, reject) => {
-      if (askQuestionReject) {
-        askQuestionReject(new Error('Superseded by new ask_question'));
+      const existing = askWaiters.get(pending.id);
+      if (existing) {
+        clearTimeout(existing.timer);
+        existing.reject(new Error('Superseded by new ask_question'));
+        askWaiters.delete(pending.id);
       }
-      askQuestionPending = pending;
-      askQuestionReject = reject;
       const timer = setTimeout(() => {
-        askQuestionResolver = undefined;
-        askQuestionReject = undefined;
-        askQuestionPending = undefined;
+        askWaiters.delete(pending.id);
         reject(new Error(`ask_question timed out after ${timeoutMs}ms`));
       }, timeoutMs);
-      askQuestionResolver = (answer: string) => {
-        clearTimeout(timer);
-        askQuestionResolver = undefined;
-        askQuestionReject = undefined;
-        askQuestionPending = undefined;
-        resolve(answer);
-      };
-      // Notify webview (extension posts chat.stream ask_question)
+      askWaiters.set(pending.id, {
+        resolve: (answer: string) => {
+          clearTimeout(timer);
+          askWaiters.delete(pending.id);
+          resolve(answer);
+        },
+        reject: (err: Error) => {
+          clearTimeout(timer);
+          askWaiters.delete(pending.id);
+          reject(err);
+        },
+        timer,
+        pending
+      });
       if (!askQuestionNotifier) {
-        clearTimeout(timer);
-        askQuestionResolver = undefined;
-        askQuestionReject = undefined;
-        askQuestionPending = undefined;
+        const w = askWaiters.get(pending.id);
+        if (w) {
+          clearTimeout(w.timer);
+          askWaiters.delete(pending.id);
+        }
         reject(
           new Error(
             'ask_question: no UI bridge (notifier unset). Re-open Agent K chat and retry.'
@@ -200,39 +213,48 @@ export const RuntimeServices = {
       try {
         askQuestionNotifier(pending);
       } catch (e) {
-        clearTimeout(timer);
-        askQuestionResolver = undefined;
-        askQuestionReject = undefined;
-        askQuestionPending = undefined;
+        const w = askWaiters.get(pending.id);
+        if (w) {
+          clearTimeout(w.timer);
+          askWaiters.delete(pending.id);
+        }
         reject(e instanceof Error ? e : new Error(String(e)));
       }
     });
   },
 
   resolveQuestion(qid: string, answer: string): void {
-    if (!askQuestionPending || askQuestionPending.id !== qid) {
-      // Still resolve if only one pending (id mismatch from stale UI)
-      if (!askQuestionResolver) return;
+    const w = askWaiters.get(qid);
+    if (w) {
+      w.resolve(answer);
+      return;
     }
-    if (askQuestionResolver) {
-      askQuestionResolver(answer);
+    // Legacy: single pending mismatch — resolve newest if only one waiter
+    if (askWaiters.size === 1) {
+      const only = askWaiters.values().next().value as AskWaiter | undefined;
+      only?.resolve(answer);
     }
   },
 
   cancelQuestion(reason = 'ask_question cancelled'): void {
-    if (askQuestionReject) {
-      askQuestionReject(new Error(reason));
-      askQuestionResolver = undefined;
-      askQuestionReject = undefined;
-      askQuestionPending = undefined;
+    const err = new Error(reason);
+    for (const w of askWaiters.values()) {
+      clearTimeout(w.timer);
+      w.reject(err);
     }
+    askWaiters.clear();
   },
 
   getPendingQuestion(): PendingAskQuestion | undefined {
-    return askQuestionPending;
+    const first = askWaiters.values().next().value as AskWaiter | undefined;
+    return first?.pending;
+  },
+
+  getPendingQuestions(): PendingAskQuestion[] {
+    return [...askWaiters.values()].map((w) => w.pending);
   },
 
   isAskQuestionPending(): boolean {
-    return typeof askQuestionResolver === 'function';
+    return askWaiters.size > 0;
   }
 };

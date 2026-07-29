@@ -51,7 +51,7 @@
       },
       {
         "command": "agent-k.openProjectConfig",
-        "title": "Open Project Config (.agent-k/settings.json)",
+        "title": "Open Project Config (.agentk/settings.json)",
         "icon": "$(json)"
       },
       {
@@ -155,6 +155,18 @@
           "type": "string",
           "default": "qwen3.6-35b-a3b",
           "description": "Model name/identifier (LiteLLM alias or mlx-community/Qwen3.6-35B-A3B-4bit)"
+        },
+        "agent-k.provider.models": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Legacy model list (synced with availableModels)"
+        },
+        "agent-k.provider.availableModels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Models shown in the Composer dropdown (persisted after connect / selection)"
         },
         "agent-k.provider.apiKey": {
           "type": "string",

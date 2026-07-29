@@ -7,15 +7,34 @@ import { unescapeLiteralEscapes } from './displaySanitize';
 /** Heuristic: looks like a PLAN.md body worth opening in Review */
 export function looksLikePlanDocument(md: string): boolean {
   const t = (md || '').trim();
-  if (t.length < 80) return false;
-  const hasTitle = /^#\s+/m.test(t) || /\bPLAN\b/i.test(t.slice(0, 200));
+  if (t.length < 120) return false;
+  // Must have actionable checklist — prose-only exploration is not a plan
   const hasTodos =
-    /##\s+TODOs?\b/i.test(t) ||
     /- \[[ xX]\]/.test(t) ||
-    /##\s+Implementation/i.test(t);
+    /##\s+TODOs?\b/i.test(t) ||
+    // Numbered execution steps (models often skip checkbox syntax)
+    (/(?:^|\n)\s*\d+\.\s+\S+/m.test(t) &&
+      /##\s+(Context|Architecture|Steps|Implementation|Overview)\b/i.test(t));
+  if (!hasTodos) return false;
+  const hasTitle = /^#\s+/m.test(t) || /\bPLAN\b/i.test(t.slice(0, 200));
   const hasSection =
-    /##\s+(Context|Questions|Architecture|Risks|Approval)\b/i.test(t);
-  return (hasTitle && hasTodos) || (hasTodos && hasSection) || (hasTitle && hasSection);
+    /##\s+(Context|Questions|Architecture|Risks|Approval|Implementation|Overview|Steps|TODOs?)\b/i.test(
+      t
+    );
+  return hasTitle || hasSection;
+}
+
+/**
+ * Soften for planning-stage promote: long structured markdown with headings.
+ * Still rejects short chatter / pure exploration notes.
+ */
+export function looksLikePlanDraft(md: string): boolean {
+  if (looksLikePlanDocument(md)) return true;
+  const t = (md || '').trim();
+  if (t.length < 400) return false;
+  const headings = (t.match(/^##\s+/gm) || []).length;
+  const hasH1 = /^#\s+/m.test(t);
+  return hasH1 && headings >= 2;
 }
 
 function normalizePlanKey(text: string): string {
@@ -145,4 +164,59 @@ export function findLatestPlanMarkdown(messages: ChatMessage[]): string {
     if (md.length > best.length) best = md;
   }
   return best.length >= 200 ? best : '';
+}
+
+/**
+ * Chat bubble after promote: short summary + ordered TODOs.
+ * Full document lives in Review / `.agentk/plans/tmp/plan_*.md`.
+ */
+export function buildPlanChatSummary(planMd: string): string {
+  const text = (planMd || '').trim();
+  const title = text.match(/^#\s+(.+)$/m)?.[1]?.trim() || 'Plan';
+  const todos: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of text.split('\n')) {
+    const m = raw.match(/^\s*[-*]\s+\[[ xX]?\]\s+(.+)$/);
+    if (!m) continue;
+    let item = m[1]
+      .trim()
+      .replace(/^\*\*Step\s+\d+\*\*\s*:\s*/i, '')
+      .replace(/^Step\s+\d+\s*:\s*/i, '')
+      .replace(/^\*\*|\*\*$/g, '')
+      .trim();
+    if (!item || seen.has(item)) continue;
+    if (/I have reviewed|I understand the risks/i.test(item)) continue;
+    seen.add(item);
+    todos.push(item);
+  }
+
+  const contextBlock = text.match(
+    /##\s+Context\b[^\n]*\n+([\s\S]*?)(?=\n##\s|$)/i
+  )?.[1];
+  const blurb = (contextBlock || '')
+    .replace(/```[\s\S]*?```/g, '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#') && !l.startsWith('|') && !l.startsWith('- ['))
+    .slice(0, 3)
+    .join(' ')
+    .slice(0, 280);
+
+  const lines = [
+    `## ${title}`,
+    '',
+    '전체 계획은 Review 문서에 저장했습니다. **승인**하면 리뷰를 마치고 계획대로 진행합니다. **반려**하면 수정합니다.',
+    ''
+  ];
+  if (blurb) {
+    lines.push(blurb, '');
+  }
+  lines.push('### 진행 순서 (TODO)', '');
+  if (todos.length > 0) {
+    todos.forEach((t, i) => lines.push(`${i + 1}. ${t}`));
+  } else {
+    lines.push('1. (TODO 항목을 Review 문서에서 확인하세요)');
+  }
+  lines.push('', '_상세·아키텍처·리스크는 Review 패널 또는 에디터에서 확인하세요._');
+  return lines.join('\n');
 }

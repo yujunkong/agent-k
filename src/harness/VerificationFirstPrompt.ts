@@ -20,7 +20,7 @@ You MUST follow this verification sequence for every edit/write operation:
    - If you haven't read the file, call \`read_file\` first.
    - If the file may have changed since you last read it, re-read it.
 2. **Plan the edit**: Write a \`todo_write\` with your one-line plan before editing.
-3. **Check ambiguity**: If you're unsure about the exact change needed, use \`ask_question\` with multiple-choice options.
+3. **Check ambiguity**: If a *single irreversible* decision is truly blocked, you may use \`ask_question\` once. Prefer a reasonable default and act — never open a multi-question preference form.
 
 ### Edit Rules
 4. **Use tools only**: Create/overwrite with \`write_file\`; patch with \`edit_file\` (exact unique \`oldText\`/\`newText\`).

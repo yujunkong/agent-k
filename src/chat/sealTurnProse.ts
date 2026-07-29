@@ -1,9 +1,8 @@
 /**
- * When tools start again, preserve mid-turn assistant prose into turnProse
- * instead of wiping it (which caused flicker: appear then vanish).
+ * When tools start again, preserve mid-turn assistant prose.
  *
- * Prose is attached to the *agent loop turn* so it renders after Thought and
- * before Exploring/tools — matching stream order (think → say → tool).
+ * - First seal of a dig (no explore tools yet this turn) → visible turnProse lead
+ * - Later seals while Exploring already has tools → fold into Thought (self-talk)
  */
 import type { ChatMessage } from './types';
 
@@ -15,6 +14,9 @@ const TOOL_KINDS = new Set([
   'browsing',
   'asking'
 ]);
+
+/** Explore tools — presence means a dig already started this turn */
+const EXPLORE_KINDS = new Set(['searching', 'reading', 'browsing']);
 
 export function hasToolSteps(msg: ChatMessage): boolean {
   return (msg.steps || []).some((s) => TOOL_KINDS.has(s.kind));
@@ -50,9 +52,70 @@ function coalesceLeadBody(lead: string, body: string): string {
   return `${lead}${body}`.trim();
 }
 
+function alreadyInThought(detail: string, text: string): boolean {
+  const d = detail.trim();
+  const t = text.trim();
+  if (!t) return true;
+  if (!d) return false;
+  if (d.includes(t)) return true;
+  if (t.includes(d) && t.length <= d.length + 8) return true;
+  return false;
+}
+
+function foldTextIntoThought(
+  msg: ChatMessage,
+  text: string,
+  turn: number
+): ChatMessage {
+  const steps = [...(msg.steps || [])];
+  let idx = -1;
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (steps[i].kind === 'thinking' && (steps[i].turn ?? turn) === turn) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) {
+    for (let i = steps.length - 1; i >= 0; i--) {
+      if (steps[i].kind === 'thinking') {
+        idx = i;
+        break;
+      }
+    }
+  }
+
+  if (idx >= 0) {
+    const prev = String(steps[idx].detail || '');
+    if (alreadyInThought(prev, text)) {
+      return { ...msg, openingLead: undefined, content: '' };
+    }
+    const detail = prev.trim() ? `${prev.trim()}\n\n${text}` : text;
+    steps[idx] = { ...steps[idx], detail };
+    return { ...msg, steps, openingLead: undefined, content: '' };
+  }
+
+  steps.push({
+    id: `tl_thinking_${turn}_asides`,
+    kind: 'thinking',
+    label: 'Thought',
+    detail: text,
+    turn,
+    thoughtRole: 'opening',
+    itemStatus: 'done'
+  });
+  return { ...msg, steps, openingLead: undefined, content: '' };
+}
+
+function hasExploreToolsThisTurn(msg: ChatMessage, turn: number): boolean {
+  return (msg.steps || []).some(
+    (s) => EXPLORE_KINDS.has(s.kind) && (s.turn ?? 1) === turn
+  );
+}
+
 /**
- * Seal body (+ any leftover openingLead) into turnProse for the agent loop turn.
- * Clears openingLead — mid-timeline prose after Thought is the single display path.
+ * Seal body before tools:
+ * - No explore tools yet this turn → visible lead (turnProse)
+ * - Already exploring this turn → Thought (mid-dig self-talk)
  */
 export function sealBodyBeforeTools(
   msg: ChatMessage,
@@ -66,8 +129,11 @@ export function sealBodyBeforeTools(
     return { ...msg, openingLead: undefined, content: '' };
   }
 
-  // Same agent-loop turn as Thought → MessageSteps: Thought → prose → tools
   const sealTurn = Math.max(1, currentTurn || 1);
+
+  if (hasExploreToolsThisTurn(msg, sealTurn)) {
+    return foldTextIntoThought(msg, coalesced, sealTurn);
+  }
 
   return {
     ...msg,

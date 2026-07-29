@@ -823,7 +823,6 @@ export function Composer({
               <ModeSelector
                 value={mode}
                 onChange={onModeChange}
-                disabled={isStreaming}
                 labels={modeLabels}
                 tooltips={modeTooltips}
               />
@@ -955,10 +954,10 @@ export function Composer({
           className="composer-usage__regen"
           onClick={onRegenerate}
           disabled={disabled || isStreaming}
-          title="마지막 응답 다시 생성"
-          aria-label="마지막 응답 다시 생성"
+          title="다시 실행"
+          aria-label="다시 실행"
         >
-          ↻
+          <span aria-hidden>↻</span>
         </button>
       </div>
     </div>

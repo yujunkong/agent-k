@@ -14,12 +14,18 @@ interface MessageBubbleProps {
   isAgentRunning?: boolean;
   /** Last user message in the list — owns the Stop control while running */
   isLastUser?: boolean;
+  /** Last assistant message — can show Continue when mission aborted */
+  isLastAssistant?: boolean;
   onEdit?: (id: string, content: string) => void;
   onFork?: (id: string) => void;
   onCopy?: (content: string) => void;
   /** Stop run and prefill composer with this user message */
   onStopAndPrefill?: (content: string) => void;
   onOpenFile?: (path: string) => void;
+  /** Resume after mid-mission abort (send continue) */
+  onContinueMission?: () => void;
+  /** Regenerate last assistant turn (same as Composer 다시 실행) */
+  onRegenerate?: () => void;
 }
 
 /** Fold legacy openingLead into body (no top-of-bubble lead slot). */
@@ -80,11 +86,14 @@ export function MessageBubble({
   isStreaming,
   isAgentRunning = false,
   isLastUser = false,
+  isLastAssistant = false,
   onEdit,
   onFork,
   onCopy,
   onStopAndPrefill,
-  onOpenFile
+  onOpenFile,
+  onContinueMission,
+  onRegenerate
 }: MessageBubbleProps) {
   const isAssistant = message.role === 'assistant';
   const isUser = message.role === 'user';
@@ -106,12 +115,6 @@ export function MessageBubble({
   const fileEdits = Array.isArray(message.fileEdits) ? message.fileEdits : [];
   const terminalRuns = Array.isArray(message.terminalRuns) ? message.terminalRuns : [];
   const turnProse = Array.isArray(message.turnProse) ? message.turnProse : [];
-  const liveInTimeline = !!(
-    isAssistant &&
-    streamBody &&
-    hasSteps &&
-    displayContent.trim()
-  );
 
   const stepsDone =
     isAssistant &&
@@ -127,25 +130,6 @@ export function MessageBubble({
 
   const [workedOpen, setWorkedOpen] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
-
-  const sealedTimelineProse = turnProse
-    .map((p: { content: string }) => String(p.content || '').trim())
-    .filter(Boolean)
-    .join('\n\n');
-  /** Hide final body while timeline is visible and already shows the same text */
-  const hideDuplicateBody = (() => {
-    if (!isAssistant || !hasSteps || streamBody) return false;
-    const stepsVisible = !stepsDone || workedOpen;
-    if (!stepsVisible || !sealedTimelineProse) return false;
-    const x = displayContent.replace(/\s+/g, ' ').trim();
-    const y = sealedTimelineProse.replace(/\s+/g, ' ').trim();
-    if (!x || !y) return false;
-    if (x === y) return true;
-    if (x.length >= 40 && y.includes(x)) return true;
-    if (y.length >= 40 && x.includes(y)) return true;
-    const n = Math.min(120, x.length, y.length);
-    return n >= 40 && x.slice(0, n) === y.slice(0, n);
-  })();
 
   useEffect(() => {
     if (streamBody || message.status === 'streaming') {
@@ -179,18 +163,41 @@ export function MessageBubble({
       .filter(Boolean)
       .join('\n\n') || displayContent;
 
+  /**
+   * Timeline only — final/streaming answer always renders BELOW in the bubble
+   * so Worked collapse never swallows the reply.
+   */
   const stepsBlock = hasSteps ? (
     <MessageSteps
       steps={message.steps}
       fileEdits={fileEdits}
       terminalRuns={terminalRuns}
       turnProse={turnProse}
-      liveProse={liveInTimeline ? displayContent : undefined}
-      liveProseStreaming={liveInTimeline}
       isStreaming={streamBody}
       onOpenFile={onOpenFile}
     />
   ) : null;
+
+  /**
+   * Final answer under the timeline. Mid-dig self-talk is in Thought;
+   * opening leads render inside MessageSteps — do not dump turnProse here
+   * when a tool timeline exists (that hid real replies earlier).
+   */
+  const sealedProseFallback = turnProse
+    .map((p: { content: string }) => String(p.content || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
+  const assistantBodyText =
+    displayContent.trim() ||
+    (stepsDone && !streamBody && !hasSteps ? sealedProseFallback : '');
+  const showAssistantBody = Boolean(isAssistant && assistantBodyText);
+  const missionAborted =
+    isAssistant &&
+    isLastAssistant &&
+    !streamBody &&
+    /임무를 끝내지 않은 채 중단|최종 답변 문장을 비운 채|도구 결과 요약입니다 \(자동 복구\)/.test(
+      assistantBodyText
+    );
 
   const showFooter =
     message.role !== 'system' &&
@@ -205,7 +212,8 @@ export function MessageBubble({
       className={[
         'message-bubble',
         message.role,
-        showUserStop ? 'message-bubble--running' : ''
+        showUserStop ? 'message-bubble--running' : '',
+        isLastAssistant ? 'message-bubble--latest' : ''
       ]
         .filter(Boolean)
         .join(' ')}
@@ -225,6 +233,7 @@ export function MessageBubble({
         </div>
       ) : null}
 
+      {/* 1) Timeline / Worked — tools & thoughts only */}
       {stepsDone ? (
         <div
           className={[
@@ -354,19 +363,16 @@ export function MessageBubble({
         </div>
       ) : (
         <>
+          {/* 2) Answer always after timeline — never swallowed by Worked */}
           <div className="message-content">
-            {isAssistant ? (
-              displayContent && !liveInTimeline && !hideDuplicateBody ? (
-                <StreamingMarkdown
-                  content={displayContent}
-                  isStreaming={streamBody}
-                />
-              ) : streamBody && !hasSteps && !displayContent.trim() ? (
-                <span className="message-streaming-ellipsis">…</span>
-              ) : null
-            ) : (
-              <pre>{displayContent}</pre>
-            )}
+            {showAssistantBody ? (
+              <StreamingMarkdown
+                content={assistantBodyText}
+                isStreaming={streamBody}
+              />
+            ) : streamBody && !hasSteps ? (
+              <span className="message-streaming-ellipsis">…</span>
+            ) : null}
           </div>
 
           {attachments.length > 0 ? (
@@ -401,6 +407,30 @@ export function MessageBubble({
                 >
                   {relativeTime}
                 </span>
+              ) : null}
+              {isLastAssistant &&
+              !streamBody &&
+              (onRegenerate || onContinueMission) ? (
+                <button
+                  type="button"
+                  className={
+                    missionAborted
+                      ? 'msg-action-btn msg-action-btn--regen msg-action-btn--regen-primary'
+                      : 'msg-action-btn msg-action-btn--regen'
+                  }
+                  onClick={() => {
+                    if (missionAborted && onContinueMission) {
+                      onContinueMission();
+                      return;
+                    }
+                    onRegenerate?.();
+                  }}
+                  disabled={!!isAgentRunning}
+                  title="다시 실행"
+                  aria-label="다시 실행"
+                >
+                  <span aria-hidden>↻</span>
+                </button>
               ) : null}
               {isAssistant ? (
                 <button

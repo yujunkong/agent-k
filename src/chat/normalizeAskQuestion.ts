@@ -1,18 +1,51 @@
 /**
  * Normalize ask_question → always MCQ-friendly for ClarifyingQuestions.
  * - Recover options dumped into question prose / JSON
+ * - Coerce object options ({ label, text, value, … }) → display string
  * - Always append 기타
  */
 export const OTHER_OPTION = '기타';
 
+/** Models often send { label/text/value } instead of plain strings */
+export function coerceOptionLabel(raw: unknown): string {
+  if (raw == null) return '';
+  if (typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean') {
+    return String(raw).trim();
+  }
+  if (typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    for (const key of [
+      'label',
+      'text',
+      'title',
+      'option',
+      'value',
+      'content',
+      'description',
+      'name',
+      'answer'
+    ]) {
+      const v = o[key];
+      if (typeof v === 'string' && v.trim()) return v.trim();
+      if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    }
+    // Single-key object → use the value if it's a string
+    const vals = Object.values(o);
+    if (vals.length === 1 && (typeof vals[0] === 'string' || typeof vals[0] === 'number')) {
+      return String(vals[0]).trim();
+    }
+  }
+  return '';
+}
+
 export function normalizeMcqQuestion(
   question: string,
-  options?: string[] | null
+  options?: unknown[] | null
 ): { question: string; options: string[] } {
   let q = String(question || '').trim();
   let opts = (Array.isArray(options) ? options : [])
-    .map((o) => String(o).trim())
-    .filter(Boolean);
+    .map(coerceOptionLabel)
+    .filter((o) => o && o !== '[object Object]');
 
   // Model sometimes embeds: …, "options": ["A. …", "B. …"]
   const embedded = q.match(/"options"\s*:\s*(\[[\s\S]*?\])/i);
@@ -21,7 +54,7 @@ export function normalizeMcqQuestion(
       const parsed = JSON.parse(embedded[1]);
       if (Array.isArray(parsed)) {
         for (const item of parsed) {
-          const s = String(item).trim();
+          const s = coerceOptionLabel(item);
           if (s) opts.push(s);
         }
       }
@@ -84,11 +117,35 @@ export function isOtherOption(label: string): boolean {
   return /^기타$/i.test(label.trim()) || /^other$/i.test(label.trim());
 }
 
+/** Split a multi-select answer into individual choices */
+export function parseMultiAnswers(answer: string | undefined): string[] {
+  if (!answer?.trim()) return [];
+  return answer
+    .split(/\n+| · | \| /)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Join selected options for storage / tool result */
+export function formatMultiAnswers(parts: string[]): string {
+  const cleaned = parts.map((p) => p.trim()).filter(Boolean);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of cleaned) {
+    const key = p.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out.join('\n');
+}
+
 /** Whether current answer is the Other path (custom text or bare 기타) */
 export function isOtherAnswer(answer: string | undefined, options: string[]): boolean {
   if (!answer?.trim()) return false;
   const presets = options.filter((o) => !isOtherOption(o));
-  if (presets.some((o) => o === answer)) return false;
-  if (isOtherOption(answer)) return true;
-  return true; // custom free-text
+  const parts = parseMultiAnswers(answer);
+  if (parts.some((p) => isOtherOption(p))) return true;
+  if (parts.every((p) => presets.includes(p))) return false;
+  return parts.some((p) => !presets.includes(p));
 }

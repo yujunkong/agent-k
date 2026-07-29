@@ -1,6 +1,7 @@
 /**
- * PlanStorage — drafts under project-root temp folder:
+ * PlanStorage — drafts under the single project root `.agentk/`:
  *   `<workspace>/.agentk/plans/tmp/plan_<hash>.md`
+ * Settings and other agent data also live under `.agentk/` (see AGENTK_DIR).
  */
 import * as crypto from 'crypto';
 import * as fs from 'fs';

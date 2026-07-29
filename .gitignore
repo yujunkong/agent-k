@@ -6,8 +6,10 @@ node_modules
 !agent-k.vsix
 .agent-k-index/
 # Project settings may contain secrets — commit example only
-.agent-k/settings.json
-!.agent-k/settings.example.json
+.agentk/settings.json
+!.agentk/settings.example.json
+# Legacy hyphenated root (do not use; kept ignored if leftover)
+.agent-k/
 # Local scratch / screenshots (DLP / enterprise scanners)
 PLAN.md
 스크린샷*.png

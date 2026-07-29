@@ -73,12 +73,12 @@ function bindAgentKConfigBridge(context: vscode.ExtensionContext): void {
   );
 }
 
-/** Resolve workspace `.agent-k/settings.json` (legacy root files still supported) */
+/** Resolve workspace `.agentk/settings.json` (legacy paths still read) */
 async function findProjectConfigUri(): Promise<vscode.Uri | undefined> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) return undefined;
   for (const name of PROJECT_CONFIG_FILENAMES) {
-    const uri = vscode.Uri.joinPath(folder.uri, name);
+    const uri = vscode.Uri.joinPath(folder.uri, ...name.split('/'));
     try {
       await vscode.workspace.fs.stat(uri);
       return uri;
@@ -121,7 +121,7 @@ async function applyProjectConfigFromDisk(): Promise<Record<string, unknown> | n
 function preferredProjectConfigUri(): vscode.Uri | undefined {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) return undefined;
-  return vscode.Uri.joinPath(folder.uri, PROJECT_CONFIG_PATH);
+  return vscode.Uri.joinPath(folder.uri, ...PROJECT_CONFIG_PATH.split('/'));
 }
 
 async function ensureProjectConfigDir(fileUri: vscode.Uri): Promise<void> {
@@ -145,7 +145,7 @@ function bindProjectConfig(context: vscode.ExtensionContext): void {
   });
 
   const watcher = vscode.workspace.createFileSystemWatcher(
-    '**/{.agent-k/settings.json,.agent-k.json,agent-k.json}'
+    '**/{.agentk/settings.json,.agent-k/settings.json,.agent-k.json,agent-k.json}'
   );
   const reload = () => {
     void (async () => {
@@ -271,7 +271,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         qid: q.id,
         question: q.question,
         options: q.options,
-        required: q.required
+        required: q.required,
+        allowMultiple: Boolean(q.allowMultiple)
       });
       void webview.postMessage({
         type: 'chat.stream',
@@ -670,10 +671,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       );
       return;
     }
-    // Webview → host: persist agent-k.* settings
+    // Webview → host: persist agent-k.* settings (and keep host ConfigManager in sync)
     if (message.type === 'config.update' && message.values) {
+      const values = message.values as Record<string, unknown>;
+      configManager.syncFromVSCode(values);
       const section = vscode.workspace.getConfiguration('agent-k');
-      for (const [fullKey, value] of Object.entries(message.values as Record<string, unknown>)) {
+      for (const [fullKey, value] of Object.entries(values)) {
         const sub = String(fullKey).replace(/^agent-k\./, '');
         void section.update(sub, value, vscode.ConfigurationTarget.Global);
       }
@@ -704,7 +707,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this.sendConfigHydrate();
       return;
     }
-    // Project JSON config (.agent-k/settings.json)
+    // Project JSON config (.agentk/settings.json)
     if (message.type === 'config.project.get') {
       void this.handleProjectConfigGet();
       return;
@@ -744,9 +747,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private sendConfigHydrate(): void {
     const webview = this._view?.webview;
     if (!webview) return;
-    void webview.postMessage({
-      type: 'config.hydrate',
-      values: configManager.getAll(),
+    // Re-read Global/User settings so provider picks survive webview remount
+    configManager.syncFromVSCode(readAgentKFromVSCode());
+    void applyProjectConfigFromDisk().finally(() => {
+      void webview.postMessage({
+        type: 'config.hydrate',
+        values: configManager.getAll(),
+      });
     });
   }
 
@@ -860,7 +867,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     try {
       await vscode.workspace.fs.stat(uri);
       const overwrite = await vscode.window.showWarningMessage(
-        '.agent-k/settings.json already exists. Overwrite with example?',
+        '.agentk/settings.json already exists. Overwrite with example?',
         'Overwrite',
         'Cancel'
       );
@@ -1235,7 +1242,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         qid: q.id,
         question: q.question,
         options: q.options,
-        required: q.required
+        required: q.required,
+        allowMultiple: Boolean(q.allowMultiple)
       });
       post('status', { status: 'asking' });
     });
@@ -1599,7 +1607,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         })),
         {
           tier: 'A',
-          toolSchemas: toolRegistry.getSchemas(mode, 'A'),
+          toolSchemas: toolRegistry.getSchemas(mode, 'A', {
+            planStage:
+              mode === 'plan'
+                ? String(message.planStage || 'research')
+                : undefined
+          }),
           customSystemPrompt
         }
       );
@@ -1658,7 +1671,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             qid: q.id,
             question: q.question,
             options: q.options,
-            required: q.required
+            required: q.required,
+            allowMultiple: Boolean(q.allowMultiple)
           });
           post('status', { status: 'asking' });
         },
@@ -2003,14 +2017,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           post('heartbeat', {});
         }
         // Re-broadcast pending MCQ — recovers if first ask_question event was missed
-        const pending = RuntimeServices.getPendingQuestion();
-        if (pending) {
+        const pendingAll = RuntimeServices.getPendingQuestions();
+        for (const pending of pendingAll) {
           post('ask_question', {
             qid: pending.id,
             question: pending.question,
             options: pending.options,
             required: pending.required,
+            allowMultiple: Boolean(pending.allowMultiple)
           });
+        }
+        if (pendingAll.length) {
           post('status', { status: 'asking' });
         }
       }, 8_000);
@@ -2096,7 +2113,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'settings.open', tab: tab || 'models' });
   }
 
-  /** Command palette: create/open workspace `.agent-k/settings.json` */
+  /** Command palette: create/open workspace `.agentk/settings.json` */
   public openProjectConfig(): void {
     void this.handleProjectConfigOpen();
   }

@@ -29,7 +29,7 @@ const editFileTool: ToolDefinition = {
     },
     required: ['path', 'hunks']
   },
-  modeAllowlist: ['agent', 'plan', 'debug'],
+  modeAllowlist: ['agent', 'debug'],
   category: 'edit',
   requiresApproval: true,
   destructive: true
@@ -46,7 +46,7 @@ const writeFileTool: ToolDefinition = {
     },
     required: ['path', 'content']
   },
-  modeAllowlist: ['agent', 'plan', 'debug'],
+  modeAllowlist: ['agent', 'debug'],
   category: 'edit',
   requiresApproval: true,
   destructive: true
@@ -121,21 +121,47 @@ const processListTool: ToolDefinition = {
 const askQuestionTool: ToolDefinition = {
   name: 'ask_question',
   description:
-    'Ask the user a clarifying REQUIREMENT question (shows Clarifying Questions UI). ' +
-    'In PLAN mode: ask about scope, constraints, success criteria, compatibility, UX — NEVER "which bug/option should I fix now" menus. ' +
-    'MUST use this instead of listing questions in chat prose. Prefer multiple-choice options. Call once per question.',
+    'Ask the user clarifying REQUIREMENT question(s) (Clarifying Questions UI). ' +
+    'Prefer ONE call that batches all open decisions via questions:[{question,options,allow_multiple}]. ' +
+    'Set allow_multiple=true when the user may pick several options (checkboxes). ' +
+    'Do not repeat the same question. options MUST be plain strings, never objects.',
   parameters: {
     type: 'object',
     properties: {
-      question: { type: 'string', description: 'Question to ask the user' },
+      question: {
+        type: 'string',
+        description: 'Single question (or use questions[] for a batch)',
+        optional: true
+      },
       options: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Answer options (recommended in Plan mode)',
+        description: 'Choices for the single question — plain strings only',
+        optional: true
+      },
+      allow_multiple: {
+        type: 'boolean',
+        description:
+          'If true, user can select multiple options (checkboxes). Default false (radio).',
+        optional: true
+      },
+      questions: {
+        type: 'array',
+        description:
+          'Batch of questions in one UI round. Prefer this over calling ask_question repeatedly.',
+        items: {
+          type: 'object',
+          properties: {
+            question: { type: 'string' },
+            options: { type: 'array', items: { type: 'string' }, optional: true },
+            allow_multiple: { type: 'boolean', optional: true }
+          },
+          required: ['question']
+        },
         optional: true
       }
     },
-    required: ['question']
+    required: []
   },
   modeAllowlist: ['ask', 'agent', 'plan', 'debug'],
   category: 'session'

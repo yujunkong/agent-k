@@ -132,17 +132,34 @@ function fallbackHighlight(code: string, lang: string, isDark: boolean): string 
       'match', 'mod', 'move', 'mut', 'pub', 'ref', 'return', 'self', 'Self',
       'static', 'struct', 'super', 'trait', 'true', 'type', 'unsafe', 'use',
       'where', 'while'
-    ]
+    ],
+    html: [],
+    css: []
   };
   keywords.typescript = [...keywords.javascript, 'type', 'interface', 'enum', 'implements', 'readonly', 'namespace'];
+  keywords.html = [...keywords.javascript];
 
   const list = keywords[lang] || keywords.javascript;
   let html = escapeHtml(code);
 
+  // HTML / XML tags
+  if (lang === 'html' || lang === 'xml' || lang === 'svg') {
+    const tagColor = isDark ? '#85E89D' : '#22863a';
+    const attrColor = isDark ? '#B392F0' : '#6f42c1';
+    html = html.replace(
+      /(&lt;\/?)([\w:-]+)/g,
+      `$1<span style="color:${tagColor}">$2</span>`
+    );
+    html = html.replace(
+      /\s([\w:-]+)(=)/g,
+      ` <span style="color:${attrColor}">$1</span>$2`
+    );
+  }
+
   // comments
   if (lang === 'python') {
     html = html.replace(/(#[^\n]*)/g, `<span style="color:${cmtColor}">$1</span>`);
-  } else {
+  } else if (lang !== 'html') {
     html = html.replace(/(\/\/[^\n]*)/g, `<span style="color:${cmtColor}">$1</span>`);
   }
   // strings
@@ -150,7 +167,7 @@ function fallbackHighlight(code: string, lang: string, isDark: boolean): string 
     /(&quot;[^&]*&quot;|&#039;[^&]*&#039;|`[^`]*`)/g,
     `<span style="color:${strColor}">$1</span>`
   );
-  if (list.length) {
+  if (list.length && lang !== 'html' && lang !== 'css') {
     const re = new RegExp(`\\b(${list.join('|')})\\b`, 'g');
     html = html.replace(re, `<span style="color:${kwColor}">$1</span>`);
   }

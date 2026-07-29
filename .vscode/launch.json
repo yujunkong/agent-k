@@ -9,7 +9,7 @@
         "--extensionDevelopmentPath=${workspaceFolder}"
       ],
       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-      "preLaunchTask": "npm:compile",
+      "preLaunchTask": "npm: compile",
       "env": {
         "NODE_ENV": "development"
       }
@@ -23,7 +23,7 @@
         "--extensionTestsPath=${workspaceFolder}/out/tests"
       ],
       "outFiles": ["${workspaceFolder}/out/**/*.js"],
-      "preLaunchTask": "npm:pretest"
+      "preLaunchTask": "npm: pretest"
     }
   ]
 }

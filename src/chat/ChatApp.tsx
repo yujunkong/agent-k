@@ -21,7 +21,9 @@ import {
   extractPlanMarkdownFromMessage,
   findLatestPlanMarkdown,
   looksLikePlanDocument,
-  dedupeRepeatedPlanDocument
+  looksLikePlanDraft,
+  dedupeRepeatedPlanDocument,
+  buildPlanChatSummary
 } from './planPromote';
 import './chat.css';
 
@@ -33,7 +35,6 @@ import { ClarifyingQuestions } from '../plan/ClarifyingQuestions';
 import { PlanReview } from '../plan/PlanReview';
 import { planGenerator } from '../plan/PlanGenerator';
 import { DebugModeUI } from './components/DebugModeUI';
-import { DebugTimeline } from './components/DebugTimeline';
 import { DebugModeController } from '../debug/DebugModeController';
 import type { DebugStage, Hypothesis } from '../debug/DebugModeController';
 import { SettingsPanel } from '../settings/SettingsPanel';
@@ -386,7 +387,11 @@ export function ChatApp() {
     | ((
         text: string,
         files: Attachment[],
-        opts?: { apiUserContent?: string; modeOverride?: Mode }
+        opts?: {
+          apiUserContent?: string;
+          modeOverride?: Mode;
+          planStageOverride?: string;
+        }
       ) => Promise<void>)
     | null
   >(null);
@@ -405,6 +410,67 @@ export function ChatApp() {
   planStageRef.current = planStage;
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
+  const showPlanReviewRef = useRef(showPlanReview);
+  showPlanReviewRef.current = showPlanReview;
+  const showClarifyingRef = useRef(showClarifying);
+  showClarifyingRef.current = showClarifying;
+  const pendingQuestionsRef = useRef(pendingQuestions);
+  pendingQuestionsRef.current = pendingQuestions;
+
+  /** Per-tab Plan FSM — do not leak Review chrome across sessions */
+  type PlanSessionSnap = {
+    flow: ReturnType<PlanModeController['getState']>;
+    showPlanReview: boolean;
+    showClarifying: boolean;
+    pendingQuestions: PendingQuestion[];
+    lastPromotedPlan: string;
+    promoteOnComplete: boolean;
+  };
+  const planSnapBySessionRef = useRef<Map<string, PlanSessionSnap>>(new Map());
+
+  const resetPlanChrome = useCallback(() => {
+    planController.reset();
+    setPlanStage('research');
+    setShowPlanReview(false);
+    setShowClarifying(false);
+    setPendingQuestions([]);
+    lastPromotedPlanRef.current = '';
+    promotePlanOnCompleteRef.current = false;
+  }, [planController]);
+
+  const parkPlanForSession = useCallback(
+    (id: string) => {
+      if (!id) return;
+      planSnapBySessionRef.current.set(id, {
+        flow: planController.getState(),
+        showPlanReview: showPlanReviewRef.current,
+        showClarifying: showClarifyingRef.current,
+        pendingQuestions: pendingQuestionsRef.current.map((q) => ({ ...q })),
+        lastPromotedPlan: lastPromotedPlanRef.current,
+        promoteOnComplete: promotePlanOnCompleteRef.current
+      });
+    },
+    [planController]
+  );
+
+  const restorePlanForSession = useCallback(
+    (id: string) => {
+      const snap = planSnapBySessionRef.current.get(id);
+      if (!snap) {
+        resetPlanChrome();
+        return;
+      }
+      planController.hydrate(snap.flow, { emit: false });
+      setPlanStage(snap.flow.stage || 'research');
+      setShowPlanReview(Boolean(snap.showPlanReview));
+      setShowClarifying(Boolean(snap.showClarifying));
+      setPendingQuestions(snap.pendingQuestions || []);
+      lastPromotedPlanRef.current = snap.lastPromotedPlan || '';
+      promotePlanOnCompleteRef.current = Boolean(snap.promoteOnComplete);
+    },
+    [planController, resetPlanChrome]
+  );
+
   /** Session that owns the in-flight host loop / ask_question waiter */
   const loopSessionIdRef = useRef<string | null>(null);
   /** Park Clarifying UI when user switches tabs while Waiting… */
@@ -504,6 +570,9 @@ export function ChatApp() {
     }
     const snap = messagesRef.current.length ? messagesRef.current : messages;
     if (snap.length === 0) {
+      // Still isolate Plan chrome — empty tab must not keep prior Review UI
+      parkPlanForSession(sessionId);
+      resetPlanChrome();
       setShowHistory(false);
       setError(null);
       setOpenTabIds((prev) =>
@@ -511,6 +580,7 @@ export function ChatApp() {
       );
       return;
     }
+    parkPlanForSession(sessionId);
     sessionStore.saveMessages(sessionId, snap, mode);
     const next = sessionStore.createEmpty(mode);
     setSessionId(next.id);
@@ -518,9 +588,18 @@ export function ChatApp() {
     stepStartRef.current = {};
     setSessionList(sessionStore.list());
     setOpenTabIds((prev) => [next.id, ...prev.filter((id) => id !== next.id)]);
+    resetPlanChrome();
     setError(null);
     setShowHistory(false);
-  }, [streaming, awaitingUser, messages, sessionId, mode]);
+  }, [
+    streaming,
+    awaitingUser,
+    messages,
+    sessionId,
+    mode,
+    parkPlanForSession,
+    resetPlanChrome
+  ]);
 
   const handleOpenSession = useCallback(
     (id: string) => {
@@ -544,6 +623,7 @@ export function ChatApp() {
       } else if (messages.length > 0) {
         sessionStore.saveMessages(sessionId, messages, mode);
       }
+      parkPlanForSession(sessionId);
       const loaded = sessionStore.switchTo(id);
       if (!loaded) return;
       setSessionId(loaded.id);
@@ -556,18 +636,28 @@ export function ChatApp() {
       );
       setError(null);
       setShowHistory(false);
+      restorePlanForSession(id);
       const parked = parkedAwaitingRef.current;
       if (parked && parked.sessionId === id) {
         setPendingQuestions(parked.questions);
         setShowClarifying(true);
         setAwaitingUser(true);
         parkedAwaitingRef.current = null;
-      } else {
+      } else if (!planSnapBySessionRef.current.has(id)) {
         setPendingQuestions([]);
         setShowClarifying(false);
       }
     },
-    [sessionId, streaming, awaitingUser, messages, mode, pendingQuestions]
+    [
+      sessionId,
+      streaming,
+      awaitingUser,
+      messages,
+      mode,
+      pendingQuestions,
+      parkPlanForSession,
+      restorePlanForSession
+    ]
   );
 
   const handleCloseTab = useCallback(
@@ -597,6 +687,7 @@ export function ChatApp() {
       if (snap.length > 0) {
         sessionStore.saveMessages(sessionId, snap, mode);
       }
+      parkPlanForSession(sessionId);
 
       const idx = openTabIds.indexOf(id);
       const neighborId =
@@ -616,13 +707,14 @@ export function ChatApp() {
           setOpenTabIds(
             remaining.includes(neighborId) ? remaining : [neighborId, ...remaining]
           );
+          restorePlanForSession(neighborId);
           const parked = parkedAwaitingRef.current;
           if (parked && parked.sessionId === neighborId) {
             setPendingQuestions(parked.questions);
             setShowClarifying(true);
             setAwaitingUser(true);
             parkedAwaitingRef.current = null;
-          } else {
+          } else if (!planSnapBySessionRef.current.has(neighborId)) {
             setPendingQuestions([]);
             setShowClarifying(false);
           }
@@ -638,8 +730,7 @@ export function ChatApp() {
       stepStartRef.current = {};
       setSessionList(sessionStore.list());
       setOpenTabIds([fresh.id]);
-      setPendingQuestions([]);
-      setShowClarifying(false);
+      resetPlanChrome();
       setError(null);
       setShowHistory(false);
     },
@@ -650,7 +741,10 @@ export function ChatApp() {
       awaitingUser,
       messages,
       mode,
-      pendingQuestions
+      pendingQuestions,
+      parkPlanForSession,
+      restorePlanForSession,
+      resetPlanChrome
     ]
   );
 
@@ -660,6 +754,7 @@ export function ChatApp() {
         stopHandlerRef.current?.stop('user_stop');
         sendEpochRef.current += 1;
       }
+      planSnapBySessionRef.current.delete(id);
       const next = sessionStore.delete(id);
       setSessionList(sessionStore.list());
       setOpenTabIds((prev) => prev.filter((x) => x !== id));
@@ -672,10 +767,11 @@ export function ChatApp() {
         setOpenTabIds((prev) =>
           prev.includes(next.id) ? prev : [next.id, ...prev]
         );
+        restorePlanForSession(next.id);
         setError(null);
       }
     },
-    [streaming, sessionId]
+    [streaming, sessionId, restorePlanForSession]
   );
 
   // Host commands → panel toggles + session.new
@@ -1010,6 +1106,23 @@ export function ChatApp() {
           promotePlanOnCompleteRef.current = false;
           setPlanStage('review');
           setShowPlanReview(true);
+          // Always replace the latest assistant bubble with summary+TODO
+          const summary = buildPlanChatSummary(planMd);
+          setMessages((prev) => {
+            const next = [...prev];
+            for (let i = next.length - 1; i >= 0; i--) {
+              if (next[i].role !== 'assistant') continue;
+              next[i] = {
+                ...next[i],
+                content: summary,
+                openingLead: undefined,
+                turnProse: undefined
+              };
+              break;
+            }
+            messagesRef.current = next;
+            return next;
+          });
         })
         .catch((e) => {
           setError(e instanceof Error ? e.message : 'Plan review로 이동하지 못했습니다.');
@@ -1089,7 +1202,7 @@ export function ChatApp() {
     if (streaming) return;
     if (showPlanReview) return;
     const stage = planStage;
-    if (stage !== 'planning' && stage !== 'questions') return;
+    if (stage !== 'planning' && stage !== 'questions' && stage !== 'research') return;
     const md = findLatestPlanMarkdown(messages);
     if (!md || !looksLikePlanDocument(md)) return;
     if (md === lastPromotedPlanRef.current) return;
@@ -1107,6 +1220,21 @@ export function ChatApp() {
     askQuestionTool.onNewQuestionCallback((q: PendingQuestion) => {
       setPendingQuestions(prev => {
         if (prev.find(p => p.id === q.id)) return prev;
+        const normQ = String(q.question || '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toLowerCase();
+        if (
+          prev.some(
+            (p) =>
+              String(p.question || '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase() === normQ
+          )
+        ) {
+          return prev;
+        }
         planController.addQuestion({ id: q.id, question: q.question });
         return [...prev, q];
       });
@@ -1134,7 +1262,9 @@ export function ChatApp() {
     }
   }, [mode, debugController]);
 
-  // Reset plan chrome when leaving plan (keep chat messages)
+  // Reset plan chrome when leaving plan (keep chat messages).
+  // Do NOT call run() on enter — that wiped Review state and leaked across tabs
+  // when New chat kept mode=plan. Per-session snap park/restore owns the FSM.
   useEffect(() => {
     if (mode !== 'plan') {
       planController.reset();
@@ -1142,10 +1272,9 @@ export function ChatApp() {
       setShowClarifying(false);
       setShowPlanReview(false);
       setPendingQuestions([]);
-      // Don't cancel host ask_question waiters that belong to agent turns
-    } else {
-      // Entering plan: start stage machine without wiping transcript
-      planController.run('Planning session started');
+      lastPromotedPlanRef.current = '';
+      promotePlanOnCompleteRef.current = false;
+      planSnapBySessionRef.current.delete(sessionIdRef.current);
     }
   }, [mode, planController]);
 
@@ -1166,7 +1295,11 @@ export function ChatApp() {
   const handleSend = useCallback(async (
     text: string,
     files: Attachment[],
-    opts?: { apiUserContent?: string; modeOverride?: Mode }
+    opts?: {
+      apiUserContent?: string;
+      modeOverride?: Mode;
+      planStageOverride?: string;
+    }
   ) => {
     if (!text.trim() && files.length === 0) return;
     setError(null);
@@ -1327,6 +1460,7 @@ export function ChatApp() {
             question: normalized.question,
             options: normalized.options,
             required: q.required !== false,
+            allowMultiple: Boolean(q.allowMultiple),
             answered: false,
           };
           // User is on another chat tab — park Waiting UI for the owner session
@@ -1340,6 +1474,19 @@ export function ChatApp() {
           }
           setPendingQuestions((prev) => {
             if (prev.find((p) => p.id === q.id)) return prev;
+            // Model sometimes fires ask_question twice with different ids — same prompt
+            const normQ = normalized.question.replace(/\s+/g, ' ').trim().toLowerCase();
+            if (
+              prev.some(
+                (p) =>
+                  String(p.question || '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .toLowerCase() === normQ
+              )
+            ) {
+              return prev;
+            }
             planController.addQuestion({ id: q.id, question: normalized.question });
             return [...prev, qEntry];
           });
@@ -1353,7 +1500,7 @@ export function ChatApp() {
           setDebugTick((t) => t + 1);
           return;
         }
-        // Tools began — seal in-progress prose into turnProse (after Thought), not openingLead
+        // Tools began — first dig ack → lead; mid-dig self-talk → Thought
         if (delta.clearContent) {
           toolsStarted = true;
           setMessages((prev) => {
@@ -1681,7 +1828,8 @@ export function ChatApp() {
           effectiveMode === 'plan' &&
           (promotePlanOnCompleteRef.current ||
             stageNow === 'planning' ||
-            stageNow === 'questions');
+            stageNow === 'questions' ||
+            stageNow === 'research');
         if (shouldPromotePlan) {
           const last =
             completedAssistant ||
@@ -1689,12 +1837,17 @@ export function ChatApp() {
               .reverse()
               .find((m) => m.role === 'assistant');
           let planMd = extractPlanMarkdownFromMessage(last);
-          if (!looksLikePlanDocument(planMd)) {
+          const soft =
+            promotePlanOnCompleteRef.current || stageNow === 'planning';
+          const ok = soft
+            ? looksLikePlanDraft(planMd) || looksLikePlanDocument(planMd)
+            : looksLikePlanDocument(planMd);
+          if (!ok) {
             planMd = findLatestPlanMarkdown(messagesRef.current);
           }
           if (
             looksLikePlanDocument(planMd) ||
-            (planMd.length > 200 && promotePlanOnCompleteRef.current)
+            (soft && looksLikePlanDraft(planMd))
           ) {
             promotePlanToReview(planMd);
           }
@@ -1702,8 +1855,10 @@ export function ChatApp() {
         }
         if (
           effectiveMode === 'plan' &&
-          planStage === 'research' &&
-          planController.getQuestions().length > 0
+          (planStageRef.current === 'research' ||
+            planStageRef.current === 'questions') &&
+          planController.getQuestions().length > 0 &&
+          pendingQuestionsRef.current.length > 0
         ) {
           setShowClarifying(true);
         }
@@ -1738,7 +1893,10 @@ export function ChatApp() {
           }
           return prev;
         });
-      }
+      },
+      opts?.planStageOverride
+        ? { planStageOverride: opts.planStageOverride }
+        : undefined
     );
   }, [mode, sendMessage, planStage, planController, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom]);
 
@@ -1971,6 +2129,7 @@ export function ChatApp() {
       if (snap.length > 0) {
         sessionStore.saveMessages(sessionId, snap, mode);
       }
+      parkPlanForSession(sessionId);
       const sliced = snap.slice(0, idx + 1);
       const forked = sessionStore.forkFromMessages(sliced, mode);
       setSessionId(forked.id);
@@ -1981,14 +2140,13 @@ export function ChatApp() {
         forked.id,
         ...prev.filter((id) => id !== forked.id)
       ]);
-      setPendingQuestions([]);
-      setShowClarifying(false);
+      resetPlanChrome();
       setAwaitingUser(false);
       setError(null);
       parkedAwaitingRef.current = null;
       loopSessionIdRef.current = null;
     },
-    [messages, streaming, sessionId, mode]
+    [messages, streaming, sessionId, mode, parkPlanForSession, resetPlanChrome]
   );
 
   const handleModeChange = useCallback((newMode: Mode) => {
@@ -2114,9 +2272,11 @@ export function ChatApp() {
 
   /** Plan/Agent: 질문 답변 → host RuntimeServices.resolveQuestion */
   const handlePlanAnswer = useCallback((id: string, answer: string) => {
-    setPendingQuestions((prev) =>
-      prev.map((q) => (q.id === id ? { ...q, answer, answered: true } : q))
+    const next = pendingQuestionsRef.current.map((q) =>
+      q.id === id ? { ...q, answer, answered: true } : q
     );
+    pendingQuestionsRef.current = next;
+    setPendingQuestions(next);
     planController.answerQuestion(id, answer);
 
     // Plan mode: selection only — hold agent until Complete Questions
@@ -2124,17 +2284,15 @@ export function ChatApp() {
       return;
     }
 
-    // Agent / Ask / Debug: resolve host waiter immediately so the loop continues
     try {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      const api =
+        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
       api?.postMessage?.({ type: 'chat.answer', qid: id, answer });
     } catch {
       /* ignore */
     }
-    // Same-bundle fallback (unit tests)
     askQuestionTool.answerQuestion(id, answer);
 
-    // Debug: MCQ answer selects hypothesis → Instrument
     if (mode === 'debug' && debugController.getStage() === 'hypothesis') {
       const match =
         debugController.getHypotheses().find((h) => h.title === answer) ||
@@ -2149,73 +2307,89 @@ export function ChatApp() {
       }
     }
 
-    // Stop ask_question live blink immediately; dismiss Waiting UI
-    sealAskingSteps();
-    setShowClarifying(false);
-    setAwaitingUser(false);
-  }, [planController, mode, debugController, sealAskingSteps]);
-
-  /** Plan: 질문 완료 → Planning 단계 + 에이전트에게 실제 PLAN.md 작성 요청 */
-  const handleQuestionsComplete = useCallback(() => {
-    if (mode === 'plan') {
-      // End the blocked research turn (do not let ask_question resume the model)
-      if (streaming) {
-        stopHandlerRef.current?.stop('user_stop');
-        sendEpochRef.current += 1;
-        // Preserve Thought/Explored from the research turn before PLAN write send
-        const kept = cleanupStreamingAssistants(messagesRef.current);
-        messagesRef.current = kept;
-        setMessages(kept);
-      }
-      try {
-        const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
-        api?.postMessage?.({ type: 'chat.question.cancel' });
-      } catch {
-        /* ignore */
-      }
-
-      planController.moveToPlanning().catch(() => {
-        setError('All questions must be answered before planning.');
-        return;
-      });
-      setShowClarifying(false);
-      setAwaitingUser(false);
-      setShowPlanReview(false);
-      setPendingQuestions([]);
-      sealAskingSteps();
-
-      const qa = planController
-        .getQuestions()
-        .map((q) => `- **Q:** ${q.question}\n  **A:** ${q.answer || '(no answer)'}`)
-        .join('\n');
-      const research = (planController.getState().researchResults || '').trim();
-      promotePlanOnCompleteRef.current = true;
-      // UI: short bubble only — long PLAN instructions go to the API payload
-      const displayText = [
-        '답변을 반영해 PLAN.md를 작성해 주세요.',
-        qa ? `\n${qa}` : ''
-      ].join('');
-      const apiUserContent = [
-        '질문 답변을 반영해 **전체 PLAN.md**만 작성하세요. 구현·수정·파일 편집은 절대 하지 마세요.',
-        '',
-        '필수 섹션: Context, Questions & Answers, Architecture (mermaid flowchart), TODOs (`- [ ]`), Risks, Approval.',
-        'ask_question을 다시 호출하지 마세요. switch_mode도 호출하지 마세요.',
-        '계획이 본문 답변이어야 합니다. 사용자가 Review에서 승인하기 전까지 Build/구현은 없습니다.',
-        '마크다운은 실제 줄바꿈을 쓰세요. JSON 이스케이프(`\\n`)나 한 줄짜리 테이블로 쓰지 마세요.',
-        '',
-        research ? `## Research notes\n${research.slice(0, 6000)}` : '',
-        '',
-        '## Clarifying answers',
-        qa || '(none)',
-      ]
-        .filter(Boolean)
-        .join('\n');
-      void handleSend(displayText, [], { apiUserContent });
+    const remainingUnanswered = next.filter(
+      (q) => q.required !== false && !(q.answer || '').trim()
+    ).length;
+    if (remainingUnanswered > 0) {
       return;
     }
     sealAskingSteps();
     setShowClarifying(false);
     setAwaitingUser(false);
+  }, [planController, mode, debugController, sealAskingSteps]);
+
+  /** Plan: 질문 완료 → Planning 단계 + 계획 문서 작성 (ask_question 잠금) */
+  const questionsCompleteInFlightRef = useRef(false);
+  const handleQuestionsComplete = useCallback(() => {
+    if (mode !== 'plan') {
+      sealAskingSteps();
+      setShowClarifying(false);
+      setAwaitingUser(false);
+      return;
+    }
+    if (questionsCompleteInFlightRef.current) return;
+    questionsCompleteInFlightRef.current = true;
+
+    // End the blocked research turn (do not let ask_question resume the model)
+    if (streaming) {
+      stopHandlerRef.current?.stop('user_stop');
+      sendEpochRef.current += 1;
+      const kept = cleanupStreamingAssistants(messagesRef.current);
+      messagesRef.current = kept;
+      setMessages(kept);
+    }
+    try {
+      const api =
+        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      api?.postMessage?.({ type: 'chat.question.cancel' });
+    } catch {
+      /* ignore */
+    }
+
+    const qa = planController
+      .getQuestions()
+      .map((q) => `- **Q:** ${q.question}\n  **A:** ${q.answer || '(no answer)'}`)
+      .join('\n');
+    const research = (planController.getState().researchResults || '').trim();
+
+    void planController
+      .moveToPlanning()
+      .then(() => {
+        setPlanStage('planning');
+        planStageRef.current = 'planning';
+        setShowClarifying(false);
+        setAwaitingUser(false);
+        setShowPlanReview(false);
+        setPendingQuestions([]);
+        sealAskingSteps();
+        promotePlanOnCompleteRef.current = true;
+
+        const displayText = '답변을 반영해 계획 문서를 작성해 주세요.';
+        const apiUserContent = [
+          'Clarifying answers are in. Prefer writing the COMPLETE plan markdown now.',
+          'If a truly new decision remains, you may call ask_question once with a questions[] batch (allow_multiple when needed). Do not re-ask answered questions.',
+          'Plan sections: Context, Questions & Answers, Architecture with mermaid, TODOs as `- [ ]` ordered steps, Risks, Approval.',
+          'Do not implement or edit product files. Do not call switch_mode.',
+          'The UI will save the document to `.agentk/plans/tmp/plan_*.md` and replace the chat bubble with a short summary + TODO list for Review.',
+          '',
+          research ? `## Research notes\n${research.slice(0, 6000)}` : '',
+          '',
+          '## Clarifying answers',
+          qa || '(none)',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        return handleSend(displayText, [], {
+          apiUserContent,
+          planStageOverride: 'planning'
+        });
+      })
+      .catch(() => {
+        setError('All questions must be answered before planning.');
+      })
+      .finally(() => {
+        questionsCompleteInFlightRef.current = false;
+      });
   }, [
     planController,
     mode,
@@ -2389,7 +2563,8 @@ export function ChatApp() {
     setPendingQuestions([]);
     setAwaitingUser(false);
     setPlanStage('research');
-  }, [planController, messages]);
+    parkPlanForSession(sessionIdRef.current);
+  }, [planController, messages, parkPlanForSession]);
 
   /** Debug: 가설 선택 → 계측 단계 진입 (RW-C6-01) */
   const handleSelectHypothesis = useCallback((id: string) => {
@@ -2675,6 +2850,9 @@ export function ChatApp() {
   }, []);
 
   // ─── Render ────────────────────────────────────────────
+  /** Empty = top composer; once messages exist = thread + bottom composer (Cursor-like) */
+  const hasConversation = messages.length > 0;
+
   return (
     <div className="chat-container" data-ak-ui="v0.0.2">
       <div className="chat-shell">
@@ -2695,7 +2873,9 @@ export function ChatApp() {
           ) : null}
         </aside>
 
-        <div className="chat-main">
+        <div
+          className={`chat-main${hasConversation ? ' chat-main--active' : ' chat-main--empty'}`}
+        >
       <ChatSessionTabs
         sessions={sessionList}
         currentId={sessionId}
@@ -2746,46 +2926,34 @@ export function ChatApp() {
         />
       )}
 
-      {/* Mode chrome — optional banners above the SHARED message list */}
+      {/* Mode chrome — actions only; stage progress runs in the background */}
       {mode === 'plan' && (
-        <div className="mode-chrome">
-          <PlanModeHeader
-            currentStage={planStage}
-            stages={['research', 'questions', 'planning', 'review', 'build']}
-            reviewOpen={showPlanReview}
-            canOpenReview={
-              (planStage === 'planning' &&
-                looksLikePlanDocument(findLatestPlanMarkdown(messages))) ||
-              (planStage === 'review' &&
-                Boolean(
-                  planController.getState().planDocument?.content?.trim() ||
-                    looksLikePlanDocument(findLatestPlanMarkdown(messages))
-                ))
-            }
-            onOpenReview={handleOpenReview}
-            onDiscardPlan={handleDiscardPlan}
-          />
-        </div>
+        <PlanModeHeader
+          currentStage={planStage}
+          stages={['research', 'questions', 'planning', 'review', 'build']}
+          reviewOpen={showPlanReview}
+          canOpenReview={
+            (planStage === 'planning' &&
+              looksLikePlanDocument(findLatestPlanMarkdown(messages))) ||
+            (planStage === 'review' &&
+              Boolean(
+                planController.getState().planDocument?.content?.trim() ||
+                  looksLikePlanDocument(findLatestPlanMarkdown(messages))
+              ))
+          }
+          onOpenReview={handleOpenReview}
+          onDiscardPlan={handleDiscardPlan}
+        />
       )}
 
       {mode === 'debug' && (
-        <div className="mode-chrome mode-chrome--debug">
-          <DebugTimeline
-            currentStage={debugController.getStage()}
-            hypothesisCount={debugController.getHypotheses().length}
-            logsCollected={debugController.getState().logs.length}
-            markersRemaining={debugController.remainingMarkers}
-            verified={debugController.getState().verified}
-            evidenceCount={debugController.getState().browserEvidenceCount}
-          />
-          <DebugModeUI
-            currentStage={debugController.getStage()}
-            hypotheses={debugController.getHypotheses()}
-            activeHypothesisId={debugController.getState().activeHypothesisId}
-            onSelectHypothesis={handleSelectHypothesis}
-            onConfirmFix={handleConfirmFix}
-          />
-        </div>
+        <DebugModeUI
+          currentStage={debugController.getStage()}
+          hypotheses={debugController.getHypotheses()}
+          activeHypothesisId={debugController.getState().activeHypothesisId}
+          onSelectHypothesis={handleSelectHypothesis}
+          onConfirmFix={handleConfirmFix}
+        />
       )}
 
       {/* ── Reproduce UI (RW-C6-05-R2) ── */}
@@ -2851,6 +3019,9 @@ export function ChatApp() {
           const lastUserId = [...messages]
             .reverse()
             .find((m) => m.role === 'user')?.id;
+          const lastAssistantId = [...messages]
+            .reverse()
+            .find((m) => m.role === 'assistant')?.id;
           return messages.map((item) => (
             <MessageBubble
               key={item.id}
@@ -2860,11 +3031,28 @@ export function ChatApp() {
               }
               isAgentRunning={streaming}
               isLastUser={item.role === 'user' && item.id === lastUserId}
+              isLastAssistant={
+                item.role === 'assistant' && item.id === lastAssistantId
+              }
               onEdit={handleEditMessage}
               onFork={handleFork}
               onStopAndPrefill={handleStopAndPrefill}
               onCopy={(content) => navigator.clipboard.writeText(content)}
               onOpenFile={handleOpenFile}
+              onContinueMission={() => {
+                void handleSendRef.current?.(
+                  mode === 'plan'
+                    ? '이어서 진행해 주세요. 리서치를 마쳤으면 결정이 필요할 때만 질문하고, 아니면 계획 문서를 작성한 뒤 요약+TODO만 보여 주세요. 혼자 질문/계획을 반복하지 마세요.'
+                    : '계속. 중단하지 말고 위 도구 결과에 이어서 임무를 끝까지 완료해.',
+                  []
+                );
+              }}
+              onRegenerate={() => {
+                const btn = document.querySelector(
+                  '.composer-usage__regen'
+                ) as HTMLButtonElement | null;
+                if (btn && !btn.disabled) btn.click();
+              }}
             />
           ));
         })()}
@@ -2887,13 +3075,14 @@ export function ChatApp() {
             <ClarifyingQuestions
               questions={pendingQuestions.map(q => ({
                 id: q.id,
-                type: 'single' as const,
+                type: q.allowMultiple ? ('multiple' as const) : ('single' as const),
                 question: q.question,
                 options: q.options,
                 required: q.required,
-                answer: q.answer
+                answer: q.answer,
+                allowMultiple: Boolean(q.allowMultiple)
               }))}
-              forceRadio
+              variant={mode}
               onAnswer={handlePlanAnswer}
               onComplete={handleQuestionsComplete}
               onCancel={handleQuestionsCancel}
@@ -2948,6 +3137,21 @@ export function ChatApp() {
                   );
                   setPendingQuestions((prev) => {
                     if (prev.find((p) => p.id === q.id)) return prev;
+                    const normQ = normalized.question
+                      .replace(/\s+/g, ' ')
+                      .trim()
+                      .toLowerCase();
+                    if (
+                      prev.some(
+                        (p) =>
+                          String(p.question || '')
+                            .replace(/\s+/g, ' ')
+                            .trim()
+                            .toLowerCase() === normQ
+                      )
+                    ) {
+                      return prev;
+                    }
                     return [
                       ...prev,
                       {

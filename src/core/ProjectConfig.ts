@@ -1,19 +1,35 @@
 /**
- * Project-level Agent K config (`.agent-k/settings.json`).
+ * Project-level Agent K config and workspace data root.
  *
- * Priority: defaults < VS Code settings < project JSON.
- * Nested JSON is preferred; flat `agent-k.*` keys are also accepted.
+ * ## Single workspace root: `.agentk/`
+ *
+ * **All** project settings and agent-related artifacts live under `.agentk/`:
+ * - `settings.json` — project config (provider, permissions, features, …)
+ * - `plans/` — Plan mode drafts (`plans/tmp/plan_*.md`)
+ * - `debug/` — Debug mode sessions (`debug/tmp/debug_*.md`)
+ * - `checkpoints/` — rollback index
+ * - (future) `agents/`, `skills/`, `rules/`, …
+ *
+ * Do **not** create a parallel `.agent-k/` root. That hyphenated name is legacy
+ * only (still read if present). New writes always go to `.agentk/`.
  */
-/** Canonical relative path from workspace root */
-export const PROJECT_CONFIG_PATH = '.agent-k/settings.json';
+/** Canonical workspace directory for settings + agent data */
+export const AGENTK_DIR = '.agentk';
 
-/** Legacy root-level filenames (still read if present) */
+/** Canonical relative path from workspace root (always `/`, Uri-safe on Win/macOS) */
+export const PROJECT_CONFIG_PATH = '.agentk/settings.json';
+
+/**
+ * Legacy paths still read (never written as the preferred location).
+ * Prefer migrating contents into `.agentk/settings.json`.
+ */
 export const PROJECT_CONFIG_LEGACY_FILENAMES = [
+  '.agent-k/settings.json', // old hyphenated root
   '.agent-k.json',
   'agent-k.json',
 ] as const;
 
-/** @deprecated use PROJECT_CONFIG_PATH */
+/** @deprecated use PROJECT_CONFIG_PATH — kept for find/read order */
 export const PROJECT_CONFIG_FILENAMES = [
   PROJECT_CONFIG_PATH,
   ...PROJECT_CONFIG_LEGACY_FILENAMES,
@@ -24,6 +40,8 @@ export const PROJECT_CONFIG_KEYS = [
   'agent-k.provider.type',
   'agent-k.provider.baseUrl',
   'agent-k.provider.model',
+  'agent-k.provider.models',
+  'agent-k.provider.availableModels',
   'agent-k.provider.apiKey',
   'agent-k.provider.apiKeys',
   'agent-k.github.token',
@@ -87,19 +105,19 @@ export function flattenProjectConfig(
       continue;
     }
 
-    const path = `${prefix}.${key}`;
-    if (isPlainObject(value) && !ALLOWED.has(path)) {
-      Object.assign(out, flattenProjectConfig(value, path));
+    const pathKey = `${prefix}.${key}`;
+    if (isPlainObject(value) && !ALLOWED.has(pathKey)) {
+      Object.assign(out, flattenProjectConfig(value, pathKey));
       continue;
     }
-    if (ALLOWED.has(path) && value !== undefined) {
-      out[path] = value;
+    if (ALLOWED.has(pathKey) && value !== undefined) {
+      out[pathKey] = value;
     }
   }
   return out;
 }
 
-/** Flat agent-k.* → nested object for editing / writing `.agent-k/settings.json` */
+/** Flat agent-k.* → nested object for editing / writing `.agentk/settings.json` */
 export function unflattenProjectConfig(
   flat: Record<string, unknown>
 ): Record<string, unknown> {

@@ -1,7 +1,7 @@
 /**
- * DebugStorage — session reports under project-root temp folder:
+ * DebugStorage — session reports under the single project root `.agentk/`:
  *   `<workspace>/.agentk/debug/tmp/debug_<hash>.md`
- * Mirrors PlanStorage (`.agentk/plans/tmp/plan_<hash>.md`).
+ * Settings and other agent data also live under `.agentk/` (see AGENTK_DIR).
  */
 import * as crypto from 'crypto';
 import * as fs from 'fs';

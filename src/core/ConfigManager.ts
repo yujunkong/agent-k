@@ -9,6 +9,15 @@ export type ConfigListener = (key: string, value: any) => void;
 
 /** VS Code `contributes.configuration` keys bridged in extension host (RW-P0-03) */
 export const AGENT_K_VSCODE_CONFIG_KEYS = [
+  'agent-k.provider.type',
+  'agent-k.provider.baseUrl',
+  'agent-k.provider.model',
+  'agent-k.provider.models',
+  'agent-k.provider.availableModels',
+  'agent-k.provider.apiKey',
+  'agent-k.provider.apiKeys',
+  'agent-k.github.token',
+  'agent-k.mode.default',
   'agent-k.permission.level',
   'agent-k.queue.onEnterWhileRunning',
   'agent-k.queue.onStop',
@@ -17,9 +26,11 @@ export const AGENT_K_VSCODE_CONFIG_KEYS = [
   'agent-k.mcp.servers',
   'agent-k.thinking.effort',
   'agent-k.maxTurns',
+  'agent-k.context.budget',
   'agent-k.verification.testEnabled',
   'agent-k.turnTimeoutMs',
   'agent-k.plan.forceOnComplex',
+  'agent-k.telemetry.enabled',
   'agent-k.telemetry.statusBarEnabled',
   'agent-k.mcp.maxSchemaTokens',
   'agent-k.search.localEmbedding',
@@ -76,6 +87,25 @@ export class ConfigManager {
       const changed: Array<[string, unknown]> = [];
       for (const [key, value] of Object.entries(values)) {
         if (value === undefined) continue;
+        // Never wipe a populated model catalog with an empty hydrate payload
+        if (
+          (key === 'agent-k.provider.availableModels' ||
+            key === 'agent-k.provider.models') &&
+          Array.isArray(value) &&
+          value.length === 0 &&
+          Array.isArray(this.config[key]) &&
+          this.config[key].length > 0
+        ) {
+          continue;
+        }
+        // Don't clobber the active model with blank
+        if (
+          key === 'agent-k.provider.model' &&
+          (value === '' || value == null) &&
+          this.config[key]
+        ) {
+          continue;
+        }
         if (this.config[key] !== value) {
           this.config[key] = value;
           changed.push([key, value]);
@@ -110,8 +140,9 @@ export class ConfigManager {
       // Note: other Docker LiteLLM on :4000 may use a different DB token — prefer :52415 locally.
       'agent-k.provider.baseUrl': 'http://127.0.0.1:52415',
       'agent-k.provider.model': 'mlx-community/Qwen3.6-35B-A3B-4bit',
-      'agent-k.provider.models': ['mlx-community/Qwen3.6-35B-A3B-4bit'],
-      'agent-k.provider.availableModels': ['mlx-community/Qwen3.6-35B-A3B-4bit'],
+      // Empty until user connects / picks — never ship a fake one-item catalog
+      'agent-k.provider.models': [],
+      'agent-k.provider.availableModels': [],
       'agent-k.provider.apiKey': '',
       'agent-k.provider.apiKeys': {},
       'agent-k.github.token': '',

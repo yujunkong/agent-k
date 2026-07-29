@@ -37,15 +37,6 @@ import {
   type DebugStage
 } from '../debug/DebugModeController';
 
-const PLAN_ASK_QUESTION_NUDGE = `STOP — PLAN mode Research/Questions must end with the ask_question tool, not a final conclusion in chat.
-
-Call ask_question now (one or more times) with 2–4 multiple-choice options about requirements still needed for the plan, for example:
-- NLP 제외 범위 / Python 공존 전략
-- 마이그레이션 우선순위 (API 먼저 vs 전체)
-- 성공 기준 / 일정
-
-Do NOT write more "최종 결론" prose. Emit ask_question tool_calls only.`;
-
 /** After tools finish — require a real user-visible wrap-up message */
 const WRAP_UP_NUDGE = `Tools for this request are finished. Write the user-visible final reply now in the user's language (Korean if they wrote Korean). Do NOT call tools.
 
@@ -55,6 +46,21 @@ Required:
 3. Result and what's left (if anything)
 
 Use clean Markdown (## headings, - bullets). No "Proceeding to…", no "이제 작성하겠습니다" status lines — this is the closing message the user reads under Worked for.`;
+
+/** Plan research/planning — wrap-up is findings, not "what I edited" */
+const WRAP_UP_NUDGE_PLAN = `Tools for this PLAN turn are finished. Write the user-visible reply now in Korean (if the user wrote Korean). Do NOT call tools.
+
+If you are drafting the plan (planning stage): output the FULL plan markdown with Context, Architecture, TODOs (\`- [ ]\`), Risks — then stop. Do NOT ask more questions.
+If you are still researching: short findings only. If a real decision remains and ask_question is available, you may ask once — otherwise stop and wait.
+No raw file dumps. If the user only said a greeting, a short hello is enough.`;
+
+/** Second chance for tiny models that ignore the long nudge */
+const WRAP_UP_NUDGE_SIMPLE = `Stop. Reply to the user now in Korean with a short useful summary of the tool results. No tools. No raw dumps. At least 3 sentences.`;
+
+/** Empty/weak stop after tools — force the model to keep working (Agent/build only) */
+const MISSION_CONTINUE_AGENT = `STOP — the user's task is NOT finished. You ran tools but returned no real completion.
+
+Continue NOW with the next tool_calls (read more, edit/write, or run commands as needed). Do not end empty. Do not dump raw tool logs. Prefer tool_calls over status prose.`;
 
 export interface LoopConfig {
   mode: Mode;
@@ -106,6 +112,7 @@ export interface LoopConfig {
     question: string;
     options?: string[];
     required?: boolean;
+    allowMultiple?: boolean;
   }) => void;
   onTurnStart?: (turn: number) => Promise<void>;
   onTurnEnd?: (turn: number, context: TurnContext) => Promise<void>;
@@ -186,6 +193,8 @@ export class AgentLoopController {
   private emptyFinalRetried = false;
   /** After tools: forced user-facing wrap-up message — once per run */
   private wrapUpRetried = false;
+  /** Second short wrap-up for models that ignore the first nudge */
+  private wrapUpSimpleRetried = false;
   /** Reasoning said "I'll read…" but emitted no tool_calls — nudge once */
   private toolIntentNudged = false;
   /** Said "writing files…" without write_file — nudge once more */
@@ -193,6 +202,9 @@ export class AgentLoopController {
   /** Agent returned "I'll continue…" prose after tools — keep nudging (capped) */
   private continueIntentNudges = 0;
   private static readonly MAX_CONTINUE_NUDGES = 2;
+  /** Empty/weak stop after tools — force mission continuation (capped) */
+  private missionContinueNudges = 0;
+  private static readonly MAX_MISSION_CONTINUES = 8;
   /** edit_file / write_file / delete_file succeeded this run */
   private writeToolsUsedThisRun = false;
   /** Any tool ran this run — subsequent LLM passes use short mid-explore thinking */
@@ -201,6 +213,8 @@ export class AgentLoopController {
   private planAskQuestionNudged = false;
   /** ask_question ran at least once this loop */
   private askedQuestionThisRun = false;
+  /** Latest real user request for this run (not internal nudges) */
+  private runUserMessage = '';
   /** Mutable debug FSM stage for mid-loop tool gating */
   private debugStage: DebugStage;
 
@@ -298,13 +312,16 @@ export class AgentLoopController {
     this._state.error = undefined;
     this.emptyFinalRetried = false;
     this.wrapUpRetried = false;
+    this.wrapUpSimpleRetried = false;
     this.toolIntentNudged = false;
     this.writeIntentNudged = false;
     this.continueIntentNudges = 0;
+    this.missionContinueNudges = 0;
     this.writeToolsUsedThisRun = false;
     this.toolsRanThisRun = false;
     this.planAskQuestionNudged = false;
     this.askedQuestionThisRun = false;
+    this.runUserMessage = userMessage;
 
     this.messages = [
       { role: 'system', content: this.config.systemPrompt || modeRegistry.getSystemPrompt(this.config.mode) },
@@ -326,13 +343,16 @@ export class AgentLoopController {
     this.messages = messages;
     this.emptyFinalRetried = false;
     this.wrapUpRetried = false;
+    this.wrapUpSimpleRetried = false;
     this.toolIntentNudged = false;
     this.writeIntentNudged = false;
     this.continueIntentNudges = 0;
+    this.missionContinueNudges = 0;
     this.writeToolsUsedThisRun = false;
     this.toolsRanThisRun = false;
     this.planAskQuestionNudged = false;
     this.askedQuestionThisRun = false;
+    this.runUserMessage = this.extractLatestUserRequest(messages);
     this.doomDetector.reset();
     this.armRunTimeout();
     try {
@@ -484,12 +504,47 @@ export class AgentLoopController {
           }
         }
 
+        // Ask / Plan (non-build): strip write tools before timeline — never show "Edit attempted"
+        const { isWriteToolName } = await import('../plan/writeGate');
+        const planBuild =
+          this.config.mode === 'plan' && this.config.planStage === 'build';
+        const modeBlocksWrites =
+          this.config.mode === 'ask' ||
+          (this.config.mode === 'plan' && !planBuild);
+        const blockedModeWrites: typeof toolCalls = [];
+        if (modeBlocksWrites) {
+          const keptMode: typeof toolCalls = [];
+          for (const tc of toolCalls) {
+            if (isWriteToolName(tc.name)) blockedModeWrites.push(tc);
+            else keptMode.push(tc);
+          }
+          toolCalls = keptMode;
+        }
+
         // Keep assistant tool_calls in history (OpenAI-style multi-turn)
         this.messages.push({
           role: 'assistant',
           content: response.content || '',
-          toolCalls: [...toolCalls, ...deferredOverLimit]
+          toolCalls: [...toolCalls, ...deferredOverLimit, ...blockedModeWrites]
         });
+
+        // Soft deny for Ask/Plan write attempts — model learns tools are unavailable, UI stays quiet
+        for (const tc of blockedModeWrites) {
+          const soft = {
+            success: false as const,
+            error:
+              this.config.mode === 'ask'
+                ? `[Ask Mode] "${tc.name}" is unavailable. Answer in Markdown or ask the user to switch to Agent mode. Do not retry write tools.`
+                : `[Plan Mode] "${tc.name}" is unavailable until Approve & Execute. Continue with research/ask_question/plan prose only.`
+          };
+          this.messages.push({
+            role: 'tool',
+            toolCallId: tc.id,
+            name: tc.name,
+            content: JSON.stringify({ error: soft.error })
+          });
+          // Intentionally skip onToolCall — no Edit attempted row in the timeline
+        }
 
         // Explicit failures for truncated calls (must not look like success)
         for (const tc of deferredOverLimit) {
@@ -510,7 +565,10 @@ export class AgentLoopController {
         }
 
         if (toolCalls.length === 0) {
-          this.consecutiveFailures++;
+          // Soft-denied Ask/Plan writes already answered — next model turn continues cleanly
+          if (blockedModeWrites.length === 0) {
+            this.consecutiveFailures++;
+          }
           continue;
         }
 
@@ -713,6 +771,8 @@ export class AgentLoopController {
         // Next LLM turn may plan again — allow fresh nudges after tools ran
         this.toolIntentNudged = false;
         this.emptyFinalRetried = false;
+        this.wrapUpRetried = false;
+        this.wrapUpSimpleRetried = false;
       } else {
         // No tool calls → assistant response only (end of turn chain for this request)
         const finalContent = response.content || '';
@@ -791,11 +851,10 @@ export class AgentLoopController {
     // HARB: provider가 설정되어 있으면 실제 LLM 호출
     if (this.config.provider) {
       try {
-        const schemaMode =
-          this.config.mode === 'plan' && this.config.planStage === 'build'
-            ? 'agent'
-            : this.config.mode;
-        const schemas = toolRegistry.getSchemas(schemaMode, this.currentTier)
+        const schemas = toolRegistry
+          .getSchemas(this.config.mode, this.currentTier, {
+            planStage: this.config.planStage
+          })
           .filter((s) => {
             if (this.config.mode !== 'debug') return true;
             const name = s?.function?.name as string | undefined;
@@ -882,11 +941,7 @@ export class AgentLoopController {
           }
         }
 
-        // Plan research/questions: prose conclusion without ask_question → force MCQ tools
-        const planAsk = await this.nudgePlanAskQuestionIfNeeded(result, schemas);
-        if (planAsk === null) return null;
-        if (planAsk) return planAsk;
-
+        // Plan mode: never force ask_question / more research — model may stop after tools
         const prose = (result.content || '').trim();
         const hadToolsAlready = this.messages.some((m) => m.role === 'tool');
         // After commands/reads: model often narrates "이제 생성하겠습니다" and stops — force tools
@@ -931,65 +986,52 @@ export class AgentLoopController {
             return { toolCalls: recoveredC };
           }
           const prose2 = (result.content || '').trim();
-          if (prose2 && prose2 !== '...' && !this.isWeakFinalAnswer(prose2)) {
+          if (
+            prose2 &&
+            prose2 !== '...' &&
+            !this.isWeakFinalAnswer(prose2) &&
+            !this.missionStillOpen()
+          ) {
             if ((result.reasoning || '').trim()) {
               void this.config.onReasoning?.(result.reasoning);
             }
             return { content: prose2, toolCalls: [] };
           }
-          // Fall through — force wrap-up below instead of returning mid-work status
+          // Fall through — force wrap-up / mission continue below
         }
 
         const candidateProse = (result.content || '').trim() || prose;
+        let lastReasoning = (result.reasoning || '').trim();
         if (candidateProse && candidateProse !== '...') {
-          // Only demand a rich wrap-up after tools; short chat replies are fine otherwise
-          if (!hadToolsAlready || !this.isWeakFinalAnswer(candidateProse)) {
-            if ((result.reasoning || '').trim()) {
+          const canFinish =
+            !hadToolsAlready ||
+            (!this.isWeakFinalAnswer(candidateProse) && !this.missionStillOpen());
+          if (canFinish) {
+            if (lastReasoning) {
               void this.config.onReasoning?.(result.reasoning);
             }
             return { content: candidateProse, toolCalls: [] };
           }
+          // Mission still open — keep prose in transcript, then force tools
+          const last = this.messages[this.messages.length - 1];
+          if (
+            !(
+              last?.role === 'assistant' &&
+              (last.content || '').trim() === candidateProse
+            )
+          ) {
+            this.messages.push({ role: 'assistant', content: candidateProse });
+          }
         }
 
-        if ((result.reasoning || '').trim()) {
+        if (lastReasoning) {
           void this.config.onReasoning?.(result.reasoning);
         }
 
         const hadTools = hadToolsAlready;
         if (hadTools && !this.emptyFinalRetried) {
           this.emptyFinalRetried = true;
-          const planStage = this.config.planStage || 'research';
-          const needsPlanAsk =
-            this.config.mode === 'plan' &&
-            (planStage === 'research' || planStage === 'questions') &&
-            !this.askedQuestionThisRun &&
-            schemas.some((s) => s?.function?.name === 'ask_question');
-
-          if (needsPlanAsk) {
-            this.planAskQuestionNudged = true;
-            this.messages.push({
-              role: 'user',
-              content: PLAN_ASK_QUESTION_NUDGE
-            });
-            const retry = await this.streamOnce(this.buildProviderMessages(), schemas);
-            if (retry === null) return null;
-            if (retry.toolCalls && retry.toolCalls.length > 0) {
-              return { toolCalls: this.normalizeToolCalls(retry.toolCalls, retry.content || '') };
-            }
-            const recoveredAsk = this.recoverToolCallsFromContent(
-              retry.content || retry.reasoning || ''
-            );
-            if (recoveredAsk.length > 0) {
-              return { toolCalls: recoveredAsk };
-            }
-            if ((retry.reasoning || '').trim()) {
-              void this.config.onReasoning?.(retry.reasoning);
-            }
-            const retryProse = (retry.content || '').trim();
-            if (retryProse && retryProse !== '...' && !this.isWeakFinalAnswer(retryProse)) {
-              return { content: retryProse, toolCalls: [] };
-            }
-          } else if (
+          if (
             !this.writeToolsUsedThisRun &&
             this.hasWriteToolSchemas(schemas) &&
             (this.config.mode === 'agent' || this.config.planStage === 'build')
@@ -1018,15 +1060,58 @@ export class AgentLoopController {
             if (retryProse && retryProse !== '...' && !this.isWeakFinalAnswer(retryProse)) {
               return { content: retryProse, toolCalls: [] };
             }
-            // Write force failed — fall through to wrap-up
+            // Write force failed — fall through to mission continue
           }
         }
 
-        // After tools: always try one dedicated wrap-up so Worked for has a message below
+        // Empty/weak OR incomplete mission after tools → keep forcing tool_calls
+        if (hadTools && schemas.length > 0 && this.missionStillOpen()) {
+          while (
+            this.missionContinueNudges < AgentLoopController.MAX_MISSION_CONTINUES
+          ) {
+            const cont = await this.requestMissionContinue(schemas, lastReasoning);
+            if (cont === null) return null;
+            if (cont && 'toolCalls' in cont && cont.toolCalls.length > 0) {
+              return cont;
+            }
+            // Prose without tools while mission open = not done; stash & nudge again
+            if (
+              cont &&
+              'content' in cont &&
+              cont.content &&
+              (!('toolCalls' in cont) || !cont.toolCalls?.length)
+            ) {
+              const last = this.messages[this.messages.length - 1];
+              if (
+                !(
+                  last?.role === 'assistant' &&
+                  (last.content || '').trim() === cont.content
+                )
+              ) {
+                this.messages.push({ role: 'assistant', content: cont.content });
+              }
+            }
+            lastReasoning = '';
+          }
+        }
+
+        // Continue budget exhausted: only finish if mission is actually closed
         if (hadTools) {
-          const wrapped = await this.requestWrapUpPass();
-          if (wrapped === null) return null;
-          if (wrapped) return wrapped;
+          if (
+            !this.missionStillOpen() &&
+            lastReasoning.length >= 120 &&
+            this.looksLikeClosingSummary(lastReasoning)
+          ) {
+            return { content: lastReasoning, toolCalls: [] };
+          }
+          if (!this.missionStillOpen()) {
+            const wrapped = await this.requestWrapUpPass();
+            if (wrapped === null) return null;
+            if (wrapped) return wrapped;
+            const wrapped2 = await this.requestWrapUpPassSimple();
+            if (wrapped2 === null) return null;
+            if (wrapped2) return wrapped2;
+          }
           return {
             content: this.synthesizeFromToolResults(),
             toolCalls: []
@@ -1264,20 +1349,27 @@ export class AgentLoopController {
 
   /** Fallback prose when the model returns empty after successful tools */
   private synthesizeFromToolResults(): string {
-    const tools = this.messages.filter((m) => m.role === 'tool').slice(-6);
+    const tools = this.messages.filter((m) => m.role === 'tool').slice(-8);
     if (!tools.length) {
       return '도구는 실행됐지만 모델 최종 응답이 비었습니다. Regenerate로 다시 시도하세요.';
     }
-    const bits = tools.map((m) => {
-      const body = String(m.content || '').slice(0, 600);
-      return `### ${m.name || 'tool'}\n\`\`\`\n${body}\n\`\`\``;
-    });
+    const names = tools.map((m) => m.name || 'tool');
+    const uniq: string[] = [];
+    for (const n of names) {
+      if (!uniq.includes(n)) uniq.push(n);
+    }
+    const counts = uniq
+      .map((n) => {
+        const c = names.filter((x) => x === n).length;
+        return c > 1 ? `${n}×${c}` : n;
+      })
+      .join(', ');
     return [
-      '로컬 모델이 최종 답변을 비운 채 종료했습니다. 아래는 수집된 도구 결과 요약입니다 (자동 복구).',
+      '모델이 도구만 실행하고 임무를 끝내지 않은 채 중단했습니다.',
       '',
-      ...bits,
+      `마지막 도구: ${counts}`,
       '',
-      '_Regenerate를 누르면 모델이 다시 분석 문장을 쓸 수 있습니다._'
+      '아래 메시지 하단의 **다시 실행**을 눌러 이어서 진행해 주세요.'
     ].join('\n');
   }
 
@@ -1336,7 +1428,11 @@ export class AgentLoopController {
   > {
     if (this.wrapUpRetried) return undefined;
     this.wrapUpRetried = true;
-    this.messages.push({ role: 'user', content: WRAP_UP_NUDGE });
+    const nudge =
+      this.config.mode === 'plan' && this.config.planStage !== 'build'
+        ? WRAP_UP_NUDGE_PLAN
+        : WRAP_UP_NUDGE;
+    this.messages.push({ role: 'user', content: nudge });
     const retry = await this.streamOnce(this.buildProviderMessages(), [], {
       enableThinking: true,
       thinkingEffort: this.config.thinkingEffort || 'medium'
@@ -1355,38 +1451,100 @@ export class AgentLoopController {
     return undefined;
   }
 
+  /** Shorter wrap-up nudge when the long one is ignored by small models */
+  private async requestWrapUpPassSimple(): Promise<
+    { content: string; toolCalls: [] } | null | undefined
+  > {
+    if (this.wrapUpSimpleRetried) return undefined;
+    this.wrapUpSimpleRetried = true;
+    this.messages.push({ role: 'user', content: WRAP_UP_NUDGE_SIMPLE });
+    const retry = await this.streamOnce(this.buildProviderMessages(), [], {
+      enableThinking: false
+    });
+    if (retry === null) return null;
+    const retryProse = (retry.content || '').trim();
+    if (retryProse && retryProse !== '...') {
+      return { content: retryProse, toolCalls: [] };
+    }
+    if ((retry.reasoning || '').trim()) {
+      return { content: retry.reasoning.trim(), toolCalls: [] };
+    }
+    return undefined;
+  }
+
+  /** Whether the run should keep tool-calling instead of ending */
+  private missionStillOpen(): boolean {
+    // Plan (pre-build): never force more tools/questions — stop when the model stops.
+    // Forcing ask_question / write caused solo infinite research↔question loops.
+    if (this.config.mode === 'plan' && this.config.planStage !== 'build') {
+      return false;
+    }
+    if (this.isCasualUserTurn()) return false;
+    // Agent / debug / plan-build: empty stop after tools means unfinished work
+    return true;
+  }
+
+  /** Latest non-nudge user text for this run */
+  private extractLatestUserRequest(messages: AgentMessage[]): string {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m?.role !== 'user') continue;
+      const c = (m.content || '').trim();
+      if (!c) continue;
+      if (this.isInternalNudgeMessage(c)) continue;
+      return c;
+    }
+    return '';
+  }
+
+  private isInternalNudgeMessage(content: string): boolean {
+    return (
+      content.startsWith('STOP —') ||
+      content.startsWith('Tools for this') ||
+      content.startsWith('Tool results are above') ||
+      content.startsWith('Stop. Reply to the user')
+    );
+  }
+
+  /** Short greeting / ack — do not force Plan workflow */
+  private isCasualUserTurn(): boolean {
+    const t = this.runUserMessage.trim();
+    if (!t || t.length > 48) return false;
+    return /^(하이|안녕(?:하세요)?|헬로|hello|hi+|hey|ㅎㅇ|감사(?:합니다)?|고마워(?:요)?|thanks|thank you|ㅇㅋ|ok(?:ay)?|네|응|ㅇㅇ)[!?.,~\s]*$/i.test(
+      t
+    );
+  }
+
+  private missionContinueNudge(): string {
+    return MISSION_CONTINUE_AGENT;
+  }
+
   /**
-   * Plan research/questions ended with a prose "결론" and no ask_question —
-   * keep the research text in history and force MCQ tool calls once.
+   * Force another tool round when the model stops empty/weak mid-mission.
    */
-  private async nudgePlanAskQuestionIfNeeded(
-    result: { content?: string; reasoning?: string; toolCalls?: unknown[] },
-    schemas: Array<{ function?: { name?: string } }>
+  private async requestMissionContinue(
+    schemas: Array<{ function?: { name?: string } }>,
+    lastReasoning: string
   ): Promise<
     | { content?: string; toolCalls: Array<{ id: string; name: string; arguments: ToolInput }> }
+    | { content: string; toolCalls: [] }
     | null
     | undefined
   > {
-    const prose = (result.content || '').trim();
-    if (!prose || prose === '...') return undefined;
-
-    const planStage = this.config.planStage || 'research';
-    const needsAsk =
-      this.config.mode === 'plan' &&
-      (planStage === 'research' || planStage === 'questions') &&
-      !this.askedQuestionThisRun &&
-      !this.planAskQuestionNudged &&
-      schemas.some((s) => s?.function?.name === 'ask_question');
-
-    if (!needsAsk) return undefined;
-
-    this.planAskQuestionNudged = true;
-    if ((result.reasoning || '').trim()) {
-      void this.config.onReasoning?.(String(result.reasoning));
+    this.missionContinueNudges++;
+    if (lastReasoning) {
+      // Keep internal notes in transcript so the next call has context
+      const last = this.messages[this.messages.length - 1];
+      if (
+        !(
+          last?.role === 'assistant' &&
+          (last.content || '').trim() === lastReasoning
+        )
+      ) {
+        this.messages.push({ role: 'assistant', content: lastReasoning });
+      }
     }
-    this.messages.push({ role: 'assistant', content: prose });
-    this.messages.push({ role: 'user', content: PLAN_ASK_QUESTION_NUDGE });
-
+    this.messages.push({ role: 'user', content: this.missionContinueNudge() });
     const retry = await this.streamOnce(this.buildProviderMessages(), schemas as any);
     if (retry === null) return null;
     if (retry.toolCalls && retry.toolCalls.length > 0) {
@@ -1400,8 +1558,28 @@ export class AgentLoopController {
     if (recovered.length > 0) {
       return { toolCalls: recovered };
     }
-    // Still no ask_question — surface original research prose
-    return { content: prose, toolCalls: [] };
+    if ((retry.reasoning || '').trim()) {
+      void this.config.onReasoning?.(retry.reasoning);
+    }
+    const prose = (retry.content || '').trim();
+    if (prose && prose !== '...' && !this.isWeakFinalAnswer(prose)) {
+      if (this.missionStillOpen()) {
+        this.messages.push({ role: 'assistant', content: prose });
+        return undefined;
+      }
+      return { content: prose, toolCalls: [] };
+    }
+    return undefined;
+  }
+
+  /**
+   * @deprecated Plan no longer force-nudges ask_question (caused solo loops).
+   */
+  private async nudgePlanAskQuestionIfNeeded(
+    _result: { content?: string; reasoning?: string; toolCalls?: unknown[] },
+    _schemas: Array<{ function?: { name?: string } }>
+  ): Promise<undefined> {
+    return undefined;
   }
 
   /** Provider/native toolCalls 정규화 + 깨진 arguments JSON 복구 */

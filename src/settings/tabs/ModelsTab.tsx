@@ -136,13 +136,26 @@ export function ModelsTab() {
       values['agent-k.github.token'] = '';
     }
     setApiKeyMap(nextMap);
+    const catalog = Array.isArray(configManager.get('agent-k.provider.availableModels'))
+      ? (configManager.get('agent-k.provider.availableModels') as string[])
+      : [];
+    if (
+      values['agent-k.provider.model'] &&
+      !catalog.includes(String(values['agent-k.provider.model']))
+    ) {
+      catalog.push(String(values['agent-k.provider.model']));
+    }
+    values['agent-k.provider.availableModels'] = catalog;
+    values['agent-k.provider.models'] = catalog;
     configManager.update(values);
     const hostPayload: Record<string, unknown> = {
       'agent-k.provider.type': values['agent-k.provider.type'],
       'agent-k.provider.model': values['agent-k.provider.model'],
       'agent-k.provider.baseUrl': values['agent-k.provider.baseUrl'],
       'agent-k.provider.apiKey': activeKey,
-      'agent-k.provider.apiKeys': nextMap
+      'agent-k.provider.apiKeys': nextMap,
+      'agent-k.provider.availableModels': catalog,
+      'agent-k.provider.models': catalog
     };
     if ('agent-k.github.token' in values) {
       hostPayload['agent-k.github.token'] = values['agent-k.github.token'];

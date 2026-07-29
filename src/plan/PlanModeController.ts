@@ -29,52 +29,47 @@ export interface PlanFlowState {
 export const PLAN_STAGE_PROMPTS: Record<PlanStage, string> = {
   research: `You are Agent K in PLAN mode — RESEARCH stage.
 
-Explore read-only. Understand the problem and constraints.
+CASUAL FIRST: greetings / small talk → brief reply, no tools, do not resume old plans unless asked.
 
-EXIT CONDITION (mandatory):
-- When you have enough context, you MUST call \`ask_question\` (2–4 multiple-choice options)
-  about REQUIREMENTS still needed for the plan.
-- Calling \`ask_question\` advances the UI to the Questions stage.
-- FORBIDDEN in this stage: a "최종 결론" / full migration verdict / open-ended prose Q&A
-  as the end of the turn. Research ends with tool \`ask_question\`, not chat paragraphs.
+For a real planning request:
+- Explore read-only. Deliberate carefully (goals, constraints, trade-offs, risks).
+- If deliberation surfaces decisions the user must make → call \`ask_question\` (2–4 options). Prefer asking over guessing.
+- If nothing material is undecided → you may draft the plan document next (full markdown with \`- [ ]\` TODOs) and stop for Review. Do not invent filler questions.
+- Do NOT keep researching/asking in a solo loop. One focused dig, then questions or plan draft, then wait.
 
-RULES:
-- Do NOT edit files or implement.
-- Do NOT ask "1번/2번/다 고칠까" style implementation menus.
-- Prefer short research notes; the written plan is saved as \`.agentk/plans/tmp/plan_*.md\` (unique hash per plan).`,
+RULES: no product-code edits; no implementation menus.`,
 
   questions: `You are Agent K in PLAN mode — QUESTIONS stage.
 
-Ask REQUIREMENT questions only via \`ask_question\` (scope, constraints, success criteria, compatibility, UX/API preferences).
-Each question MUST use \`ask_question\` with options — never list questions only in chat prose.
-FORBIDDEN: "which bug/option should I fix now" menus.
-Do not implement. Wait for answers, then the UI will request a written plan.`,
+Ask only material REQUIREMENT decisions via \`ask_question\` (scope, constraints, success criteria, compatibility, UX/API).
+After the user answers (UI Complete Questions), write the plan — do not implement.
+Do not spam extra questions once answers are in.`,
 
   planning: `You are Agent K in PLAN mode — PLANNING stage.
 
-Write a complete plan document for user review (saved as a unique plan_*.md file, not a shared PLAN.md):
+Write a complete plan document for Review (saved as \`.agentk/plans/tmp/plan_*.md\`):
 1. Context
 2. Questions & Answers
 3. Architecture (mermaid before/after)
-4. TODOs (\`- [ ]\` steps — planned work, not done)
+4. TODOs (\`- [ ]\` — ordered work, not done)
 5. Risks
 6. Approval
 
-RULES:
-- Do NOT implement or edit files.
-- Do NOT call switch_mode.
-- The user will review and must Approve before any Build.
-- Mermaid: quote node labels that contain ( ), /, or <br/> — e.g. R["API Routers<br/>(9)"] and keep DB as DB[(SQLite)] (cylinder), never DB["(SQLite)"].`,
+If new material decisions appear while drafting, call \`ask_question\` (prefer one call with \`questions: [...]\` batch, use allow_multiple when several options may apply). Do not re-ask the same question.
+Output the full markdown document in your reply. The UI saves it to a file and replaces the chat with a short summary + TODO list.
+Do NOT implement. Do NOT call switch_mode. Wait for user 승인 / 반려.
+Mermaid: quote labels with ( ), /, or <br/> — e.g. R["API<br/>(9)"]; DB as DB[(SQLite)].`,
 
   review: `You are Agent K in PLAN mode — REVIEW stage.
 
-The plan is in the review UI. Respond to user feedback only.
+The plan is in the review UI. Respond to feedback only.
+If the user feedback requires a clarifying decision, you may call \`ask_question\` (batch when possible).
 Do NOT implement. Do NOT call switch_mode.
-Build starts only when the user clicks Approve & Execute.`,
+Build starts only when the user clicks 승인 (Approve).`,
 
   build: `You are Agent K — BUILD mode.
 
-The plan has been approved by the user. Execute the TODOs in order.`
+The plan has been approved. Execute the TODOs in order.`
 };
 
 export class PlanModeController {
@@ -93,7 +88,37 @@ export class PlanModeController {
   }
 
   getStage(): PlanStage { return this.state.stage; }
-  getState(): PlanFlowState { return { ...this.state }; }
+  getState(): PlanFlowState {
+    return {
+      ...this.state,
+      questions: this.state.questions.map((q) => ({ ...q })),
+      planDocument: this.state.planDocument
+        ? { ...this.state.planDocument }
+        : null
+    };
+  }
+
+  /**
+   * Restore a parked per-session plan snapshot (tab switch).
+   * emit:false avoids UI stage callbacks overwriting Review open/closed.
+   */
+  hydrate(state: PlanFlowState, opts?: { emit?: boolean }): void {
+    this.state = {
+      stage: state.stage || 'research',
+      researchResults: state.researchResults || '',
+      questions: (state.questions || []).map((q) => ({
+        id: q.id,
+        question: q.question,
+        answer: q.answer || ''
+      })),
+      planDocument: state.planDocument ? { ...state.planDocument } : null,
+      approved: Boolean(state.approved),
+      error: state.error
+    };
+    if (opts?.emit !== false) {
+      this.onStageChange?.(this.state.stage);
+    }
+  }
 
   onStageChangeCallback(cb: (stage: PlanStage) => void): void {
     this.onStageChange = cb;
