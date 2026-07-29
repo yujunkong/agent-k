@@ -5,10 +5,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import mermaid from 'mermaid';
 import {
   aggressiveQuoteMermaid,
+  looksLikeMermaidSource,
   sanitizeMermaid
 } from '../mermaidSanitize';
 
-export { aggressiveQuoteMermaid, sanitizeMermaid } from '../mermaidSanitize';
+export {
+  aggressiveQuoteMermaid,
+  looksLikeMermaidSource,
+  sanitizeMermaid
+} from '../mermaidSanitize';
 
 let initialized = false;
 function initMermaid() {
@@ -80,6 +85,12 @@ export function MermaidDiagram({ definition, streaming }: MermaidDiagramProps) {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
+    if (!looksLikeMermaidSource(definition)) {
+      setSvg('');
+      setError(null);
+      return;
+    }
+
     if (streaming && definition.trim().length < 10) return;
 
     debounceRef.current = setTimeout(async () => {
@@ -115,6 +126,15 @@ export function MermaidDiagram({ definition, streaming }: MermaidDiagramProps) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [definition, streaming]);
+
+  // Prose / TODO lists wrongly fenced as mermaid — show as code, never Diagram error
+  if (!looksLikeMermaidSource(definition)) {
+    return (
+      <pre className="mermaid-fallback mermaid-fallback--not-diagram">
+        {definition}
+      </pre>
+    );
+  }
 
   if (error) {
     return (

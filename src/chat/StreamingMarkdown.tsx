@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CodeBlock } from './components/CodeBlock';
 import { MermaidDiagram } from './components/MermaidDiagram';
 import { repairCollapsedMarkdown } from './repairMarkdown';
+import { looksLikeMermaidSource } from './mermaidSanitize';
 
 interface StreamingMarkdownProps {
   content: string;
@@ -287,12 +288,24 @@ class MarkdownParser {
       return;
     }
     if (this.state === 'mermaid' && (this.currentNode.definition || '').length > 0) {
-      this.nodes.push({
-        id: nextId('mermaid'),
-        type: 'mermaid',
-        definition: this.currentNode.definition || '',
-        isComplete: !this.streaming
-      });
+      const def = this.currentNode.definition || '';
+      if (looksLikeMermaidSource(def)) {
+        this.nodes.push({
+          id: nextId('mermaid'),
+          type: 'mermaid',
+          definition: def,
+          isComplete: !this.streaming
+        });
+      } else {
+        // Unclosed/wrong fence ate prose (e.g. plan summary) — show as code, not Diagram error
+        this.nodes.push({
+          id: nextId('code'),
+          type: 'code',
+          lang: '',
+          code: def.replace(/^\n/, ''),
+          isComplete: !this.streaming
+        });
+      }
       return;
     }
     if (this.state === 'heading' && (this.currentNode.text != null || this.currentNode.level)) {
@@ -426,12 +439,23 @@ class MarkdownParser {
   private processMermaid(i: number, remaining: string): number {
     const atLineStart = i === 0 || this.buffer[i - 1] === '\n';
     if (atLineStart && remaining.startsWith('```')) {
-      this.finalizeNode({
-        id: nextId('mermaid'),
-        type: 'mermaid',
-        definition: (this.currentNode.definition || '').replace(/^\n/, '').replace(/\n$/, ''),
-        isComplete: true
-      });
+      const def = (this.currentNode.definition || '').replace(/^\n/, '').replace(/\n$/, '');
+      if (looksLikeMermaidSource(def)) {
+        this.finalizeNode({
+          id: nextId('mermaid'),
+          type: 'mermaid',
+          definition: def,
+          isComplete: true
+        });
+      } else {
+        this.finalizeNode({
+          id: nextId('code'),
+          type: 'code',
+          lang: '',
+          code: def,
+          isComplete: true
+        });
+      }
       return this.closeFence(i, remaining);
     }
     this.currentNode.definition = (this.currentNode.definition || '') + remaining[0];

@@ -4,13 +4,19 @@
 import type { ChatMessage } from './types';
 import { unescapeLiteralEscapes } from './displaySanitize';
 
+/** Count markdown checklist rows (`- [ ]` / `- [x]`). */
+export function countPlanCheckboxes(md: string): number {
+  return ((md || '').match(/^\s*[-*]\s+\[[ xX]?\]/gm) || []).length;
+}
+
 /** Heuristic: looks like a PLAN.md body worth opening in Review */
 export function looksLikePlanDocument(md: string): boolean {
   const t = (md || '').trim();
   if (t.length < 120) return false;
+  const checkboxes = countPlanCheckboxes(t);
   // Must have actionable checklist — prose-only exploration is not a plan
   const hasTodos =
-    /- \[[ xX]\]/.test(t) ||
+    checkboxes > 0 ||
     /##\s+TODOs?\b/i.test(t) ||
     // Numbered execution steps (models often skip checkbox syntax)
     (/(?:^|\n)\s*\d+\.\s+\S+/m.test(t) &&
@@ -21,17 +27,22 @@ export function looksLikePlanDocument(md: string): boolean {
     /##\s+(Context|Questions|Architecture|Risks|Approval|Implementation|Overview|Steps|TODOs?)\b/i.test(
       t
     );
+  // Substantial Step N checklists without ## headers still count
+  if (checkboxes >= 5 && /Step\s*\d+/i.test(t) && t.length >= 400) return true;
   return hasTitle || hasSection;
 }
 
 /**
- * Soften for planning-stage promote: long structured markdown with headings.
- * Still rejects short chatter / pure exploration notes.
+ * Soften for planning-stage promote: long structured markdown with headings
+ * or a substantial checkbox TODO list (models often omit ## sections).
  */
 export function looksLikePlanDraft(md: string): boolean {
   if (looksLikePlanDocument(md)) return true;
   const t = (md || '').trim();
   if (t.length < 400) return false;
+  const checkboxes = countPlanCheckboxes(t);
+  // Full implementation checklist dumped into chat — promote to Review
+  if (checkboxes >= 5) return true;
   const headings = (t.match(/^##\s+/gm) || []).length;
   const hasH1 = /^#\s+/m.test(t);
   return hasH1 && headings >= 2;
@@ -202,14 +213,26 @@ export function buildPlanChatSummary(planMd: string): string {
     .join(' ')
     .slice(0, 280);
 
+  const qaBlock = text.match(
+    /##\s+Questions(?:\s*&\s*Answers?)?\b[^\n]*\n+([\s\S]*?)(?=\n##\s|$)/i
+  )?.[1];
+  const qaLines = (qaBlock || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'))
+    .slice(0, 12);
+
   const lines = [
     `## ${title}`,
     '',
-    '전체 계획은 Review 문서에 저장했습니다. **승인**하면 리뷰를 마치고 계획대로 진행합니다. **반려**하면 수정합니다.',
+    '전체 계획은 **Review 창**에 저장했습니다. 아래 **승인 / 반려** 버튼(또는 상단 Review 창)으로 진행하세요. 파일 경로를 직접 찾을 필요는 없습니다.',
     ''
   ];
   if (blurb) {
     lines.push(blurb, '');
+  }
+  if (qaLines.length > 0) {
+    lines.push('### 확인된 답변', '', ...qaLines, '');
   }
   lines.push('### 진행 순서 (TODO)', '');
   if (todos.length > 0) {
@@ -217,6 +240,6 @@ export function buildPlanChatSummary(planMd: string): string {
   } else {
     lines.push('1. (TODO 항목을 Review 문서에서 확인하세요)');
   }
-  lines.push('', '_상세·아키텍처·리스크는 Review 패널 또는 에디터에서 확인하세요._');
+  lines.push('', '_상세·아키텍처·리스크는 바로 열린 Review 창에서 확인하세요. 창을 닫았다면 상단 **Review 다시 열기**를 누르세요._');
   return lines.join('\n');
 }

@@ -3,6 +3,25 @@
  * Kept free of React/mermaid so unit tests can import it cleanly.
  */
 
+/** True when text looks like a real Mermaid diagram (not prose / TODO lists). */
+export function looksLikeMermaidSource(definition: string): boolean {
+  const t = (definition || '')
+    .replace(/\r\n/g, '\n')
+    .trim()
+    .replace(/^```(?:mermaid)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+  if (!t || t.length < 8) return false;
+  // Chat summaries / plan TODOs must never hit the Mermaid renderer
+  if (/^#{1,6}\s/.test(t) || /^#{1,6}\s/m.test(t.slice(0, 80))) return false;
+  if (/진행 순서|선택한 답변|Questions?\s*&?\s*Answers?/i.test(t.slice(0, 200))) {
+    return false;
+  }
+  return /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|mindmap|timeline|gitGraph|C4Context|C4Container|C4Component)\b/i.test(
+    t
+  );
+}
+
 function quoteLabel(raw: string): string {
   const t = raw.trim();
   if (!t) return '""';

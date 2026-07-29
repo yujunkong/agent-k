@@ -122,9 +122,9 @@ const askQuestionTool: ToolDefinition = {
   name: 'ask_question',
   description:
     'Ask the user clarifying REQUIREMENT question(s) (Clarifying Questions UI). ' +
-    'Prefer ONE call that batches all open decisions via questions:[{question,options,allow_multiple}]. ' +
+    'After research, prefer ONE call that batches EVERY open decision via questions:[{question,options,allow_multiple}] — as many as needed, no small cap. ' +
     'Set allow_multiple=true when the user may pick several options (checkboxes). ' +
-    'Do not repeat the same question. options MUST be plain strings, never objects.',
+    'Do not drip one question per turn. Do not repeat the same question. options MUST be plain strings, never objects.',
   parameters: {
     type: 'object',
     properties: {
@@ -148,7 +148,7 @@ const askQuestionTool: ToolDefinition = {
       questions: {
         type: 'array',
         description:
-          'Batch of questions in one UI round. Prefer this over calling ask_question repeatedly.',
+          'Batch of ALL open questions in one UI round (no max count). Prefer this over calling ask_question repeatedly.',
         items: {
           type: 'object',
           properties: {

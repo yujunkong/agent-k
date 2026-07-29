@@ -11,7 +11,7 @@ import type { Mode, ToolDefinition } from '../agent/types';
 import type { ModelTier } from '../harness/ModelTiers';
 import { getToolNamesForTier } from '../harness/AWhitelist';
 import { modeRegistry } from '../agent/modeRegistry';
-import { isWriteToolName } from '../plan/writeGate';
+import { isWriteToolName, isPlanExploreToolName } from '../plan/writeGate';
 
 export type GetSchemasOptions = {
   /** Plan FSM stage — write tools only when `build` */
@@ -70,8 +70,19 @@ export class ToolRegistry {
     }
 
     // Plan research/questions/planning/review: read-only (+ ask_question / todo)
+    // After first questions (planning): hide explore + ask_question — prose plan only
     if (mode === 'plan' && !planBuild) {
       if (writeLike || tool.category === 'debug') return false;
+      if (planStage === 'planning') {
+        if (isPlanExploreToolName(tool.name) || tool.name === 'ask_question') {
+          return false;
+        }
+      }
+      if (planStage === 'questions') {
+        if (isPlanExploreToolName(tool.name)) return false;
+        // Keep ask_question out once the clarifying UI is up (one batch only)
+        if (tool.name === 'ask_question') return false;
+      }
       return (
         tool.modeAllowlist.includes('plan') &&
         modeRegistry.isToolAllowed('plan', tool.name)

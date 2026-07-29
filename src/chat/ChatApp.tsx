@@ -33,7 +33,7 @@ import type { PlanStage } from '../plan/PlanModeController';
 import { PlanModeController } from '../plan/PlanModeController';
 import { ClarifyingQuestions } from '../plan/ClarifyingQuestions';
 import { PlanReview } from '../plan/PlanReview';
-import { planGenerator } from '../plan/PlanGenerator';
+import { planGenerator, type PlanDocument } from '../plan/PlanGenerator';
 import { DebugModeUI } from './components/DebugModeUI';
 import { DebugModeController } from '../debug/DebugModeController';
 import type { DebugStage, Hypothesis } from '../debug/DebugModeController';
@@ -274,6 +274,8 @@ export function ChatApp() {
   const [planStage, setPlanStage] = useState<PlanStage>('research');
   const [showClarifying, setShowClarifying] = useState(false);
   const [showPlanReview, setShowPlanReview] = useState(false);
+  /** React-owned copy so Review overlay re-renders when controller mutates */
+  const [planReviewDoc, setPlanReviewDoc] = useState<PlanDocument | null>(null);
   // Clarifying questions via AskQuestionTool bridge (RW-C5-02)
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestion[]>([]);
   /** True while host is blocked on ask_question — Composer shows Waiting… not Streaming… */
@@ -391,6 +393,8 @@ export function ChatApp() {
           apiUserContent?: string;
           modeOverride?: Mode;
           planStageOverride?: string;
+          /** API에만 전달 — 채팅에 사용자 말풍선 안 그림 (질문 완료 핸드오프 등) */
+          hideUserBubble?: boolean;
         }
       ) => Promise<void>)
     | null
@@ -432,6 +436,7 @@ export function ChatApp() {
     planController.reset();
     setPlanStage('research');
     setShowPlanReview(false);
+    setPlanReviewDoc(null);
     setShowClarifying(false);
     setPendingQuestions([]);
     lastPromotedPlanRef.current = '';
@@ -463,6 +468,11 @@ export function ChatApp() {
       planController.hydrate(snap.flow, { emit: false });
       setPlanStage(snap.flow.stage || 'research');
       setShowPlanReview(Boolean(snap.showPlanReview));
+      setPlanReviewDoc(
+        snap.flow.planDocument?.content?.trim()
+          ? { ...snap.flow.planDocument }
+          : null
+      );
       setShowClarifying(Boolean(snap.showClarifying));
       setPendingQuestions(snap.pendingQuestions || []);
       lastPromotedPlanRef.current = snap.lastPromotedPlan || '';
@@ -825,11 +835,13 @@ export function ChatApp() {
         const existing = planController.getState().planDocument;
         if (existing) {
           // Patch slug/title only — never reset stage (Review must stay open)
-          void planController.setPlanDocument({
+          const patched = {
             ...existing,
             slug: String(data.slug),
             title: String(data.title || existing.title)
-          });
+          };
+          void planController.setPlanDocument(patched);
+          setPlanReviewDoc(patched);
         }
         if (data.filePath) {
           console.info('[Agent K] Plan saved:', data.filePath);
@@ -840,14 +852,16 @@ export function ChatApp() {
       if (data.type === 'plan.loaded' && data.content != null) {
         const existing = planController.getState().planDocument;
         if (existing) {
-          void planController.setPlanDocument({
+          const patched = {
             ...existing,
             slug: String(data.slug || existing.slug),
             title: String(data.title || existing.title),
             content: String(data.content),
             sections: planGenerator.parseDocument(String(data.content)),
             todoCount: planGenerator.extractTodos(String(data.content)).length
-          });
+          };
+          void planController.setPlanDocument(patched);
+          setPlanReviewDoc(patched);
         }
         return;
       }
@@ -1035,19 +1049,30 @@ export function ChatApp() {
     planController.onStageChangeCallback((stage: PlanStage) => {
       setPlanStage(stage);
       setShowClarifying(stage === 'questions');
-      // Never auto-open empty Plan editor on "planning" — agent writes the plan first.
-      // Open editor only in review when a real document exists.
-      if (stage === 'review' && planController.getState().planDocument?.content?.trim()) {
-        setShowPlanReview(true);
-      } else if (stage === 'planning' || stage === 'research' || stage === 'questions') {
+      // Open Review only when a document exists; never close an already-open Review
+      // from a stale planning callback after promote.
+      if (stage === 'review') {
+        const doc =
+          planController.getState().planDocument?.content?.trim() ||
+          lastPromotedPlanRef.current.trim();
+        if (doc) setShowPlanReview(true);
+      } else if (
+        stage === 'research' ||
+        stage === 'questions' ||
+        stage === 'build'
+      ) {
         setShowPlanReview(false);
       }
+      // planning: leave showPlanReview as-is (promote may race with moveToPlanning)
     });
   }, [planController]);
 
   /** Persist plan draft + open Review overlay (idempotent per content hash) */
   const promotePlanToReview = useCallback(
-    (planMdRaw: string, opts?: { slug?: string; title?: string }) => {
+    (
+      planMdRaw: string,
+      opts?: { slug?: string; title?: string; skipChatRewrite?: boolean }
+    ) => {
       const planMd = dedupeRepeatedPlanDocument(planMdRaw.trim());
       if (!planMd || planMd === '(no response)') return false;
 
@@ -1062,7 +1087,58 @@ export function ChatApp() {
           ? existingSlug
           : undefined);
 
-      // Always write `<workspace>/.agentk/plans/tmp/plan_*.md` (even on re-open)
+      const summary = buildPlanChatSummary(planMd);
+      lastPromotedPlanRef.current = planMd;
+      promotePlanOnCompleteRef.current = false;
+
+      let sections: ReturnType<typeof planGenerator.parseDocument> = [];
+      try {
+        sections = planGenerator.parseDocument(planMd);
+      } catch {
+        sections = [];
+      }
+      const doc: PlanDocument = {
+        slug: slugForSave || existingSlug || 'plan_pending',
+        title,
+        content: planMd,
+        sections,
+        todoCount: planGenerator.extractTodos(planMd).length,
+        createdAt: Date.now()
+      };
+
+      // Sync controller + React state BEFORE opening overlay (avoid empty-frame race)
+      void planController.setPlanDocument(doc);
+      void planController.moveToReview().catch((e) => {
+        setError(e instanceof Error ? e.message : 'Plan review로 이동하지 못했습니다.');
+      });
+      setPlanReviewDoc(doc);
+      setPlanStage('review');
+      planStageRef.current = 'review';
+      setShowPlanReview(true);
+      setShowClarifying(false);
+      setAwaitingUser(false);
+
+      if (!opts?.skipChatRewrite) {
+        setMessages((prev) => {
+          const next = [...prev];
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i].role !== 'assistant') continue;
+            next[i] = {
+              ...next[i],
+              status: 'complete',
+              content: summary,
+              openingLead: undefined,
+              turnProse: undefined,
+              planDrafting: undefined
+            };
+            break;
+          }
+          messagesRef.current = next;
+          return next;
+        });
+      }
+
+      // Always write `<workspace>/.agentk/plans/tmp/plan_*.md`
       try {
         const api =
           (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
@@ -1073,60 +1149,14 @@ export function ChatApp() {
             type: 'plan.save',
             title,
             content: planMd,
-            slug: slugForSave
+            slug: slugForSave,
+            quiet: true
           });
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Plan 저장 요청 실패');
       }
 
-      if (planMd === lastPromotedPlanRef.current && planStageRef.current === 'review') {
-        setShowPlanReview(true);
-        return true;
-      }
-
-      let sections: ReturnType<typeof planGenerator.parseDocument> = [];
-      try {
-        sections = planGenerator.parseDocument(planMd);
-      } catch {
-        sections = [];
-      }
-      void planController
-        .setPlanDocument({
-          slug: slugForSave || existingSlug || 'plan_pending',
-          title,
-          content: planMd,
-          sections,
-          todoCount: planGenerator.extractTodos(planMd).length,
-          createdAt: Date.now()
-        })
-        .then(() => planController.moveToReview())
-        .then(() => {
-          lastPromotedPlanRef.current = planMd;
-          promotePlanOnCompleteRef.current = false;
-          setPlanStage('review');
-          setShowPlanReview(true);
-          // Always replace the latest assistant bubble with summary+TODO
-          const summary = buildPlanChatSummary(planMd);
-          setMessages((prev) => {
-            const next = [...prev];
-            for (let i = next.length - 1; i >= 0; i--) {
-              if (next[i].role !== 'assistant') continue;
-              next[i] = {
-                ...next[i],
-                content: summary,
-                openingLead: undefined,
-                turnProse: undefined
-              };
-              break;
-            }
-            messagesRef.current = next;
-            return next;
-          });
-        })
-        .catch((e) => {
-          setError(e instanceof Error ? e.message : 'Plan review로 이동하지 못했습니다.');
-        });
       return true;
     },
     [planController]
@@ -1299,13 +1329,15 @@ export function ChatApp() {
       apiUserContent?: string;
       modeOverride?: Mode;
       planStageOverride?: string;
+      /** Pass instructions to the agent without a second user chat bubble */
+      hideUserBubble?: boolean;
     }
   ) => {
-    if (!text.trim() && files.length === 0) return;
+    if (!text.trim() && files.length === 0 && !opts?.apiUserContent?.trim()) return;
     setError(null);
 
     // ADDON-T10: raw "/command" typed + Enter (not via composer palette Tab-select)
-    if (files.length === 0 && text.trim().startsWith('/')) {
+    if (files.length === 0 && text.trim().startsWith('/') && !opts?.hideUserBubble) {
       const resolved = resolveSlashCommand(text);
       if (resolved.ok) {
         runSlashCommandRef.current?.(resolved.cmd);
@@ -1341,7 +1373,7 @@ export function ChatApp() {
       const t0 = Date.now();
       const prefetchSource = [mentionBlock, displayText].filter(Boolean).join('\n');
       const harnessCtx = await buildHarnessTurnContext(
-        prefetchSource || displayText,
+        prefetchSource || displayText || payload.slice(0, 500),
         effectiveMode,
         'A'
       );
@@ -1366,29 +1398,51 @@ export function ChatApp() {
 
     if (epoch !== sendEpochRef.current) return;
 
-    // UI: 사용자 입력만 — harness/resynth wrapper는 API 요청에만 주입
-    const userMsg: ChatMessage = {
-      id: uuidv4(),
-      role: 'user',
-      content: displayText,
-      timestamp: Date.now(),
-      attachments: files,
-      status: 'complete'
-    };
+    const planningDraft =
+      effectiveMode === 'plan' &&
+      (opts?.planStageOverride === 'planning' ||
+        promotePlanOnCompleteRef.current ||
+        planStageRef.current === 'planning');
+
     const assistantMsg: ChatMessage = {
       id: uuidv4(),
       role: 'assistant',
-      content: '',
+      content: planningDraft ? '계획 문서 작성을 시작합니다.' : '',
       timestamp: Date.now(),
-      status: 'streaming'
+      status: 'streaming',
+      planDrafting: planningDraft || undefined
     };
 
-    // Snapshot + clean before append (avoid stale closure undoing interrupt cleanup)
     const cleaned = cleanupStreamingAssistants(messagesRef.current);
-    const nextMessages = [...cleaned, userMsg, assistantMsg];
-    const apiMessages = nextMessages
-      .filter((m) => m.id !== assistantMsg.id)
-      .map((m) => (m.id === userMsg.id ? { ...m, content: payload } : m));
+    let nextMessages: ChatMessage[];
+    let apiMessages: ChatMessage[];
+
+    if (opts?.hideUserBubble) {
+      // Silent handoff: Q&A / plan instructions go to the model only
+      const apiUserMsg: ChatMessage = {
+        id: uuidv4(),
+        role: 'user',
+        content: payload,
+        timestamp: Date.now(),
+        status: 'complete'
+      };
+      nextMessages = [...cleaned, assistantMsg];
+      apiMessages = [...cleaned, apiUserMsg];
+    } else {
+      const userMsg: ChatMessage = {
+        id: uuidv4(),
+        role: 'user',
+        content: displayText,
+        timestamp: Date.now(),
+        attachments: files,
+        status: 'complete'
+      };
+      nextMessages = [...cleaned, userMsg, assistantMsg];
+      apiMessages = nextMessages
+        .filter((m) => m.id !== assistantMsg.id)
+        .map((m) => (m.id === userMsg.id ? { ...m, content: payload } : m));
+    }
+
     messagesRef.current = nextMessages;
     setMessages(nextMessages);
     // New turn — pin to latest (user just sent)
@@ -1770,90 +1824,114 @@ export function ChatApp() {
         if (epoch !== sendEpochRef.current) return;
         setAwaitingUser(false);
         let completedAssistant: ChatMessage | undefined;
+        let promotedPlanMd = '';
         setMessages((prev) => {
           const lastIdx = prev.length - 1;
           if (lastIdx < 0 || prev[lastIdx].role !== 'assistant') return prev;
           // Already sealed (e.g. cleanup raced) — still capture for plan promote
           if (prev[lastIdx].status !== 'streaming') {
             completedAssistant = prev[lastIdx];
+          } else {
+            const newMsgs = [...prev];
+            let content = stripFakeToolMarkup(newMsgs[lastIdx].content);
+            // Drop leftover status if somehow still in content
+            if (/^🔧/.test(content.trim()) && content.length < 80) {
+              content = '';
+            }
+            const prevSteps = newMsgs[lastIdx].steps || [];
+            const steps = prevSteps.map((s) =>
+              s.itemStatus === 'running' ? { ...s, itemStatus: 'done' as const } : s
+            );
+            // Fold any legacy openingLead into body — no top lead promotion
+            const leadLeft = (newMsgs[lastIdx].openingLead || '').trim();
+            const body = content.trim();
+            const finalContent = (
+              leadLeft && body && !body.includes(leadLeft)
+                ? `${leadLeft}${body}`.trim()
+                : body || leadLeft
+            );
+            const draft = dedupeAssistantBody({
+              ...newMsgs[lastIdx],
+              toolStatus: undefined,
+              openingLead: undefined,
+              content: finalContent,
+              steps,
+              workedDurationMs: Math.max(
+                0,
+                Date.now() - (newMsgs[lastIdx].timestamp || Date.now())
+              )
+            });
+            const hasBody = Boolean(draft.content?.trim());
+            const hasOther =
+              (draft.turnProse?.length ?? 0) > 0 ||
+              (draft.steps?.length ?? 0) > 0 ||
+              (draft.fileEdits?.length ?? 0) > 0 ||
+              (draft.terminalRuns?.length ?? 0) > 0;
+            newMsgs[lastIdx] = {
+              ...draft,
+              status: hasBody || hasOther ? 'complete' : 'error',
+              content: hasBody ? draft.content : hasOther ? '' : '(no response)'
+            };
+            completedAssistant = newMsgs[lastIdx];
+            messagesRef.current = newMsgs;
+            prev = newMsgs;
+          }
+
+          // Plan: one atomic write — summary in chat, never flash full PLAN.md then replace
+          const stageNow = planStageRef.current;
+          const shouldPromotePlan =
+            effectiveMode === 'plan' &&
+            (promotePlanOnCompleteRef.current ||
+              stageNow === 'planning' ||
+              stageNow === 'questions' ||
+              stageNow === 'research');
+          if (!shouldPromotePlan || !completedAssistant) {
             return prev;
           }
-          const newMsgs = [...prev];
-          let content = stripFakeToolMarkup(newMsgs[lastIdx].content);
-          // Drop leftover status if somehow still in content
-          if (/^🔧/.test(content.trim()) && content.length < 80) {
-            content = '';
-          }
-          const prevSteps = newMsgs[lastIdx].steps || [];
-          const steps = prevSteps.map((s) =>
-            s.itemStatus === 'running' ? { ...s, itemStatus: 'done' as const } : s
-          );
-          // Fold any legacy openingLead into body — no top lead promotion
-          const leadLeft = (newMsgs[lastIdx].openingLead || '').trim();
-          const body = content.trim();
-          const finalContent = (
-            leadLeft && body && !body.includes(leadLeft)
-              ? `${leadLeft}${body}`.trim()
-              : body || leadLeft
-          );
-          const draft = dedupeAssistantBody({
-            ...newMsgs[lastIdx],
-            toolStatus: undefined,
-            openingLead: undefined,
-            content: finalContent,
-            steps,
-            workedDurationMs: Math.max(
-              0,
-              Date.now() - (newMsgs[lastIdx].timestamp || Date.now())
-            )
-          });
-          const hasBody = Boolean(draft.content?.trim());
-          const hasOther =
-            (draft.turnProse?.length ?? 0) > 0 ||
-            (draft.steps?.length ?? 0) > 0 ||
-            (draft.fileEdits?.length ?? 0) > 0 ||
-            (draft.terminalRuns?.length ?? 0) > 0;
-          newMsgs[lastIdx] = {
-            ...draft,
-            status: hasBody || hasOther ? 'complete' : 'error',
-            content: hasBody ? draft.content : hasOther ? '' : '(no response)'
-          };
-          completedAssistant = newMsgs[lastIdx];
-          messagesRef.current = newMsgs;
-          return newMsgs;
-        });
-        // Plan mode: after planning turn, promote assistant text → PlanReview + plan_<hash>.md
-        const stageNow = planStageRef.current;
-        const shouldPromotePlan =
-          effectiveMode === 'plan' &&
-          (promotePlanOnCompleteRef.current ||
-            stageNow === 'planning' ||
-            stageNow === 'questions' ||
-            stageNow === 'research');
-        if (shouldPromotePlan) {
-          const last =
-            completedAssistant ||
-            [...messagesRef.current]
-              .reverse()
-              .find((m) => m.role === 'assistant');
-          let planMd = extractPlanMarkdownFromMessage(last);
+
+          let planMd = extractPlanMarkdownFromMessage(completedAssistant);
           const soft =
             promotePlanOnCompleteRef.current || stageNow === 'planning';
           const ok = soft
             ? looksLikePlanDraft(planMd) || looksLikePlanDocument(planMd)
             : looksLikePlanDocument(planMd);
           if (!ok) {
-            planMd = findLatestPlanMarkdown(messagesRef.current);
+            planMd = findLatestPlanMarkdown(
+              messagesRef.current.length ? messagesRef.current : prev
+            );
           }
           if (
-            looksLikePlanDocument(planMd) ||
-            (soft && looksLikePlanDraft(planMd))
+            !(
+              looksLikePlanDocument(planMd) ||
+              (soft && looksLikePlanDraft(planMd))
+            )
           ) {
-            promotePlanToReview(planMd);
+            return prev;
           }
-          // Do not clear promote flag on empty — wait for recovery / next complete
-        }
-        if (
+
+          promotedPlanMd = planMd;
+          const summary = buildPlanChatSummary(planMd);
+          const next = [...prev];
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i].role !== 'assistant') continue;
+            next[i] = {
+              ...next[i],
+              status: 'complete',
+              content: summary,
+              openingLead: undefined,
+              turnProse: undefined
+            };
+            completedAssistant = next[i];
+            break;
+          }
+          messagesRef.current = next;
+          return next;
+        });
+
+        if (promotedPlanMd) {
+          // Side effects only — chat already has summary (no second content swap)
+          promotePlanToReview(promotedPlanMd, { skipChatRewrite: true });
+        } else if (
           effectiveMode === 'plan' &&
           (planStageRef.current === 'research' ||
             planStageRef.current === 'questions') &&
@@ -2318,7 +2396,7 @@ export function ChatApp() {
     setAwaitingUser(false);
   }, [planController, mode, debugController, sealAskingSteps]);
 
-  /** Plan: 질문 완료 → Planning 단계 + 계획 문서 작성 (ask_question 잠금) */
+  /** Plan: 질문 완료 → 선택 답변 요약 표시 + Planning 핸드오프 */
   const questionsCompleteInFlightRef = useRef(false);
   const handleQuestionsComplete = useCallback(() => {
     if (mode !== 'plan') {
@@ -2350,7 +2428,26 @@ export function ChatApp() {
       .getQuestions()
       .map((q) => `- **Q:** ${q.question}\n  **A:** ${q.answer || '(no answer)'}`)
       .join('\n');
-    const research = (planController.getState().researchResults || '').trim();
+    let research = (planController.getState().researchResults || '').trim();
+    // Prefer latest assistant research wrap-up if controller notes are empty
+    if (!research) {
+      for (let i = messagesRef.current.length - 1; i >= 0; i--) {
+        const m = messagesRef.current[i];
+        if (m.role !== 'assistant') continue;
+        const blob = [
+          m.content,
+          ...(m.turnProse || []).map((p) => p.content)
+        ]
+          .filter(Boolean)
+          .join('\n\n')
+          .trim();
+        if (blob.length >= 200) {
+          research = blob.slice(0, 6000);
+          void planController.completeResearch(research);
+          break;
+        }
+      }
+    }
 
     void planController
       .moveToPlanning()
@@ -2364,24 +2461,26 @@ export function ChatApp() {
         sealAskingSteps();
         promotePlanOnCompleteRef.current = true;
 
-        const displayText = '답변을 반영해 계획 문서를 작성해 주세요.';
         const apiUserContent = [
-          'Clarifying answers are in. Prefer writing the COMPLETE plan markdown now.',
-          'If a truly new decision remains, you may call ask_question once with a questions[] batch (allow_multiple when needed). Do not re-ask answered questions.',
-          'Plan sections: Context, Questions & Answers, Architecture with mermaid, TODOs as `- [ ]` ordered steps, Risks, Approval.',
+          'Clarifying answers are confirmed (not shown as a chat bubble).',
+          'CRITICAL: Exploration and ask_question are BLOCKED. Do not call read/search/ask tools.',
+          'CRITICAL: Your FIRST content line must be exactly: 계획 문서 작성을 시작합니다.',
+          'THEN immediately write the COMPLETE plan markdown (Context, Questions & Answers, Architecture with mermaid, TODOs as `- [ ]`, Risks, Approval).',
+          'Do not paraphrase at length before writing — one short start line, then the full plan.',
           'Do not implement or edit product files. Do not call switch_mode.',
-          'The UI will save the document to `.agentk/plans/tmp/plan_*.md` and replace the chat bubble with a short summary + TODO list for Review.',
+          'The UI shows "작성 중", saves `.agentk/plans/tmp/plan_*.md`, then replaces the chat with a short summary + TODO list and opens Review. Then STOP.',
           '',
-          research ? `## Research notes\n${research.slice(0, 6000)}` : '',
+          research ? `## Research notes (already gathered — reuse, do not re-explore)\n${research.slice(0, 6000)}` : '',
           '',
-          '## Clarifying answers',
+          '## Clarifying answers (user confirmed)',
           qa || '(none)',
         ]
           .filter(Boolean)
           .join('\n');
-        return handleSend(displayText, [], {
+        return handleSend('', [], {
           apiUserContent,
-          planStageOverride: 'planning'
+          planStageOverride: 'planning',
+          hideUserBubble: true
         });
       })
       .catch(() => {
@@ -2417,7 +2516,9 @@ export function ChatApp() {
   const handlePlanEdit = useCallback((content: string) => {
     const existing = planController.getState().planDocument;
     if (!existing) return;
-    void planController.setPlanDocument({ ...existing, content });
+    const next = { ...existing, content };
+    void planController.setPlanDocument(next);
+    setPlanReviewDoc(next);
     try {
       const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
       api?.postMessage?.({
@@ -2538,20 +2639,22 @@ export function ChatApp() {
 
   /** Re-open Review UI (or promote latest plan markdown into Review) */
   const handleOpenReview = useCallback(() => {
-    if (planStage === 'review') {
-      const doc = planController.getState().planDocument?.content?.trim();
-      if (doc) {
-        setShowPlanReview(true);
-        return;
-      }
+    const fromState =
+      planReviewDoc?.content?.trim() ||
+      planController.getState().planDocument?.content?.trim() ||
+      lastPromotedPlanRef.current.trim();
+    if (fromState) {
+      promotePlanToReview(fromState, { skipChatRewrite: true });
+      return;
     }
     const md = findLatestPlanMarkdown(messages);
     if (md) promotePlanToReview(md);
-  }, [planStage, planController, messages, promotePlanToReview]);
+  }, [planController, planReviewDoc, messages, promotePlanToReview]);
 
   /** Discard plan document and leave Review (no window.confirm — blocked in webview) */
   const handleDiscardPlan = useCallback(() => {
     const discarded =
+      planReviewDoc?.content?.trim() ||
       planController.getState().planDocument?.content?.trim() ||
       findLatestPlanMarkdown(messages);
     planController.discardPlan();
@@ -2559,12 +2662,13 @@ export function ChatApp() {
     lastPromotedPlanRef.current = discarded || 'discarded';
     promotePlanOnCompleteRef.current = false;
     setShowPlanReview(false);
+    setPlanReviewDoc(null);
     setShowClarifying(false);
     setPendingQuestions([]);
     setAwaitingUser(false);
     setPlanStage('research');
     parkPlanForSession(sessionIdRef.current);
-  }, [planController, messages, parkPlanForSession]);
+  }, [planController, planReviewDoc, messages, parkPlanForSession]);
 
   /** Debug: 가설 선택 → 계측 단계 진입 (RW-C6-01) */
   const handleSelectHypothesis = useCallback((id: string) => {
@@ -2932,15 +3036,12 @@ export function ChatApp() {
           currentStage={planStage}
           stages={['research', 'questions', 'planning', 'review', 'build']}
           reviewOpen={showPlanReview}
-          canOpenReview={
-            (planStage === 'planning' &&
-              looksLikePlanDocument(findLatestPlanMarkdown(messages))) ||
-            (planStage === 'review' &&
-              Boolean(
-                planController.getState().planDocument?.content?.trim() ||
-                  looksLikePlanDocument(findLatestPlanMarkdown(messages))
-              ))
-          }
+          canOpenReview={Boolean(
+            planReviewDoc?.content?.trim() ||
+              planController.getState().planDocument?.content?.trim() ||
+              lastPromotedPlanRef.current.trim() ||
+              looksLikePlanDocument(findLatestPlanMarkdown(messages))
+          )}
           onOpenReview={handleOpenReview}
           onDiscardPlan={handleDiscardPlan}
         />
@@ -2970,10 +3071,14 @@ export function ChatApp() {
       )}
 
       {/* Plan review: Approve & Execute is the only path into Build */}
-      {showPlanReview && planController.getState().planDocument?.content?.trim() ? (
+      {showPlanReview &&
+      (planReviewDoc?.content?.trim() ||
+        planController.getState().planDocument?.content?.trim()) ? (
         <div className="plan-editor-overlay" role="dialog" aria-label="Plan review">
           <PlanReview
-            document={planController.getState().planDocument!}
+            document={
+              planReviewDoc || planController.getState().planDocument!
+            }
             questionsAnswered={planController.areAllQuestionsAnswered()}
             onApprove={handlePlanApprove}
             onReject={handlePlanReject}
@@ -3034,6 +3139,13 @@ export function ChatApp() {
               isLastAssistant={
                 item.role === 'assistant' && item.id === lastAssistantId
               }
+              forcePlanDrafting={
+                mode === 'plan' &&
+                planStage === 'planning' &&
+                streaming &&
+                item.role === 'assistant' &&
+                item.id === lastAssistantId
+              }
               onEdit={handleEditMessage}
               onFork={handleFork}
               onStopAndPrefill={handleStopAndPrefill}
@@ -3042,7 +3154,7 @@ export function ChatApp() {
               onContinueMission={() => {
                 void handleSendRef.current?.(
                   mode === 'plan'
-                    ? '이어서 진행해 주세요. 리서치를 마쳤으면 결정이 필요할 때만 질문하고, 아니면 계획 문서를 작성한 뒤 요약+TODO만 보여 주세요. 혼자 질문/계획을 반복하지 마세요.'
+                    ? '이어서 진행해 주세요. 이미 리서치했다면 다시 구조를 파악하지 마세요. 결정이 더 필요하면 ask_question으로 질문을 한 번에 많이 묶고, 아니면 계획 문서를 바로 작성하세요.'
                     : '계속. 중단하지 말고 위 도구 결과에 이어서 임무를 끝까지 완료해.',
                   []
                 );

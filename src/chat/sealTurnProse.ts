@@ -1,10 +1,12 @@
 /**
  * When tools start again, preserve mid-turn assistant prose.
  *
+ * - Settled findings / summaries → turnProse (UI hoists below Worked)
  * - First seal of a dig (no explore tools yet this turn) → visible turnProse lead
  * - Later seals while Exploring already has tools → fold into Thought (self-talk)
  */
 import type { ChatMessage } from './types';
+import { isAnswerLikeTurnProse } from './turnProseSplit';
 
 const TOOL_KINDS = new Set([
   'searching',
@@ -130,6 +132,16 @@ export function sealBodyBeforeTools(
   }
 
   const sealTurn = Math.max(1, currentTurn || 1);
+
+  // Research wrap-ups / findings → turnProse (MessageBubble shows below Worked)
+  if (isAnswerLikeTurnProse(coalesced)) {
+    return {
+      ...msg,
+      openingLead: undefined,
+      content: '',
+      turnProse: pushProse(msg.turnProse || [], sealTurn, coalesced)
+    };
+  }
 
   if (hasExploreToolsThisTurn(msg, sealTurn)) {
     return foldTextIntoThought(msg, coalesced, sealTurn);

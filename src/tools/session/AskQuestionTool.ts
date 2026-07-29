@@ -90,7 +90,7 @@ export class AskQuestionTool {
   async execute(input: ToolInput): Promise<ToolOutput> {
     const items = parseAskItems(input);
     const timeoutMs =
-      typeof input.timeoutMs === 'number' ? (input.timeoutMs as number) : 600_000;
+      typeof input.timeoutMs === 'number' ? (input.timeoutMs as number) : 3_600_000;
 
     const prepared: PendingQuestion[] = [];
     for (const item of items) {
@@ -182,10 +182,16 @@ export class AskQuestionTool {
         this.pendingQuestions.delete(p.id);
       }
       const msg = err?.message || String(err);
+      const timedOut = /timed out/i.test(msg);
       return {
         success: false,
-        error: msg,
-        data: { status: 'cancelled', count: prepared.length }
+        error: timedOut
+          ? `USER_WAITING: ${msg}. Stop now. Do not invent answers or rewrite the plan. Wait for the next user message.`
+          : msg,
+        data: {
+          status: timedOut ? 'waiting' : 'cancelled',
+          count: prepared.length
+        }
       };
     }
   }

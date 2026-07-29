@@ -53,6 +53,11 @@ export interface ChatMessage {
     turn: number;
     content: string;
   }>;
+  /**
+   * Plan planning turn: show "작성 중" immediately while streaming
+   * (full PLAN.md is hidden until promote → summary).
+   */
+  planDrafting?: boolean;
   metadata?: {
     model: string;
     tokens: { input: number; output: number };

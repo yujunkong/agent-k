@@ -36,6 +36,7 @@ import {
   isDebugToolAllowedForStage,
   type DebugStage
 } from '../debug/DebugModeController';
+import { looksLikePlanDocument, looksLikePlanDraft } from '../chat/planPromote';
 
 /** After tools finish — require a real user-visible wrap-up message */
 const WRAP_UP_NUDGE = `Tools for this request are finished. Write the user-visible final reply now in the user's language (Korean if they wrote Korean). Do NOT call tools.
@@ -47,11 +48,12 @@ Required:
 
 Use clean Markdown (## headings, - bullets). No "Proceeding to…", no "이제 작성하겠습니다" status lines — this is the closing message the user reads under Worked for.`;
 
-/** Plan research/planning — wrap-up is findings, not "what I edited" */
-const WRAP_UP_NUDGE_PLAN = `Tools for this PLAN turn are finished. Write the user-visible reply now in Korean (if the user wrote Korean). Do NOT call tools.
+/** Plan research/planning — wrap-up is findings OR one plan doc, then STOP for Review */
+const WRAP_UP_NUDGE_PLAN = `Tools for this PLAN turn are finished. Write the user-visible reply now in Korean (if the user wrote Korean). Do NOT call tools unless ask_question.
 
-If you are drafting the plan (planning stage): output the FULL plan markdown with Context, Architecture, TODOs (\`- [ ]\`), Risks — then stop. Do NOT ask more questions.
-If you are still researching: short findings only. If a real decision remains and ask_question is available, you may ask once — otherwise stop and wait.
+If you are drafting the plan (planning stage): start with "계획 문서 작성을 시작합니다." then output the FULL plan markdown ONCE — then STOP. Do NOT call tools. Do NOT restart research.
+If you already output a full plan with checkboxes above in this turn: reply with one short sentence only (e.g. "Review에서 확인해 주세요.") — do NOT dump the document again.
+If you just finished researching: short findings, THEN call ask_question ONCE with questions:[{...}] covering EVERY open decision (as many as needed). Do not explore again after asking.
 No raw file dumps. If the user only said a greeting, a short hello is enough.`;
 
 /** Second chance for tiny models that ignore the long nudge */
@@ -535,7 +537,7 @@ export class AgentLoopController {
             error:
               this.config.mode === 'ask'
                 ? `[Ask Mode] "${tc.name}" is unavailable. Answer in Markdown or ask the user to switch to Agent mode. Do not retry write tools.`
-                : `[Plan Mode] "${tc.name}" is unavailable until Approve & Execute. Continue with research/ask_question/plan prose only.`
+                : `[Plan Mode] "${tc.name}" is unavailable until Approve & Execute. Write the plan markdown once in chat (UI saves the file + opens Review), then STOP and wait for 승인. Do not retry write tools.`
           };
           this.messages.push({
             role: 'tool',
@@ -630,6 +632,26 @@ export class AgentLoopController {
 
           if (!result.success) {
             this.consecutiveFailures++;
+            // Plan: user didn't answer ask_question (timeout/cancel) → stop.
+            // Do not invent answers or keep regenerating the plan document.
+            if (
+              toolCall.name === 'ask_question' &&
+              this.config.mode === 'plan' &&
+              this.config.planStage !== 'build'
+            ) {
+              const err = String(result.error || '');
+              if (/timed out|cancelled|USER_WAITING/i.test(err)) {
+                const waiting = /timed out|USER_WAITING/i.test(err);
+                if (waiting) {
+                  const prose =
+                    '질문에 대한 답변을 기다리는 중입니다. 선택 후 Complete Questions를 눌러 주세요. 답변 전에는 계획을 다시 작성하지 않습니다.';
+                  await this.config.onAssistantContent?.(prose);
+                }
+                this._state.status = 'completed';
+                this.config.onStatus?.(this._state.status);
+                return false;
+              }
+            }
           } else {
             this.consecutiveFailures = 0;
             if (
@@ -1002,6 +1024,19 @@ export class AgentLoopController {
 
         const candidateProse = (result.content || '').trim() || prose;
         let lastReasoning = (result.reasoning || '').trim();
+        // Plan: a full draft with checkboxes is the deliverable — finish for Review, no wrap-up rewrite
+        if (
+          this.config.mode === 'plan' &&
+          this.config.planStage !== 'build' &&
+          candidateProse &&
+          candidateProse !== '...' &&
+          this.looksLikePlanDeliverable(candidateProse)
+        ) {
+          if (lastReasoning) {
+            void this.config.onReasoning?.(result.reasoning);
+          }
+          return { content: candidateProse, toolCalls: [] };
+        }
         if (candidateProse && candidateProse !== '...') {
           const canFinish =
             !hadToolsAlready ||
@@ -1097,6 +1132,13 @@ export class AgentLoopController {
 
         // Continue budget exhausted: only finish if mission is actually closed
         if (hadTools) {
+          // Plan: prefer existing plan draft already in transcript over another wrap-up dump
+          if (this.config.mode === 'plan' && this.config.planStage !== 'build') {
+            const existingPlan = this.findLatestPlanDeliverable();
+            if (existingPlan) {
+              return { content: existingPlan, toolCalls: [] };
+            }
+          }
           if (
             !this.missionStillOpen() &&
             lastReasoning.length >= 120 &&
@@ -1395,6 +1437,21 @@ export class AgentLoopController {
       return true;
     }
     return false;
+  }
+
+  /** Plan draft ready for Review (checkbox-heavy markdown) */
+  private looksLikePlanDeliverable(prose: string): boolean {
+    return looksLikePlanDocument(prose) || looksLikePlanDraft(prose);
+  }
+
+  private findLatestPlanDeliverable(): string {
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      const m = this.messages[i];
+      if (m?.role !== 'assistant') continue;
+      const c = (m.content || '').trim();
+      if (c && this.looksLikePlanDeliverable(c)) return c;
+    }
+    return '';
   }
 
   /** Real wrap-up (not "이제 작성하겠습니다" mid-work narration) */
@@ -1860,10 +1917,19 @@ export class AgentLoopController {
     // Plan 모드: research/questions/planning/review — 쓰기 차단; build만 허용 (ADDON-T03)
     if (this.config.mode === 'plan') {
       const toolDef = toolRegistry.getTool(name);
-      const { planWriteGate } = await import('../plan/writeGate');
+      const { planWriteGate, planPostQuestionsGate } = await import('../plan/writeGate');
       const gate = planWriteGate(this.config.mode, this.config.planStage, name);
       if (!gate.allowed) {
         return { success: false, error: gate.error };
+      }
+      const postQ = planPostQuestionsGate(
+        this.config.mode,
+        this.config.planStage,
+        name,
+        { askedQuestionThisRun: this.askedQuestionThisRun }
+      );
+      if (!postQ.allowed) {
+        return { success: false, error: postQ.error };
       }
       // Non-write web/browser still blocked during planning (not build)
       if (

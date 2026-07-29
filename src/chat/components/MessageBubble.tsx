@@ -6,6 +6,11 @@ import { MessageSteps } from './MessageSteps';
 import { FileEditCard } from './FileEditCard';
 import { IconCopy, IconEdit, IconFork } from './Icons';
 import { FileTypeIcon } from './FileTypeIcon';
+import { splitTurnProseForDisplay } from '../turnProseSplit';
+import {
+  looksLikePlanDocument,
+  looksLikePlanDraft
+} from '../planPromote';
 
 interface MessageBubbleProps {
   message: any;
@@ -16,6 +21,8 @@ interface MessageBubbleProps {
   isLastUser?: boolean;
   /** Last assistant message — can show Continue when mission aborted */
   isLastAssistant?: boolean;
+  /** Plan planning stage: show "작성 중" as soon as the turn streams */
+  forcePlanDrafting?: boolean;
   onEdit?: (id: string, content: string) => void;
   onFork?: (id: string) => void;
   onCopy?: (content: string) => void;
@@ -87,6 +94,7 @@ export function MessageBubble({
   isAgentRunning = false,
   isLastUser = false,
   isLastAssistant = false,
+  forcePlanDrafting = false,
   onEdit,
   onFork,
   onCopy,
@@ -114,7 +122,11 @@ export function MessageBubble({
   const hasSteps = Array.isArray(message.steps) && message.steps.length > 0;
   const fileEdits = Array.isArray(message.fileEdits) ? message.fileEdits : [];
   const terminalRuns = Array.isArray(message.terminalRuns) ? message.terminalRuns : [];
-  const turnProse = Array.isArray(message.turnProse) ? message.turnProse : [];
+  const turnProse: Array<{ id: string; turn: number; content: string }> =
+    Array.isArray(message.turnProse) ? message.turnProse : [];
+  // Findings / research wrap-ups → answer below Worked; short dig acks stay in timeline
+  const { timeline: timelineProse, answer: answerProse } =
+    splitTurnProseForDisplay(turnProse);
 
   const stepsDone =
     isAssistant &&
@@ -155,9 +167,15 @@ export function MessageBubble({
         : 0;
   const relativeTime = formatRelativeTime(completedAt || message.timestamp || 0, nowTick);
 
+  const answerProseText = answerProse
+    .map((p: { content: string }) => String(p.content || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
+
   const copyText =
     [
-      ...turnProse.map((p: { content: string }) => p.content),
+      ...timelineProse.map((p: { content: string }) => p.content),
+      answerProseText,
       displayContent
     ]
       .filter(Boolean)
@@ -172,7 +190,7 @@ export function MessageBubble({
       steps={message.steps}
       fileEdits={fileEdits}
       terminalRuns={terminalRuns}
-      turnProse={turnProse}
+      turnProse={timelineProse}
       isStreaming={streamBody}
       onOpenFile={onOpenFile}
     />
@@ -180,17 +198,30 @@ export function MessageBubble({
 
   /**
    * Final answer under the timeline. Mid-dig self-talk is in Thought;
-   * opening leads render inside MessageSteps — do not dump turnProse here
-   * when a tool timeline exists (that hid real replies earlier).
+   * short dig leads stay in MessageSteps. Settled findings hoist here.
    */
-  const sealedProseFallback = turnProse
-    .map((p: { content: string }) => String(p.content || '').trim())
-    .filter(Boolean)
-    .join('\n\n');
+  const sealedProseFallback = answerProseText;
   const assistantBodyText =
     displayContent.trim() ||
-    (stepsDone && !streamBody && !hasSteps ? sealedProseFallback : '');
-  const showAssistantBody = Boolean(isAssistant && assistantBodyText);
+    sealedProseFallback ||
+    (stepsDone && !streamBody && !hasSteps
+      ? timelineProse
+          .map((p: { content: string }) => String(p.content || '').trim())
+          .filter(Boolean)
+          .join('\n\n')
+      : '');
+  // While planning: show "작성 중" immediately (don't wait for looksLikePlan*)
+  const planBodyCandidate = displayContent.trim() || answerProseText;
+  const draftingPlanDoc =
+    Boolean(streamBody) &&
+    (Boolean(forcePlanDrafting) ||
+      Boolean(message.planDrafting) ||
+      (Boolean(planBodyCandidate) &&
+        (looksLikePlanDocument(planBodyCandidate) ||
+          looksLikePlanDraft(planBodyCandidate))));
+  const showAssistantBody = Boolean(
+    isAssistant && (draftingPlanDoc || assistantBodyText)
+  );
   const missionAborted =
     isAssistant &&
     isLastAssistant &&
@@ -365,8 +396,20 @@ export function MessageBubble({
         <>
           {/* 2) Answer always after timeline — never swallowed by Worked */}
           <div className="message-content">
-            {showAssistantBody ? (
+            {draftingPlanDoc ? (
+              <div className="plan-drafting-status" role="status">
+                <strong>계획 문서 작성을 시작합니다.</strong>
+                <div>
+                  작성 중… 완료되면 Review 창에 저장하고 여기에는 요약만 표시합니다.
+                </div>
+              </div>
+            ) : showAssistantBody ? (
               <StreamingMarkdown
+                key={
+                  message.status === 'complete'
+                    ? `done-${message.id}-${assistantBodyText.length}`
+                    : `stream-${message.id}`
+                }
                 content={assistantBodyText}
                 isStreaming={streamBody}
               />

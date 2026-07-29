@@ -3,6 +3,7 @@ import { FileEditCard } from './FileEditCard';
 import { TerminalRunCard } from './TerminalRunCard';
 import { StreamingMarkdown } from '../StreamingMarkdown';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
+import * as splitLooks from '../turnProseSplit';
 
 /**
  * Curiosity phases (Cursor-style):
@@ -134,28 +135,16 @@ function thoughtWithText(steps: MessageStep[]): MessageStep | undefined {
   return thinking.find((s) => s.itemStatus === 'running');
 }
 
-/** Still digging after a partial understanding — keep Exploring (do NOT close) */
 function looksLikeExploreContinue(text: string): boolean {
-  return /let me read (a )?few more|few more key|complete the picture|read the remaining|이어서 읽|더 읽|몇 개 더|나머지 .{0,20}(읽|확인)|추가로 읽|complete my understanding|to complete the/i.test(
-    text
-  );
+  return splitLooks.looksLikeExploreContinue(text);
 }
 
-/** Forward-looking intent (next dig / will write later) — not a settle wrap-up */
 function looksLikeExploreStart(text: string): boolean {
-  if (looksLikeExploreContinue(text)) return true;
-  return /시작하|파악하겠|파악하고\s*있|파악한 뒤|살펴보|탐색하|리서치|읽어보|확인하겠|분석하|작성하겠|작성할|먼저 .{0,40}(읽|파악|탐색|작성)|let me (read|search|explore|check|look|write)|i('ll| will) (read|search|explore|check|start|write)|starting (research|to)|currently (understanding|reading|exploring)|계획을\s*작성하겠/i.test(
-    text
-  );
+  return splitLooks.looksLikeExploreStart(text);
 }
 
-/** Intent prose that means curiosity settled enough to close → Explored */
 function looksLikeExploreSettled(text: string): boolean {
-  // Future / continue intent is never a settle
-  if (looksLikeExploreContinue(text) || looksLikeExploreStart(text)) return false;
-  return /파악했|이해했|확인했|정리하면|충분하|문서화|이제 .{0,40}(작성|구현|수정|문서)|thorough understanding|I (have|now) (a )?(thorough |good )?(understanding|reviewed|read)|enough (context|information)|before writing the plan|next I('ll| will) (write|implement|plan)|계획을\s*작성했|계획\s*문서\s*작성\s*(완료|했)/i.test(
-    text
-  );
+  return splitLooks.looksLikeExploreSettled(text);
 }
 
 function fileBasename(detail?: string): string | undefined {
