@@ -63,7 +63,7 @@ export async function getHighlighterInstance(): Promise<Highlighter> {
 
   loadPromise = createHighlighter({
     langs: SUPPORTED_LANGS as any,
-    // Cursor-like token colors (richer than dark-plus mono look)
+ // token colors (richer than dark-plus mono look)
     themes: ['github-dark', 'github-light'],
     engine: createJavaScriptRegexEngine()
   })

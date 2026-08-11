@@ -1,5 +1,5 @@
 /**
- * Cursor-style terminal run card: click header to expand live/final output.
+ * Terminal run card: click header to expand live/final output.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import type { TerminalRunPreview } from '../types';

@@ -1,5 +1,5 @@
 /**
- * Cursor-style file edit card: header opens file, hover chevron expands diff.
+ * File edit card: header opens file, hover chevron expands diff.
  * Diff lines use Shiki (or fallback) token colors.
  */
 import React, { useEffect, useMemo, useState } from 'react';

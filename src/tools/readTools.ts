@@ -84,7 +84,7 @@ const listDirTool: ToolDefinition = {
 const readFileTool: ToolDefinition = {
   name: 'read_file',
   description:
-    'Read a slice of one file (Cursor-style). Default ~250 lines. For several known paths prefer read_files in one call. Prefer grep/codebase_search first, then windowed reads.',
+ 'Read a slice of one file. Default ~250 lines. For several known paths prefer read_files in one call. Prefer grep/codebase_search first, then windowed reads.',
   parameters: {
     type: 'object',
     properties: {

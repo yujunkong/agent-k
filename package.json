@@ -213,10 +213,10 @@
         },
         "agent-k.maxTurns": {
           "type": "integer",
-          "default": 25,
+          "default": 40,
           "minimum": 5,
           "maximum": 100,
-          "description": "Maximum agent-loop turns per run (Ask/Agent/Plan/Debug). Small/local models usually need 25–40; raise if you hit Max turns often."
+          "description": "Maximum agent-loop turns per run (Ask/Agent/Plan/Debug). Multi-step plan execution often needs 40–60; raise if you hit Max turns often."
         },
         "agent-k.verification.testEnabled": {
           "type": "boolean",
@@ -275,6 +275,88 @@
           "type": "integer",
           "default": 100000,
           "description": "Fallback context token budget when the provider does not report max_input_tokens / context length for the selected model"
+        },
+        "agent-k.context.readMaxLines": {
+          "type": "integer",
+          "default": 5000,
+          "minimum": 100,
+          "maximum": 50000,
+          "description": "Max lines returned by a single read_file call (project/global)"
+        },
+        "agent-k.harness.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Agent K harness (prefetch / verification loops)"
+        },
+        "agent-k.harness.verificationFirst": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prefer verification-first prompts in Agent mode"
+        },
+        "agent-k.harness.prefetchEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prefetch related files into context before the agent loop"
+        },
+        "agent-k.harness.verificationMicroLoop": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run short verification micro-loops after edits when enabled"
+        },
+        "agent-k.features.browser": {
+          "type": "boolean",
+          "default": true,
+          "description": "Feature toggle: browser tools (preview — may not gate runtime yet)"
+        },
+        "agent-k.features.design-mode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Feature toggle: design mode (preview)"
+        },
+        "agent-k.features.worktree": {
+          "type": "boolean",
+          "default": true,
+          "description": "Feature toggle: worktree / best-of-N (preview)"
+        },
+        "agent-k.features.agent-review": {
+          "type": "boolean",
+          "default": true,
+          "description": "Feature toggle: agent review loop (preview)"
+        },
+        "agent-k.features.mcp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Feature toggle: MCP client (preview)"
+        },
+        "agent-k.features.skills": {
+          "type": "boolean",
+          "default": true,
+          "description": "Feature toggle: skills system (preview)"
+        },
+        "agent-k.features.sub-agents": {
+          "type": "boolean",
+          "default": true,
+          "description": "Feature toggle: sub-agents / Task (preview)"
+        },
+        "agent-k.features.memories": {
+          "type": "boolean",
+          "default": true,
+          "description": "Feature toggle: memories (preview)"
+        },
+        "agent-k.features.inline-completion": {
+          "type": "boolean",
+          "default": false,
+          "description": "Feature toggle: inline completion (preview)"
+        },
+        "agent-k.features.github": {
+          "type": "boolean",
+          "default": true,
+          "description": "Feature toggle: GitHub agent (preview)"
+        },
+        "agent-k.features.codebase-index": {
+          "type": "boolean",
+          "default": true,
+          "description": "Feature toggle: codebase indexing (preview)"
         },
         "agent-k.telemetry.enabled": {
           "type": "boolean",

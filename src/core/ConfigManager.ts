@@ -27,6 +27,7 @@ export const AGENT_K_VSCODE_CONFIG_KEYS = [
   'agent-k.thinking.effort',
   'agent-k.maxTurns',
   'agent-k.context.budget',
+  'agent-k.context.readMaxLines',
   'agent-k.verification.testEnabled',
   'agent-k.turnTimeoutMs',
   'agent-k.plan.forceOnComplex',
@@ -34,9 +35,24 @@ export const AGENT_K_VSCODE_CONFIG_KEYS = [
   'agent-k.telemetry.statusBarEnabled',
   'agent-k.mcp.maxSchemaTokens',
   'agent-k.search.localEmbedding',
+  'agent-k.harness.enabled',
+  'agent-k.harness.verificationFirst',
+  'agent-k.harness.prefetchEnabled',
+  'agent-k.harness.verificationMicroLoop',
+  'agent-k.features.browser',
+  'agent-k.features.design-mode',
+  'agent-k.features.worktree',
+  'agent-k.features.agent-review',
+  'agent-k.features.mcp',
+  'agent-k.features.skills',
+  'agent-k.features.sub-agents',
+  'agent-k.features.memories',
+  'agent-k.features.inline-completion',
+  'agent-k.features.github',
+  'agent-k.features.codebase-index',
 ] as const;
 
-/** Webview FeaturesTab keys — in-memory until contributed to package.json */
+/** @deprecated use AGENT_K_VSCODE_CONFIG_KEYS — features are now schema-backed */
 export const AGENT_K_FEATURES_CONFIG_KEYS = [
   'agent-k.features.browser',
   'agent-k.features.design-mode',
@@ -147,7 +163,7 @@ export class ConfigManager {
       'agent-k.provider.apiKeys': {},
       'agent-k.github.token': '',
       'agent-k.mode.default': 'agent',
-      'agent-k.maxTurns': 25,
+      'agent-k.maxTurns': 40,
       'agent-k.permission.level': 'accept_edits',
       'agent-k.queue.onEnterWhileRunning': 'resynthesize',
       'agent-k.queue.onStop': 'keep',
@@ -166,8 +182,8 @@ export class ConfigManager {
       'agent-k.harness.prefetchEnabled': true,
       'agent-k.harness.verificationMicroLoop': true,
       'agent-k.context.readMaxLines': 5000,
-      'agent-k.context.maxTurnsA': 25,
-      'agent-k.context.maxTurnsB': 15,
+      'agent-k.context.maxTurnsA': 40,
+      'agent-k.context.maxTurnsB': 25,
       // RW-C7-08: FeaturesTab 토글 키 기본값
       'agent-k.features.browser': true,
       'agent-k.features.design-mode': true,

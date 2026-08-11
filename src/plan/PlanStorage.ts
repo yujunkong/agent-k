@@ -187,6 +187,16 @@ export class PlanStorage {
     return plans.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
+  /** Newest draft under `.agentk/plans/tmp` (for Review recovery after remount). */
+  static async loadLatestPlan(): Promise<{
+    content: string;
+    plan: StoredPlan;
+  } | null> {
+    const plans = await this.listPlans();
+    if (!plans.length) return null;
+    return this.loadPlan(plans[0].slug);
+  }
+
   static getRecentPlans(): StoredPlan[] {
     const state = this.getWorkspaceState();
     return state.get<StoredPlan[]>(this.RECENT_KEY, []);

@@ -77,6 +77,11 @@ export class ChatSessionStore {
         this.persistCurrent();
       }
     }
+    // Drop abandoned empty "New chat" entries left from prior sessions
+    const openTabs = readJson<string[]>(OPEN_TABS_KEY, []);
+    this.pruneEmptySessions(
+      [this.currentId, ...openTabs].filter((id): id is string => Boolean(id))
+    );
   }
 
   getCurrentId(): string | null {
@@ -119,6 +124,36 @@ export class ChatSessionStore {
     return out.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
+  /** History sidebar: only chats that actually started (have messages). */
+  listHistory(): ChatSessionMeta[] {
+    return this.list().filter((s) => s.messageCount > 0);
+  }
+
+  /**
+   * Remove empty sessions that are not actively kept (current / open tabs).
+   * Empty drafts are fine as the working tab — they should not clutter history.
+   */
+  pruneEmptySessions(keepIds: string[] = []): void {
+    const keep = new Set(keepIds);
+    if (this.currentId) keep.add(this.currentId);
+    const drop: string[] = [];
+    for (const id of this.index) {
+      if (keep.has(id)) continue;
+      const s = this.readSession(id);
+      if (!s || s.messageCount === 0) drop.push(id);
+    }
+    if (drop.length === 0) return;
+    for (const id of drop) {
+      try {
+        localStorage.removeItem(sessionKey(id));
+      } catch {
+        /* ignore */
+      }
+    }
+    this.index = this.index.filter((id) => !drop.includes(id));
+    this.persistIndex();
+  }
+
   get(id: string): ChatSession | null {
     return this.readSession(id);
   }
@@ -145,15 +180,17 @@ export class ChatSessionStore {
     };
     this.writeSession(session);
     this.index = [session.id, ...this.index.filter((id) => id !== session.id)];
-    this.trimExcess();
-    this.persistIndex();
     this.currentId = session.id;
     this.persistCurrent();
+    // One empty draft is enough — drop other unused empties from the index
+    this.pruneEmptySessions([session.id]);
+    this.trimExcess();
+    this.persistIndex();
     return session;
   }
 
   /**
-   * Fork: new session with a copy of messages up to a point (Cursor-style).
+ * Fork: new session with a copy of messages up to a point.
    * Does not mutate the source session.
    */
   forkFromMessages(messages: ChatMessage[], mode: Mode = 'agent'): ChatSession {
@@ -220,7 +257,8 @@ export class ChatSessionStore {
 
   /** ADDON-T06: metas to send host-ward on `host.sessions.persist` */
   exportMetasForHost(): ChatSessionMeta[] {
-    return this.list();
+    // Never rehydrate empty drafts across Extension Host restarts
+    return this.listHistory();
   }
 
   /**
@@ -235,6 +273,8 @@ export class ChatSessionStore {
     for (const meta of metas) {
       if (!meta?.id || this.index.includes(meta.id)) continue;
       if (this.readSession(meta.id)) continue;
+      // Skip empty drafts — they are not real history
+      if (!meta.messageCount) continue;
       const session: ChatSession = {
         id: meta.id,
         title: meta.title || 'Restored chat',

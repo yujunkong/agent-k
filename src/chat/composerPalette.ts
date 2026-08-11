@@ -1,6 +1,7 @@
 /**
  * Composer @ / detection helpers (no React).
  */
+import { isFeatureEnabled } from '../core/featureFlags';
 
 export type PaletteKind = 'mention' | 'slash';
 
@@ -113,6 +114,14 @@ export const SLASH_COMMANDS: SlashCommand[] = [
  * outright (not via palette selection) into a known SlashCommand, or a
  * friendly error for unknown commands.
  */
+/** Slash commands available given current feature flags. */
+export function visibleSlashCommands(): SlashCommand[] {
+  return SLASH_COMMANDS.filter((c) => {
+    if (c.action === 'bestOfN') return isFeatureEnabled('worktree');
+    return true;
+  });
+}
+
 export function resolveSlashCommand(
   raw: string
 ): { ok: true; cmd: SlashCommand } | { ok: false; error: string } {
@@ -124,11 +133,18 @@ export function resolveSlashCommand(
   if (!id) {
     return { ok: false, error: 'Empty command. Type /help to see available commands.' };
   }
-  const cmd = SLASH_COMMANDS.find((c) => c.id === id);
-  if (!cmd) {
+  const known = SLASH_COMMANDS.find((c) => c.id === id);
+  if (!known) {
     return {
       ok: false,
       error: `Unknown command "/${id}". Type /help to see available commands.`
+    };
+  }
+  const cmd = visibleSlashCommands().find((c) => c.id === id);
+  if (!cmd) {
+    return {
+      ok: false,
+      error: `Command "/${id}" is disabled (Settings → Features). Type /help for available commands.`
     };
   }
   return { ok: true, cmd };
@@ -171,7 +187,7 @@ export function detectComposerTrigger(
     };
   }
 
-  // Mention: @query without whitespace (Cursor-like file search)
+ // Mention: @query without whitespace (file search)
   const atMatch = before.match(/@([^\s]*)$/);
   if (atMatch) {
     // Don't treat email-like mid-word (@ in the middle of a token after alphanumeric)
@@ -192,8 +208,9 @@ export function detectComposerTrigger(
 
 export function filterSlashCommands(query: string): SlashCommand[] {
   const q = query.toLowerCase().replace(/^\//, '');
-  if (!q) return SLASH_COMMANDS;
-  return SLASH_COMMANDS.filter(
+  const list = visibleSlashCommands();
+  if (!q) return list;
+  return list.filter(
     (c) =>
       c.id.includes(q) ||
       c.label.toLowerCase().includes(q) ||
@@ -234,7 +251,7 @@ export function parentRelPath(relOrDesc: string, kind: 'file' | 'folder'): strin
 }
 
 /**
- * Cursor-style path hint beside the filename — keep last 1–2 segments,
+ * path hint beside the filename — keep last 1–2 segments,
  * ellipsis the front when long.
  */
 export function abbreviatePathHint(parentPath: string, maxLen = 28): string {

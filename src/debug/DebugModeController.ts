@@ -12,78 +12,68 @@ import { VerifyCleanup } from './VerifyCleanup';
 export type DebugStage = 'hypothesis' | 'instrument' | 'reproduce' | 'analyze' | 'fix' | 'cleanup';
 export type HypothesisStatus = 'pending' | 'investigating' | 'confirmed' | 'rejected';
 
-/** Stage-specific system prompts (injected each chat.send like Plan) */
+/**
+ * Stage-specific system prompts (injected each chat.send like Plan).
+ * Soft guidance only — research tools stay available; product edits are hard-gated until Confirm & Fix.
+ */
 export const DEBUG_STAGE_PROMPTS: Record<DebugStage, string> = {
   hypothesis: `You are Agent K in DEBUG mode — HYPOTHESIS stage.
 
-Explore read-only. Form 2–3 root-cause hypotheses.
-Then call \`ask_question\` ONCE with those hypotheses as multiple-choice options so the user picks which to investigate.
+ACCURACY ROUTINE (soft, but follow it):
+Think carefully → explore read-only → summarize what you learned → think again what is still undecided → ask those decisions → wait.
+Prefer being right over being fast. Re-explore or re-ask if accuracy still needs it; avoid meaningless loops.
+
+GOAL: Form 2–3 root-cause hypotheses, then prefer ONE \`ask_question\` with those hypotheses as options so the user picks which to investigate.
 
 RULES:
-- Do NOT edit files, instrument, or apply fixes.
-- Do NOT ask "which patch should I apply now?" — ask which hypothesis to test.
-- Wait for the user's choice before instrumenting.`,
+- Do NOT apply the real bug fix (edit/write/delete are blocked until Confirm & Fix).
+- Prefer waiting for the user's hypothesis choice before heavy instrumentation.
+- ask_question: which hypothesis to test / repro environment — NEVER "which patch to apply now".`,
 
   instrument: `You are Agent K in DEBUG mode — INSTRUMENT stage.
 
-Add DEBUG_INSTRUMENT markers for the selected hypothesis via \`add_instrumentation\` only.
-Do NOT apply the real bug fix yet. Do NOT call edit_file/write_file for fixes.`,
+ACCURACY: think where logs will prove or disprove the selected hypothesis → add markers → think once more if coverage is enough.
+
+GOAL: Add DEBUG_INSTRUMENT markers via \`add_instrumentation\` for the selected hypothesis.
+You may still read/search if a gap blocks accurate placement.
+
+RULES: Do NOT apply the real bug fix yet (edit/write/delete blocked). Prefer instrumentation over ad-hoc production edits.`,
 
   reproduce: `You are Agent K in DEBUG mode — REPRODUCE stage.
 
-Call \`request_reproduce\` with clear steps. Wait for the user to reproduce.
-Do NOT edit production logic or apply fixes.`,
+ACCURACY: think through clear repro steps → call \`request_reproduce\` → wait for the user.
+
+GOAL: Get a clean reproduction so logs capture the failure.
+You may adjust instrumentation or re-ask clarifying environment details if needed for accuracy.
+
+RULES: Do NOT apply the real bug fix yet.`,
 
   analyze: `You are Agent K in DEBUG mode — ANALYZE stage.
 
-Collect logs with \`collect_runtime_logs\`, read evidence, confirm or reject the hypothesis.
-Do NOT apply the fix yet. When you know the root cause, tell the user and wait —
-the user must click "Confirm & Fix" in the UI before Fix stage.`,
+ACCURACY ROUTINE:
+1. Collect evidence (\`collect_runtime_logs\`, reads, terminal as needed).
+2. Think: does evidence confirm, reject, or leave the hypothesis open?
+3. If open — re-explore / re-instrument / re-ask only for material gaps, then decide.
+4. When root cause is clear, explain it and STOP for Confirm & Fix.
+
+RULES: Do NOT apply the fix yet. Fix starts only when the user clicks "Confirm & Fix" in the UI.`,
 
   fix: `You are Agent K in DEBUG mode — FIX stage.
 
-The user confirmed the root cause. Apply the MINIMAL fix only for the confirmed hypothesis.
-Do not remove instrumentation yet (that is Cleanup).`,
+The user confirmed the root cause. Think briefly → apply the MINIMAL fix only → think once more whether the fix matches the confirmed hypothesis.
+Do not remove instrumentation yet (that is Cleanup), unless you are finishing into cleanup in the same confirmed flow.`,
 
   cleanup: `You are Agent K in DEBUG mode — CLEANUP stage.
 
-Remove ALL DEBUG_INSTRUMENT markers via \`remove_instrumentation\`. Verify none remain.`
+Remove ALL DEBUG_INSTRUMENT markers via \`remove_instrumentation\`. Verify none remain. Prefer a short confirmation that the workspace is clean.`
 };
 
-/** Tools allowed per debug stage (intersection with DEBUG_WHITELIST at execute time) */
-const DEBUG_READ = [
-  'grep', 'glob', 'file_search', 'list_dir', 'read_file', 'read_lints',
-  'codebase_search', 'lsp_definition', 'lsp_references',
-  'ask_question', 'todo_write',
-  'web_search', 'web_fetch',
-  'browser_navigate', 'browser_click', 'browser_screenshot',
-  'browser_evaluate', 'browser_console', 'browser_network',
-  'browser_scroll', 'browser_wait',
-];
-
-export const DEBUG_STAGE_TOOLS: Record<DebugStage, string[]> = {
-  hypothesis: [...DEBUG_READ],
-  instrument: [...DEBUG_READ, 'add_instrumentation', 'request_reproduce'],
-  reproduce: [...DEBUG_READ, 'request_reproduce', 'add_instrumentation'],
-  analyze: [...DEBUG_READ, 'collect_runtime_logs', 'run_terminal_cmd', 'terminal_output'],
-  fix: [
-    ...DEBUG_READ,
-    'edit_file', 'write_file', 'delete_file',
-    'run_terminal_cmd', 'terminal_output',
-    'checkpoint_create', 'checkpoint_restore',
-    'remove_instrumentation', // may clean up after minimal fix in same phase
-  ],
-  cleanup: [...DEBUG_READ, 'remove_instrumentation', 'run_terminal_cmd'],
-};
-
-export function isDebugToolAllowedForStage(stage: DebugStage, toolName: string): boolean {
-  const allowed = DEBUG_STAGE_TOOLS[stage];
-  if (!allowed) return false;
-  if (toolName.startsWith('mcp_')) {
-    return stage === 'analyze' || stage === 'fix' || stage === 'hypothesis';
-  }
-  return allowed.includes(toolName);
-}
+/** Re-export write-gate helpers (canonical implementation in ./writeGate). */
+export {
+  debugWriteGate,
+  isDebugToolAllowedForStage,
+  DEBUG_PRODUCT_WRITE_TOOLS,
+} from './writeGate';
 
 export interface Hypothesis {
   id: string;

@@ -171,7 +171,7 @@ export function exampleProjectConfig(): Record<string, unknown> {
     thinking: {
       effort: 'medium',
     },
-    maxTurns: 25,
+    maxTurns: 40,
     permission: {
       level: 'accept_edits',
     },

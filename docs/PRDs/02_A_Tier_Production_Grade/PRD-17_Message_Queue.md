@@ -185,7 +185,7 @@ function synthesizeInstructions(items: QueuedMessage[], latest: string): string 
 
 ```typescript
 // Agent 실행 중
-// Enter / Send     → interruptAndResynthesize(text)  // Cursor-like
+// Enter / Send → interruptAndResynthesize(text) //
 // Alt+Enter        → queue.enqueue(text)              // Queue-only
 // Shift+Enter      → newline
 // Idle + Enter     → normal startTurn(text)
@@ -223,7 +223,7 @@ Alt+Enter → Queued: 3 · Agent는 계속 실행
 ## 6. Acceptance Criteria
 
 ```gherkin
-Feature: Cursor-like Message Queue
+Feature: Message Queue
 
   Scenario: Enter while running interrupts and resynthesizes
     Given agent is running turn 4

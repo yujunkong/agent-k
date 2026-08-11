@@ -4,7 +4,6 @@
 import * as assert from 'assert';
 import {
   planWriteGate,
-  planPostQuestionsGate,
   agentComplexWriteGate,
 } from '../../../src/plan/writeGate';
 import { ToolRegistry } from '../../../src/tools/registry';
@@ -32,7 +31,7 @@ suite('ADDON-T03 writeGate', () => {
     assert.strictEqual(g.allowed, true);
   });
 
-  test('agentComplexWriteGate soft-blocks when enabled', () => {
+  test('agentComplexWriteGate soft-tips when enabled but never denies', () => {
     const g = agentComplexWriteGate({
       mode: 'agent',
       forceOnComplex: true,
@@ -40,8 +39,9 @@ suite('ADDON-T03 writeGate', () => {
       toolName: 'edit_file',
       alreadyWarned: false,
     });
-    assert.strictEqual(g.allowed, false);
+    assert.strictEqual(g.allowed, true);
     assert.strictEqual(g.softBlock, true);
+    assert.ok(g.error?.includes('Soft tip') || g.error?.includes('Plan'));
   });
 
   test('agentComplexWriteGate off when setting false', () => {
@@ -56,49 +56,8 @@ suite('ADDON-T03 writeGate', () => {
   });
 });
 
-suite('planPostQuestionsGate', () => {
-  test('planning blocks explore and ask_question', () => {
-    assert.strictEqual(
-      planPostQuestionsGate('plan', 'planning', 'read_file').allowed,
-      false
-    );
-    assert.strictEqual(
-      planPostQuestionsGate('plan', 'planning', 'ask_question').allowed,
-      false
-    );
-    assert.strictEqual(
-      planPostQuestionsGate('plan', 'planning', 'todo_write').allowed,
-      true
-    );
-  });
-
-  test('questions stage blocks re-explore and re-ask', () => {
-    assert.strictEqual(
-      planPostQuestionsGate('plan', 'questions', 'grep').allowed,
-      false
-    );
-    assert.strictEqual(
-      planPostQuestionsGate('plan', 'questions', 'ask_question').allowed,
-      false
-    );
-  });
-
-  test('research allows explore until ask_question fired', () => {
-    assert.strictEqual(
-      planPostQuestionsGate('plan', 'research', 'read_file').allowed,
-      true
-    );
-    assert.strictEqual(
-      planPostQuestionsGate('plan', 'research', 'read_file', {
-        askedQuestionThisRun: true
-      }).allowed,
-      false
-    );
-  });
-});
-
-suite('Plan tool schemas after questions', () => {
-  test('planning hides explore + ask_question; research keeps them', () => {
+suite('Plan ask_question available across stages', () => {
+  test('getSchemas keeps ask_question in planning/review', () => {
     const reg = new ToolRegistry();
     const ask: ToolDefinition = {
       name: 'ask_question',
@@ -114,24 +73,19 @@ suite('Plan tool schemas after questions', () => {
       modeAllowlist: ['plan', 'agent', 'ask', 'debug'],
       category: 'search'
     };
-    const todo: ToolDefinition = {
-      name: 'todo_write',
-      description: 'Todo',
-      parameters: { type: 'object', properties: {} },
-      modeAllowlist: ['plan', 'agent', 'ask', 'debug'],
-      category: 'session'
-    };
     reg.registerTool(ask);
     reg.registerTool(read);
-    reg.registerTool(todo);
 
-    const research = reg.getSchemas('plan', 'B', { planStage: 'research' });
-    assert.ok(research.some((s) => s?.function?.name === 'ask_question'));
-    assert.ok(research.some((s) => s?.function?.name === 'read_file'));
-
-    const planning = reg.getSchemas('plan', 'B', { planStage: 'planning' });
-    assert.ok(!planning.some((s) => s?.function?.name === 'ask_question'));
-    assert.ok(!planning.some((s) => s?.function?.name === 'read_file'));
-    assert.ok(planning.some((s) => s?.function?.name === 'todo_write'));
+    for (const stage of ['research', 'questions', 'planning', 'review'] as const) {
+      const schemas = reg.getSchemas('plan', 'B', { planStage: stage });
+      assert.ok(
+        schemas.some((s) => s?.function?.name === 'ask_question'),
+        `ask_question missing for stage=${stage}`
+      );
+      assert.ok(
+        schemas.some((s) => s?.function?.name === 'read_file'),
+        `read_file missing for stage=${stage}`
+      );
+    }
   });
 });

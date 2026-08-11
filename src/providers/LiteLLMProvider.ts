@@ -41,6 +41,8 @@ export class LiteLLMProvider implements LLMProviderInterface {
     const mapped = thinkingEffortToProviderOpts(effort);
     const enableThinking =
       options.enableThinking !== undefined ? options.enableThinking : mapped.enableThinking;
+    const toolChoice =
+      options.toolChoice ?? (tools && tools.length > 0 ? 'auto' : undefined);
 
     try {
       const response = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
@@ -62,7 +64,9 @@ export class LiteLLMProvider implements LLMProviderInterface {
           ...(mapped.thinkingBudget != null && enableThinking
             ? { thinking_budget: mapped.thinkingBudget }
             : {}),
-          ...(tools && tools.length > 0 ? { tools, tool_choice: 'auto' } : {})
+          ...(tools && tools.length > 0
+            ? { tools, tool_choice: toolChoice || 'auto' }
+            : {})
         }),
         signal
       });

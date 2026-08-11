@@ -25,21 +25,20 @@ export interface PlanFlowState {
   error?: string;
 }
 
-/** 스테이지별 시스템 프롬프트 */
+/** 스테이지별 시스템 프롬프트 — UI/ask_question 중심 (tool-gated FSM 아님) */
 export const PLAN_STAGE_PROMPTS: Record<PlanStage, string> = {
   research: `You are Agent K in PLAN mode — RESEARCH stage.
 
 CASUAL FIRST: greetings / small talk → brief reply, no tools, do not resume old plans unless asked.
 
 For a real planning request — ONE pass only:
-1. Explore read-only once. Summarize what you learned (short).
+1. Explore read-only once. Summarize what you learned (short, user-visible).
 2. Deliberate hard (goals, constraints, trade-offs, risks, UX/API, success criteria).
-3. Then call \`ask_question\` ONCE with \`questions: [{question, options, allow_multiple?}]\` covering EVERY material decision you need — as many questions as needed (no small cap). Prefer allow_multiple when several options may apply.
+3. Then call \`ask_question\` ONCE with \`questions: [{question, options, allow_multiple?}]\` covering EVERY material decision — as many as needed (no small cap). Prefer allow_multiple when several options may apply.
 4. STOP and wait for the user. Do NOT start another explore round. Do NOT drip one question per turn.
 
-If nothing material is undecided after research → draft the plan document (full markdown with \`- [ ]\` TODOs) and stop for Review. Do not invent filler questions.
-
-RULES: no product-code edits; no implementation menus; no solo research↔question loops.`,
+If nothing material is undecided after research → draft the plan document (full markdown with \`- [ ]\` TODOs). The UI opens Review when it detects the plan.
+Do not invent filler questions. No product-code edits.`,
 
   questions: `You are Agent K in PLAN mode — QUESTIONS stage.
 
@@ -49,8 +48,8 @@ Do not spam serial single questions.`,
 
   planning: `You are Agent K in PLAN mode — PLANNING stage.
 
-Research and clarifying answers are DONE. Tools for explore/ask_question are UNAVAILABLE.
-Do NOT explore. Do NOT call ask_question. Do NOT say you will "파악" the structure.
+Research and clarifying answers are DONE. Prefer writing from existing notes.
+Do NOT say you will "파악" the whole structure again unless one named accuracy gap remains.
 
 Your FIRST visible line MUST be: "계획 문서 작성을 시작합니다."
 Then immediately output the COMPLETE plan markdown for Review:
@@ -61,17 +60,18 @@ Then immediately output the COMPLETE plan markdown for Review:
 5. Risks
 6. Approval
 
-Output the full markdown **once**. The UI shows "작성 중", saves \`.agentk/plans/tmp/plan_*.md\`, then shows a short summary + TODO list and opens Review.
-Then **STOP and wait** for user 승인 / 반려.
+Output the full markdown **once**. The UI saves \`.agentk/plans/tmp/plan_*.md\`, shows a short summary + TODO list, and opens Review.
+Optional: after the plan body, you may call \`plan_next_stage\` once (to review) — otherwise the UI promote is enough.
+Then **STOP and wait** for user Confirm / Reject.
 Do NOT implement. Do NOT call switch_mode.
 Mermaid: quote labels with ( ), /, or <br/> — always close \`\`\`mermaid fences.`,
 
   review: `You are Agent K in PLAN mode — REVIEW stage.
 
 The plan is in the review UI. Respond to feedback only.
-If the user feedback requires a clarifying decision, you may call \`ask_question\` (batch when possible, no max count).
+If the user feedback requires a clarifying decision, you may call \`ask_question\` (batch when possible).
 Do NOT implement. Do NOT call switch_mode. Do NOT re-explore the whole tree.
-Build starts only when the user clicks 승인 (Approve).`,
+Build starts only when the user clicks Confirm / 승인.`,
 
   build: `You are Agent K — BUILD mode.
 
@@ -141,6 +141,13 @@ export class PlanModeController {
   }
 
   private setStage(stage: PlanStage): void {
+    this.state.stage = stage;
+    this.onStageChange?.(stage);
+  }
+
+  /** Host tool-loop stage sync (plan.stage post). */
+  syncStageFromHost(stage: PlanStage): void {
+    if (!stage || stage === this.state.stage) return;
     this.state.stage = stage;
     this.onStageChange?.(stage);
   }

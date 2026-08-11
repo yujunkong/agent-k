@@ -1,5 +1,5 @@
 /**
- * CodeLens on Agent K plan markdown — Cursor-style Build / Open Review.
+ * CodeLens on Agent K plan markdown — Build / Open Review.
  */
 import * as vscode from 'vscode';
 import { PlanStorage } from './PlanStorage';

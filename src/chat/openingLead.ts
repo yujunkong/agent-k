@@ -1,5 +1,5 @@
 /**
- * Opening lead = the model's own short acknowledgment (Cursor-style),
+ * Opening lead = the model's own short acknowledgment,
  * shown above Thought/tools. Never a client-side template paraphrase,
  * and never a full markdown answer dumped into the lead slot.
  */

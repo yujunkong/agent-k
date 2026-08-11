@@ -30,7 +30,7 @@ interface UseChatStreamReturn {
     onDelta: (delta: StreamDelta) => void,
     onComplete: () => void,
     onError: (err: string) => void,
-    opts?: { planStageOverride?: string }
+    opts?: { planStageOverride?: string; systemAddon?: string; maxTurns?: number }
   ) => Promise<void>;
   stop: () => void;
   regenerate: (
@@ -96,7 +96,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       onDelta: (delta: StreamDelta) => void,
       onComplete: () => void,
       onError: (err: string) => void,
-      opts?: { planStageOverride?: string }
+      opts?: { planStageOverride?: string; systemAddon?: string; maxTurns?: number }
     ) => {
       const api = getVsCodeApi();
       if (!api) {
@@ -162,7 +162,11 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             if (data.status) onDelta({ status: String(data.status) });
             break;
           case 'delta':
-            if (data.content) onDelta({ content: String(data.content) });
+            if (data.replaceContent != null) {
+              onDelta({ replaceContent: String(data.replaceContent) });
+            } else if (data.content) {
+              onDelta({ content: String(data.content) });
+            }
             break;
           case 'tool.start':
             // Seal in-progress self-talk into Thought; clear body
@@ -284,6 +288,23 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
               debugStage: data.stage != null ? String(data.stage) : undefined,
             });
             break;
+          case 'plan.stage':
+            onDelta({
+              planStageSync:
+                data.stage != null ? String(data.stage) : undefined,
+            });
+            break;
+          case 'plan.summary':
+            onDelta({
+              planSummary: {
+                summary: String(data.summary || ''),
+                kind:
+                  data.kind != null ? String(data.kind) : undefined,
+                stage:
+                  data.stage != null ? String(data.stage) : undefined
+              }
+            });
+            break;
           case 'complete':
             finish(() => onComplete());
             break;
@@ -327,6 +348,14 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         planStage: opts?.planStageOverride || planStageRef.current,
         debugStage: debugStageRef.current,
         thinkingEffort: thinkingEffortRef.current || 'medium',
+        systemAddon:
+          typeof opts?.systemAddon === 'string' && opts.systemAddon.trim()
+            ? opts.systemAddon
+            : undefined,
+        maxTurns:
+          typeof opts?.maxTurns === 'number' && opts.maxTurns >= 5
+            ? Math.min(100, Math.floor(opts.maxTurns))
+            : undefined,
         messages: messages.map((m) => ({
           role: m.role,
           content: m.content
@@ -348,7 +377,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       onDelta: (delta: StreamDelta) => void,
       onComplete: () => void,
       onError: (err: string) => void,
-      opts?: { planStageOverride?: string }
+      opts?: { planStageOverride?: string; systemAddon?: string; maxTurns?: number }
     ) => {
       // Agent path: host executes tools (glob/read_file). Ask stays webview completions.
       if (needsHostToolLoop(mode)) {

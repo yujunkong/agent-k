@@ -9,19 +9,113 @@ export function countPlanCheckboxes(md: string): number {
   return ((md || '').match(/^\s*[-*]\s+\[[ xX]?\]/gm) || []).length;
 }
 
+/** Research / narration — must NOT be promoted as a plan document */
+export function looksLikeResearchNarration(md: string): boolean {
+  const t = (md || '').trim();
+  if (!t) return false;
+  if (looksLikePlanFsmNarration(t)) return true;
+  const hits = (
+    t.match(
+      /살펴보겠습니다|더 파악하겠습니다|분석 결과를 종합|충분한 정보를 확보|Let me (?:dig|check|look|explore)|I'll (?:look|check|explore)|이제 핵심 파일|프로젝트 구조를 살펴|dig deeper|before drafting the plan|正式な plan|정식\s*plan\s*문서/gi
+    ) || []
+  ).length;
+  // Several exploration beats and almost no checklist → narration, not a plan
+  if (hits >= 2 && countPlanCheckboxes(t) < 2) return true;
+  if (hits >= 3 && countPlanCheckboxes(t) === 0) return true;
+  return false;
+}
+
+/**
+ * Model narrates stage machine / tool calls instead of invoking them.
+ * Must not become the user-visible answer or a fake Review promote.
+ */
+export function looksLikePlanFsmNarration(md: string): boolean {
+  const t = (md || '').trim();
+  if (!t) return false;
+  const signals = (
+    t.match(
+      /plan_present_summary|plan_next_stage|summary has been presented|I'm now in the Review stage|now in the Review stage|call plan_next_stage|I should wait for the user's feedback|Confirm \(승인\)|Reject \(반려\)|Follow the procedure returned|STAGE CONTRACT|next-stage procedure/gi
+    ) || []
+  ).length;
+  if (signals >= 2) return true;
+  if (signals >= 1 && countPlanCheckboxes(t) < 2 && t.length < 2500) return true;
+  return false;
+}
+
+/** Drop FSM meta lines so CoT about tools does not leak into the bubble */
+export function stripPlanFsmNarration(md: string): string {
+  const t = (md || '').trim();
+  if (!t) return '';
+  const lines = t.split('\n');
+  const kept = lines.filter((line) => {
+    const s = line.trim();
+    if (!s) return true;
+    return !/plan_present_summary|plan_next_stage|summary has been presented|I'm now in the Review stage|now in the Review stage|I should wait for the user's feedback|Confirm \(승인\)|Reject \(반려\)|Follow the procedure returned|STAGE CONTRACT|next-stage procedure|Good, the summary/i.test(
+      s
+    );
+  });
+  return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Strip English/Korean internal monologue that weak models dump into the
+ * answer channel (not the reasoning channel).
+ */
+export function stripPlanInternalMonologue(md: string): string {
+  let t = stripPlanFsmNarration(md);
+  if (!t) return '';
+  // Drop trailing "The user wants me to…" blocks
+  t = t
+    .replace(
+      /(?:^|\n+)(?:The user wants me to|Let me (?:start by|begin by|first|now)|I've (?:pointed|noted)|They've pointed to|I need to (?:explore|check|understand)|I'll (?:start|begin|explore))[\s\S]*$/i,
+      ''
+    )
+    .trim();
+  const lines = t.split('\n');
+  const kept = lines.filter((line) => {
+    const s = line.trim();
+    if (!s) return true;
+    if (
+      /^(The user wants|Let me (?:start|begin|check|look|explore|think)|I'll (?:start|begin|explore|look)|I've (?:analyzed|reviewed)|They've pointed)/i.test(
+        s
+      )
+    ) {
+      return false;
+    }
+    return true;
+  });
+  return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Actionable checklist required for Review promote.
+ * Prose-only exploration / Q&A chatter must not open Review.
+ */
+export function hasPlanActionableTodos(md: string): boolean {
+  const t = (md || '').trim();
+  if (!t) return false;
+  const checkboxes = countPlanCheckboxes(t);
+  if (checkboxes >= 2) return true;
+  // Explicit TODO section with at least one checkbox (single-item plans are rare but ok)
+  if (checkboxes >= 1 && /##\s+TODOs?\b/i.test(t)) return true;
+  // Numbered execution steps under a real plan section
+  if (
+    checkboxes === 0 &&
+    /##\s+(TODOs?|Steps|Implementation)\b/i.test(t) &&
+    ((t.match(/(?:^|\n)\s*\d+\.\s+\S+/gm) || []).length >= 3)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 /** Heuristic: looks like a PLAN.md body worth opening in Review */
 export function looksLikePlanDocument(md: string): boolean {
   const t = (md || '').trim();
   if (t.length < 120) return false;
+  if (looksLikeResearchNarration(t)) return false;
+  if (!hasPlanActionableTodos(t)) return false;
   const checkboxes = countPlanCheckboxes(t);
-  // Must have actionable checklist — prose-only exploration is not a plan
-  const hasTodos =
-    checkboxes > 0 ||
-    /##\s+TODOs?\b/i.test(t) ||
-    // Numbered execution steps (models often skip checkbox syntax)
-    (/(?:^|\n)\s*\d+\.\s+\S+/m.test(t) &&
-      /##\s+(Context|Architecture|Steps|Implementation|Overview)\b/i.test(t));
-  if (!hasTodos) return false;
   const hasTitle = /^#\s+/m.test(t) || /\bPLAN\b/i.test(t.slice(0, 200));
   const hasSection =
     /##\s+(Context|Questions|Architecture|Risks|Approval|Implementation|Overview|Steps|TODOs?)\b/i.test(
@@ -33,19 +127,43 @@ export function looksLikePlanDocument(md: string): boolean {
 }
 
 /**
- * Soften for planning-stage promote: long structured markdown with headings
- * or a substantial checkbox TODO list (models often omit ## sections).
+ * Soften for planning-stage promote: still requires actionable TODOs.
+ * Bare H1+## headings alone are NOT enough (research dumps often have those).
  */
 export function looksLikePlanDraft(md: string): boolean {
   if (looksLikePlanDocument(md)) return true;
   const t = (md || '').trim();
-  if (t.length < 400) return false;
+  if (t.length < 200) return false;
+  if (looksLikeResearchNarration(t)) return false;
+  if (!hasPlanActionableTodos(t)) return false;
   const checkboxes = countPlanCheckboxes(t);
-  // Full implementation checklist dumped into chat — promote to Review
+  // Full implementation checklist dumped into chat
   if (checkboxes >= 5) return true;
-  const headings = (t.match(/^##\s+/gm) || []).length;
   const hasH1 = /^#\s+/m.test(t);
-  return hasH1 && headings >= 2;
+  const headings = (t.match(/^##\s+/gm) || []).length;
+  return checkboxes >= 2 && (hasH1 || headings >= 1);
+}
+
+/**
+ * True once the model has started writing the plan body (not mere research/thought).
+ * Used to show the "작성 중" chrome only then.
+ */
+export function looksLikePlanWritingStart(md: string): boolean {
+  const t = (md || '').trim();
+  if (!t) return false;
+  if (looksLikeResearchNarration(t)) return false;
+  if (/^계획\s*문서\s*작성을\s*시작합니다/.test(t)) return true;
+  if (looksLikePlanDocument(t) || looksLikePlanDraft(t)) return true;
+  // Early stream: checkboxes starting (not bare H1 — too easy to false-positive)
+  if (countPlanCheckboxes(t) >= 1 && t.length >= 40) return true;
+  if (
+    /^#\s+\S+/m.test(t) &&
+    /##\s+(Context|TODOs?|Architecture|Implementation)\b/i.test(t) &&
+    t.length >= 80
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function normalizePlanKey(text: string): string {
@@ -115,36 +233,21 @@ export function dedupeRepeatedPlanDocument(md: string): string {
 function pickBestPlanParts(parts: string[]): string {
   const cleaned = parts
     .map((p) => unescapeLiteralEscapes(String(p || '').trim()))
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((p) => !looksLikeResearchNarration(p));
   if (cleaned.length === 0) return '';
   if (cleaned.length === 1) return dedupeRepeatedPlanDocument(cleaned[0]);
 
-  const planish = cleaned.filter(looksLikePlanDocument);
+  const planish = cleaned.filter(
+    (p) => looksLikePlanDocument(p) || looksLikePlanDraft(p)
+  );
   if (planish.length > 0) {
     const best = planish.reduce((a, b) => (a.length >= b.length ? a : b));
     return dedupeRepeatedPlanDocument(best);
   }
 
-  // Overlapping restart: keep longest unique
-  let best = cleaned[0];
-  for (const p of cleaned.slice(1)) {
-    const a = normalizePlanKey(best);
-    const b = normalizePlanKey(p);
-    if (a === b) continue;
-    if (a.includes(b)) continue; // best already supersets p
-    if (b.includes(a)) {
-      best = p;
-      continue;
-    }
-    // Similar prefix → prefer longer
-    const n = Math.min(120, a.length, b.length);
-    if (n >= 60 && a.slice(0, n) === b.slice(0, n)) {
-      if (p.length > best.length) best = p;
-      continue;
-    }
-    best = dedupeRepeatedPlanDocument(`${best}\n\n${p}`);
-  }
-  return dedupeRepeatedPlanDocument(best);
+  // No plan-like part — do NOT glue research asides into a fake plan
+  return '';
 }
 
 /** Join openingLead + turnProse + content from an assistant message */
@@ -152,6 +255,14 @@ export function extractPlanMarkdownFromMessage(
   msg: ChatMessage | undefined | null
 ): string {
   if (!msg || msg.role !== 'assistant') return '';
+  // Prefer final content when it is already a plan; avoid mixing research turnProse
+  const content = unescapeLiteralEscapes(String(msg.content || '').trim());
+  if (
+    content &&
+    (looksLikePlanDocument(content) || looksLikePlanDraft(content))
+  ) {
+    return dedupeRepeatedPlanDocument(content);
+  }
   const parts = [
     msg.openingLead,
     ...(msg.turnProse || []).map((p) => p.content),
@@ -160,21 +271,36 @@ export function extractPlanMarkdownFromMessage(
   return pickBestPlanParts(parts);
 }
 
-/** Newest complete assistant that looks like a plan */
+/** Newest complete assistant that looks like a real plan (never research dumps) */
 export function findLatestPlanMarkdown(messages: ChatMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
+    const stored = String(messages[i].planMarkdown || '').trim();
+    if (
+      stored &&
+      stored !== 'discarded' &&
+      (looksLikePlanDocument(stored) || looksLikePlanDraft(stored))
+    ) {
+      return stored;
+    }
     const md = extractPlanMarkdownFromMessage(messages[i]);
-    if (looksLikePlanDocument(md)) return md;
+    if (looksLikePlanDocument(md) || looksLikePlanDraft(md)) return md;
   }
-  // Fallback: largest assistant blob even if heuristic is soft
-  let best = '';
+  return '';
+}
+
+/** True when any assistant bubble still holds a promoted plan body */
+export function findStoredPlanMarkdown(messages: ChatMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.role !== 'assistant') continue;
-    const md = extractPlanMarkdownFromMessage(m);
-    if (md.length > best.length) best = md;
+    const stored = String(messages[i].planMarkdown || '').trim();
+    if (
+      stored &&
+      stored !== 'discarded' &&
+      (looksLikePlanDocument(stored) || looksLikePlanDraft(stored))
+    ) {
+      return stored;
+    }
   }
-  return best.length >= 200 ? best : '';
+  return findLatestPlanMarkdown(messages);
 }
 
 /**
@@ -225,7 +351,7 @@ export function buildPlanChatSummary(planMd: string): string {
   const lines = [
     `## ${title}`,
     '',
-    '전체 계획은 **Review 창**에 저장했습니다. 아래 **승인 / 반려** 버튼(또는 상단 Review 창)으로 진행하세요. 파일 경로를 직접 찾을 필요는 없습니다.',
+    '전체 계획은 **Review 창**에 저장했습니다. 상단 **View Plans / Reject / Confirm**으로 진행하세요. 파일 경로를 직접 찾을 필요는 없습니다.',
     ''
   ];
   if (blurb) {
@@ -240,6 +366,17 @@ export function buildPlanChatSummary(planMd: string): string {
   } else {
     lines.push('1. (TODO 항목을 Review 문서에서 확인하세요)');
   }
-  lines.push('', '_상세·아키텍처·리스크는 바로 열린 Review 창에서 확인하세요. 창을 닫았다면 상단 **Review 다시 열기**를 누르세요._');
+  lines.push('', '_상세·아키텍처·리스크는 Review 창에서 확인하세요. 창을 닫았다면 상단 **View Plans**를 누르세요._');
   return lines.join('\n');
 }
+
+/** Chat bubble after promote (summary) — full PLAN.md is gone from the thread */
+export function looksLikePlanChatSummary(md: string): boolean {
+  const t = (md || '').trim();
+  if (!t) return false;
+  return (
+    /전체 계획은\s*\*\*Review 창\*\*에 저장했습니다/.test(t) ||
+    /Review 창에 저장했습니다/.test(t)
+  );
+}
+

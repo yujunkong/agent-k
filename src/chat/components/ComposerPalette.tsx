@@ -1,6 +1,6 @@
 /**
  * Dropdown for Composer @ (files) and / (commands).
- * Mention UI: Cursor-like row (icon · name · path hint) + tree preview.
+ * Mention UI: row (icon · name · path hint) + tree preview.
  */
 import React, { useEffect, useMemo, useRef } from 'react';
 import type { MentionHit, SlashCommand } from '../composerPalette';

@@ -6,7 +6,7 @@ import type { FileEditPreview, TerminalRunPreview } from '../types';
 import * as splitLooks from '../turnProseSplit';
 
 /**
- * Curiosity phases (Cursor-style):
+ * Curiosity phases
  *   ▸ Exploring N files…   ← collapsed; rolling status while tools/thoughts run
  *   ▸ Explored N files…    ← settled; expand to see Thought + tool rows
  *   ▸ Thought (main)       ← only when no explore chrome yet
@@ -39,7 +39,7 @@ interface MessageStepsProps {
   steps: MessageStep[];
   /** Edit cards placed after the turn that produced them */
   fileEdits?: FileEditPreview[];
-  /** Terminal run cards (Cursor-style expandable shell box) */
+ /** Terminal run cards (expandable shell box) */
   terminalRuns?: TerminalRunPreview[];
   /** Sealed mid-turn assistant prose (between turns) */
   turnProse?: Array<{ id: string; turn: number; content: string }>;
@@ -51,6 +51,11 @@ interface MessageStepsProps {
   liveProseStreaming?: boolean;
   /** Host still running this assistant message */
   isStreaming?: boolean;
+  /**
+   * Inside collapsed Worked: tools/Thought/Exploring only —
+   * never render mid-turn prose (that belongs below Worked as the answer).
+   */
+  toolsOnly?: boolean;
   onOpenFile?: (path: string) => void;
 }
 
@@ -69,8 +74,6 @@ const STEPS_MUTED = 'var(--vscode-descriptionForeground, #9d9d9d)';
 
 /** UI display cap for Thought body (host may send more) */
 const THOUGHT_DISPLAY_MAX = 16000;
-/** Exploring mid-Thought — keep the nested pane short */
-const MID_THOUGHT_DISPLAY_MAX = 900;
 
 function inferTurn(step: MessageStep): number {
   if (typeof step.turn === 'number' && step.turn > 0) return step.turn;
@@ -147,6 +150,14 @@ function looksLikeExploreSettled(text: string): boolean {
   return splitLooks.looksLikeExploreSettled(text);
 }
 
+function looksLikePlanStepProgress(text: string): boolean {
+  return splitLooks.looksLikePlanStepProgress(text);
+}
+
+function looksLikeInternalPlanningDump(text: string): boolean {
+  return splitLooks.looksLikeInternalPlanningDump(text);
+}
+
 function fileBasename(detail?: string): string | undefined {
   if (!detail?.trim()) return undefined;
   const norm = detail.replace(/\\/g, '/').split('/').filter(Boolean);
@@ -192,7 +203,7 @@ function summarizeExplored(steps: MessageStep[], live = false): string {
     }
   }
 
-  // Cursor-style counts only — never "Explored · ." from a bare path
+ // counts only — never "Explored ·." from a bare path
   if (fileCount && searchCount) {
     return `${prefix} ${fileCount} ${fileCount === 1 ? 'file' : 'files'}, ${searchCount} ${
       searchCount === 1 ? 'search' : 'searches'
@@ -403,7 +414,7 @@ function shortPath(detail?: string): string {
   return `…/${parts.slice(-2).join('/')}`;
 }
 
-/** Cursor-style verb for explore/action rows (Read / Grepped / …) */
+/** verb for explore/action rows (Read / Grepped / …) */
 function toolRowLabel(s: MessageStep): string {
   const name = (s.toolName || s.label.replace(/\s*·.*$/, '') || '').toLowerCase();
   switch (name) {
@@ -470,21 +481,22 @@ function ThoughtBody({
 }: {
   text: string;
   live: boolean;
-  /** Nested under Exploring — tighter clip */
+  /** Nested under Exploring — full text, no inner scroll pane */
   compact?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
-  const max = compact ? MID_THOUGHT_DISPLAY_MAX : THOUGHT_DISPLAY_MAX;
+  // Exploring-nested Thought: never clip into a scroll box — show full text
+  const max = THOUGHT_DISPLAY_MAX;
   const display =
     text.length > max ? `${text.slice(0, max)}…` : text;
 
   useEffect(() => {
+    if (compact) return; // no scroll area to follow
     const el = ref.current;
     if (!el || !live || !stickRef.current) return;
-    // Keep following new tokens while user hasn't scrolled up
     el.scrollTop = el.scrollHeight;
-  }, [display, live]);
+  }, [display, live, compact]);
 
   return (
     <div
@@ -492,16 +504,23 @@ function ThoughtBody({
       className={`message-steps-thought-body${
         compact ? ' message-steps-thought-body--mid' : ''
       }`}
-      onScroll={() => {
-        const el = ref.current;
-        if (!el) return;
-        const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-        stickRef.current = gap < 48;
-      }}
-      onWheel={(e) => {
-        // Don't let the parent message-list steal the wheel
-        e.stopPropagation();
-      }}
+      onScroll={
+        compact
+          ? undefined
+          : () => {
+              const el = ref.current;
+              if (!el) return;
+              const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+              stickRef.current = gap < 48;
+            }
+      }
+      onWheel={
+        compact
+          ? undefined
+          : (e) => {
+              e.stopPropagation();
+            }
+      }
     >
       {display || (live ? '…' : '')}
     </div>
@@ -760,46 +779,24 @@ function ToolSlideList({
   );
 }
 
-/** Cursor Explored body: Grepped / Read / Thought / intent prose interleaved */
+/** Cursor Explored body: Grepped / Read / Thought / intent prose interleaved.
+ * No max-height scroll pane — content (esp. Thought) expands; chat list scrolls.
+ */
 function ExploreStreamList({
   rows,
-  live,
-  maxHeight
+  live
 }: {
   rows: Array<{ type: 'tool' | 'thought' | 'prose'; step: MessageStep }>;
   live: boolean;
-  maxHeight: number;
 }) {
   const [openThoughtIds, setOpenThoughtIds] = useState<Record<string, boolean>>({});
-  const listRef = useRef<HTMLDivElement>(null);
-  const stickRef = useRef(true);
-
-  useEffect(() => {
-    const el = listRef.current;
-    if (!el || !live || !stickRef.current) return;
-    el.scrollTop = el.scrollHeight;
-  }, [rows, live]);
 
   return (
     <div
-      ref={listRef}
       className="ak-tool-slide-list ak-explore-scroll"
       style={{
         color: STEPS_MUTED,
-        maxHeight,
-        overflowX: 'hidden',
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch'
-      }}
-      onScroll={() => {
-        const el = listRef.current;
-        if (!el) return;
-        const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-        stickRef.current = gap < 48;
-      }}
-      onWheel={(e) => {
-        // Keep wheel inside Exploring list — don't scroll the whole chat away
-        e.stopPropagation();
+        overflow: 'visible'
       }}
     >
       {rows.map((row) => {
@@ -1001,6 +998,7 @@ export function MessageSteps({
   liveProse,
   liveProseStreaming,
   isStreaming = false,
+  toolsOnly = false,
   onOpenFile
 }: MessageStepsProps) {
   const groups = useMemo(() => {
@@ -1138,6 +1136,22 @@ export function MessageSteps({
             continue;
           }
 
+          // Explicit step boundary (also covered by settled, kept for clarity)
+          if (looksLikePlanStepProgress(text) && hasExploreTools(cur)) {
+            cur.resolved = true;
+            cur.proseAfter.push(payload);
+            continue;
+          }
+
+          // After Edited: re-plan dumps stay in Thought, not under the diff
+          if (
+            looksLikeInternalPlanningDump(text) &&
+            (hasExploreTools(cur) || cur.actions.length > 0)
+          ) {
+            foldAsideIntoThought(note.id, text);
+            continue;
+          }
+
           // After Explored: next dig ack is visible lead
           if (cur.resolved && digIntent) {
             cur = startPhase(undefined);
@@ -1196,6 +1210,15 @@ export function MessageSteps({
           if (!cur || cur.resolved || cur.actions.length > 0) {
             // After Explored or after Edited/Ran: *new* Thought id starts a new dig
             cur = startPhase({ ...s, thoughtRole: 'opening' });
+          } else if (
+            hasExploreTools(cur) &&
+            !cur.resolved &&
+            (looksLikePlanStepProgress(text) || looksLikeExploreSettled(text))
+          ) {
+            // Step progress / settle wrap-up while Exploring → close block,
+            // show prose between digs (not nested Thought inside Exploring)
+            cur.resolved = true;
+            cur.proseAfter.push({ id: s.id, content: text });
           } else if (hasExploreTools(cur) && !cur.resolved) {
             // Still Exploring: Thought stays inside and drives the next tools
             cur.rows.push({
@@ -1218,10 +1241,27 @@ export function MessageSteps({
         }
 
         if (isExploreStep(s)) {
+          const toolTurn = inferTurn(s);
           // Edit/Ran already in this phase → don't hoist later reads above Edited
           if (cur && cur.actions.length > 0) {
             consumeNotes();
             cur = startPhase(undefined);
+          } else if (cur && hasExploreTools(cur) && !cur.resolved) {
+            // New agent-loop turn → close Exploring so digs don't merge forever.
+            // (Step progress / edits also close; this is the structural fallback.)
+            const existingTurns = cur.rows
+              .filter((r) => r.type === 'tool')
+              .map((r) => inferTurn(r.step));
+            const maxExisting = existingTurns.length
+              ? Math.max(...existingTurns)
+              : 0;
+            if (toolTurn > maxExisting) {
+              cur.resolved = true;
+              consumeNotes();
+              cur = startPhase(undefined);
+            } else {
+              consumeNotes();
+            }
           } else {
             consumeNotes();
             if (!cur || cur.resolved) cur = startPhase(undefined);
@@ -1476,7 +1516,7 @@ export function MessageSteps({
 
   if (!phases.length && !groups.length) return null;
 
-  const showLiveProse = Boolean(liveProse?.trim());
+  const showLiveProse = Boolean(liveProse?.trim()) && !toolsOnly;
 
   // Any live chrome still running in the last phase?
   const lastPhase = phases[phases.length - 1];
@@ -1488,8 +1528,16 @@ export function MessageSteps({
         lastPhase.actions.some((a) => a.itemStatus === 'running') ||
         (!lastPhase.resolved && lastPhase.rows.some((r) => r.type === 'tool')))
   );
+  // After an edit/run already landed, don't flash empty "Planning next moves"
+  // under the diff — that reads as "going back to planning".
+  const hasCompletedActions = phases.some((p) =>
+    p.actions.some((a) => a.itemStatus === 'done' || a.itemStatus === 'error')
+  );
   const showPlanningTail =
-    Boolean(isStreaming) && !showLiveProse && !timelineBusy;
+    Boolean(isStreaming) &&
+    !showLiveProse &&
+    !timelineBusy &&
+    !hasCompletedActions;
 
   return (
     <div
@@ -1544,13 +1592,13 @@ export function MessageSteps({
         const actionSummary = summarizeActions(actions);
 
         const thoughtExpanded = thoughtLive || (openThought[p.id] ?? false);
+        // Default collapsed — full list still in ExploreStreamList when user expands
         const exploreExpanded = openExplore[p.id] ?? false;
         const actionExpanded = actionLive || (openAction[p.id] ?? false);
 
+        // Show full explore history (no live tail cap — header counts match the list)
         const exploreDisplayRows: ExploreRow[] = (() => {
-          const base = isExploring
-            ? p.rows.slice(-Math.max(10, liveTail(tools, 8).length + 4))
-            : p.rows;
+          const base = p.rows;
           if (!th || !showExplore) return base;
           if (base.some((r) => r.type === 'thought' && r.step.id === th.id)) {
             return base;
@@ -1586,17 +1634,19 @@ export function MessageSteps({
                 </ChevronRow>
               ) : null}
 
-              {p.leadProse.map((note) => (
-                <div
-                  key={note.id}
-                  className="message-content message-turn-prose"
-                >
-                  <StreamingMarkdown
-                    content={note.content}
-                    isStreaming={false}
-                  />
-                </div>
-              ))}
+              {!toolsOnly
+                ? p.leadProse.map((note) => (
+                    <div
+                      key={note.id}
+                      className="message-content message-turn-prose"
+                    >
+                      <StreamingMarkdown
+                        content={note.content}
+                        isStreaming={false}
+                      />
+                    </div>
+                  ))
+                : null}
 
               {showExplore ? (
                 <ExploringChrome
@@ -1624,7 +1674,6 @@ export function MessageSteps({
                     <ExploreStreamList
                       rows={exploreDisplayRows}
                       live={!!exploreChromeLive}
-                      maxHeight={exploreChromeLive ? 280 : 360}
                     />
                   ) : null}
                 </ExploringChrome>
@@ -1685,17 +1734,19 @@ export function MessageSteps({
                 </div>
               ) : null}
 
-              {p.proseAfter.map((note) => (
-                <div
-                  key={note.id}
-                  className="message-content message-turn-prose"
-                >
-                  <StreamingMarkdown
-                    content={note.content}
-                    isStreaming={false}
-                  />
-                </div>
-              ))}
+              {!toolsOnly
+                ? p.proseAfter.map((note) => (
+                    <div
+                      key={note.id}
+                      className="message-content message-turn-prose"
+                    >
+                      <StreamingMarkdown
+                        content={note.content}
+                        isStreaming={false}
+                      />
+                    </div>
+                  ))
+                : null}
             </div>
           </Fragment>
         );

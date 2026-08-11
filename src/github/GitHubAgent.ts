@@ -1,4 +1,8 @@
 import { execFileSync } from 'child_process';
+import {
+  featureDisabledMessage,
+  isFeatureEnabled
+} from '../core/featureFlags';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,6 +59,9 @@ export class GitHubAgent {
    * Throws a human-readable error when `gh` is missing or the command fails.
    */
   private execGh(args: string[]): string {
+    if (!isFeatureEnabled('github')) {
+      throw new Error(featureDisabledMessage('github'));
+    }
     try {
       const result = execFileSync('gh', args, {
         cwd: this.repoRoot,

@@ -1,5 +1,5 @@
 /**
- * Cursor-style changed-files bar above the composer.
+ * Changed-files bar above the composer.
  * Row: [badge] filename ……………… +n -n
  * Path shows on hover (title + floating hint).
  */
@@ -19,7 +19,7 @@ export interface ChangedFilesBarProps {
   onOpenFile?: (path: string) => void;
   onUndoAll?: () => void;
   onReview?: () => void;
-  /** While agent is running — show Stop like Cursor */
+  /** While agent is running — show Stop */
   isStreaming?: boolean;
   onStop?: () => void;
   /** ADDON-T07: recent checkpoints dropdown (minimal — button + list) */

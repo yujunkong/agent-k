@@ -1,10 +1,10 @@
-# SUBAG Phase — Cursor-style Subagents (Next Implementation)
+# SUBAG Phase — Subagents (Next Implementation)
 
 > **Source**: [`docs/PRDs/08_Subagents/PRD-Subagents.md`](../../../PRDs/08_Subagents/PRD-Subagents.md)  
 > **Generated**: 2026-07-27  
 > **Tasks**: 11 (W1: 4 · W2: 2 · W3: 2 · W4: 1 · W5: 1 · QA: 1)  
 > **Depends on**: ADDON-T09 (`TaskTool` / `SubAgentResult` 격리 뼈대)  
-> **목적**: Context-only 서브에이전트를 Cursor Explore/Bash/Browser + MD 레지스트리 수준으로 제품화
+> **목적**: Context-only 서브에이전트를 Explore/Bash/Browser + MD 레지스트리 수준으로 제품화
 
 ---
 

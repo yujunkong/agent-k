@@ -9,6 +9,10 @@ import { recordFileReadForStaleness } from './writeExecutors';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync, execSync } from 'child_process';
+import {
+  featureDisabledMessage,
+  isFeatureEnabled
+} from '../core/featureFlags';
 
 /** Resolve ripgrep binary — VS Code GUI PATH often lacks Homebrew. */
 function findRipgrepBinary(): string | null {
@@ -401,7 +405,7 @@ function formatMissingReadError(requested: string, errMsg: string, hints: string
 
 export async function executeReadFile(input: ToolInput): Promise<ToolOutput> {
   const { path: filePath, offset, maxChars = 50000 } = input;
-  // Cursor-like: default window ~250 lines (ContextRules) — never dump whole files by accident
+ // default window ~250 lines (ContextRules) — never dump whole files by accident
   const { TIER_A_CONTEXT_RULES } = await import('../harness/ContextRules');
   const defaultLines = TIER_A_CONTEXT_RULES.defaultReadLines;
   const requestedLimit =
@@ -453,7 +457,7 @@ export async function executeReadFile(input: ToolInput): Promise<ToolOutput> {
         startLine,
         endLine,
         truncated: charTruncated || moreAvailable,
-        // Tell the model how to continue like Cursor (offset/limit windows)
+ // Tell the model how to continue (offset/limit windows)
         ...(moreAvailable
           ? {
               note: `Showing lines ${startLine}-${endLine} of ${totalLines}. Read more with offset=${endLine + 1} and limit=${defaultLines}. Prefer grep/codebase_search first; do not re-read the whole file.`
@@ -618,6 +622,13 @@ export async function executeListDir(input: ToolInput): Promise<ToolOutput> {
 }
 
 export async function executeCodebaseSearch(input: ToolInput): Promise<ToolOutput> {
+  if (!isFeatureEnabled('codebase-index')) {
+    return {
+      success: false,
+      error: featureDisabledMessage('codebase-index'),
+      metadata: { duration: 0 }
+    };
+  }
   const query = String(input.query || '').trim();
   const maxResults = Math.min(Number(input.maxResults) || 10, 25);
   if (!query) {
@@ -664,7 +675,7 @@ export async function executeCodebaseSearch(input: ToolInput): Promise<ToolOutpu
     // fall through to grep
   }
 
-  // 2) Grep-backed snippets (Cursor-like locate → windowed read)
+ // 2) Grep-backed snippets (locate → windowed read)
   const viaGrep = await searchViaGrepSnippets(query, maxResults);
   return {
     success: true,

@@ -8,20 +8,8 @@ import {
 } from '../../providers/providerFields';
 import type { ProviderType } from '../../providers/types';
 import { refreshComposerModels } from '../../chat/providerModels';
-
-/** Persist settings to extension host (VS Code configuration) */
-function persistToHost(values: Record<string, unknown>): void {
-  try {
-    const vscodeApi = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
-    if (vscodeApi?.postMessage) {
-      vscodeApi.postMessage({ type: 'config.update', values });
-      return;
-    }
-  } catch {
-    /* ignore */
-  }
-  window.parent.postMessage({ type: 'config.update', values }, '*');
-}
+import { persistSettings } from '../persistSettings';
+import { isFeatureEnabled } from '../../core/featureFlags';
 
 function formatHttp401Hint(status?: number, detail?: string): string {
   if (status === 401 || detail?.includes('401')) {
@@ -147,21 +135,10 @@ export function ModelsTab() {
     }
     values['agent-k.provider.availableModels'] = catalog;
     values['agent-k.provider.models'] = catalog;
-    configManager.update(values);
-    const hostPayload: Record<string, unknown> = {
-      'agent-k.provider.type': values['agent-k.provider.type'],
-      'agent-k.provider.model': values['agent-k.provider.model'],
-      'agent-k.provider.baseUrl': values['agent-k.provider.baseUrl'],
-      'agent-k.provider.apiKey': activeKey,
-      'agent-k.provider.apiKeys': nextMap,
-      'agent-k.provider.availableModels': catalog,
-      'agent-k.provider.models': catalog
-    };
+    persistSettings(values);
     if ('agent-k.github.token' in values) {
-      hostPayload['agent-k.github.token'] = values['agent-k.github.token'];
       setGithubStored(!!values['agent-k.github.token']);
     }
-    persistToHost(hostPayload);
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 2000);
   };
@@ -197,7 +174,10 @@ export function ModelsTab() {
 
   return (
     <div className="settings-tab-content">
-      <h3>Provider &amp; credentials</h3>
+      <h3>Provider</h3>
+      <p className="settings-hint">
+        연결·API 키는 여기에 둡니다. 모델 선택은 Composer 드롭다운을 사용하세요.
+      </p>
       <p className="settings-hint">
         {fields.hint} Connect once — models from the server appear in the chat Composer dropdown.
       </p>
@@ -272,11 +252,7 @@ export function ModelsTab() {
                   const nextMap = { ...apiKeyMap };
                   delete nextMap[providerType];
                   setApiKeyMap(nextMap);
-                  configManager.update({
-                    'agent-k.provider.apiKey': '',
-                    'agent-k.provider.apiKeys': nextMap
-                  });
-                  persistToHost({
+                  persistSettings({
                     'agent-k.provider.apiKey': '',
                     'agent-k.provider.apiKeys': nextMap
                   });
@@ -290,52 +266,55 @@ export function ModelsTab() {
         </div>
       ) : null}
 
-      <h3 style={{ marginTop: 28 }}>Integrations</h3>
-      <p className="settings-hint">Optional credentials for SCM / PR features.</p>
-      <div className="settings-field">
-        <label>
-          GitHub Token
-          {(githubStored || githubToken) && !githubReveal ? (
-            <span className="settings-stored-badge"> stored</span>
-          ) : null}
-        </label>
-        <div className="settings-secret-row">
-          <input
-            type={githubReveal ? 'text' : 'password'}
-            value={githubToken}
-            onChange={(e) => setGithubToken(e.target.value)}
-            placeholder={
-              githubStored && !githubToken
-                ? '•••••••• (leave blank to keep, or type to replace)'
-                : 'ghp_…'
-            }
-            autoComplete="off"
-          />
-          <button
-            type="button"
-            className="settings-btn secondary settings-btn--tiny"
-            onClick={() => setGithubReveal((v) => !v)}
-            title={githubReveal ? 'Hide' : 'Show'}
-          >
-            {githubReveal ? 'Hide' : 'Show'}
-          </button>
-          {githubToken || githubStored ? (
-            <button
-              type="button"
-              className="settings-btn secondary settings-btn--tiny settings-btn--danger"
-              onClick={() => {
-                setGithubToken('');
-                setGithubStored(false);
-                configManager.update({ 'agent-k.github.token': '' });
-                persistToHost({ 'agent-k.github.token': '' });
-              }}
-              title="Clear GitHub token"
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
-      </div>
+      {isFeatureEnabled('github') ? (
+        <>
+          <h3 style={{ marginTop: 28 }}>Integrations</h3>
+          <p className="settings-hint">Optional credentials for SCM / PR features.</p>
+          <div className="settings-field">
+            <label>
+              GitHub Token
+              {(githubStored || githubToken) && !githubReveal ? (
+                <span className="settings-stored-badge"> stored</span>
+              ) : null}
+            </label>
+            <div className="settings-secret-row">
+              <input
+                type={githubReveal ? 'text' : 'password'}
+                value={githubToken}
+                onChange={(e) => setGithubToken(e.target.value)}
+                placeholder={
+                  githubStored && !githubToken
+                    ? '•••••••• (leave blank to keep, or type to replace)'
+                    : 'ghp_…'
+                }
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                className="settings-btn secondary settings-btn--tiny"
+                onClick={() => setGithubReveal((v) => !v)}
+                title={githubReveal ? 'Hide' : 'Show'}
+              >
+                {githubReveal ? 'Hide' : 'Show'}
+              </button>
+              {githubToken || githubStored ? (
+                <button
+                  type="button"
+                  className="settings-btn secondary settings-btn--tiny settings-btn--danger"
+                  onClick={() => {
+                    setGithubToken('');
+                    setGithubStored(false);
+                    persistSettings({ 'agent-k.github.token': '' });
+                  }}
+                  title="Clear GitHub token"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </>
+      ) : null}
 
       <div className="settings-actions">
         <button type="button" onClick={handleTest} className="settings-btn secondary">

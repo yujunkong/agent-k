@@ -237,7 +237,7 @@ export class AgentKExtension {
         "type": "string",
         "enum": ["resynthesize", "queue_only"],
         "default": "resynthesize",
-        "description": "Cursor-like: Enter while running interrupts and resynthesizes. queue_only = soft enqueue only."
+ "description": "Enter while running interrupts and resynthesizes. queue_only = soft enqueue only."
       },
       "agent-k.queue.onStop": {
         "type": "string",

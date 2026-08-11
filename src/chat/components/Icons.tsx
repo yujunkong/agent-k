@@ -1,5 +1,5 @@
 /**
- * Shared 14×14 stroke icons for chat chrome (Cursor-like).
+ * Shared 14×14 stroke icons for chat chrome.
  */
 import React from 'react';
 
@@ -107,7 +107,7 @@ export function IconMore(p: IconProps) {
   );
 }
 
-/** Panel / sidebar layout toggle (Cursor-like) */
+/** Panel / sidebar layout toggle */
 export function IconSidebar(p: IconProps) {
   return (
     <Svg {...p}>
@@ -155,7 +155,7 @@ export function IconCheck(p: IconProps) {
   );
 }
 
-/** Fork chat from this message (Cursor-style branch) */
+/** Fork chat from this message (branch) */
 export function IconFork(p: IconProps) {
   return (
     <Svg {...p}>

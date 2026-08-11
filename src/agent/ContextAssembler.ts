@@ -13,6 +13,7 @@ import { MemoryStore } from '../memories/MemoryStore';
 import { getSkillRegistry } from '../skills/SkillRegistry';
 import { RuntimeServices } from '../core/RuntimeServices';
 import { configManager } from '../core/ConfigManager';
+import { isFeatureEnabled } from '../core/featureFlags';
 import { injectVerificationFirst } from '../harness/VerificationFirstPrompt';
 import { injectDesignSlogans } from '../harness/DesignSlogans';
 import { injectCursorPattern } from '../harness/CursorPattern';
@@ -89,18 +90,20 @@ export class ContextAssembler {
     let systemPrompt = options?.customSystemPrompt || modeConfig.systemPrompt;
 
     // RW-C7-07: 핀 스킬을 시스템 프롬프트 근처에 주입 (Tier A 캡은 registry 내부)
-    try {
-      const registry = getSkillRegistry();
-      const tierA = configManager.get('agent-k.harness.tierA') === true;
-      const injected = registry.injectPinnedSkills(systemPrompt, tierA);
-      systemPrompt = injected.prompt;
-      if (injected.warnings.length > 0 && options?.additionalRules) {
-        options.additionalRules.push(...injected.warnings);
-      } else if (injected.warnings.length > 0) {
-        options = { ...options, additionalRules: [...(options?.additionalRules || []), ...injected.warnings] };
+    if (isFeatureEnabled('skills')) {
+      try {
+        const registry = getSkillRegistry();
+        const tierA = configManager.get('agent-k.harness.tierA') === true;
+        const injected = registry.injectPinnedSkills(systemPrompt, tierA);
+        systemPrompt = injected.prompt;
+        if (injected.warnings.length > 0 && options?.additionalRules) {
+          options.additionalRules.push(...injected.warnings);
+        } else if (injected.warnings.length > 0) {
+          options = { ...options, additionalRules: [...(options?.additionalRules || []), ...injected.warnings] };
+        }
+      } catch {
+        /* skills dir unavailable in test host */
       }
-    } catch {
-      /* skills dir unavailable in test host */
     }
 
     // ─── HARB: Tier A 하네스 프롬프트 주입 ─────────────────
@@ -157,7 +160,9 @@ Use only read/search tools (and ask_question / todo_write when appropriate).`;
       {
         name: 'memories',
         budgetPercent: 2,
-        content: memoryStore.injectMemoriesIntoPrompt('', Math.floor(this.maxTokens * 0.02)).trim() || '(no memories)',
+        content: isFeatureEnabled('memories')
+          ? memoryStore.injectMemoriesIntoPrompt('', Math.floor(this.maxTokens * 0.02)).trim() || '(no memories)'
+          : '',
         priority: 70,
         protected_: false
       },

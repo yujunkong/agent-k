@@ -1,42 +1,45 @@
 /**
  * McpTab — shows configured MCP servers (agent-k.mcp.servers) and wiring hints.
  * Connection runs in the extension host on activate / agent-k.mcp.reload.
- * ADDON-T15: exposes the deferred-schema token budget (agent-k.mcp.maxSchemaTokens).
  */
 import React, { useMemo, useState } from 'react';
 import { configManager } from '../../core/ConfigManager';
+import { isFeatureEnabled } from '../../core/featureFlags';
 import { parseMcpServersMap } from '../../mcp/parseMcpServers';
+import { persistSetting } from '../persistSettings';
+import { SettingsSaveButton } from '../SettingsSaveButton';
 
 export function McpTab() {
   const servers = useMemo(() => {
-    const raw =
-      configManager.get('agent-k.mcp.servers') ||
-      // Fallback: defaults mirror package.json (webview may not have VS Code bridge yet)
-      undefined;
+    const raw = configManager.get('agent-k.mcp.servers') || undefined;
     return parseMcpServersMap(raw);
   }, []);
 
   const [maxSchemaTokens, setMaxSchemaTokens] = useState<number>(
     Number(configManager.get('agent-k.mcp.maxSchemaTokens')) || 8000
   );
-
-  const handleSaveBudget = () => {
-    const tokens = Math.min(200000, Math.max(500, Math.floor(maxSchemaTokens) || 8000));
-    setMaxSchemaTokens(tokens);
-    configManager.set('agent-k.mcp.maxSchemaTokens', tokens);
-  };
+  const mcpEnabled = isFeatureEnabled('mcp');
 
   return (
     <div className="settings-tab-content">
-      <h3>MCP Server Configuration</h3>
+      <h3>MCP</h3>
+      {!mcpEnabled ? (
+        <p className="settings-banner settings-banner--warn" role="status">
+          Features에서 MCP가 꺼져 있습니다. 서버를 연결하려면 Features → MCP
+          Client를 켠 뒤 저장하세요.
+        </p>
+      ) : null}
       <p className="settings-hint">
-        Edit <code>agent-k.mcp.servers</code> in VS Code Settings (JSON). Continue/OpenCode-style map:
-        command as argv array, <code>enabled</code> flag. Host auto-connects on activate.
+        서버 목록은 VS Code 설정의 <code>agent-k.mcp.servers</code> 또는
+        Project 탭 <code>.agentk/settings.json</code>에서 편집합니다.
+        OpenCode/Continue 스타일 맵(command argv, enabled). 활성화 시 호스트가
+        연결합니다.
       </p>
       {servers.length === 0 ? (
         <p className="settings-empty">
-          No MCP servers configured. Add e.g. searxng under <code>agent-k.mcp.servers</code>, then run
-          command <code>Agent K: MCP Reload</code> (agent-k.mcp.reload).
+          설정된 MCP 서버가 없습니다. <code>agent-k.mcp.servers</code>에
+          추가한 뒤 Command Palette → <code>Agent K: MCP Reload</code>를
+          실행하세요.
         </p>
       ) : (
         <ul className="settings-list">
@@ -51,29 +54,36 @@ export function McpTab() {
         </ul>
       )}
       <div className="settings-field">
-        <label>Deferred Schema Token Budget</label>
+        <label>스키마 토큰 예산 (deferred)</label>
         <input
           type="number"
           value={maxSchemaTokens}
-          onChange={(e) => setMaxSchemaTokens(parseInt(e.target.value, 10) || 8000)}
+          onChange={(e) =>
+            setMaxSchemaTokens(parseInt(e.target.value, 10) || 8000)
+          }
           min={500}
           max={200000}
           step={500}
         />
-        <p className="settings-muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
-          Servers whose tool schema payload estimate exceeds this token budget stay deferred
-          (lazy-loaded) instead of being registered up front. Default 8000.
-        </p>
-        <button onClick={handleSaveBudget} className="settings-btn primary" style={{ marginTop: 8 }}>
-          Save
-        </button>
-      </div>
-      <div className="settings-actions">
-        <p className="settings-muted">
-          Tools register as <code>mcp_&lt;server&gt;_&lt;tool&gt;</code> (e.g.{' '}
-          <code>mcp_searxng_web_search</code>). Use Command Palette → MCP Reload after edits.
+        <p className="settings-hint">
+          이 예산을 넘는 서버 스키마는 미리 등록하지 않고 지연 로드합니다.
+          기본 8000.
         </p>
       </div>
+      <SettingsSaveButton
+        onSave={() => {
+          const tokens = Math.min(
+            200000,
+            Math.max(500, Math.floor(maxSchemaTokens) || 8000)
+          );
+          setMaxSchemaTokens(tokens);
+          persistSetting('agent-k.mcp.maxSchemaTokens', tokens);
+        }}
+      />
+      <p className="settings-muted" style={{ marginTop: 12 }}>
+        도구 이름: <code>mcp_&lt;server&gt;_&lt;tool&gt;</code> (예:{' '}
+        <code>mcp_searxng_web_search</code>).
+      </p>
     </div>
   );
 }

@@ -334,7 +334,7 @@ body {
 .plan-editor-overlay {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 40;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -540,6 +540,19 @@ body {
 .plan-mode-header__hint strong {
   color: var(--vscode-foreground, #e0e0e0);
   font-weight: 600;
+}
+
+.plan-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+}
+
+.plan-summary-actions .settings-btn {
+  font-size: 12px;
+  padding: 4px 10px;
 }
 
 .plan-review {
@@ -1152,15 +1165,11 @@ body {
   }
 }
 
-/* Explore list body always fully opaque + scroll behavior */
+/* Explore list body — rail only; no inner scroll pane (chat list scrolls) */
 .ak-explore-scroll {
   opacity: 1;
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  overscroll-behavior: contain;
-  touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  overflow: visible;
 }
 
 .ak-tool-slide-list {
@@ -1195,15 +1204,6 @@ body {
   animation: ak-slide-in 0.28s ease-out;
 }
 
-.ak-explore-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.ak-explore-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.22);
-  border-radius: 3px;
-}
-
 .ak-tool-row--running {
   color: var(--vscode-foreground, #ccc);
 }
@@ -1227,12 +1227,15 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Nested under Exploring — already inside the explore rail */
+/* Nested under Exploring — expand fully, no clipped scroll box */
 .message-steps-thought-body--mid {
   padding-left: 0;
-  max-height: 96px;
+  max-height: none;
+  overflow: visible;
   font-size: 11.5px;
   opacity: 1;
+  overscroll-behavior: auto;
+  touch-action: auto;
 }
 
 .message-steps-turn:has(.ak-step-row--live) .message-steps-thought-body {
@@ -1240,7 +1243,8 @@ body {
 }
 
 .message-steps-turn:has(.ak-step-row--live) .message-steps-thought-body--mid {
-  max-height: 120px;
+  max-height: none;
+  overflow: visible;
 }
 
 .message-bubble.user {
@@ -1280,7 +1284,7 @@ body {
   pointer-events: auto;
 }
 
-/* Cursor-like user turn: quiet card, chips then text, no role chrome */
+/* user turn: quiet card — chips then text (theme-aware border for light/dark) */
 .user-turn {
   display: flex;
   flex-direction: column;
@@ -1290,10 +1294,16 @@ body {
   border-radius: 10px;
   background: color-mix(
     in srgb,
-    var(--vscode-input-background, #2a2a2a) 78%,
-    transparent
+    var(--vscode-input-background, #2a2a2a) 72%,
+    var(--vscode-editor-background, #1e1e1e)
   );
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  /* Stronger than generic card border — must read on light themes too */
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--vscode-foreground, #333) 28%,
+      transparent
+    );
   position: relative;
 }
 
@@ -1313,9 +1323,17 @@ body {
   border-radius: 5px;
   font-size: 11px;
   line-height: 1.35;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(
+    in srgb,
+    var(--vscode-badge-background, #4d4d4d) 45%,
+    transparent
+  );
   color: var(--vscode-foreground, #ddd);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid
+    var(
+      --ak-card-border,
+      var(--vscode-widget-border, rgba(128, 128, 128, 0.28))
+    );
 }
 
 .user-chip__icon {
@@ -1333,22 +1351,34 @@ body {
 }
 
 .user-chip--folder {
-  background: rgba(45, 212, 191, 0.09);
-  border-color: rgba(45, 212, 191, 0.26);
-  color: #7ee7d8;
+  background: color-mix(in srgb, #2dd4bf 16%, transparent);
+  border-color: color-mix(in srgb, #2dd4bf 42%, transparent);
+  color: color-mix(
+    in srgb,
+    #0f766e 55%,
+    var(--vscode-foreground, #e8e8e8)
+  );
 }
 
 .user-chip--file {
-  background: rgba(96, 165, 250, 0.09);
-  border-color: rgba(96, 165, 250, 0.26);
-  color: #93c5fd;
+  background: color-mix(in srgb, #60a5fa 16%, transparent);
+  border-color: color-mix(in srgb, #60a5fa 42%, transparent);
+  color: color-mix(
+    in srgb,
+    #1d4ed8 50%,
+    var(--vscode-foreground, #e8e8e8)
+  );
 }
 
 .user-chip--log,
 .user-chip--snippet {
-  background: rgba(250, 204, 21, 0.07);
-  border-color: rgba(250, 204, 21, 0.26);
-  color: #fde68a;
+  background: color-mix(in srgb, #facc15 14%, transparent);
+  border-color: color-mix(in srgb, #facc15 40%, transparent);
+  color: color-mix(
+    in srgb,
+    #a16207 55%,
+    var(--vscode-foreground, #e8e8e8)
+  );
 }
 
 .user-turn__text {
@@ -1604,7 +1634,7 @@ body {
   opacity: 0.9;
 }
 
-/* Cursor-style: collapse finished timeline under "Worked for …" */
+/* collapse finished timeline under "Worked for …" */
 .ak-worked {
   margin: 2px 0 8px;
 }
@@ -1895,7 +1925,7 @@ body {
   padding: 2px 8px;
 }
 
-/* Cursor-style terminal run card */
+/* terminal run card */
 .ak-terminal-card {
   margin: 6px 0;
   border-radius: 8px;
@@ -2112,7 +2142,7 @@ body {
   overflow-x: auto;
 }
 
-/* Cursor-like compact headings — no oversized H1/H2 */
+/* compact headings — no oversized H1/H2 */
 .message-content .markdown-body h1,
 .message-content .markdown-body h2,
 .message-content .markdown-body h3,
@@ -2594,7 +2624,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 /*
- * Cursor-like shell (after base list/footer rules so these win):
+ * shell (after base list/footer rules so these win)
  * - empty: composer under tabs (top); empty background fills the rest — no scroll
  * - active: thread scrolls; queue / changed-files / composer stay pinned bottom
  */
@@ -2758,7 +2788,7 @@ body.vscode-high-contrast .ak-code__cursor {
   transition: outline-color 0.15s, background 0.15s;
 }
 
-/* ── Changed files bar (Cursor-like, above composer) ── */
+/* ── Changed files bar (, above composer) ── */
 .changed-files-bar {
   position: relative;
   border: 1px solid var(--ak-panel-border);
@@ -3037,7 +3067,7 @@ body.vscode-high-contrast .ak-code__cursor {
   opacity: 0.35;
 }
 
-/* Cursor-like path float under the bar while hovering a row */
+/* path float under the bar while hovering a row */
 .changed-files-bar__path-tip {
   position: absolute;
   left: 8px;
@@ -3066,7 +3096,7 @@ body.vscode-high-contrast .ak-code__cursor {
   opacity: 0.95;
 }
 
-/* ── Cursor-like composer box ── */
+/* ── composer box ── */
 .composer--cursor {
   gap: 8px;
   min-width: 240px;
@@ -3740,7 +3770,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border-radius: 12px;
 }
 
-/* Cursor-like teal attachment pills (inside composer box) */
+/* teal attachment pills (inside composer box) */
 .composer-chips {
   display: flex;
   flex-wrap: wrap;
@@ -4195,6 +4225,20 @@ body.vscode-high-contrast .ak-code__cursor {
   font-weight: 600;
 }
 
+.settings-precedence {
+  margin: 0;
+  padding: 8px 14px;
+  font-size: 11px;
+  line-height: 1.45;
+  opacity: 0.78;
+  border-bottom: 1px solid var(--ak-chrome-border, #3c3c3c);
+  flex-shrink: 0;
+}
+
+.settings-precedence code {
+  font-size: 10.5px;
+}
+
 .settings-close {
   border: 1px solid #3c3c3c;
   border-radius: 4px;
@@ -4217,7 +4261,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .settings-nav {
-  width: 128px;
+  width: 132px;
   flex-shrink: 0;
   overflow-y: auto;
   border-right: 1px solid #3c3c3c;
@@ -4225,6 +4269,16 @@ body.vscode-high-contrast .ak-code__cursor {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.settings-nav__divider {
+  margin: 8px 4px 4px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.45;
 }
 
 .settings-tab {
@@ -4280,6 +4334,105 @@ body.vscode-high-contrast .ak-code__cursor {
   margin: 0 0 4px;
   font-size: 13px;
   font-weight: 600;
+}
+
+.settings-banner {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  border-radius: 6px;
+  border: 1px solid var(--ak-chrome-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-banner--warn {
+  border-color: rgba(234, 179, 8, 0.35);
+  background: rgba(234, 179, 8, 0.08);
+}
+
+.settings-banner--info {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.settings-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.settings-feature-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-panel-border, #333);
+  background: var(
+    --vscode-editor-inactiveSelectionBackground,
+    rgba(255, 255, 255, 0.03)
+  );
+  cursor: pointer;
+}
+
+.settings-feature-row--off {
+  opacity: 0.55;
+}
+
+.settings-feature-row input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.settings-feature-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-feature-row__title {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.settings-feature-row__tier {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.65;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-feature-row__desc {
+  font-size: 11px;
+  opacity: 0.65;
+  line-height: 1.35;
+}
+
+.settings-feature-row__gates {
+  font-size: 10px;
+  opacity: 0.5;
+  line-height: 1.3;
+}
+
+.settings-json-editor {
+  width: 100%;
+  font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--vscode-input-border, rgba(128, 128, 128, 0.35));
+  background: var(--vscode-input-background, #1e1e1e);
+  color: var(--vscode-input-foreground, inherit);
+  resize: vertical;
+  box-sizing: border-box;
+  margin-bottom: 8px;
 }
 
 .settings-field {

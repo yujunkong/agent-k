@@ -12,14 +12,14 @@ export interface ChatMessage {
   status: MessageStatus;
   timestamp: number;
   /**
-   * Wall-clock work time for Cursor-style "Worked for Xm Ys" collapse
+   * Wall-clock work time for "Worked for Xm Ys" collapse
    * (set when streaming completes).
    */
   workedDurationMs?: number;
   /** Host AgentLoop tool status — separate from answer content (turn contract UX) */
   toolStatus?: string;
   /**
-   * Cursor-style inline steps under the assistant bubble (PRD-C0 §5.3).
+   * Inline steps under the assistant bubble (PRD-C0 §5.3).
    * Appended sequentially as the loop runs — not a separate sticky panel.
    */
   steps?: Array<{
@@ -28,18 +28,18 @@ export interface ChatMessage {
     label: string;
     detail?: string;
     toolName?: string;
-    /** Agent loop turn number (for Cursor-style collapse-per-turn) */
+    /** Agent loop turn number (for collapse-per-turn) */
     turn?: number;
     thoughtRole?: 'opening' | 'mid';
     itemStatus: 'running' | 'done' | 'error';
     durationMs?: number;
   }>;
-  /** Successful edit_file / write_file previews (Cursor-style cards) */
+  /** Successful edit_file / write_file previews (cards) */
   fileEdits?: FileEditPreview[];
-  /** run_terminal_cmd cards (Cursor-style expandable terminal box) */
+  /** run_terminal_cmd cards (expandable terminal box) */
   terminalRuns?: TerminalRunPreview[];
   /**
-   * Cursor-style first line: shown immediately above Thought/tools
+   * First line: shown immediately above Thought/tools
    * ("네, templates 폴더 분석하겠습니다.") — not cleared by tool turns.
    */
   openingLead?: string;
@@ -54,10 +54,16 @@ export interface ChatMessage {
     content: string;
   }>;
   /**
-   * Plan planning turn: show "작성 중" immediately while streaming
-   * (full PLAN.md is hidden until promote → summary).
+   * Plan planning turn: once plan markdown starts streaming, hide raw body
+   * behind "작성 중" until promote → summary. Set as a stage hint only —
+   * UI waits for looksLikePlanWritingStart before showing the chrome.
    */
   planDrafting?: boolean;
+  /**
+   * Full PLAN.md kept on the summary bubble after promote so Review can
+   * reopen even if controller/refs were cleared (webview remount, tab park).
+   */
+  planMarkdown?: string;
   metadata?: {
     model: string;
     tokens: { input: number; output: number };
@@ -82,7 +88,7 @@ export interface FileEditPreview {
   }>;
 }
 
-/** Cursor-style terminal run card in the chat timeline */
+/** terminal run card in the chat timeline */
 export interface TerminalRunPreview {
   id: string;
   command: string;
@@ -186,6 +192,16 @@ export interface StreamDelta {
   };
   /** Host debug FSM stage advance → timeline / controller sync */
   debugStage?: string;
+  /** Host plan FSM stage advance → badge / controller sync */
+  planStageSync?: string;
+  /** Host plan_present_summary → forced user-visible turnProse */
+  planSummary?: {
+    summary: string;
+    kind?: string;
+    stage?: string;
+  };
+  /** Replace entire assistant bubble content (CoT cleanup) */
+  replaceContent?: string;
   toolCalls?: ToolCall[];
   done?: boolean;
   error?: string;

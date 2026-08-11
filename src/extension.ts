@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { registerReadTools } from './tools/readTools';
 import { registerEditTools } from './tools/editTools';
 import { registerC5C7Tools } from './tools/c5c7Tools';
+import { registerPlanStageTools } from './tools/planStageTools';
 import { DebugLogServer } from './debug/DebugLogServer';
 import { MCPClient } from './mcp/MCPClient';
 import { bootstrapMcpFromSettings, registerMcpToolsInRegistry } from './mcp/bootstrapMcp';
@@ -21,6 +22,10 @@ import { fromHostSnapshot, toHostSnapshot } from './session/HostSessionBridge';
 import { getSkillRegistry } from './skills/SkillRegistry';
 import * as path from 'path';
 import { configManager, AGENT_K_VSCODE_CONFIG_KEYS } from './core/ConfigManager';
+import {
+  featureDisabledMessage,
+  isFeatureEnabled
+} from './core/featureFlags';
 import {
   PROJECT_CONFIG_FILENAMES,
   PROJECT_CONFIG_PATH,
@@ -585,6 +590,37 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       })();
       return;
     }
+    if (message.type === 'plan.loadLatest') {
+      void (async () => {
+        try {
+          const loaded = await PlanStorage.loadLatestPlan();
+          if (!loaded) {
+            this._view?.webview.postMessage({
+              type: 'plan.load.error',
+              error: '저장된 Plan 파일이 없습니다.',
+              requestId: message.requestId
+            });
+            return;
+          }
+          this._view?.webview.postMessage({
+            type: 'plan.loaded',
+            slug: loaded.plan.slug,
+            title: loaded.plan.title,
+            content: loaded.content,
+            filePath: loaded.plan.filePath,
+            openReview: true,
+            requestId: message.requestId
+          });
+        } catch (err: any) {
+          this._view?.webview.postMessage({
+            type: 'plan.load.error',
+            error: err?.message || String(err),
+            requestId: message.requestId
+          });
+        }
+      })();
+      return;
+    }
     // Persist debug session → <workspace>/.agentk/debug/tmp/debug_<hash>.md
     if (message.type === 'debug.save') {
       void (async () => {
@@ -649,7 +685,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       })();
       return;
     }
-    // Cursor-like drag/drop: resolve file:// URIs → path + file|folder
+ // drag/drop: resolve file:// URIs → path + file|folder
     if (message.type === 'attachments.resolve' && message.requestId != null) {
       void this.resolveAttachmentUris(
         String(message.requestId),
@@ -1317,7 +1353,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     };
 
     // Short path/pattern only — never dump full tool JSON (PRD-C0 §5.3)
-    // Cursor-style: "Grepped pattern in path", "Read file.ts L10-50"
+ // "Grepped pattern in path", "Read file.ts L10-50"
     const shortDetail = (
       name: string,
       args: Record<string, unknown> | undefined
@@ -1519,7 +1555,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     let timelineSeq = 0;
     /** Active tool timeline item id keyed by tool name (last call wins per name) */
     const activeToolItems = new Map<string, string>();
-    /** Cursor-style row text from tool args — keep on result so Grepped/Read don't become "N matches" */
+ /** row text from tool args — keep on result so Grepped/Read don't become "N matches" */
     const toolStartDetails = new Map<string, string>();
 
     const postTimeline = (payload: {
@@ -1573,10 +1609,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       const modeConfig = modeRegistry.getModeConfig(mode);
       // Prefer VS Code setting; fall back to mode default. Small models need headroom.
       const configuredTurns = Number(configManager.get('agent-k.maxTurns'));
-      const maxTurns =
+      let maxTurns =
         Number.isFinite(configuredTurns) && configuredTurns >= 5
           ? Math.min(100, Math.floor(configuredTurns))
           : modeConfig.maxTurns;
+      // Confirm→Build / explicit override: multi-step plans burn turns fast
+      const overrideTurns = Number(message.maxTurns);
+      if (Number.isFinite(overrideTurns) && overrideTurns >= 5) {
+        maxTurns = Math.min(100, Math.max(maxTurns, Math.floor(overrideTurns)));
+      }
       const configuredTimeout = Number(configManager.get('agent-k.turnTimeoutMs'));
       const turnTimeoutMs = Number.isFinite(configuredTimeout)
         ? Math.max(0, Math.floor(configuredTimeout))
@@ -1616,9 +1657,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           customSystemPrompt
         }
       );
-      const systemPrompt =
+      const systemPromptBase =
         assembly.slots.find((s) => s.name === 'system')?.content ||
         modeRegistry.getSystemPrompt(mode);
+      const addon =
+        typeof message.systemAddon === 'string' ? message.systemAddon.trim() : '';
+      const systemPrompt = addon
+        ? `${systemPromptBase}\n\n${addon}`
+        : systemPromptBase;
 
       const provider = new LiteLLMProvider({
         id: 'agent-k-chat',
@@ -1660,6 +1706,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         onDebugStage: (stage) => {
           post('debug.stage', { stage });
         },
+        onPlanStage: (stage) => {
+          post('plan.stage', { stage });
+        },
         // Re-bind ask_question UI on every tool call (new tab / interrupt safe)
         onAskQuestion: (q) => {
           if (this._hostLoopRequestId !== requestId) {
@@ -1690,7 +1739,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             | 'high'
             | 'max') ||
           'medium',
-        // Per-turn Thought / Exploring / Planning next moves (Cursor-style)
+ // Per-turn Thought / Exploring / Planning next moves
         onTurnStart: async (turn) => {
           // Freeze previous turn's Thought + Planning so UI stays sequential
           if (currentTurn > 0 && currentTurn !== turn) {
@@ -1778,7 +1827,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           streamedAnswer += text;
           deliveredFinal = true;
           if (firstAnswerToken) {
-            // Close Thought chrome once answer tokens start (Cursor-like)
+ // Close Thought chrome once answer tokens start
             const turn = currentTurn || 1;
             postTimeline({
               kind: 'thinking',
@@ -1798,6 +1847,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           }
           post('delta', { content: text });
         },
+        onAssistantReplace: async (content) => {
+          const full = String(content || '');
+          streamedAnswer = full;
+          deliveredFinal = true;
+          post('delta', { replaceContent: full });
+        },
         onToolCall: async (name, args, callId) => {
           const kind = toolKind(name);
           const detail = shortDetail(name, args as Record<string, unknown>);
@@ -1807,7 +1862,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               ? `tl_${String(callId)}`
               : `tl_tool_${turn}_${name}_${++timelineSeq}`;
           activeToolItems.set(callId || name, id);
-          // Keep Cursor-style start detail across tool result (don't replace with "N matches")
+ // Keep start detail across tool result (don't replace with "N matches")
           if (detail) {
             toolStartDetails.set(id, detail);
           }
@@ -1916,7 +1971,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               : undefined,
             error: result.success ? undefined : result.error
           });
-          // Cursor-style file edit cards in the chat transcript
+ // file edit cards in the chat transcript
           if (
             result.success &&
             (name === 'edit_file' || name === 'write_file') &&
@@ -2110,7 +2165,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   /** Open in-chat Settings Hub (Models tab by default) */
   public openSettings(tab?: string) {
-    this._view?.webview.postMessage({ type: 'settings.open', tab: tab || 'models' });
+    this._view?.webview.postMessage({
+      type: 'settings.open',
+      tab: tab || 'provider'
+    });
   }
 
   /** Command palette: create/open workspace `.agentk/settings.json` */
@@ -2119,7 +2177,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   public openProviderSettings() {
-    this.openSettings('models');
+    this.openSettings('provider');
   }
 
   public switchMode() {
@@ -2168,10 +2226,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   /** RW-C7-05/06/10: open in-chat panels */
   public openDesignMode() {
+    if (!isFeatureEnabled('design-mode')) {
+      void vscode.window.showWarningMessage(featureDisabledMessage('design-mode'));
+      return;
+    }
     this._view?.webview.postMessage({ type: 'ui.design.open' });
   }
   /** ADDON-T14: run diff review (+ optional LM pass) and seed FindingList */
   public async openReview() {
+    if (!isFeatureEnabled('agent-review')) {
+      void vscode.window.showWarningMessage(featureDisabledMessage('agent-review'));
+      return;
+    }
     const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (repoRoot) {
       try {
@@ -2399,6 +2465,7 @@ export function activate(context: vscode.ExtensionContext) {
     registerReadTools();
     registerEditTools();
     registerC5C7Tools();
+    registerPlanStageTools();
     outputChannel.appendLine('[Agent K] Tool registry initialized');
 
     context.subscriptions.push(
@@ -2407,7 +2474,7 @@ export function activate(context: vscode.ExtensionContext) {
       }),
 
       vscode.commands.registerCommand('agent-k.openSettings', () => {
-        provider.openSettings('models');
+        provider.openSettings('provider');
       }),
 
       vscode.commands.registerCommand('agent-k.openProjectConfig', () => {
@@ -2415,7 +2482,7 @@ export function activate(context: vscode.ExtensionContext) {
       }),
 
       vscode.commands.registerCommand('agent-k.provider.add', () => {
-        provider.openSettings('models');
+        provider.openSettings('provider');
       }),
 
       vscode.commands.registerCommand('agent-k.mode.switch', () => {
@@ -2461,6 +2528,10 @@ export function activate(context: vscode.ExtensionContext) {
       }),
 
       vscode.commands.registerCommand('agent-k.mcp.connect', async () => {
+        if (!isFeatureEnabled('mcp')) {
+          void vscode.window.showWarningMessage(featureDisabledMessage('mcp'));
+          return;
+        }
         const serverName = await vscode.window.showInputBox({ prompt: 'MCP server name' });
         const commandLine = await vscode.window.showInputBox({
           prompt: 'MCP server command (argv, space-separated)',
@@ -2485,6 +2556,10 @@ export function activate(context: vscode.ExtensionContext) {
       }),
 
       vscode.commands.registerCommand('agent-k.mcp.reload', async () => {
+        if (!isFeatureEnabled('mcp')) {
+          void vscode.window.showWarningMessage(featureDisabledMessage('mcp'));
+          return;
+        }
         await mcpClient.disconnectAll();
         const lines = await bootstrapMcpFromSettings(mcpClient, (m) => outputChannel.appendLine(m));
         vscode.window.showInformationMessage(
@@ -2494,6 +2569,10 @@ export function activate(context: vscode.ExtensionContext) {
 
       // ADDON-T13: Best-of-N — prompt task/N, run parallel worktree trials, adopt or clean up
       vscode.commands.registerCommand('agent-k.bestOfN.run', async () => {
+        if (!isFeatureEnabled('worktree')) {
+          void vscode.window.showWarningMessage(featureDisabledMessage('worktree'));
+          return;
+        }
         const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!repoRoot) {
           void vscode.window.showWarningMessage(

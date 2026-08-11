@@ -15,14 +15,21 @@ import type { CheckpointSummary } from './components/ChangedFilesBar';
 import type { FileEditPreview } from './types';
 import { useChatStream } from './hooks/useChatStream';
 import { configManager } from '../core/ConfigManager';
+import {
+  featureDisabledMessage,
+  isFeatureEnabled
+} from '../core/featureFlags';
 import type { ChatMessage, Mode, StreamDelta, Attachment } from './types';
 import { formatAttachmentsForPayload } from './attachmentFormat';
 import {
   extractPlanMarkdownFromMessage,
   findLatestPlanMarkdown,
+  findStoredPlanMarkdown,
   looksLikePlanDocument,
   looksLikePlanDraft,
+  looksLikePlanChatSummary,
   dedupeRepeatedPlanDocument,
+  stripPlanFsmNarration,
   buildPlanChatSummary
 } from './planPromote';
 import './chat.css';
@@ -46,7 +53,18 @@ import { askQuestionTool } from '../tools/session/AskQuestionTool';
 import type { PendingQuestion } from '../tools/session/AskQuestionTool';
 import { normalizeMcqQuestion } from './normalizeAskQuestion';
 // RW-C5-04: Plan → Agent 핸드오프
-import { PlanToAgent } from '../plan/PlanToAgent';
+import {
+  PlanToAgent,
+  compactMessagesForPlanExecute,
+  compactHistoryForBuildHandoff,
+  looksLikePlanHandoffLeak,
+  buildKickoffUserMessage
+} from '../plan/PlanToAgent';
+import {
+  looksLikeInternalPlanningDump,
+  looksLikePlanStepProgress,
+  stripInternalPlanningChrome
+} from './turnProseSplit';
 // RW-C6-05-R2: ReproduceUI 대기 루프
 import { ReproduceUI } from '../debug/ReproduceUI';
 import { requestReproduceTool } from '../tools/debug/RequestReproduceTool';
@@ -80,7 +98,7 @@ import {
   prependHarnessToUserPayload,
   stripHarnessForDisplay
 } from './harnessBridge';
-import { sealBodyBeforeTools, resolveSealTurn } from './sealTurnProse';
+import { sealBodyBeforeTools, resolveSealTurn, divertMidDigContent, threadHasCompletedPlanResearch, recoverHiddenFindings } from './sealTurnProse';
 import { stripFakeToolMarkup } from './displaySanitize';
 import {
   getComposerModels,
@@ -88,7 +106,7 @@ import {
   refreshComposerModels
 } from './providerModels';
 // ADDON-T10: slash command UX (/compact /cost /model /permissions /help)
-import { SLASH_COMMANDS, resolveSlashCommand, type SlashCommand } from './composerPalette';
+import { visibleSlashCommands, resolveSlashCommand, type SlashCommand } from './composerPalette';
 
 const MODE_LABELS: Record<Mode, string> = {
   ask: 'Ask',
@@ -265,7 +283,7 @@ export function ChatApp() {
   });
   const [stuckEvent, setStuckEvent] = useState<UXEventType | null>(null);
 
-  // Cursor-style: steps attach to the streaming assistant bubble (not a top panel)
+ // steps attach to the streaming assistant bubble (not a top panel)
   const stepStartRef = useRef<Record<string, number>>({});
 
   // ─── C5-C7 UI 상태 ─────────────────────────────────────
@@ -276,6 +294,8 @@ export function ChatApp() {
   const [showPlanReview, setShowPlanReview] = useState(false);
   /** React-owned copy so Review overlay re-renders when controller mutates */
   const [planReviewDoc, setPlanReviewDoc] = useState<PlanDocument | null>(null);
+  /** Reject/discard sticky — blocks recovery + hides View Plans chrome */
+  const [planDiscarded, setPlanDiscarded] = useState(false);
   // Clarifying questions via AskQuestionTool bridge (RW-C5-02)
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestion[]>([]);
   /** True while host is blocked on ask_question — Composer shows Waiting… not Streaming… */
@@ -298,6 +318,7 @@ export function ChatApp() {
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [settingsTab, setSettingsTab] = useState<
+    | 'provider'
     | 'models'
     | 'permission'
     | 'queue'
@@ -306,7 +327,9 @@ export function ChatApp() {
     | 'mcp'
     | 'features'
     | 'privacy'
-  >('models');
+    | 'json'
+    | 'project'
+  >('provider');
   const [showDesignMode, setShowDesignMode] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [reviewFindings, setReviewFindings] = useState<ReviewFinding[]>([]);
@@ -395,6 +418,10 @@ export function ChatApp() {
           planStageOverride?: string;
           /** API에만 전달 — 채팅에 사용자 말풍선 안 그림 (질문 완료 핸드오프 등) */
           hideUserBubble?: boolean;
+          systemAddon?: string;
+          planExecuteHandoff?: boolean;
+          /** Host agent-loop turn cap (Confirm→Build uses a higher floor) */
+          maxTurns?: number;
         }
       ) => Promise<void>)
     | null
@@ -410,6 +437,8 @@ export function ChatApp() {
   const promotePlanOnCompleteRef = useRef(false);
   /** Avoid re-promoting the same plan body in a loop */
   const lastPromotedPlanRef = useRef<string>('');
+  /** User rejected/discarded — block recovery until a new plan is promoted */
+  const planDiscardedRef = useRef(false);
   const planStageRef = useRef(planStage);
   planStageRef.current = planStage;
   const sessionIdRef = useRef(sessionId);
@@ -429,6 +458,7 @@ export function ChatApp() {
     pendingQuestions: PendingQuestion[];
     lastPromotedPlan: string;
     promoteOnComplete: boolean;
+    discarded: boolean;
   };
   const planSnapBySessionRef = useRef<Map<string, PlanSessionSnap>>(new Map());
 
@@ -441,6 +471,8 @@ export function ChatApp() {
     setPendingQuestions([]);
     lastPromotedPlanRef.current = '';
     promotePlanOnCompleteRef.current = false;
+    planDiscardedRef.current = false;
+    setPlanDiscarded(false);
   }, [planController]);
 
   const parkPlanForSession = useCallback(
@@ -452,7 +484,8 @@ export function ChatApp() {
         showClarifying: showClarifyingRef.current,
         pendingQuestions: pendingQuestionsRef.current.map((q) => ({ ...q })),
         lastPromotedPlan: lastPromotedPlanRef.current,
-        promoteOnComplete: promotePlanOnCompleteRef.current
+        promoteOnComplete: promotePlanOnCompleteRef.current,
+        discarded: planDiscardedRef.current
       });
     },
     [planController]
@@ -477,6 +510,8 @@ export function ChatApp() {
       setPendingQuestions(snap.pendingQuestions || []);
       lastPromotedPlanRef.current = snap.lastPromotedPlan || '';
       promotePlanOnCompleteRef.current = Boolean(snap.promoteOnComplete);
+      planDiscardedRef.current = Boolean(snap.discarded);
+      setPlanDiscarded(Boolean(snap.discarded));
     },
     [planController, resetPlanChrome]
   );
@@ -490,7 +525,7 @@ export function ChatApp() {
   } | null>(null);
   /** Debug session file slug under `.agentk/debug/tmp/debug_<hash>.md` */
   const debugSessionSlugRef = useRef<string | undefined>(undefined);
-  /** Sticky bottom scroll — pause if user scrolls up (Cursor-like) */
+ /** Sticky bottom scroll — pause if user scrolls up */
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
@@ -676,6 +711,11 @@ export function ChatApp() {
 
       // Inactive tab — never abort the active session
       if (id !== sessionId) {
+        const closed = sessionStore.get(id);
+        if (closed && closed.messageCount === 0) {
+          sessionStore.delete(id);
+          setSessionList(sessionStore.list());
+        }
         setOpenTabIds(remaining);
         return;
       }
@@ -709,14 +749,20 @@ export function ChatApp() {
       if (neighborId && neighborId !== id) {
         const loaded = sessionStore.switchTo(neighborId);
         if (loaded) {
+          const nextOpen = remaining.includes(neighborId)
+            ? remaining
+            : [neighborId, ...remaining];
+          // Closed empty draft is not history — drop it
+          if (snap.length === 0) {
+            sessionStore.delete(id);
+          }
+          sessionStore.pruneEmptySessions(nextOpen);
           setSessionId(loaded.id);
           setMessages(sanitizeLoadedMessages(loaded.messages || []));
           setMode(loaded.mode || 'agent');
           stepStartRef.current = {};
           setSessionList(sessionStore.list());
-          setOpenTabIds(
-            remaining.includes(neighborId) ? remaining : [neighborId, ...remaining]
-          );
+          setOpenTabIds(nextOpen);
           restorePlanForSession(neighborId);
           const parked = parkedAwaitingRef.current;
           if (parked && parked.sessionId === neighborId) {
@@ -797,8 +843,12 @@ export function ChatApp() {
         setShowHistory(true);
         return;
       }
-      if (data.type === 'ui.design.open') setShowDesignMode(true);
+      if (data.type === 'ui.design.open') {
+        if (!isFeatureEnabled('design-mode')) return;
+        setShowDesignMode(true);
+      }
       if (data.type === 'ui.review.open') {
+        if (!isFeatureEnabled('agent-review')) return;
         setShowReview(true);
         // ADDON-T14: host runs the real git-diff review; only fall back to a
         // demo finding when there's no repo/diff to inspect.
@@ -826,7 +876,13 @@ export function ChatApp() {
       if (data.type === 'ui.artifacts.open') setShowArtifacts(true);
       if (data.type === 'settings.open') {
         if (typeof data.tab === 'string') {
-          const tab = data.tab === 'secrets' ? 'models' : data.tab;
+          const raw = data.tab === 'secrets' ? 'provider' : data.tab;
+          const tab =
+            raw === 'models'
+              ? 'provider'
+              : raw === 'json'
+                ? 'project'
+                : raw;
           setSettingsTab(tab as typeof settingsTab);
         }
         setShowSettings(true);
@@ -850,18 +906,30 @@ export function ChatApp() {
         return;
       }
       if (data.type === 'plan.loaded' && data.content != null) {
+        const content = String(data.content || '').trim();
+        if (!content) return;
         const existing = planController.getState().planDocument;
-        if (existing) {
-          const patched = {
-            ...existing,
-            slug: String(data.slug || existing.slug),
-            title: String(data.title || existing.title),
-            content: String(data.content),
-            sections: planGenerator.parseDocument(String(data.content)),
-            todoCount: planGenerator.extractTodos(String(data.content)).length
-          };
-          void planController.setPlanDocument(patched);
-          setPlanReviewDoc(patched);
+        const doc = {
+          slug: String(data.slug || existing?.slug || 'plan_pending'),
+          title: String(data.title || existing?.title || 'Plan'),
+          content,
+          sections: planGenerator.parseDocument(content),
+          todoCount: planGenerator.extractTodos(content).length,
+          createdAt: existing?.createdAt || Date.now()
+        };
+        void planController.setPlanDocument(doc);
+        void planController.moveToReview().catch(() => {
+          /* stage may already be review */
+        });
+        setPlanReviewDoc(doc);
+        lastPromotedPlanRef.current = content;
+        planDiscardedRef.current = false;
+        setPlanDiscarded(false);
+        setPlanStage('review');
+        planStageRef.current = 'review';
+        if (data.openReview !== false) {
+          setShowPlanReview(true);
+          showPlanReviewRef.current = true;
         }
         return;
       }
@@ -924,7 +992,7 @@ export function ChatApp() {
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
-  }, [handleNewChat]);
+  }, [handleNewChat, planController]);
 
   // ADDON-T06: request host session hydration once on mount
   useEffect(() => {
@@ -940,6 +1008,7 @@ export function ChatApp() {
     const delay = streaming ? 400 : 0;
     const t = window.setTimeout(() => {
       sessionStore.saveMessages(sessionId, messages, mode);
+      sessionStore.pruneEmptySessions(openTabIds);
       const list = sessionStore.list();
       setSessionList(list);
       // ADDON-T06: mirror session metas to host SessionManager (workspaceState)
@@ -955,7 +1024,7 @@ export function ChatApp() {
       }
     }, delay);
     return () => window.clearTimeout(t);
-  }, [messages, sessionId, mode, streaming]);
+  }, [messages, sessionId, mode, streaming, openTabIds]);
 
   // RW-C6-05-R2: mount ReproduceUI when tool wait starts (callback + poll)
   useEffect(() => {
@@ -1075,6 +1144,14 @@ export function ChatApp() {
     ) => {
       const planMd = dedupeRepeatedPlanDocument(planMdRaw.trim());
       if (!planMd || planMd === '(no response)') return false;
+      // Never promote research / chat narration as a plan
+      if (
+        !(
+          looksLikePlanDocument(planMd) || looksLikePlanDraft(planMd)
+        )
+      ) {
+        return false;
+      }
 
       const titleMatch = planMd.match(/^#\s+(.+)$/m);
       const title = (opts?.title || titleMatch?.[1] || 'Plan').trim();
@@ -1090,6 +1167,8 @@ export function ChatApp() {
       const summary = buildPlanChatSummary(planMd);
       lastPromotedPlanRef.current = planMd;
       promotePlanOnCompleteRef.current = false;
+      planDiscardedRef.current = false;
+      setPlanDiscarded(false);
 
       let sections: ReturnType<typeof planGenerator.parseDocument> = [];
       try {
@@ -1115,6 +1194,7 @@ export function ChatApp() {
       setPlanStage('review');
       planStageRef.current = 'review';
       setShowPlanReview(true);
+      showPlanReviewRef.current = true;
       setShowClarifying(false);
       setAwaitingUser(false);
 
@@ -1129,8 +1209,22 @@ export function ChatApp() {
               content: summary,
               openingLead: undefined,
               turnProse: undefined,
-              planDrafting: undefined
+              planDrafting: undefined,
+              planMarkdown: planMd
             };
+            break;
+          }
+          messagesRef.current = next;
+          return next;
+        });
+      } else {
+        // Summary already rewritten — still stamp full plan onto the bubble
+        setMessages((prev) => {
+          const next = [...prev];
+          for (let i = next.length - 1; i >= 0; i--) {
+            if (next[i].role !== 'assistant') continue;
+            if (next[i].planMarkdown === planMd) break;
+            next[i] = { ...next[i], planMarkdown: planMd };
             break;
           }
           messagesRef.current = next;
@@ -1157,9 +1251,16 @@ export function ChatApp() {
         setError(e instanceof Error ? e.message : 'Plan 저장 요청 실패');
       }
 
+      // Persist Review chrome so tab switch / late remount can restore
+      try {
+        parkPlanForSession(sessionIdRef.current);
+      } catch {
+        /* ignore */
+      }
+
       return true;
     },
-    [planController]
+    [planController, parkPlanForSession]
   );
 
   /** Editor CodeLens / title: Build or Open Review on plan_*.md */
@@ -1224,25 +1325,91 @@ export function ChatApp() {
   }, [planController, promotePlanToReview]);
 
   /**
-   * Recovery: PLAN is visible in chat but stage stuck on Plan —
-   * auto-open Review when we detect a plan document.
+   * Recovery: plan ready but Review chrome missing.
+   * After promote the chat only has a summary — look at lastPromoted / planDocument /
+   * message.planMarkdown. If the user closed the overlay while stage=review and
+   * state is intact, leave it closed (View Plans / bubble actions reopen).
    */
   useEffect(() => {
     if (mode !== 'plan') return;
     if (streaming) return;
     if (showPlanReview) return;
+    if (planDiscardedRef.current) return;
     const stage = planStage;
-    if (stage !== 'planning' && stage !== 'questions' && stage !== 'research') return;
+    if (stage === 'build') return;
+
+    const stored =
+      planController.getState().planDocument?.content?.trim() ||
+      lastPromotedPlanRef.current.trim() ||
+      findStoredPlanMarkdown(messages);
+    const usable =
+      Boolean(stored) &&
+      stored !== 'discarded' &&
+      (looksLikePlanDocument(stored) || looksLikePlanDraft(stored));
+
+    const latestMsg = [...messages]
+      .reverse()
+      .find((m) => m.role === 'assistant' && m.content?.trim());
+    const summaryOnly = looksLikePlanChatSummary(latestMsg?.content || '');
+    const hasStoredOnBubble = Boolean(
+      String(latestMsg?.planMarkdown || '').trim()
+    );
+
+    // User closed overlay; plan state still intact → keep closed
+    if (
+      stage === 'review' &&
+      usable &&
+      (planReviewDoc?.content?.trim() ||
+        planController.getState().planDocument?.content?.trim())
+    ) {
+      return;
+    }
+
+    // Summary / stamped plan present but Review never opened (or state lost)
+    if (usable && (summaryOnly || hasStoredOnBubble || stage === 'review')) {
+      const t = window.setTimeout(() => {
+        if (planDiscardedRef.current) return;
+        if (showPlanReviewRef.current) return;
+        if (planStageRef.current === 'build') return;
+        promotePlanToReview(stored, { skipChatRewrite: true });
+      }, 350);
+      return () => window.clearTimeout(t);
+    }
+
+    // Summary in chat but no in-memory plan — ask host for latest draft
+    if (summaryOnly && !usable) {
+      const t = window.setTimeout(() => {
+        if (planDiscardedRef.current) return;
+        if (showPlanReviewRef.current) return;
+        try {
+          const api =
+            (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+          api?.postMessage?.({ type: 'plan.loadLatest' });
+        } catch {
+          /* ignore */
+        }
+      }, 400);
+      return () => window.clearTimeout(t);
+    }
+
     const md = findLatestPlanMarkdown(messages);
     if (!md || !looksLikePlanDocument(md)) return;
     if (md === lastPromotedPlanRef.current) return;
-    // Defer slightly so onComplete promote can win the race first
     const t = window.setTimeout(() => {
-      if (planStageRef.current === 'review') return;
+      if (planDiscardedRef.current) return;
       promotePlanToReview(md);
     }, 400);
     return () => window.clearTimeout(t);
-  }, [mode, planStage, messages, streaming, showPlanReview, promotePlanToReview]);
+  }, [
+    mode,
+    planStage,
+    messages,
+    streaming,
+    showPlanReview,
+    planReviewDoc,
+    promotePlanToReview,
+    planController
+  ]);
 
   // ─── AskQuestionTool in-process callback (same-bundle tests only)
   // Live Agent path uses host postMessage ask_question → delta.askQuestion
@@ -1304,6 +1471,8 @@ export function ChatApp() {
       setPendingQuestions([]);
       lastPromotedPlanRef.current = '';
       promotePlanOnCompleteRef.current = false;
+      planDiscardedRef.current = false;
+      setPlanDiscarded(false);
       planSnapBySessionRef.current.delete(sessionIdRef.current);
     }
   }, [mode, planController]);
@@ -1331,6 +1500,12 @@ export function ChatApp() {
       planStageOverride?: string;
       /** Pass instructions to the agent without a second user chat bubble */
       hideUserBubble?: boolean;
+      /** Appended to host system prompt (e.g. approved plan — never dump into user turn) */
+      systemAddon?: string;
+      /** After Plan Approve: stub Review-summary chrome in API history */
+      planExecuteHandoff?: boolean;
+      /** Host agent-loop turn cap override */
+      maxTurns?: number;
     }
   ) => {
     if (!text.trim() && files.length === 0 && !opts?.apiUserContent?.trim()) return;
@@ -1356,7 +1531,7 @@ export function ChatApp() {
     const mentionBlock = formatAttachmentsForPayload(files);
     let payload = opts?.apiUserContent ?? text;
     if (mentionBlock) {
-      // API/harness: Cursor-like context from chips (UI bubble keeps plain text + chips)
+ // API/harness: context from chips (UI bubble keeps plain text + chips)
       payload = payload.trim()
         ? `${mentionBlock}\n\n${payload}`
         : `${mentionBlock}\n\nPlease analyze the attached context.`;
@@ -1364,36 +1539,50 @@ export function ChatApp() {
 
     // RW-C7-05: prepend Design Mode annotations into user turn context
     const designCtx = designModeContext.getLastContext();
-    if (designCtx?.hasAnnotations && designCtx.contextBlock) {
+    if (
+      isFeatureEnabled('design-mode') &&
+      designCtx?.hasAnnotations &&
+      designCtx.contextBlock
+    ) {
       payload = `${designCtx.contextBlock}\n\n---\n\n${payload}`;
     }
 
     // HARB: Prefetch + ContextAssembler → user payload 주입 (API only)
-    try {
-      const t0 = Date.now();
-      const prefetchSource = [mentionBlock, displayText].filter(Boolean).join('\n');
-      const harnessCtx = await buildHarnessTurnContext(
-        prefetchSource || displayText || payload.slice(0, 500),
-        effectiveMode,
-        'A'
-      );
-      if (epoch !== sendEpochRef.current) return; // superseded by stop/resynth
-      payload = prependHarnessToUserPayload(payload, harnessCtx, effectiveMode);
-      const fileHits = (harnessCtx.prefetchRaw.match(/Read file:/g) || []).length;
+    // OpenCode-style Confirm→Build: skip prefetch — plan is in systemAddon;
+    // dumping Read file: blocks here made weak models restart exploration.
+    if (!opts?.planExecuteHandoff) {
+      try {
+        const t0 = Date.now();
+        const prefetchSource = [mentionBlock, displayText].filter(Boolean).join('\n');
+        const harnessCtx = await buildHarnessTurnContext(
+          prefetchSource || displayText || payload.slice(0, 500),
+          effectiveMode,
+          'A'
+        );
+        if (epoch !== sendEpochRef.current) return; // superseded by stop/resynth
+        payload = prependHarnessToUserPayload(payload, harnessCtx, effectiveMode);
+        const fileHits = (harnessCtx.prefetchRaw.match(/Read file:/g) || []).length;
+        setUxState((prev) => ({
+          ...prev,
+          tier: 'A',
+          modelName: shortModelName(
+            configManager.get('agent-k.provider.model') || prev.modelName
+          ),
+          prefetchCount: fileHits || (harnessCtx.prefetchRaw ? 1 : 0),
+          prefetchLatencyMs: Date.now() - t0,
+          contextTokens: harnessCtx.assembly?.usedTokens || prev.contextTokens
+        }));
+        setStuckEvent(null);
+      } catch {
+        if (epoch !== sendEpochRef.current) return;
+        /* prefetch 실패는 비치명 */
+      }
+    } else {
       setUxState((prev) => ({
         ...prev,
-        tier: 'A',
-        modelName: shortModelName(
-          configManager.get('agent-k.provider.model') || prev.modelName
-        ),
-        prefetchCount: fileHits || (harnessCtx.prefetchRaw ? 1 : 0),
-        prefetchLatencyMs: Date.now() - t0,
-        contextTokens: harnessCtx.assembly?.usedTokens || prev.contextTokens
+        prefetchCount: 0,
+        prefetchLatencyMs: 0
       }));
-      setStuckEvent(null);
-    } catch {
-      if (epoch !== sendEpochRef.current) return;
-      /* prefetch 실패는 비치명 */
     }
 
     if (epoch !== sendEpochRef.current) return;
@@ -1407,9 +1596,12 @@ export function ChatApp() {
     const assistantMsg: ChatMessage = {
       id: uuidv4(),
       role: 'assistant',
-      content: planningDraft ? '계획 문서 작성을 시작합니다.' : '',
+      // Do not pre-seed "계획 문서 작성을 시작합니다." — that status shows only
+      // once real plan markdown starts streaming (see MessageBubble).
+      content: '',
       timestamp: Date.now(),
       status: 'streaming',
+      // Stage hint only — MessageBubble waits for actual plan body
       planDrafting: planningDraft || undefined
     };
 
@@ -1443,12 +1635,30 @@ export function ChatApp() {
         .map((m) => (m.id === userMsg.id ? { ...m, content: payload } : m));
     }
 
+    // Agent / Confirm→Build: drop Review chrome from API history.
+    // Handoff also drops long Plan-phase research essays (plan is in systemAddon).
+    if (
+      effectiveMode === 'agent' ||
+      opts?.planExecuteHandoff ||
+      planStageRef.current === 'build'
+    ) {
+      const compacted = opts?.planExecuteHandoff
+        ? compactHistoryForBuildHandoff(apiMessages)
+        : compactMessagesForPlanExecute(apiMessages);
+      const keep = new Set(
+        compacted.map((m) => `${m.role}\0${m.content}`)
+      );
+      apiMessages = apiMessages.filter((m) =>
+        keep.has(`${m.role}\0${String(m.content || '')}`)
+      );
+    }
+
     messagesRef.current = nextMessages;
     setMessages(nextMessages);
     // New turn — pin to latest (user just sent)
     stickToBottomRef.current = true;
     scrollMessagesToBottom(true);
-    // Fresh steps for this assistant bubble (Cursor-style, on the message)
+ // Fresh steps for this assistant bubble (, on the message)
     stepStartRef.current = {};
     turnNumberRef.current += 1;
 
@@ -1470,7 +1680,19 @@ export function ChatApp() {
       msg: ChatMessage,
       explicitTurn?: number | null
     ): ChatMessage => {
-      return sealBodyBeforeTools(msg, resolveSealTurn(msg, explicitTurn));
+      const foldPlanningDigs =
+        planStageRef.current === 'planning' ||
+        planStageRef.current === 'review';
+      const foldRepeatResearchDigs =
+        effectiveMode === 'plan' &&
+        threadHasCompletedPlanResearch(
+          messagesRef.current,
+          msg.id
+        );
+      return sealBodyBeforeTools(msg, resolveSealTurn(msg, explicitTurn), {
+        foldPlanningDigs,
+        foldRepeatResearchDigs
+      });
     };
 
     sendMessage(
@@ -1554,6 +1776,40 @@ export function ChatApp() {
           setDebugTick((t) => t + 1);
           return;
         }
+        // Host plan FSM stage sync (plan_next_stage)
+        if (delta.planStageSync && effectiveMode === 'plan') {
+          const stage = delta.planStageSync as PlanStage;
+          planController.syncStageFromHost(stage);
+          planStageRef.current = stage;
+          setPlanStage(stage);
+          if (stage === 'review' && planController.getState().planDocument) {
+            setShowPlanReview(true);
+          }
+          return;
+        }
+        // Host CoT cleanup — replace bubble body
+        if (delta.replaceContent != null) {
+          sawProse = true;
+          const next = String(delta.replaceContent);
+          setMessages((prev) => {
+            const lastIdx = prev.length - 1;
+            if (
+              lastIdx < 0 ||
+              prev[lastIdx].role !== 'assistant' ||
+              prev[lastIdx].status !== 'streaming'
+            ) {
+              return prev;
+            }
+            const copy = [...prev];
+            copy[lastIdx] = {
+              ...prev[lastIdx],
+              content: next,
+              toolStatus: undefined
+            };
+            return copy;
+          });
+          return;
+        }
         // Tools began — first dig ack → lead; mid-dig self-talk → Thought
         if (delta.clearContent) {
           toolsStarted = true;
@@ -1575,7 +1831,7 @@ export function ChatApp() {
           });
           return;
         }
-        // Cursor-style file edit cards
+ // file edit cards
         if (delta.fileEdit) {
           const fe = {
             ...delta.fileEdit,
@@ -1615,7 +1871,7 @@ export function ChatApp() {
           });
           return;
         }
-        // Cursor-style terminal run cards (live + final)
+ // terminal run cards (live + final)
         if (delta.terminalRun) {
           const ev = delta.terminalRun;
           setMessages((prev) => {
@@ -1684,7 +1940,7 @@ export function ChatApp() {
           });
           return;
         }
-        // Cursor-style: append/upsert steps on the streaming assistant bubble
+ // append/upsert steps on the streaming assistant bubble
         if (delta.timeline) {
           const tl = delta.timeline;
           // Keep planning (Planning next moves); drop only terminal "done" chrome
@@ -1806,13 +2062,24 @@ export function ChatApp() {
             if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
               const newMsgs = [...prev];
               const msg = newMsgs[lastIdx];
-              // Keep one content stream — mid-timeline seal places it after Thought
-              newMsgs[lastIdx] = {
-                ...msg,
-                toolStatus: undefined,
-                openingLead: undefined,
-                content: (msg.content || '') + delta.content!
-              };
+              const nextContent = (msg.content || '') + delta.content!;
+              const turn = resolveSealTurn(msg, turnNumberRef.current);
+              const diverted = divertMidDigContent(msg, nextContent, turn, {
+                foldPlanningDigs:
+                  planStageRef.current === 'planning' ||
+                  planStageRef.current === 'review',
+                foldRepeatResearchDigs:
+                  effectiveMode === 'plan' &&
+                  threadHasCompletedPlanResearch(prev, msg.id)
+              });
+              newMsgs[lastIdx] = diverted
+                ? diverted
+                : {
+                    ...msg,
+                    toolStatus: undefined,
+                    openingLead: undefined,
+                    content: nextContent
+                  };
               return newMsgs;
             }
             return prev;
@@ -1861,50 +2128,106 @@ export function ChatApp() {
                 Date.now() - (newMsgs[lastIdx].timestamp || Date.now())
               )
             });
-            const hasBody = Boolean(draft.content?.trim());
+            const recovered = recoverHiddenFindings(draft);
+            const hasBody = Boolean(recovered.content?.trim());
             const hasOther =
-              (draft.turnProse?.length ?? 0) > 0 ||
-              (draft.steps?.length ?? 0) > 0 ||
-              (draft.fileEdits?.length ?? 0) > 0 ||
-              (draft.terminalRuns?.length ?? 0) > 0;
+              (recovered.turnProse?.length ?? 0) > 0 ||
+              (recovered.steps?.length ?? 0) > 0 ||
+              (recovered.fileEdits?.length ?? 0) > 0 ||
+              (recovered.terminalRuns?.length ?? 0) > 0;
             newMsgs[lastIdx] = {
-              ...draft,
+              ...recovered,
               status: hasBody || hasOther ? 'complete' : 'error',
-              content: hasBody ? draft.content : hasOther ? '' : '(no response)'
+              content: hasBody ? recovered.content : hasOther ? '' : '(no response)'
             };
             completedAssistant = newMsgs[lastIdx];
             messagesRef.current = newMsgs;
             prev = newMsgs;
           }
 
-          // Plan: one atomic write — summary in chat, never flash full PLAN.md then replace
+          // Plan: promote only when THIS bubble is a new plan draft.
+          // Never pull an older plan from the thread — that rewrote Agent
+          // progress bubbles into "View Plans / Confirm" summaries after approve.
           const stageNow = planStageRef.current;
           const shouldPromotePlan =
             effectiveMode === 'plan' &&
-            (promotePlanOnCompleteRef.current ||
-              stageNow === 'planning' ||
-              stageNow === 'questions' ||
-              stageNow === 'research');
+            (stageNow === 'planning' ||
+              stageNow === 'review' ||
+              promotePlanOnCompleteRef.current) &&
+            stageNow !== 'build' &&
+            !planDiscardedRef.current;
           if (!shouldPromotePlan || !completedAssistant) {
+            // Agent (or Plan build): scrub Review chrome + handoff-stub echoes
+            if (effectiveMode === 'agent' || stageNow === 'build') {
+              const raw = completedAssistant?.content || '';
+              const leaked =
+                looksLikePlanChatSummary(raw) ||
+                looksLikePlanHandoffLeak(raw) ||
+                looksLikeInternalPlanningDump(raw);
+              if (leaked) {
+                const next = [...prev];
+                for (let i = next.length - 1; i >= 0; i--) {
+                  if (next[i].role !== 'assistant') continue;
+                  const edits = next[i].fileEdits?.length || 0;
+                  const stripped = stripInternalPlanningChrome(raw);
+                  const keepProgress =
+                    !looksLikeInternalPlanningDump(stripped) &&
+                    looksLikePlanStepProgress(stripped)
+                      ? stripped
+                      : '';
+                  next[i] = {
+                    ...next[i],
+                    content:
+                      keepProgress ||
+                      (edits > 0
+                        ? `이번 턴에서 파일 ${edits}개를 수정했습니다. 남은 TODO가 있으면 이어서 실행하세요.`
+                        : '승인된 계획을 이어서 실행합니다. 방금 진행한 작업과 다음 TODO만 짧게 보고하세요.'),
+                    planMarkdown: undefined
+                  };
+                  break;
+                }
+                messagesRef.current = next;
+                return next;
+              }
+              // Soft: strip a leading "Planning next moves" chrome from otherwise OK body
+              const stripped = stripInternalPlanningChrome(raw);
+              if (stripped !== raw.trim()) {
+                const next = [...prev];
+                for (let i = next.length - 1; i >= 0; i--) {
+                  if (next[i].role !== 'assistant') continue;
+                  next[i] = { ...next[i], content: stripped };
+                  break;
+                }
+                messagesRef.current = next;
+                return next;
+              }
+            }
             return prev;
           }
 
-          let planMd = extractPlanMarkdownFromMessage(completedAssistant);
-          const soft =
-            promotePlanOnCompleteRef.current || stageNow === 'planning';
-          const ok = soft
-            ? looksLikePlanDraft(planMd) || looksLikePlanDocument(planMd)
-            : looksLikePlanDocument(planMd);
-          if (!ok) {
-            planMd = findLatestPlanMarkdown(
-              messagesRef.current.length ? messagesRef.current : prev
-            );
+          const planMd = extractPlanMarkdownFromMessage(completedAssistant);
+          if (!(looksLikePlanDocument(planMd) || looksLikePlanDraft(planMd))) {
+            // Strip FSM CoT leaks even when we cannot promote
+            const raw = String(completedAssistant.content || '');
+            const cleaned = stripPlanFsmNarration(raw);
+            if (cleaned !== raw.trim()) {
+              const next = [...prev];
+              for (let i = next.length - 1; i >= 0; i--) {
+                if (next[i].role !== 'assistant') continue;
+                next[i] = { ...next[i], content: cleaned };
+                break;
+              }
+              messagesRef.current = next;
+              return next;
+            }
+            return prev;
           }
+
+          // Already promoted this exact plan body — don't rewrite progress into summary again
           if (
-            !(
-              looksLikePlanDocument(planMd) ||
-              (soft && looksLikePlanDraft(planMd))
-            )
+            lastPromotedPlanRef.current.trim() &&
+            lastPromotedPlanRef.current.trim() !== 'discarded' &&
+            lastPromotedPlanRef.current.trim() === planMd.trim()
           ) {
             return prev;
           }
@@ -1919,7 +2242,8 @@ export function ChatApp() {
               status: 'complete',
               content: summary,
               openingLead: undefined,
-              turnProse: undefined
+              turnProse: undefined,
+              planMarkdown: planMd
             };
             completedAssistant = next[i];
             break;
@@ -1972,9 +2296,17 @@ export function ChatApp() {
           return prev;
         });
       },
-      opts?.planStageOverride
-        ? { planStageOverride: opts.planStageOverride }
-        : undefined
+      {
+        ...(opts?.planStageOverride
+          ? { planStageOverride: opts.planStageOverride }
+          : {}),
+        ...(opts?.systemAddon ? { systemAddon: opts.systemAddon } : {}),
+        ...(typeof opts?.maxTurns === 'number' && opts.maxTurns >= 5
+          ? { maxTurns: opts.maxTurns }
+          : opts?.planExecuteHandoff
+            ? { maxTurns: 60 }
+            : {})
+      }
     );
   }, [mode, sendMessage, planStage, planController, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom]);
 
@@ -1992,14 +2324,21 @@ export function ChatApp() {
       setShowClarifying(false);
       setMessages(cleanupStreamingAssistants);
       setMode('agent');
+      // Sync before microtask send — otherwise a late Plan complete can still
+      // think stage is review and re-print the promote summary.
+      planStageRef.current = 'build';
+      setPlanStage('build');
 
       const displayText =
         '승인한 계획을 실행해 주세요. 단계별로 진행하세요.';
-      let apiContent: string;
+
+      // OpenCode plan_exit: short kickoff + plan in system only (never user dump).
+      let systemAddon: string | undefined;
+      let apiContent = buildKickoffUserMessage();
       if (planState.planDocument) {
         const planToAgent = new PlanToAgent();
         planToAgent.setPlanDocument(planState.planDocument);
-        const transition = planToAgent.buildTransitionContext(
+        systemAddon = planToAgent.buildHandoffSystemAddon(
           planState.planDocument,
           planState.researchResults,
           planState.questions.map((q) => ({
@@ -2007,26 +2346,26 @@ export function ChatApp() {
             answer: q.answer
           }))
         );
-        apiContent = [
-          transition.messages[0]?.content ?? _context,
-          '',
-          'Please execute the plan step by step, starting with Step 1.'
-        ].join('\n');
-      } else {
-        apiContent = [
-          'I have approved the plan. Here is the context:',
+        apiContent = planToAgent.buildKickoffUserMessage();
+      } else if (_context?.trim()) {
+        systemAddon = [
+          '## Approved plan execution (Build / Agent mode)',
           '',
           _context,
           '',
-          'Please execute the plan step by step.'
+          'Execute steps in order. Do not reprint Review chrome or re-plan.'
         ].join('\n');
+        apiContent = buildKickoffUserMessage();
       }
 
       // Defer so stop/mode settle, then send on Agent tools
       queueMicrotask(() => {
         void handleSendRef.current?.(displayText, [], {
           apiUserContent: apiContent,
-          modeOverride: 'agent'
+          modeOverride: 'agent',
+          systemAddon,
+          planExecuteHandoff: true,
+          maxTurns: 60
         });
       });
     });
@@ -2267,7 +2606,7 @@ export function ChatApp() {
       }
       if (cmd.action === 'settings') {
         setShowSettings(true);
-        setSettingsTab('models');
+        setSettingsTab('provider');
         return;
       }
       if (cmd.action === 'mode' && cmd.mode) {
@@ -2298,7 +2637,7 @@ export function ChatApp() {
       }
       if (cmd.action === 'model') {
         setShowSettings(true);
-        setSettingsTab('models');
+        setSettingsTab('provider');
         return;
       }
       if (cmd.action === 'permissions') {
@@ -2307,11 +2646,15 @@ export function ChatApp() {
         return;
       }
       if (cmd.action === 'help') {
-        const lines = SLASH_COMMANDS.map((c) => `${c.label} — ${c.description}`);
+        const lines = visibleSlashCommands().map((c) => `${c.label} — ${c.description}`);
         pushSystemNotice(['Available commands:', ...lines].join('\n'));
         return;
       }
       if (cmd.action === 'bestOfN') {
+        if (!isFeatureEnabled('worktree')) {
+          pushSystemNotice(featureDisabledMessage('worktree'));
+          return;
+        }
         try {
           const api =
             (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
@@ -2460,17 +2803,21 @@ export function ChatApp() {
         setPendingQuestions([]);
         sealAskingSteps();
         promotePlanOnCompleteRef.current = true;
+        planDiscardedRef.current = false;
+        setPlanDiscarded(false);
 
         const apiUserContent = [
           'Clarifying answers are confirmed (not shown as a chat bubble).',
-          'CRITICAL: Exploration and ask_question are BLOCKED. Do not call read/search/ask tools.',
-          'CRITICAL: Your FIRST content line must be exactly: 계획 문서 작성을 시작합니다.',
-          'THEN immediately write the COMPLETE plan markdown (Context, Questions & Answers, Architecture with mermaid, TODOs as `- [ ]`, Risks, Approval).',
-          'Do not paraphrase at length before writing — one short start line, then the full plan.',
+          'Accuracy: think through the answers and research notes before writing.',
+          'First visible line MUST be: 계획 문서 작성을 시작합니다.',
+          'FORBIDDEN opening / dig-ack lines: "프로젝트 구조를 파악하겠습니다", "안녕하세요", "코드베이스를 살펴보겠습니다", or any fresh full-tree structure scan — research already happened; react to the answers instead.',
+          'Do NOT call list_dir/glob just to re-map the repo. Write the plan from Research notes + Clarifying answers. Explore only for one named missing fact.',
+          'Then write the COMPLETE plan markdown (Context, Questions & Answers, Architecture with mermaid, TODOs as `- [ ]`, Risks, Approval).',
+          'REQUIRED deliverable routine: after the plan body is ready, the UI saves `.agentk/plans/tmp/plan_*.md`, opens Review, and replaces this chat bubble with a short summary + TODO list. Do not skip leaving a complete plan body for that apply→summary step.',
+          'Reuse research notes. Explore only for a single named accuracy gap the answers still leave — lead must name that gap, not restart "understand structure".',
           'Do not implement or edit product files. Do not call switch_mode.',
-          'The UI shows "작성 중", saves `.agentk/plans/tmp/plan_*.md`, then replaces the chat with a short summary + TODO list and opens Review. Then STOP.',
           '',
-          research ? `## Research notes (already gathered — reuse, do not re-explore)\n${research.slice(0, 6000)}` : '',
+          research ? `## Research notes\n${research.slice(0, 6000)}` : '',
           '',
           '## Clarifying answers (user confirmed)',
           qa || '(none)',
@@ -2616,9 +2963,16 @@ export function ChatApp() {
 
   /** Plan: Request Changes → revise PLAN.md only, never implement */
   const handlePlanReject = useCallback((reason?: string) => {
+    // Header 반려 passes a click event if miswired — only accept real strings
+    const feedback =
+      typeof reason === 'string' && reason.trim() && reason.trim() !== '[object Object]'
+        ? reason.trim()
+        : '';
     setShowPlanReview(false);
     promotePlanOnCompleteRef.current = true;
-    void planController.rejectPlan(reason).then(() => {
+    planDiscardedRef.current = false;
+    setPlanDiscarded(false);
+    void planController.rejectPlan(feedback || undefined).then(() => {
       setPlanStage('planning');
     });
     void handleSend(
@@ -2626,7 +2980,9 @@ export function ChatApp() {
         '사용자가 계획 수정을 요청했습니다. PLAN.md만 다시 작성하세요.',
         '구현·파일 편집·switch_mode는 하지 마세요.',
         '',
-        reason ? `## Feedback\n${reason}` : '## Feedback\n(세부 피드백 없음 — 계획을 더 명확히 다듬어 주세요.)',
+        feedback
+          ? `## Feedback\n${feedback}`
+          : '## Feedback\n(세부 피드백 없음 — 계획을 더 명확히 다듬어 주세요.)',
       ].join('\n'),
       []
     );
@@ -2639,36 +2995,88 @@ export function ChatApp() {
 
   /** Re-open Review UI (or promote latest plan markdown into Review) */
   const handleOpenReview = useCallback(() => {
+    if (planDiscardedRef.current) return;
     const fromState =
       planReviewDoc?.content?.trim() ||
       planController.getState().planDocument?.content?.trim() ||
-      lastPromotedPlanRef.current.trim();
-    if (fromState) {
+      lastPromotedPlanRef.current.trim() ||
+      findStoredPlanMarkdown(messages);
+    if (fromState && fromState !== 'discarded') {
       promotePlanToReview(fromState, { skipChatRewrite: true });
       return;
     }
     const md = findLatestPlanMarkdown(messages);
-    if (md) promotePlanToReview(md);
+    if (md) {
+      promotePlanToReview(md);
+      return;
+    }
+    // Summary-only bubble / remount — reload newest draft from disk
+    try {
+      const api =
+        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      api?.postMessage?.({ type: 'plan.loadLatest' });
+    } catch {
+      setError('저장된 Plan을 찾지 못했습니다. 계획을 다시 작성해 주세요.');
+    }
   }, [planController, planReviewDoc, messages, promotePlanToReview]);
 
-  /** Discard plan document and leave Review (no window.confirm — blocked in webview) */
-  const handleDiscardPlan = useCallback(() => {
-    const discarded =
+  /** Header 승인 — sync plan then Approve & Execute */
+  const handleApproveFromHeader = useCallback(() => {
+    const content =
       planReviewDoc?.content?.trim() ||
       planController.getState().planDocument?.content?.trim() ||
-      findLatestPlanMarkdown(messages);
+      lastPromotedPlanRef.current.trim() ||
+      findStoredPlanMarkdown(messages);
+    if (!content || content === 'discarded') {
+      handleOpenReview();
+      return;
+    }
+    const existing = planController.getState().planDocument;
+    const titleMatch = content.match(/^#\s+(.+)$/m);
+    const doc = {
+      slug:
+        existing?.slug && /^plan_[a-f0-9]+$/i.test(existing.slug)
+          ? existing.slug
+          : 'plan_pending',
+      title: existing?.title || titleMatch?.[1]?.trim() || 'Plan',
+      content,
+      sections: planGenerator.parseDocument(content),
+      todoCount: planGenerator.extractTodos(content).length,
+      createdAt: existing?.createdAt || Date.now()
+    };
+    void planController.setPlanDocument(doc).then(() => {
+      setPlanReviewDoc(doc);
+      handlePlanApprove(content);
+    });
+  }, [planReviewDoc, planController, handleOpenReview, handlePlanApprove, messages]);
+
+  /** Discard / Reject plan — return to Research; block auto re-promote */
+  const handleDiscardPlan = useCallback(() => {
     planController.discardPlan();
-    // Prevent recovery effect from immediately re-promoting the same chat plan
-    lastPromotedPlanRef.current = discarded || 'discarded';
+    // Sentinel + flag: recovery used to re-open because lastPromoted held the
+    // discarded body while chat still showed the promote summary.
+    lastPromotedPlanRef.current = 'discarded';
+    planDiscardedRef.current = true;
+    setPlanDiscarded(true);
     promotePlanOnCompleteRef.current = false;
     setShowPlanReview(false);
+    showPlanReviewRef.current = false;
     setPlanReviewDoc(null);
     setShowClarifying(false);
     setPendingQuestions([]);
     setAwaitingUser(false);
     setPlanStage('research');
+    planStageRef.current = 'research';
+    // Drop stamped plan bodies so summary actions disappear
+    setMessages((prev) => {
+      const next = prev.map((m) =>
+        m.planMarkdown ? { ...m, planMarkdown: undefined } : m
+      );
+      messagesRef.current = next;
+      return next;
+    });
     parkPlanForSession(sessionIdRef.current);
-  }, [planController, planReviewDoc, messages, parkPlanForSession]);
+  }, [planController, parkPlanForSession]);
 
   /** Debug: 가설 선택 → 계측 단계 진입 (RW-C6-01) */
   const handleSelectHypothesis = useCallback((id: string) => {
@@ -2954,7 +3362,7 @@ export function ChatApp() {
   }, []);
 
   // ─── Render ────────────────────────────────────────────
-  /** Empty = top composer; once messages exist = thread + bottom composer (Cursor-like) */
+ /** Empty = top composer; once messages exist = thread + bottom composer */
   const hasConversation = messages.length > 0;
 
   return (
@@ -2967,7 +3375,7 @@ export function ChatApp() {
         >
           {showHistory ? (
             <HistoryPanel
-              sessions={sessionList}
+              sessions={sessionList.filter((s) => s.messageCount > 0)}
               currentId={sessionId}
               onSelect={handleOpenSession}
               onDelete={handleDeleteSession}
@@ -3036,14 +3444,28 @@ export function ChatApp() {
           currentStage={planStage}
           stages={['research', 'questions', 'planning', 'review', 'build']}
           reviewOpen={showPlanReview}
-          canOpenReview={Boolean(
-            planReviewDoc?.content?.trim() ||
-              planController.getState().planDocument?.content?.trim() ||
-              lastPromotedPlanRef.current.trim() ||
-              looksLikePlanDocument(findLatestPlanMarkdown(messages))
-          )}
+          canOpenReview={
+            !planDiscarded &&
+            Boolean(
+              (planReviewDoc?.content?.trim() &&
+                planReviewDoc.content.trim() !== 'discarded') ||
+                (planController.getState().planDocument?.content?.trim() &&
+                  planController.getState().planDocument!.content.trim() !==
+                    'discarded') ||
+                (lastPromotedPlanRef.current.trim() &&
+                  lastPromotedPlanRef.current.trim() !== 'discarded') ||
+                Boolean(findStoredPlanMarkdown(messages)) ||
+                looksLikePlanChatSummary(
+                  [...messages]
+                    .reverse()
+                    .find((m) => m.role === 'assistant')?.content || ''
+                )
+            )
+          }
           onOpenReview={handleOpenReview}
           onDiscardPlan={handleDiscardPlan}
+          onApprove={handleApproveFromHeader}
+          canApprove={planController.areAllQuestionsAnswered()}
         />
       )}
 
@@ -3071,24 +3493,47 @@ export function ChatApp() {
       )}
 
       {/* Plan review: Approve & Execute is the only path into Build */}
-      {showPlanReview &&
-      (planReviewDoc?.content?.trim() ||
-        planController.getState().planDocument?.content?.trim()) ? (
-        <div className="plan-editor-overlay" role="dialog" aria-label="Plan review">
-          <PlanReview
-            document={
-              planReviewDoc || planController.getState().planDocument!
-            }
-            questionsAnswered={planController.areAllQuestionsAnswered()}
-            onApprove={handlePlanApprove}
-            onReject={handlePlanReject}
-            onEdit={handlePlanEdit}
-            onOpenInEditor={handleOpenPlanInEditor}
-            onClose={handlePlanReviewClose}
-            onDiscard={handleDiscardPlan}
-          />
-        </div>
-      ) : null}
+      {(() => {
+        const overlayContent =
+          planReviewDoc?.content?.trim() ||
+          planController.getState().planDocument?.content?.trim() ||
+          (lastPromotedPlanRef.current.trim() !== 'discarded'
+            ? lastPromotedPlanRef.current.trim()
+            : '');
+        if (!showPlanReview || !overlayContent) return null;
+        const document =
+          planReviewDoc?.content?.trim()
+            ? planReviewDoc
+            : planController.getState().planDocument?.content?.trim()
+              ? planController.getState().planDocument!
+              : {
+                  slug: 'plan_pending',
+                  title:
+                    overlayContent.match(/^#\s+(.+)$/m)?.[1]?.trim() || 'Plan',
+                  content: overlayContent,
+                  sections: planGenerator.parseDocument(overlayContent),
+                  todoCount: planGenerator.extractTodos(overlayContent).length,
+                  createdAt: Date.now()
+                };
+        return (
+          <div
+            className="plan-editor-overlay"
+            role="dialog"
+            aria-label="Plan review"
+          >
+            <PlanReview
+              document={document}
+              questionsAnswered={planController.areAllQuestionsAnswered()}
+              onApprove={handlePlanApprove}
+              onReject={handlePlanReject}
+              onEdit={handlePlanEdit}
+              onOpenInEditor={handleOpenPlanInEditor}
+              onClose={handlePlanReviewClose}
+              onDiscard={handleDiscardPlan}
+            />
+          </div>
+        );
+      })()}
 
       {/* ── Settings Panel ──────────────────────────────── */}
       {showSettings && (
@@ -3145,6 +3590,20 @@ export function ChatApp() {
                 streaming &&
                 item.role === 'assistant' &&
                 item.id === lastAssistantId
+              }
+              planActions={
+                mode === 'plan' &&
+                !planDiscarded &&
+                item.role === 'assistant' &&
+                (looksLikePlanChatSummary(item.content || '') ||
+                  Boolean(String(item.planMarkdown || '').trim()))
+                  ? {
+                      onViewPlans: handleOpenReview,
+                      onReject: handleDiscardPlan,
+                      onConfirm: handleApproveFromHeader,
+                      canConfirm: planController.areAllQuestionsAnswered()
+                    }
+                  : undefined
               }
               onEdit={handleEditMessage}
               onFork={handleFork}
@@ -3234,7 +3693,16 @@ export function ChatApp() {
               msg: ChatMessage,
               explicitTurn?: number | null
             ): ChatMessage => {
-              return sealBodyBeforeTools(msg, resolveSealTurn(msg, explicitTurn));
+              const foldPlanningDigs =
+                planStageRef.current === 'planning' ||
+                planStageRef.current === 'review';
+              const foldRepeatResearchDigs =
+                mode === 'plan' &&
+                threadHasCompletedPlanResearch(messagesRef.current, msg.id);
+              return sealBodyBeforeTools(msg, resolveSealTurn(msg, explicitTurn), {
+                foldPlanningDigs,
+                foldRepeatResearchDigs
+              });
             };
             regenerate(
               messages,
@@ -3277,6 +3745,36 @@ export function ChatApp() {
                   });
                   setShowClarifying(true);
                   setAwaitingUser(true);
+                  return;
+                }
+                if (delta.planStageSync && mode === 'plan') {
+                  const stage = delta.planStageSync as PlanStage;
+                  planController.syncStageFromHost(stage);
+                  planStageRef.current = stage;
+                  setPlanStage(stage);
+                  if (stage === 'review' && planController.getState().planDocument) {
+                    setShowPlanReview(true);
+                  }
+                  return;
+                }
+                if (delta.replaceContent != null) {
+                  setMessages((prev) => {
+                    const lastIdx = prev.length - 1;
+                    if (
+                      lastIdx < 0 ||
+                      prev[lastIdx].role !== 'assistant' ||
+                      prev[lastIdx].status !== 'streaming'
+                    ) {
+                      return prev;
+                    }
+                    const copy = [...prev];
+                    copy[lastIdx] = {
+                      ...prev[lastIdx],
+                      content: String(delta.replaceContent),
+                      toolStatus: undefined
+                    };
+                    return copy;
+                  });
                   return;
                 }
                 if (delta.clearContent) {
@@ -3520,13 +4018,24 @@ export function ChatApp() {
                     if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
                       const newMsgs = [...prev];
                       const msg = newMsgs[lastIdx];
-                      const hasToolStep = (msg.steps || []).some((s) => TOOL_KINDS.has(s.kind));
-                      newMsgs[lastIdx] = {
-                        ...msg,
-                        toolStatus: undefined,
-                        openingLead: undefined,
-                        content: (msg.content || '') + delta.content!
-                      };
+                      const nextContent = (msg.content || '') + delta.content!;
+                      const turn = resolveSealTurn(msg, turnNumberRef.current);
+                      const diverted = divertMidDigContent(msg, nextContent, turn, {
+                        foldPlanningDigs:
+                          planStageRef.current === 'planning' ||
+                          planStageRef.current === 'review',
+                        foldRepeatResearchDigs:
+                          mode === 'plan' &&
+                          threadHasCompletedPlanResearch(prev, msg.id)
+                      });
+                      newMsgs[lastIdx] = diverted
+                        ? diverted
+                        : {
+                            ...msg,
+                            toolStatus: undefined,
+                            openingLead: undefined,
+                            content: nextContent
+                          };
                       return newMsgs;
                     }
                     return prev;
@@ -3553,17 +4062,31 @@ export function ChatApp() {
                         ? `${leadLeft}${body}`.trim()
                         : body || leadLeft
                     );
-                    newMsgs[lastIdx] = {
+                    const recovered = recoverHiddenFindings({
                       ...newMsgs[lastIdx],
-                      status: finalContent ? 'complete' : 'error',
                       toolStatus: undefined,
                       openingLead: undefined,
-                      content: finalContent || '(no response)',
+                      content: finalContent,
                       steps,
                       workedDurationMs: Math.max(
                         0,
                         Date.now() - (newMsgs[lastIdx].timestamp || Date.now())
                       )
+                    });
+                    const hasBody = Boolean(recovered.content?.trim());
+                    const hasOther =
+                      (recovered.turnProse?.length ?? 0) > 0 ||
+                      (recovered.steps?.length ?? 0) > 0 ||
+                      (recovered.fileEdits?.length ?? 0) > 0 ||
+                      (recovered.terminalRuns?.length ?? 0) > 0;
+                    newMsgs[lastIdx] = {
+                      ...recovered,
+                      status: hasBody || hasOther ? 'complete' : 'error',
+                      content: hasBody
+                        ? recovered.content
+                        : hasOther
+                          ? ''
+                          : '(no response)'
                     };
                     return newMsgs;
                   }

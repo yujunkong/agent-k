@@ -1,4 +1,4 @@
-# PRD-Subagents: Cursor-style Subagent System
+# PRD-Subagents: Subagent System
 
 > **Category**: Orchestration / Context Isolation  
 > **Phase**: SUBAG (next after ADDON)  

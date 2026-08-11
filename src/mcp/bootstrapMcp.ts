@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import type { MCPClient, MCPToolDefinition } from './MCPClient';
 import { parseMcpServersMap } from './parseMcpServers';
 import { toolRegistry } from '../tools/registry';
+import { isFeatureEnabled } from '../core/featureFlags';
 
 /** Register MCP tool defs into the shared ToolRegistry (agent/debug only). */
 export function registerMcpToolsInRegistry(tools: MCPToolDefinition[]): void {
@@ -15,7 +16,7 @@ export function registerMcpToolsInRegistry(tools: MCPToolDefinition[]): void {
       description: t.description,
       parameters: (t.inputSchema || { type: 'object', properties: {} }) as Record<string, unknown>,
       category: 'orchestration',
-      modeAllowlist: ['agent', 'debug'],
+      modeAllowlist: ['agent', 'debug', 'plan'],
     });
 
     // Convenience: expose SearXNG web_search under the harness allowlist name
@@ -25,7 +26,7 @@ export function registerMcpToolsInRegistry(tools: MCPToolDefinition[]): void {
         description: `${t.description} (alias → ${t.name})`,
         parameters: (t.inputSchema || { type: 'object', properties: {} }) as Record<string, unknown>,
         category: 'web',
-        modeAllowlist: ['agent', 'debug'],
+        modeAllowlist: ['agent', 'debug', 'plan'],
       });
     }
   }
@@ -39,6 +40,11 @@ export async function bootstrapMcpFromSettings(
   mcpClient: MCPClient,
   log: (msg: string) => void
 ): Promise<string[]> {
+  if (!isFeatureEnabled('mcp')) {
+    log('[MCP] Skipped — agent-k.features.mcp is disabled');
+    return [];
+  }
+
   const raw = vscode.workspace.getConfiguration('agent-k').get('mcp.servers') as
     | Record<string, unknown>
     | unknown[]

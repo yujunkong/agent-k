@@ -17,7 +17,7 @@ import type { ToolDefinition } from '../agent/types';
 // ─── Tier A Core (항상 노출) ───────────────────────────────────
 
 /**
- * Tier A 코어 도구 — Cursor-like explore (search → windowed read).
+ * Tier A 코어 도구 — explore (search → windowed read).
  */
 export const TIER_A_CORE: readonly string[] = [
   'grep',
@@ -32,6 +32,7 @@ export const TIER_A_CORE: readonly string[] = [
   'read_lints',
   'ask_question',
   'todo_write',
+  'plan_next_stage',
 ] as const;
 
 // ─── Tier A Optional (C4+ 플래그 on) ───────────────────────────
@@ -109,6 +110,7 @@ export function getToolNamesForTier(
     'edit_file', 'write_file', 'delete_file',
     'run_terminal_cmd', 'read_lints',
     'ask_question', 'todo_write',
+    'plan_next_stage',
     'switch_mode', 'fetch_rules',
     'browser_navigate', 'browser_click', 'browser_screenshot',
     'browser_evaluate', 'browser_console', 'browser_network',

@@ -1,7 +1,7 @@
 /**
  * DebugTools - Debug 모드 도구 설정 (C6-T23)
  *
- * Stage별 허용 도구는 DEBUG_STAGE_TOOLS / isDebugToolAllowedForStage 참고.
+ * Pre-fix product edits are hard-gated via debugWriteGate / isDebugToolAllowedForStage.
  */
 import { modeRegistry } from '../agent/modeRegistry';
 import {

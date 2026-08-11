@@ -23,7 +23,7 @@ export class TodoWriteTool {
 
   /**
    * AgentLoop / host tool dispatch entry.
-   * Accepts both Agent-K schema `{ action, text }` and Cursor-style `{ todos: [...] }`.
+ * Accepts both Agent-K schema `{ action, text }` and `{ todos: [...] }`.
    */
   execute(args: ToolInput): ToolOutput {
     try {

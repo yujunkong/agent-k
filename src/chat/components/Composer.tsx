@@ -38,7 +38,7 @@ interface ComposerProps {
   isStreaming: boolean;
   /** Host blocked on ask_question — show Waiting… instead of Streaming… */
   isAwaitingUser?: boolean;
-  /** Mode pill (Cursor: left of model) */
+  /** Mode pill (left of model) */
   mode: Mode;
   onModeChange: (mode: Mode) => void;
   modeLabels: Record<string, string>;
@@ -137,7 +137,7 @@ function uriToFsPath(uri: string): string {
 }
 
 /**
- * Composer — Cursor-like: mode+model left, attach/send|stop right, usage under box.
+ * Composer — mode+model left, attach/send|stop right, usage under box.
  */
 export function Composer({
   onSend,
@@ -608,7 +608,7 @@ export function Composer({
     const isCtrlEnter = e.ctrlKey || e.metaKey;
     e.preventDefault();
     if (isStreaming) {
-      // Cursor-like: Enter queues (stays above composer, not in chat).
+ // Enter queues (stays above composer, not in chat).
       // Cmd/Ctrl+Enter = interrupt & merge into current turn.
       if (isCtrlEnter) {
         submitResynth(text);

@@ -18,7 +18,7 @@ interface ModeSelectorProps {
   tooltips: Record<string, string>;
 }
 
-/** Cursor-like order: Agent → Plan → Debug → Ask (no Multitask in Agent K) */
+/** order: Agent → Plan → Debug → Ask (no Multitask in Agent K) */
 const MODES: ModeId[] = ['agent', 'plan', 'debug', 'ask'];
 
 function ModeIcon({ mode, size = 14 }: { mode: ModeId; size?: number }) {
@@ -38,7 +38,7 @@ function ModeIcon({ mode, size = 14 }: { mode: ModeId; size?: number }) {
 
 /**
  * Mode dropdown (Agent / Plan / Debug / Ask) with clean stroke icons.
- * Native <select> cannot show per-option icons — custom menu matches Cursor.
+ * Native <select> cannot show per-option icons — custom menu.
  */
 export function ModeSelector({
   value,

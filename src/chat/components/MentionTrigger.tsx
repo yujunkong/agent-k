@@ -3,7 +3,8 @@
  * 
  * @file:, @folder:, @symbol:, @codebase: 멘션 파싱 및 드롭다운 UI
  */
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { isFeatureEnabled } from '../../core/featureFlags';
 
 interface MentionResult {
   label: string;
@@ -20,11 +21,11 @@ interface MentionTriggerProps {
   onSearch?: (type: string, query: string) => void;
 }
 
-const MENTION_TYPES = [
+const ALL_MENTION_TYPES = [
   { trigger: '@file:', label: 'File', icon: '📄' },
   { trigger: '@folder:', label: 'Folder', icon: '📁' },
   { trigger: '@symbol:', label: 'Symbol', icon: '🔣' },
-  { trigger: '@codebase:', label: 'Codebase', icon: '🔍' }
+  { trigger: '@codebase:', label: 'Codebase', icon: '🔍', feature: 'codebase-index' as const }
 ];
 
 export function MentionTrigger({ value, onChange, onMentionSelect, disabled, results = [], onSearch }: MentionTriggerProps) {
@@ -35,6 +36,14 @@ export function MentionTrigger({ value, onChange, onMentionSelect, disabled, res
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  const mentionTypes = useMemo(
+    () =>
+      ALL_MENTION_TYPES.filter(
+        (mt) => !('feature' in mt) || !mt.feature || isFeatureEnabled(mt.feature)
+      ),
+    []
+  );
+
   // Detect @mention trigger in text
   const detectMention = useCallback((text: string) => {
     const cursorPos = inputRef.current?.selectionStart || text.length;
@@ -44,7 +53,7 @@ export function MentionTrigger({ value, onChange, onMentionSelect, disabled, res
     if (atIndex === -1) return null;
 
     const afterAt = beforeCursor.slice(atIndex);
-    for (const mt of MENTION_TYPES) {
+    for (const mt of mentionTypes) {
       if (afterAt.startsWith(mt.trigger)) {
         const query = afterAt.slice(mt.trigger.length);
         return { type: mt.trigger, query, startPos: atIndex };
@@ -57,7 +66,7 @@ export function MentionTrigger({ value, onChange, onMentionSelect, disabled, res
     }
 
     return null;
-  }, []);
+  }, [mentionTypes]);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
@@ -99,7 +108,7 @@ export function MentionTrigger({ value, onChange, onMentionSelect, disabled, res
 
     const items = mentionType 
       ? results 
-      : MENTION_TYPES.map(mt => ({ label: `${mt.icon} ${mt.label}`, description: mt.trigger }));
+      : mentionTypes.map(mt => ({ label: `${mt.icon} ${mt.label}`, description: mt.trigger }));
 
     switch (e.key) {
       case 'ArrowDown':
@@ -118,7 +127,7 @@ export function MentionTrigger({ value, onChange, onMentionSelect, disabled, res
             insertMention(mentionType, items[selectedIndex].label);
           } else {
             // Select mention type
-            const selectedType = MENTION_TYPES[selectedIndex];
+            const selectedType = mentionTypes[selectedIndex];
             if (selectedType) {
               setMentionType(selectedType.trigger);
               // Insert trigger
@@ -200,7 +209,7 @@ export function MentionTrigger({ value, onChange, onMentionSelect, disabled, res
               <div style={{ padding: '8px 12px', opacity: 0.5 }}>Searching...</div>
             )
           ) : (
-            MENTION_TYPES.map((mt, idx) => (
+            mentionTypes.map((mt, idx) => (
               <div
                 key={mt.trigger}
                 className={`mention-item ${idx === selectedIndex ? 'selected' : ''}`}

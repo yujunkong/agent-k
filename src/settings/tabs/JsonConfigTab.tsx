@@ -3,12 +3,19 @@ import { configManager } from '../../core/ConfigManager';
 import {
   PROJECT_CONFIG_PATH,
   pickProjectConfigValues,
-  unflattenProjectConfig,
+  unflattenProjectConfig
 } from '../../core/ProjectConfig';
 
 function postHost(type: string, payload: Record<string, unknown> = {}): void {
   try {
-    const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+    const api =
+      (window as unknown as { __vscodeApi?: { postMessage?: (m: unknown) => void } })
+        .__vscodeApi ||
+      (
+        window as unknown as {
+          acquireVsCodeApi?: () => { postMessage?: (m: unknown) => void };
+        }
+      ).acquireVsCodeApi?.();
     if (api?.postMessage) {
       api.postMessage({ type, ...payload });
       return;
@@ -91,18 +98,25 @@ export function JsonConfigTab() {
 
   return (
     <div className="settings-tab-content">
-      <h3>JSON Config</h3>
-      <p style={{ fontSize: 12, opacity: 0.75, marginTop: 0 }}>
-        워크스페이스 <code>{PROJECT_CONFIG_PATH}</code>으로 설정을 관리합니다.
-        VS Code 설정보다 우선하며, 저장 시 즉시 적용됩니다. API 키는 파일에
-        넣지 않는 것을 권장합니다.
+      <h3>Project</h3>
+      <p className="settings-banner" role="note">
+        OpenCode의 프로젝트 config처럼, 워크스페이스{' '}
+        <code>{PROJECT_CONFIG_PATH}</code>이{' '}
+        <strong>VS Code 설정보다 우선</strong>합니다. 저장 시 즉시 적용됩니다.
+      </p>
+      <p className="settings-banner settings-banner--warn" role="status">
+        API 키·토큰은 이 파일에 넣지 마세요. Provider 탭(전역)에 보관하세요.
       </p>
 
-      <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 8 }}>
+      <div className="settings-hint" style={{ marginBottom: 8 }}>
         {exists && filePath ? (
-          <>파일: <code>{filePath}</code></>
+          <>
+            파일: <code>{filePath}</code>
+          </>
         ) : (
-          <>아직 <code>{PROJECT_CONFIG_PATH}</code> 없음 — 저장하면 생성됩니다.</>
+          <>
+            아직 <code>{PROJECT_CONFIG_PATH}</code> 없음 — 저장하면 생성됩니다.
+          </>
         )}
       </div>
 
@@ -112,43 +126,24 @@ export function JsonConfigTab() {
         onChange={(e) => setText(e.target.value)}
         spellCheck={false}
         rows={22}
-        aria-label="Agent K JSON config"
-        style={{
-          width: '100%',
-          fontFamily: 'var(--vscode-editor-font-family, ui-monospace, monospace)',
-          fontSize: 12,
-          lineHeight: 1.45,
-          padding: 10,
-          borderRadius: 8,
-          border: '1px solid var(--vscode-input-border, rgba(128,128,128,0.35))',
-          background: 'var(--vscode-input-background, #1e1e1e)',
-          color: 'var(--vscode-input-foreground, inherit)',
-          resize: 'vertical',
-          boxSizing: 'border-box',
-        }}
+        aria-label="Agent K project JSON config"
       />
 
-      {error ? (
-        <p style={{ color: 'var(--vscode-errorForeground, #f87171)', fontSize: 12 }}>
-          {error}
-        </p>
-      ) : null}
-      {status ? (
-        <p style={{ fontSize: 12, opacity: 0.75 }}>{status}</p>
-      ) : null}
+      {error ? <p className="settings-error">{error}</p> : null}
+      {status ? <p className="settings-hint">{status}</p> : null}
 
       <div className="settings-actions" style={{ gap: 8, flexWrap: 'wrap' }}>
         <button type="button" className="settings-btn primary" onClick={handleSave}>
-          Save settings.json
+          settings.json 저장
         </button>
         <button type="button" className="settings-btn" onClick={handleOpen}>
-          Open in Editor
+          에디터에서 열기
         </button>
         <button type="button" className="settings-btn" onClick={loadFromMemory}>
-          Reset from Current
+          현재 설정으로 채우기
         </button>
         <button type="button" className="settings-btn" onClick={handleCreateExample}>
-          Create Example
+          예시 파일 만들기
         </button>
       </div>
     </div>

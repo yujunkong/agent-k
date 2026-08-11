@@ -43,6 +43,15 @@ export interface StreamChatOptions {
   signal?: AbortSignal;
   tools?: any[];
   /**
+   * OpenAI-compatible tool_choice. Prefer `required` on Plan FSM nudges
+   * so weak models actually call plan_present_summary / plan_next_stage.
+   */
+  toolChoice?:
+    | 'auto'
+    | 'required'
+    | 'none'
+    | { type: 'function'; function: { name: string } };
+  /**
    * Qwen / exo thinking channel. Prefer setting via thinkingEffort.
    */
   enableThinking?: boolean;

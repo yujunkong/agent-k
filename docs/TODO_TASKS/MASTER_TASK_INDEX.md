@@ -11,7 +11,7 @@
 
 | Phase | 태스크 수 | 완료 | 진행중 | 대기 | 완료율 | 상태 |
 |-------|-----------|------|--------|------|--------|------|
-| **SUBAG** Cursor-style subagents | 11 | 0 | 0 | 11 | 0% | 🔜 **다음 착수** |
+| **SUBAG** subagents | 11 | 0 | 0 | 11 | 0% | 🔜 **다음 착수** |
 | **ADDON** addon.md 갭 | 18 | 18 | 0 | 0 | 100% | ✅ T01–T18 done |
 | **C0** Chat UI + Streaming + Settings | 39 | 39 | 0 | 0 | 100% | ✅ 완료 |
 | **C1** Ask Mode (Read-Only) | 28 | 28 | 0 | 0 | 100% | ✅ 완료 |
@@ -30,7 +30,7 @@
 
 | 마일스톤 | 목표일 | 기준 Phase | 완료 조건 |
 |----------|--------|------------|-----------|
-| **M14: Cursor-style Subagents** | ☐ | SUBAG | Registry·explore·depth·UI·background·resume (T01–T11) |
+| **M14: Subagents** | ☐ | SUBAG | Registry·explore·depth·UI·background·resume (T01–T11) |
 | **M11: addon.md P0 갭** | ✅ | ADDON | Test 검증·wall timeout·Plan write 게이트·컨텍스트 전략 (T01–T05, T18) |
 | **M12: addon.md P1 UX** | ✅ | ADDON | 세션 영속·체크포인트·규칙·Task 격리·슬래시·Status Bar·LSP (T06–T12) |
 | **M13: addon.md P2 확장** | ✅ | ADDON | BoN·Review LM·MCP budget·Side chat·Semantic (T13–T17) |
@@ -49,7 +49,7 @@
 
 ## 📋 Phase별 태스크 상세 인덱스
 
-### 🔜 SUBAG: Cursor-style Subagents (11 tasks) — **다음 착수**
+### 🔜 SUBAG: Subagents (11 tasks) — **다음 착수**
 
 > 상세·의존성: [`tasks/SUBAG/README.md`](./tasks/SUBAG/README.md) · PRD: [`../PRDs/08_Subagents/PRD-Subagents.md`](../PRDs/08_Subagents/PRD-Subagents.md)
 

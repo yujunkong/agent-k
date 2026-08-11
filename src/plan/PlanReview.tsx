@@ -98,20 +98,13 @@ export function PlanReview({
           </p>
         </div>
         <div className="plan-review__actions">
-          <button
-            type="button"
-            className="settings-btn"
-            onClick={() => setShowRejectInput((v) => !v)}
-          >
-            반려
-          </button>
           {onDiscard ? (
             <button
               type="button"
               className={
                 armDiscard
                   ? 'settings-btn plan-review__discard plan-review__discard--armed'
-                  : 'settings-btn plan-review__discard'
+                  : 'settings-btn'
               }
               onClick={() => {
                 if (!armDiscard) {
@@ -128,9 +121,17 @@ export function PlanReview({
                   : '계획을 폐기하고 Research로 돌아갑니다'
               }
             >
-              {armDiscard ? '정말 폐기?' : '계획 폐기'}
+              {armDiscard ? 'Reject?' : 'Reject'}
             </button>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              className="settings-btn"
+              onClick={() => setShowRejectInput((v) => !v)}
+            >
+              Reject
+            </button>
+          )}
           <button
             type="button"
             className="settings-btn primary"
@@ -144,7 +145,7 @@ export function PlanReview({
                   : '승인하면 리뷰를 마치고 계획대로 실행합니다'
             }
           >
-            승인
+            Confirm
           </button>
           {onClose ? (
             <button
@@ -178,7 +179,7 @@ export function PlanReview({
               Cancel
             </button>
             <button type="button" className="settings-btn" onClick={handleReject}>
-              반려 확정
+              Reject
             </button>
           </div>
         </div>

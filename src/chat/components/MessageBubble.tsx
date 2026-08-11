@@ -6,10 +6,18 @@ import { MessageSteps } from './MessageSteps';
 import { FileEditCard } from './FileEditCard';
 import { IconCopy, IconEdit, IconFork } from './Icons';
 import { FileTypeIcon } from './FileTypeIcon';
-import { splitTurnProseForDisplay } from '../turnProseSplit';
+import {
+  splitTurnProseForDisplay,
+  stripInternalPlanningChrome,
+  looksLikePlanStepStart,
+  looksLikePlanStepComplete,
+  looksLikePlanStepProgress
+} from '../turnProseSplit';
 import {
   looksLikePlanDocument,
-  looksLikePlanDraft
+  looksLikePlanDraft,
+  looksLikePlanWritingStart,
+  looksLikePlanChatSummary
 } from '../planPromote';
 
 interface MessageBubbleProps {
@@ -21,8 +29,15 @@ interface MessageBubbleProps {
   isLastUser?: boolean;
   /** Last assistant message — can show Continue when mission aborted */
   isLastAssistant?: boolean;
-  /** Plan planning stage: show "작성 중" as soon as the turn streams */
+  /** Plan planning stage: allow "작성 중" once plan body starts (not explore) */
   forcePlanDrafting?: boolean;
+  /** Plan summary bubble: View Plans / Reject / Confirm */
+  planActions?: {
+    onViewPlans: () => void;
+    onReject: () => void;
+    onConfirm: () => void;
+    canConfirm?: boolean;
+  };
   onEdit?: (id: string, content: string) => void;
   onFork?: (id: string) => void;
   onCopy?: (content: string) => void;
@@ -71,7 +86,7 @@ function resolveWorkedMs(message: any): number {
   return sum;
 }
 
-/** Cursor-style relative completion time */
+/** relative completion time */
 function formatRelativeTime(ts: number, now: number): string {
   if (!Number.isFinite(ts) || ts <= 0) return '';
   const diff = Math.max(0, now - ts);
@@ -95,6 +110,7 @@ export function MessageBubble({
   isLastUser = false,
   isLastAssistant = false,
   forcePlanDrafting = false,
+  planActions,
   onEdit,
   onFork,
   onCopy,
@@ -113,7 +129,9 @@ export function MessageBubble({
     isAssistant && typeof message.openingLead === 'string'
       ? message.openingLead.trim()
       : '';
-  const stripped = isAssistant ? stripFakeToolMarkup(rawContent) : rawContent;
+  const stripped = isAssistant
+    ? stripInternalPlanningChrome(stripFakeToolMarkup(rawContent))
+    : rawContent;
   const displayContent = isAssistant ? foldLeadIntoBody(rawLead, stripped) : stripped;
   /** Only the in-flight assistant bubble streams — never a sealed sibling */
   const streamBody =
@@ -125,7 +143,7 @@ export function MessageBubble({
   const turnProse: Array<{ id: string; turn: number; content: string }> =
     Array.isArray(message.turnProse) ? message.turnProse : [];
   // Findings / research wrap-ups → answer below Worked; short dig acks stay in timeline
-  const { timeline: timelineProse, answer: answerProse } =
+  const { timeline: timelineProseRaw, answer: answerProse } =
     splitTurnProseForDisplay(turnProse);
 
   const stepsDone =
@@ -172,14 +190,46 @@ export function MessageBubble({
     .filter(Boolean)
     .join('\n\n');
 
+  // Stale "Step 1부터 시작" under Worked after "Step 1 완료" → prepend to timeline
+  const rawBody = displayContent.trim();
+  const bodyIsStaleStepStart =
+    looksLikePlanStepStart(rawBody) &&
+    (timelineProseRaw.some(
+      (p: { content: string }) =>
+        looksLikePlanStepComplete(p.content) ||
+        (looksLikePlanStepProgress(p.content) &&
+          !looksLikePlanStepStart(p.content))
+    ) ||
+      fileEdits.length > 0);
+  const timelineProse =
+    bodyIsStaleStepStart && rawBody
+      ? [
+          { id: `hoist_stepstart_${message.id}`, turn: 1, content: rawBody },
+          ...timelineProseRaw.filter(
+            (p: { content: string }) => p.content.trim() !== rawBody
+          )
+        ]
+      : timelineProseRaw;
+  const effectiveDisplayContent = bodyIsStaleStepStart ? '' : displayContent;
+
+  // Once Worked collapses, timeline dig-prose must not vanish — hoist below Worked.
+  // Timeline first (chronological: Step start → Step 완료).
+  const timelineProseText = timelineProse
+    .map((p: { content: string }) => String(p.content || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
+  const sealedProseFallback = [stepsDone ? timelineProseText : '', answerProseText]
+    .filter(Boolean)
+    .join('\n\n');
+
   const copyText =
     [
       ...timelineProse.map((p: { content: string }) => p.content),
       answerProseText,
-      displayContent
+      effectiveDisplayContent
     ]
       .filter(Boolean)
-      .join('\n\n') || displayContent;
+      .join('\n\n') || effectiveDisplayContent;
 
   /**
    * Timeline only — final/streaming answer always renders BELOW in the bubble
@@ -192,33 +242,33 @@ export function MessageBubble({
       terminalRuns={terminalRuns}
       turnProse={timelineProse}
       isStreaming={streamBody}
+      toolsOnly={stepsDone}
       onOpenFile={onOpenFile}
     />
   ) : null;
 
   /**
    * Final answer under the timeline. Mid-dig self-talk is in Thought;
-   * short dig leads stay in MessageSteps. Settled findings hoist here.
+   * short dig leads stay in MessageSteps while streaming; after Worked
+   * collapses, sealedProseFallback hoists leftover timeline prose here.
    */
-  const sealedProseFallback = answerProseText;
   const assistantBodyText =
-    displayContent.trim() ||
+    effectiveDisplayContent.trim() ||
     sealedProseFallback ||
     (stepsDone && !streamBody && !hasSteps
-      ? timelineProse
-          .map((p: { content: string }) => String(p.content || '').trim())
-          .filter(Boolean)
-          .join('\n\n')
+      ? timelineProseText
       : '');
-  // While planning: show "작성 중" immediately (don't wait for looksLikePlan*)
-  const planBodyCandidate = displayContent.trim() || answerProseText;
+  // Show "작성 중" only after real plan body starts — not during explore/thought
+  const planBodyCandidate = effectiveDisplayContent.trim() || answerProseText;
+  const planWritingStarted = looksLikePlanWritingStart(planBodyCandidate);
+  const inPlanPlanningTurn =
+    Boolean(forcePlanDrafting) || Boolean(message.planDrafting);
   const draftingPlanDoc =
     Boolean(streamBody) &&
-    (Boolean(forcePlanDrafting) ||
-      Boolean(message.planDrafting) ||
-      (Boolean(planBodyCandidate) &&
-        (looksLikePlanDocument(planBodyCandidate) ||
-          looksLikePlanDraft(planBodyCandidate))));
+    planWritingStarted &&
+    (inPlanPlanningTurn ||
+      looksLikePlanDocument(planBodyCandidate) ||
+      looksLikePlanDraft(planBodyCandidate));
   const showAssistantBody = Boolean(
     isAssistant && (draftingPlanDoc || assistantBodyText)
   );
@@ -415,6 +465,36 @@ export function MessageBubble({
               />
             ) : streamBody && !hasSteps ? (
               <span className="message-streaming-ellipsis">…</span>
+            ) : null}
+            {isAssistant &&
+            !streamBody &&
+            planActions &&
+            (looksLikePlanChatSummary(assistantBodyText) ||
+              Boolean(String(message.planMarkdown || '').trim())) ? (
+              <div className="plan-summary-actions" role="group" aria-label="Plan actions">
+                <button
+                  type="button"
+                  className="settings-btn"
+                  onClick={planActions.onViewPlans}
+                >
+                  View Plans
+                </button>
+                <button
+                  type="button"
+                  className="settings-btn"
+                  onClick={planActions.onReject}
+                >
+                  Reject
+                </button>
+                <button
+                  type="button"
+                  className="settings-btn primary"
+                  onClick={planActions.onConfirm}
+                  disabled={planActions.canConfirm === false}
+                >
+                  Confirm
+                </button>
+              </div>
             ) : null}
           </div>
 

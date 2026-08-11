@@ -4,6 +4,7 @@
  * InlineCompletionItemProvider로 등록, 동일 엔드포인트 사용
  */
 import * as vscode from 'vscode';
+import { isFeatureEnabled } from '../core/featureFlags';
 
 export class AgentKInlineCompletionProvider implements vscode.InlineCompletionItemProvider {
   private providerId: string;
@@ -21,6 +22,9 @@ export class AgentKInlineCompletionProvider implements vscode.InlineCompletionIt
     _context: vscode.InlineCompletionContext,
     _token: vscode.CancellationToken
   ): Promise<vscode.InlineCompletionItem[] | vscode.InlineCompletionList> {
+    if (!isFeatureEnabled('inline-completion')) {
+      return [];
+    }
     const line = document.lineAt(position.line);
     const prefix = line.text.slice(0, position.character);
     const indent = line.text.match(/^\s*/)?.[0] ?? '';

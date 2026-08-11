@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-k.local/settings.schema.json",
+  "title": "Agent K project settings (.agentk/settings.json)",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "provider": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "litellm",
+            "openai",
+            "anthropic",
+            "ollama",
+            "lmstudio",
+            "opencode-zen",
+            "opencode-go"
+          ]
+        },
+        "baseUrl": { "type": "string" },
+        "model": { "type": "string" }
+      }
+    },
+    "thinking": {
+      "type": "object",
+      "properties": {
+        "effort": {
+          "type": "string",
+          "enum": ["off", "low", "medium", "high", "xhigh"]
+        }
+      }
+    },
+    "maxTurns": { "type": "integer", "minimum": 5, "maximum": 100 },
+    "permission": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["ask", "accept_edits", "auto", "bypass"]
+        }
+      }
+    },
+    "queue": { "type": "object" },
+    "context": {
+      "type": "object",
+      "properties": {
+        "budget": { "type": "integer" },
+        "readMaxLines": { "type": "integer" }
+      }
+    },
+    "harness": { "type": "object" },
+    "features": { "type": "object" },
+    "mcp": { "type": "object" }
+  }
+}

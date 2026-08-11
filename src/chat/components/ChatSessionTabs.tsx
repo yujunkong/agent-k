@@ -1,5 +1,5 @@
 /**
- * Cursor-style session tabs + header actions.
+ * Session tabs + header actions.
  */
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import type { ChatSessionMeta } from '../ChatSessionStore';

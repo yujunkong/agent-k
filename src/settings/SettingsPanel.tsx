@@ -1,9 +1,8 @@
 /**
- * Settings Hub - Webview 기반 설정 UI
+ * Settings Hub — Webview settings UI
  *
- * 탭: Models / Permission / Queue / Harness / Context / MCP / Privacy
- * (Secrets merged into Models — single provider + credentials surface)
- * ConfigManager와 양방향 동기화
+ * IA (OpenCode-inspired): Provider · Permission · Project · Advanced…
+ * Persist via persistSettings → VS Code config; project JSON overrides when present.
  */
 import React, { useState } from 'react';
 import { ModelsTab } from './tabs/ModelsTab';
@@ -18,52 +17,62 @@ import { JsonConfigTab } from './tabs/JsonConfigTab';
 
 interface SettingsPanelProps {
   onClose?: () => void;
-  initialTab?: TabId | 'secrets';
+  initialTab?: TabId | 'secrets' | 'models' | 'json';
 }
 
-type TabId =
-  | 'models'
+export type TabId =
+  | 'provider'
   | 'permission'
+  | 'project'
   | 'queue'
   | 'harness'
   | 'context'
   | 'mcp'
   | 'features'
-  | 'privacy'
-  | 'json';
+  | 'privacy';
 
 interface TabInfo {
   id: TabId;
   label: string;
-  icon: string;
+  group?: 'main' | 'advanced';
 }
 
 const TABS: TabInfo[] = [
-  { id: 'models', label: 'Models', icon: '🤖' },
-  { id: 'permission', label: 'Permission', icon: '🔒' },
-  { id: 'features', label: 'Features', icon: '⚙️' },
-  { id: 'harness', label: 'Harness', icon: '🧪' },
-  { id: 'context', label: 'Context', icon: '📚' },
-  { id: 'mcp', label: 'MCP', icon: '🔌' },
-  { id: 'queue', label: 'Queue', icon: '📋' },
-  { id: 'privacy', label: 'Privacy', icon: '🔐' },
-  { id: 'json', label: 'JSON', icon: '{ }' }
+  { id: 'provider', label: 'Provider', group: 'main' },
+  { id: 'permission', label: 'Permission', group: 'main' },
+  { id: 'project', label: 'Project', group: 'main' },
+  { id: 'features', label: 'Features', group: 'advanced' },
+  { id: 'harness', label: 'Harness', group: 'advanced' },
+  { id: 'context', label: 'Context', group: 'advanced' },
+  { id: 'mcp', label: 'MCP', group: 'advanced' },
+  { id: 'queue', label: 'Queue', group: 'advanced' },
+  { id: 'privacy', label: 'Privacy', group: 'advanced' }
 ];
 
-function normalizeTab(tab: TabId | 'secrets' | undefined): TabId {
-  if (!tab || tab === 'secrets') return 'models';
+function normalizeTab(
+  tab: TabId | 'secrets' | 'models' | 'json' | undefined
+): TabId {
+  if (!tab || tab === 'secrets' || tab === 'models') return 'provider';
+  if (tab === 'json') return 'project';
   return tab;
 }
 
-export function SettingsPanel({ onClose, initialTab = 'models' }: SettingsPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>(() => normalizeTab(initialTab));
+export function SettingsPanel({
+  onClose,
+  initialTab = 'provider'
+}: SettingsPanelProps) {
+  const [activeTab, setActiveTab] = useState<TabId>(() =>
+    normalizeTab(initialTab)
+  );
 
   const renderTab = () => {
     switch (activeTab) {
-      case 'models':
+      case 'provider':
         return <ModelsTab />;
       case 'permission':
         return <PermissionTab />;
+      case 'project':
+        return <JsonConfigTab />;
       case 'queue':
         return <QueueTab />;
       case 'harness':
@@ -76,32 +85,51 @@ export function SettingsPanel({ onClose, initialTab = 'models' }: SettingsPanelP
         return <FeaturesTab />;
       case 'privacy':
         return <PrivacyTab />;
-      case 'json':
-        return <JsonConfigTab />;
       default:
         return <ModelsTab />;
     }
   };
+
+  const mainTabs = TABS.filter((t) => t.group === 'main');
+  const advancedTabs = TABS.filter((t) => t.group === 'advanced');
 
   return (
     <div className="settings-panel">
       <div className="settings-header">
         <h2>Settings</h2>
         {onClose && (
-          <button className="settings-close" onClick={onClose}>
+          <button type="button" className="settings-close" onClick={onClose}>
             ✕
           </button>
         )}
       </div>
+      <p className="settings-precedence" role="note">
+        전역: VS Code 설정 · 프로젝트: <code>.agentk/settings.json</code>{' '}
+        (있으면 우선) · API 키는 Provider 탭에 두고 프로젝트 JSON에는 넣지
+        마세요.
+      </p>
       <div className="settings-body">
-        <nav className="settings-nav">
-          {TABS.map((tab) => (
+        <nav className="settings-nav" aria-label="Settings categories">
+          {mainTabs.map((tab) => (
             <button
               key={tab.id}
-              className={`settings-tab ${activeTab === tab.id ? 'active' : ''}`}
+              type="button"
+              className={`settings-tab${activeTab === tab.id ? ' active' : ''}`}
               onClick={() => setActiveTab(tab.id)}
             >
-              <span className="tab-icon">{tab.icon}</span>
+              <span className="tab-label">{tab.label}</span>
+            </button>
+          ))}
+          <div className="settings-nav__divider" aria-hidden>
+            Advanced
+          </div>
+          {advancedTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={`settings-tab${activeTab === tab.id ? ' active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
               <span className="tab-label">{tab.label}</span>
             </button>
           ))}
