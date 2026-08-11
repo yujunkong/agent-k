@@ -17,6 +17,14 @@ interface PlanReviewProps {
   onEdit: (content: string) => void;
   /** Save + open plan markdown in the VS Code editor */
   onOpenInEditor?: (content: string) => void;
+  /** When true, PlanTask[] is authoritative and Markdown is read-only. */
+  structuredSourceOfTruth?: boolean;
+  /** Tasks with no automatic verification command that are waiting for the
+   *  user to manually confirm they're actually done. Only meaningful when
+   *  structuredSourceOfTruth is true. */
+  tasksAwaitingVerification?: Array<{ id: string; title: string }>;
+  /** Confirms a task in tasksAwaitingVerification as verified. */
+  onVerifyTask?: (taskId: string) => void;
   onClose?: () => void;
   /** Discard plan and return to Research */
   onDiscard?: () => void;
@@ -29,6 +37,9 @@ export function PlanReview({
   onReject,
   onEdit,
   onOpenInEditor,
+  structuredSourceOfTruth = false,
+  tasksAwaitingVerification = [],
+  onVerifyTask,
   onClose,
   onDiscard
 }: PlanReviewProps) {
@@ -54,6 +65,10 @@ export function PlanReview({
 
   const handleApprove = () => {
     if (!questionsAnswered) return;
+    if (structuredSourceOfTruth) {
+      onApprove(content);
+      return;
+    }
     let finalContent = content;
     if (removedSteps.size > 0) {
       const lines = content.split('\n');
@@ -194,7 +209,7 @@ export function PlanReview({
         <section className="plan-review__main">
           <div className="plan-review__section-head">
             <span className="plan-review__label">Plan</span>
-            {onOpenInEditor ? (
+            {onOpenInEditor && !structuredSourceOfTruth ? (
               <button
                 type="button"
                 className="settings-btn primary plan-review__open-editor"
@@ -212,9 +227,9 @@ export function PlanReview({
             {preview || '(empty plan)'}
           </pre>
           <p className="plan-review__hint">
-            편집은 <strong>Open in Editor</strong>로 파일에서 하세요. 저장 후 Review로
-            돌아오면 반영됩니다. 에디터 상단 CodeLens의 <strong>Build</strong>로도 바로
-            실행할 수 있습니다.
+            {structuredSourceOfTruth
+              ? '이 Plan은 구조화된 TaskGraph가 원본입니다. 변경이 필요하면 반려 사유를 남겨 Planner가 다시 생성하도록 하세요.'
+              : <>편집은 <strong>Open in Editor</strong>로 파일에서 하세요. 저장 후 Review로 돌아오면 반영됩니다. 에디터 상단 CodeLens의 <strong>Build</strong>로도 바로 실행할 수 있습니다.</>}
           </p>
         </section>
 
@@ -241,6 +256,7 @@ export function PlanReview({
                       type="checkbox"
                       checked={!removed}
                       onChange={() => toggleStep(i)}
+                      disabled={structuredSourceOfTruth}
                     />
                     <span>{todo}</span>
                   </label>
@@ -250,6 +266,36 @@ export function PlanReview({
           </div>
         </aside>
       </div>
+
+      {structuredSourceOfTruth && tasksAwaitingVerification.length > 0 ? (
+        <div className="plan-review__manual-verify" role="status">
+          <div className="plan-review__section-head">
+            <span className="plan-review__label">
+              수동 확인 필요 ({tasksAwaitingVerification.length})
+            </span>
+          </div>
+          <p className="plan-review__hint">
+            아래 작업은 자동 검증 커맨드가 없어서 완료 여부를 판단할 수 없습니다.
+            직접 확인 후 완료로 표시해 주세요.
+          </p>
+          <ul className="plan-review__manual-verify-list">
+            {tasksAwaitingVerification.map((task) => (
+              <li key={task.id} className="plan-review__manual-verify-item">
+                <span className="plan-review__manual-verify-title">{task.title}</span>
+                <button
+                  type="button"
+                  className="settings-btn primary"
+                  onClick={() => onVerifyTask?.(task.id)}
+                  disabled={!onVerifyTask}
+                  title="이 작업을 검증 완료로 표시합니다"
+                >
+                  확인 완료
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

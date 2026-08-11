@@ -48,6 +48,17 @@ export interface StreamChatOptions {
   enableThinking?: boolean;
   /** off | low | medium | high | max — mapped to enable_thinking + reasoning_effort / budget */
   thinkingEffort?: 'off' | 'low' | 'medium' | 'high' | 'max';
+  /**
+   * Structured-output / constrained-decoding request, passed through as
+   * OpenAI-compatible `response_format: { type: 'json_schema', json_schema }`.
+   * vLLM / SGLang honor this as guided/grammar-constrained decoding.
+   * Optional and additive — omitted entirely when not set, so providers
+   * that don't support it are unaffected. See src/plan/v2/PlanV2Generator.ts.
+   */
+  responseFormat?: {
+    type: 'json_schema';
+    json_schema: { name: string; strict?: boolean; schema: Record<string, unknown> };
+  };
 }
 
 export interface StreamChunk {

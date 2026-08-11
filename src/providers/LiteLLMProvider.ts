@@ -35,7 +35,7 @@ export class LiteLLMProvider implements LLMProviderInterface {
   }
 
   async *streamChat(options: StreamChatOptions): AsyncGenerator<StreamChunk> {
-    const { messages, model, temperature = 0.7, maxTokens = 16384, signal, tools } = options;
+    const { messages, model, temperature = 0.7, maxTokens = 16384, signal, tools, responseFormat } = options;
     const modelName = model || this.config.model;
     const effort = parseThinkingEffort(options.thinkingEffort);
     const mapped = thinkingEffortToProviderOpts(effort);
@@ -62,7 +62,8 @@ export class LiteLLMProvider implements LLMProviderInterface {
           ...(mapped.thinkingBudget != null && enableThinking
             ? { thinking_budget: mapped.thinkingBudget }
             : {}),
-          ...(tools && tools.length > 0 ? { tools, tool_choice: 'auto' } : {})
+          ...(tools && tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
+          ...(responseFormat ? { response_format: responseFormat } : {})
         }),
         signal
       });

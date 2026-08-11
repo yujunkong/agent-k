@@ -749,6 +749,37 @@ body {
   opacity: 0.55;
 }
 
+.plan-review__manual-verify {
+  flex-shrink: 0;
+  margin: 0 16px 16px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-inputValidation-warningBorder, #b89500);
+  background: rgba(184, 149, 0, 0.08);
+}
+
+.plan-review__manual-verify-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plan-review__manual-verify-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.plan-review__manual-verify-title {
+  min-width: 0;
+  word-break: break-word;
+}
+
 .mode-selector-wrapper {
   display: flex;
   align-items: center;

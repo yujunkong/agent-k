@@ -471,6 +471,7 @@
     "lint": "eslint src",
     "test": "vscode-test",
     "test:harness": "node --import tsx ./node_modules/mocha/bin/mocha.js --ui tdd --extension ts 'tests/acceptance/harness/ac*.spec.ts'",
+    "test:plan-v2": "node --import tsx ./node_modules/mocha/bin/mocha.js --ui tdd --extension ts 'tests/unit/plan/v2/*.test.ts'",
     "test:addon": "node --import tsx ./node_modules/mocha/bin/mocha.js --ui tdd --extension ts 'tests/unit/verification/auto-verification-test-loop.test.ts' 'tests/unit/loop/wall-clock-timeout.test.ts' 'tests/unit/plan/write-gate.test.ts' 'tests/unit/prefetch/task-context-strategy.test.ts' 'tests/unit/prefetch/ide-context-injector.test.ts' 'tests/unit/addon/p0-smoke.test.ts' 'tests/unit/orchestration/task-tool.test.ts' 'tests/unit/prefetch/lsp-cursor-context.test.ts' 'tests/unit/review/agent-review-loop.test.ts' 'tests/unit/sidechat/side-chat-unsupported.test.ts' 'tests/unit/harness/project-rules-loader.test.ts' 'tests/unit/telemetry/status-bar-cost.test.ts' 'tests/unit/mcp/schema-budget.test.ts' 'tests/unit/indexing/semantic-local-embedding.test.ts' 'tests/unit/session/session-manager.test.ts' 'tests/unit/session/host-session-bridge.test.ts' 'tests/unit/checkpoint/checkpoint-manager-persist.test.ts' 'tests/unit/chat/slash-commands.test.ts' 'tests/unit/chat/host-stream-error.test.ts'",
     "dev:webview": "vite"
   },

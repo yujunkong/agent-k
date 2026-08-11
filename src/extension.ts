@@ -499,6 +499,33 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       );
       return;
     }
+    // Plan V2 semantic validation: resolve repository file existence in the
+    // Extension Host instead of weakening validation inside the webview.
+    if (message.type === 'plan.fileExists' && message.requestId != null) {
+      void (async () => {
+        const requestId = String(message.requestId);
+        const rawPath = String(message.path || '').trim();
+        try {
+          const folder = vscode.workspace.workspaceFolders?.[0];
+          const normalized = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+          const segments = normalized.split('/').filter(Boolean);
+          if (!folder || !normalized || normalized.includes('\0') || segments.includes('..') || /^[A-Za-z]:\//.test(normalized)) {
+            void this._view?.webview.postMessage({ type: 'plan.fileExists.result', requestId, exists: false });
+            return;
+          }
+          const candidate = vscode.Uri.joinPath(folder.uri, ...segments);
+          try {
+            await vscode.workspace.fs.stat(candidate);
+            void this._view?.webview.postMessage({ type: 'plan.fileExists.result', requestId, exists: true });
+          } catch {
+            void this._view?.webview.postMessage({ type: 'plan.fileExists.result', requestId, exists: false });
+          }
+        } catch {
+          void this._view?.webview.postMessage({ type: 'plan.fileExists.result', requestId, exists: false });
+        }
+      })();
+      return;
+    }
     // Persist plan draft → <workspace>/.agentk/plans/tmp/plan_<hash>.md
     if (message.type === 'plan.save') {
       void (async () => {
@@ -1521,6 +1548,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const activeToolItems = new Map<string, string>();
     /** Cursor-style row text from tool args — keep on result so Grepped/Read don't become "N matches" */
     const toolStartDetails = new Map<string, string>();
+    /**
+     * Plan V2: stash tool args by callId in onToolCall so onToolResult
+     * (which only receives name/result/callId) can forward an
+     * ObservedToolCall to the webview's Evidence Engine. Best-effort —
+     * see src/plan/v2/toObservedToolCall.ts.
+     */
+    const toolArgsByCallId = new Map<string, Record<string, unknown>>();
 
     const postTimeline = (payload: {
       kind: string;
@@ -1713,6 +1747,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           currentTurn = turn;
           activeToolItems.clear();
           toolStartDetails.clear();
+          toolArgsByCallId.clear();
           // Only "Planning next moves" while waiting for the LLM —
           // Thinking appears later when reasoning tokens arrive (not both live).
           postTimeline({
@@ -1807,6 +1842,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               ? `tl_${String(callId)}`
               : `tl_tool_${turn}_${name}_${++timelineSeq}`;
           activeToolItems.set(callId || name, id);
+          toolArgsByCallId.set(callId || name, (args || {}) as Record<string, unknown>);
           // Keep Cursor-style start detail across tool result (don't replace with "N matches")
           if (detail) {
             toolStartDetails.set(id, detail);
@@ -1916,6 +1952,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               : undefined,
             error: result.success ? undefined : result.error
           });
+          // Plan V2: forward tool evidence to the webview's Evidence Engine
+          // (best-effort — the webview no-ops this when there's no active
+          // structured PlanSession yet). See src/plan/v2/EvidenceEngine.ts.
+          if (mode === 'plan') {
+            const toolArgs = toolArgsByCallId.get(callId || name);
+            toolArgsByCallId.delete(callId || name);
+            post('plan.toolEvidence', {
+              name,
+              args: toolArgs || {},
+              success: result.success
+            });
+          }
           // Cursor-style file edit cards in the chat transcript
           if (
             result.success &&

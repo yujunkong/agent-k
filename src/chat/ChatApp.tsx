@@ -47,6 +47,9 @@ import type { PendingQuestion } from '../tools/session/AskQuestionTool';
 import { normalizeMcqQuestion } from './normalizeAskQuestion';
 // RW-C5-04: Plan → Agent 핸드오프
 import { PlanToAgent } from '../plan/PlanToAgent';
+import { LiteLLMProvider } from '../providers/LiteLLMProvider';
+import type { ProviderType } from '../providers/types';
+import { PlanModeControllerAdapter, LiteLLMPlanModel, PlanV2Generator, toObservedToolCall } from '../plan/v2';
 // RW-C6-05-R2: ReproduceUI 대기 루프
 import { ReproduceUI } from '../debug/ReproduceUI';
 import { requestReproduceTool } from '../tools/debug/RequestReproduceTool';
@@ -103,6 +106,23 @@ const MODE_TOOLTIPS: Record<Mode, string> = {
   plan: 'Design first. Outputs PLAN.md with Mermaid.',
   debug: 'Hypothesis → Instrument → Reproduce → Minimal fix.'
 };
+
+
+function textFromPlanController(controller: PlanModeController): string {
+  return controller.getState().researchResults || 'Plan';
+}
+
+function buildPlanResearchContext(controller: PlanModeController): string {
+  const state = controller.getState();
+  const questions = controller
+    .getQuestions()
+    .map((q) => `- Q: ${q.question}\n  A: ${q.answer || '(no answer)'}`)
+    .join('\n');
+  return [
+    state.researchResults ? `Research notes:\n${state.researchResults.slice(0, 8000)}` : '',
+    questions ? `Clarifying answers:\n${questions}` : ''
+  ].filter(Boolean).join('\n\n');
+}
 
 function shortModelName(raw: string): string {
   const base = (raw || '').split('/').pop() || raw || 'model';
@@ -271,6 +291,47 @@ export function ChatApp() {
   // ─── C5-C7 UI 상태 ─────────────────────────────────────
   // Plan mode state
   const [planController] = useState(() => new PlanModeController());
+  // Plan V2 (additive): structured PlanSession running alongside the
+  // existing PlanModeController stage machine. See
+  // src/plan/v2/PlanModeControllerAdapter.ts — it mirrors state INTO
+  // planController rather than replacing it, so PlanReview/PlanEditor
+  // keep working unmodified. Until plan generation itself is switched to
+  // PlanV2Generator, planV2Adapter.session.getPlan() stays null and
+  // recordToolEvent() below is a safe no-op.
+  const planV2AdaptersRef = useRef<Map<string, PlanModeControllerAdapter>>(new Map());
+  const planV2Adapter = useMemo(() => {
+    const existing = planV2AdaptersRef.current.get(sessionId);
+    if (existing) return existing;
+    const created = new PlanModeControllerAdapter(sessionId, planController);
+    planV2AdaptersRef.current.set(sessionId, created);
+    return created;
+  }, [sessionId, planController]);
+  // Re-render on every PlanSession event (task status changes, phase
+  // changes, manual verification, ...) — reads of planV2Adapter.session.*
+  // in JSX are otherwise not React-reactive since PlanSession is a plain
+  // mutable class instance, not React state.
+  const [planV2Tick, setPlanV2Tick] = useState(0);
+  useEffect(() => {
+    return planV2Adapter.session.onEvent(() => setPlanV2Tick((t) => t + 1));
+  }, [planV2Adapter]);
+  const tasksAwaitingVerification = useMemo(() => {
+    void planV2Tick; // dependency: recompute whenever the session emits an event
+    const plan = planV2Adapter.session.getPlan();
+    if (!plan) return [];
+    return plan.tasks
+      .filter((t) => planV2Adapter.session.getTaskStatus(t.id) === 'awaiting_verification')
+      .map((t) => ({ id: t.id, title: t.title }));
+  }, [planV2Adapter, planV2Tick]);
+  const handleVerifyTaskManually = useCallback(
+    (taskId: string) => {
+      try {
+        planV2Adapter.verifyTaskManually(taskId);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '작업을 확인 완료로 표시하지 못했습니다.');
+      }
+    },
+    [planV2Adapter]
+  );
   const [planStage, setPlanStage] = useState<PlanStage>('research');
   const [showClarifying, setShowClarifying] = useState(false);
   const [showPlanReview, setShowPlanReview] = useState(false);
@@ -410,6 +471,7 @@ export function ChatApp() {
   planStageRef.current = planStage;
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
+  const planFileExistsResolversRef = useRef(new Map<string, { resolve: (exists: boolean) => void; reject: (error: Error) => void; }>());
   const showPlanReviewRef = useRef(showPlanReview);
   showPlanReviewRef.current = showPlanReview;
   const showClarifyingRef = useRef(showClarifying);
@@ -1030,6 +1092,40 @@ export function ChatApp() {
     setShowReproduce(false);
   }, []);
 
+  const requestWorkspaceFileExists = useCallback((relativePath: string): Promise<boolean> => {
+    return new Promise((resolve, reject) => {
+      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      if (!api?.postMessage) {
+        reject(new Error('VS Code API unavailable for Plan semantic validation.'));
+        return;
+      }
+      const requestId = `plan_file_${uuidv4()}`;
+      const timeout = window.setTimeout(() => {
+        planFileExistsResolversRef.current.delete(requestId);
+        reject(new Error(`Timed out checking workspace file: ${relativePath}`));
+      }, 10000);
+      planFileExistsResolversRef.current.set(requestId, {
+        resolve: (exists) => { window.clearTimeout(timeout); resolve(exists); },
+        reject: (error) => { window.clearTimeout(timeout); reject(error); }
+      });
+      api.postMessage({ type: 'plan.fileExists', requestId, path: relativePath });
+    });
+  }, []);
+
+  const requestPlanV2 = useCallback(async (params: { goal: string; researchContext: string; rejectionFeedback?: string }) => {
+    const provider = new LiteLLMProvider({
+      id: `plan-v2-${sessionIdRef.current}`,
+      name: 'Agent K Plan V2',
+      type: providerType as ProviderType,
+      baseUrl: providerBaseUrl || 'http://127.0.0.1:52415',
+      apiKey: providerApiKey || undefined,
+      model: providerModel
+    });
+    const model = new LiteLLMPlanModel(provider, { model: providerModel });
+    const generator = new PlanV2Generator(model, requestWorkspaceFileExists);
+    return generator.generate(params);
+  }, [providerType, providerBaseUrl, providerApiKey, providerModel, requestWorkspaceFileExists]);
+
   // ─── Plan mode lifecycle (RW-C5-01) ───────────────────
   useEffect(() => {
     planController.onStageChangeCallback((stage: PlanStage) => {
@@ -1138,6 +1234,29 @@ export function ChatApp() {
       const data = event.data;
       if (!data || typeof data !== 'object') return;
 
+      if (data.type === 'plan.fileExists.result' && data.requestId != null) {
+        const requestId = String(data.requestId);
+        const resolver = planFileExistsResolversRef.current.get(requestId);
+        if (resolver) {
+          planFileExistsResolversRef.current.delete(requestId);
+          resolver.resolve(Boolean(data.exists));
+        }
+        return;
+      }
+
+      if (data.type === 'plan.toolEvidence') {
+        // Plan V2 Evidence Engine — best-effort; no-ops until planV2Adapter
+        // actually holds a structured PlanDocument. See PlanSession.ts.
+        try {
+          planV2Adapter.recordToolEvent(
+            toObservedToolCall(String(data.name || ''), data.args, { success: Boolean(data.success) })
+          );
+        } catch {
+          /* evidence correlation must never break the chat loop */
+        }
+        return;
+      }
+
       if (data.type === 'plan.buildFromEditor') {
         const content = String(data.content || '').trim();
         if (!content) {
@@ -1191,7 +1310,7 @@ export function ChatApp() {
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
-  }, [planController, promotePlanToReview]);
+  }, [planController, promotePlanToReview, planV2Adapter]);
 
   /**
    * Recovery: PLAN is visible in chat but stage stuck on Plan —
@@ -1201,6 +1320,7 @@ export function ChatApp() {
     if (mode !== 'plan') return;
     if (streaming) return;
     if (showPlanReview) return;
+    if (planV2Adapter.session.getPlan()) return;
     const stage = planStage;
     if (stage !== 'planning' && stage !== 'questions' && stage !== 'research') return;
     const md = findLatestPlanMarkdown(messages);
@@ -1212,7 +1332,7 @@ export function ChatApp() {
       promotePlanToReview(md);
     }, 400);
     return () => window.clearTimeout(t);
-  }, [mode, planStage, messages, streaming, showPlanReview, promotePlanToReview]);
+  }, [mode, planStage, messages, streaming, showPlanReview, promotePlanToReview, planV2Adapter]);
 
   // ─── AskQuestionTool in-process callback (same-bundle tests only)
   // Live Agent path uses host postMessage ask_question → delta.askQuestion
@@ -1318,6 +1438,13 @@ export function ChatApp() {
     const epoch = ++sendEpochRef.current;
     const effectiveMode = opts?.modeOverride ?? mode;
     loopSessionIdRef.current = sessionIdRef.current;
+
+    if (effectiveMode === 'plan') {
+      const phase = planV2Adapter.session.getPhase();
+      if (phase === 'idle' || phase === 'completed' || phase === 'failed') {
+        await planV2Adapter.start(text);
+      }
+    }
 
     // Prefetch / context: @file/@folder + inline log/snippet / line ranges
     const displayText = text;
@@ -1826,6 +1953,7 @@ export function ChatApp() {
         const stageNow = planStageRef.current;
         const shouldPromotePlan =
           effectiveMode === 'plan' &&
+          !planV2Adapter.session.getPlan() &&
           (promotePlanOnCompleteRef.current ||
             stageNow === 'planning' ||
             stageNow === 'questions' ||
@@ -1898,7 +2026,7 @@ export function ChatApp() {
         ? { planStageOverride: opts.planStageOverride }
         : undefined
     );
-  }, [mode, sendMessage, planStage, planController, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom]);
+  }, [mode, sendMessage, planStage, planController, planV2Adapter, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom]);
 
   handleSendRef.current = handleSend;
 
@@ -1906,8 +2034,6 @@ export function ChatApp() {
   useEffect(() => {
     planController.onBuildReadyCallback((_context: string) => {
       const planState = planController.getState();
-
-      // Abort any in-flight stream — otherwise empty/stale UI can stick on Streaming…
       stopHandlerRef.current?.stop('user_stop');
       sendEpochRef.current += 1;
       setAwaitingUser(false);
@@ -1915,44 +2041,33 @@ export function ChatApp() {
       setMessages(cleanupStreamingAssistants);
       setMode('agent');
 
-      const displayText =
-        '승인한 계획을 실행해 주세요. 단계별로 진행하세요.';
-      let apiContent: string;
-      if (planState.planDocument) {
-        const planToAgent = new PlanToAgent();
-        planToAgent.setPlanDocument(planState.planDocument);
-        const transition = planToAgent.buildTransitionContext(
-          planState.planDocument,
-          planState.researchResults,
-          planState.questions.map((q) => ({
-            question: q.question,
-            answer: q.answer
-          }))
-        );
-        apiContent = [
-          transition.messages[0]?.content ?? _context,
-          '',
-          'Please execute the plan step by step, starting with Step 1.'
-        ].join('\n');
-      } else {
-        apiContent = [
-          'I have approved the plan. Here is the context:',
-          '',
-          _context,
-          '',
-          'Please execute the plan step by step.'
-        ].join('\n');
-      }
+      const structuredPlan = planV2Adapter.session.getPlan();
+      const apiContent = structuredPlan
+        ? [
+            'Execute the approved Agent K plan using the current task as the execution focus.',
+            '',
+            planV2Adapter.getCurrentTaskContext(),
+            '',
+            'Use tool evidence to make progress. Do not claim a task is verified unless its verification evidence succeeds.',
+            'When the current task is verified, continue with the next unblocked task.'
+          ].join('\n')
+        : [
+            'I have approved the plan. Here is the context:',
+            '',
+            _context,
+            '',
+            'Please execute the plan step by step.'
+          ].join('\n');
 
-      // Defer so stop/mode settle, then send on Agent tools
       queueMicrotask(() => {
-        void handleSendRef.current?.(displayText, [], {
+        void handleSendRef.current?.('승인한 계획을 실행해 주세요. 현재 작업을 완료하고 검증까지 진행해 주세요.', [], {
           apiUserContent: apiContent,
           modeOverride: 'agent'
         });
       });
     });
-  }, [planController, cleanupStreamingAssistants]);
+  }, [planController, planV2Adapter, cleanupStreamingAssistants]);
+
 
   /**
    * Interrupt & Resynthesize.
@@ -2330,7 +2445,6 @@ export function ChatApp() {
     if (questionsCompleteInFlightRef.current) return;
     questionsCompleteInFlightRef.current = true;
 
-    // End the blocked research turn (do not let ask_question resume the model)
     if (streaming) {
       stopHandlerRef.current?.stop('user_stop');
       sendEpochRef.current += 1;
@@ -2339,8 +2453,7 @@ export function ChatApp() {
       setMessages(kept);
     }
     try {
-      const api =
-        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
       api?.postMessage?.({ type: 'chat.question.cancel' });
     } catch {
       /* ignore */
@@ -2354,7 +2467,7 @@ export function ChatApp() {
 
     void planController
       .moveToPlanning()
-      .then(() => {
+      .then(async () => {
         setPlanStage('planning');
         planStageRef.current = 'planning';
         setShowClarifying(false);
@@ -2362,42 +2475,47 @@ export function ChatApp() {
         setShowPlanReview(false);
         setPendingQuestions([]);
         sealAskingSteps();
-        promotePlanOnCompleteRef.current = true;
+        promotePlanOnCompleteRef.current = false;
 
-        const displayText = '답변을 반영해 계획 문서를 작성해 주세요.';
-        const apiUserContent = [
-          'Clarifying answers are in. Prefer writing the COMPLETE plan markdown now.',
-          'If a truly new decision remains, you may call ask_question once with a questions[] batch (allow_multiple when needed). Do not re-ask answered questions.',
-          'Plan sections: Context, Questions & Answers, Architecture with mermaid, TODOs as `- [ ]` ordered steps, Risks, Approval.',
-          'Do not implement or edit product files. Do not call switch_mode.',
-          'The UI will save the document to `.agentk/plans/tmp/plan_*.md` and replace the chat bubble with a short summary + TODO list for Review.',
-          '',
-          research ? `## Research notes\n${research.slice(0, 6000)}` : '',
-          '',
-          '## Clarifying answers',
-          qa || '(none)',
-        ]
-          .filter(Boolean)
-          .join('\n');
-        return handleSend(displayText, [], {
-          apiUserContent,
-          planStageOverride: 'planning'
+        await planV2Adapter.completeResearch([
+          buildPlanResearchContext(planController),
+          research ? `Research notes:\n${research.slice(0, 6000)}` : '',
+          'Clarifying answers:',
+          qa || '(none)'
+        ].filter(Boolean).join('\n\n'));
+
+        const state = planV2Adapter.session.getState();
+        const result = await requestPlanV2({
+          goal: state.goal || textFromPlanController(planController),
+          researchContext: state.researchFindings,
+          rejectionFeedback: state.rejectionFeedback.slice(-1)[0]
         });
+        if (!result.ok || !result.plan) {
+          const last = result.failures[result.failures.length - 1];
+          const details = last?.errors.map((e) => `- [${e.code}] ${e.message}`).join('\n') || '(no details)';
+          setError(`구조화된 Plan 생성에 실패했습니다.\n${details}`);
+          return;
+        }
+        await planV2Adapter.acceptGeneratedPlan(result.plan, {
+          attempts: result.attempts,
+          failures: result.failures,
+          researchContext: state.researchFindings
+        });
+        const rendered = planV2Adapter.getFullPlanContext();
+        const summary = buildPlanChatSummary(rendered);
+        setMessages((prev) => [...prev, {
+          id: uuidv4(), role: 'assistant', content: summary, timestamp: Date.now(), status: 'complete'
+        }]);
+        setPlanStage('review');
+        setShowPlanReview(true);
       })
-      .catch(() => {
-        setError('All questions must be answered before planning.');
-      })
-      .finally(() => {
-        questionsCompleteInFlightRef.current = false;
-      });
+      .catch((e) => setError(e instanceof Error ? e.message : '구조화된 Plan 생성에 실패했습니다.'))
+      .finally(() => { questionsCompleteInFlightRef.current = false; });
   }, [
-    planController,
-    mode,
-    handleSend,
-    streaming,
-    cleanupStreamingAssistants,
-    sealAskingSteps
+    planController, mode, streaming, cleanupStreamingAssistants, sealAskingSteps,
+    planV2Adapter, requestPlanV2
   ]);
+
 
   /** Plan/Agent: 질문 취소 — must unblock host waiter */
   const handleQuestionsCancel = useCallback(() => {
@@ -2484,52 +2602,45 @@ export function ChatApp() {
   }, [showPlanReview, mode, planController]);
 
   /** Plan: Approve & Execute → Agent handoff only via this path */
-  const handlePlanApprove = useCallback((content: string) => {
-    const existing = planController.getState().planDocument;
-    if (!existing) return;
-    try {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
-      api?.postMessage?.({
-        type: 'plan.save',
-        title: existing.title,
-        content,
-        slug:
-          existing.slug && /^plan_[a-f0-9]+$/i.test(existing.slug)
-            ? existing.slug
-            : undefined
-      });
-    } catch {
-      /* ignore */
-    }
-    void planController
-      .setPlanDocument({ ...existing, content })
+  const handlePlanApprove = useCallback((_content: string) => {
+    void planV2Adapter
+      .approve()
       .then(() => planController.advanceToBuild())
       .then(() => {
         setShowPlanReview(false);
         setPlanStage('build');
       })
-      .catch((e) => {
-        setError(e instanceof Error ? e.message : 'Plan 승인에 실패했습니다.');
-      });
-  }, [planController]);
+      .catch((e) => setError(e instanceof Error ? e.message : 'Plan 승인에 실패했습니다.'));
+  }, [planController, planV2Adapter]);
 
   /** Plan: Request Changes → revise PLAN.md only, never implement */
   const handlePlanReject = useCallback((reason?: string) => {
     setShowPlanReview(false);
-    promotePlanOnCompleteRef.current = true;
-    void planController.rejectPlan(reason).then(() => {
+    promotePlanOnCompleteRef.current = false;
+    void (async () => {
+      await planV2Adapter.reject(reason || '계획을 더 명확하게 다듬어 주세요.');
       setPlanStage('planning');
-    });
-    void handleSend(
-      [
-        '사용자가 계획 수정을 요청했습니다. PLAN.md만 다시 작성하세요.',
-        '구현·파일 편집·switch_mode는 하지 마세요.',
-        '',
-        reason ? `## Feedback\n${reason}` : '## Feedback\n(세부 피드백 없음 — 계획을 더 명확히 다듬어 주세요.)',
-      ].join('\n'),
-      []
-    );
-  }, [handleSend, planController]);
+      const state = planV2Adapter.session.getState();
+      const result = await requestPlanV2({
+        goal: state.goal || textFromPlanController(planController),
+        researchContext: state.researchFindings || buildPlanResearchContext(planController),
+        rejectionFeedback: reason || state.rejectionFeedback.slice(-1)[0]
+      });
+      if (!result.ok || !result.plan) {
+        const last = result.failures[result.failures.length - 1];
+        const details = last?.errors.map((e) => `- [${e.code}] ${e.message}`).join('\n') || '(no details)';
+        setError(`수정된 Plan 생성에 실패했습니다.\n${details}`);
+        return;
+      }
+      await planV2Adapter.acceptGeneratedPlan(result.plan, {
+        attempts: result.attempts,
+        failures: result.failures,
+        researchContext: state.researchFindings
+      });
+      setPlanStage('review');
+      setShowPlanReview(true);
+    })().catch((e) => setError(e instanceof Error ? e.message : 'Plan 수정에 실패했습니다.'));
+  }, [planController, planV2Adapter, requestPlanV2]);
 
   /** Plan: close review overlay without approving (stay on Review stage) */
   const handlePlanReviewClose = useCallback(() => {
@@ -2554,7 +2665,7 @@ export function ChatApp() {
     const discarded =
       planController.getState().planDocument?.content?.trim() ||
       findLatestPlanMarkdown(messages);
-    planController.discardPlan();
+    planV2Adapter.discard();
     // Prevent recovery effect from immediately re-promoting the same chat plan
     lastPromotedPlanRef.current = discarded || 'discarded';
     promotePlanOnCompleteRef.current = false;
@@ -2564,7 +2675,7 @@ export function ChatApp() {
     setAwaitingUser(false);
     setPlanStage('research');
     parkPlanForSession(sessionIdRef.current);
-  }, [planController, messages, parkPlanForSession]);
+  }, [planController, planV2Adapter, messages, parkPlanForSession]);
 
   /** Debug: 가설 선택 → 계측 단계 진입 (RW-C6-01) */
   const handleSelectHypothesis = useCallback((id: string) => {
@@ -2978,7 +3089,10 @@ export function ChatApp() {
             onApprove={handlePlanApprove}
             onReject={handlePlanReject}
             onEdit={handlePlanEdit}
-            onOpenInEditor={handleOpenPlanInEditor}
+            onOpenInEditor={planV2Adapter.session.getPlan() ? undefined : handleOpenPlanInEditor}
+            structuredSourceOfTruth={Boolean(planV2Adapter.session.getPlan())}
+            tasksAwaitingVerification={tasksAwaitingVerification}
+            onVerifyTask={handleVerifyTaskManually}
             onClose={handlePlanReviewClose}
             onDiscard={handleDiscardPlan}
           />
