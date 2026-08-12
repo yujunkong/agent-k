@@ -303,8 +303,10 @@ export class PlanSession {
 
   /** Next task with unmet dependencies excluded — a suggestion, not an
    *  enforced order (Evidence Engine still governs actual status changes).
-   *  Only considers tasks in the approved scope (see scopedTaskIds()). */
-  getNextSuggestedTask(): PlanTask | null {
+   *  Only considers tasks in the approved scope (see scopedTaskIds()).
+   *  Returns the task augmented with its current status — PlanTask itself
+   *  has no status field (see schema.ts; status lives in taskStatus). */
+  getNextSuggestedTask(): (PlanTask & { status: TaskStatus }) | null {
     if (!this.state.plan) return null;
     const scope = new Set(this.scopedTaskIds());
     for (const task of this.state.plan.tasks) {

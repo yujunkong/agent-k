@@ -23,7 +23,12 @@ export class LiteLLMPlanModel implements PlanGenerationModel {
   async complete(messages: PlanGenerationMessage[]): Promise<string> {
     let full = '';
     for await (const chunk of this.provider.streamChat({
-      messages,
+      // PlanGenerationMessage ({role, content}) has no index signature, so
+      // it isn't structurally assignable to StreamChatOptions.messages
+      // (Array<Record<string, unknown>>) under strict mode — same class of
+      // cast already used below for `schema`. Safe: both are plain JSON-
+      // serializable objects; the provider only reads role/content off them.
+      messages: messages as unknown as Array<Record<string, unknown>>,
       model: this.opts.model,
       signal: this.opts.signal,
       // Planning is a one-shot structured task, not open-ended reasoning —
