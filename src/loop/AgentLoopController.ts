@@ -1319,11 +1319,20 @@ export class AgentLoopController {
         if (chunk.usage) {
           this.config.onUsage?.(chunk.usage);
         }
-        if (chunk.done) break;
+        // Check error BEFORE done — LiteLLMProvider's catch block yields
+        // { error, done: true } in the SAME chunk on a network failure
+        // (timeout / ECONNRESET / proxy reset — more common on Windows
+        // behind VPN/AV/corporate proxies holding a long-lived SSE
+        // connection open). `done` used to be checked first and `break`
+        // out of the loop before `error` was ever read, so the real
+        // network error was silently discarded and execution fell through
+        // to the generic "응답이 비어 있습니다" message below — indistinguishable
+        // from the model genuinely returning nothing.
         if (chunk.error) {
           this.config.onError?.(new Error(chunk.error));
           return null;
         }
+        if (chunk.done) break;
       }
 
       if (hitLengthLimit && fullContent.trim()) {

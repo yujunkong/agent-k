@@ -19,6 +19,7 @@ const STATUS_BADGE: Record<TaskStatus, string> = {
   in_progress: '~',
   blocked: '!',
   satisfied: 'x',
+  awaiting_verification: '?',
   verified: 'x',
   failed: '!'
 };
