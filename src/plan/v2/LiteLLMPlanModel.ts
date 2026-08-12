@@ -3,97 +3,67 @@
  * (LiteLLMProvider, DGXProvider-backed endpoints, etc.) to the minimal
  * PlanGenerationModel interface PlanV2Generator depends on.
  *
- * Strategy:
- *  1. Prefer constrained decoding (`response_format: json_schema`).
- *     vLLM / SGLang / OpenAI models that support it keep the original path
- *     — no behavior change for those providers.
- *  2. If the provider *rejects* json_schema (common on OpenCode Zen free,
- *     MLX, and other gateways), retry once *without* response_format.
- *     SchemaValidator still enforces shape; only the wire constraint is relaxed.
- *  3. Network / auth / model-not-found errors are NOT retried this way —
- *     they surface as MODEL_REQUEST_FAILED unchanged.
+ * Requests constrained JSON decoding via `responseFormat` (see
+ * providers/types.ts + LiteLLMProvider.ts). On a vLLM/SGLang endpoint this
+ * becomes guided/grammar-constrained decoding — the model literally cannot
+ * emit tokens outside the schema. On providers that ignore response_format,
+ * this degrades gracefully to "we asked nicely"; SchemaValidator still
+ * catches whatever comes back either way.
+ *
+ * Gateways that reject unknown/unsupported request params outright (rather
+ * than ignoring them) are a different case from "ignores gracefully" above —
+ * e.g. free-tier models behind OpenCode Zen. A 4xx from
+ * response_format: json_schema there isn't a real generation failure, so a
+ * single param-scoped retry without response_format follows before giving
+ * up (see complete() below). The Planner system prompt already embeds the
+ * full JSON schema as text (PlanV2Generator.buildPlannerSystemPrompt), so
+ * the retry still has real odds of producing schema-shaped output even
+ * without guided decoding; SchemaValidator still checks it either way.
  */
 import type { LLMProviderInterface } from '../../providers/types';
 import type { PlanGenerationMessage, PlanGenerationModel } from './PlanV2Generator';
 import { PLAN_JSON_SCHEMA } from './schema';
 
-export interface LiteLLMPlanModelOptions {
-  model?: string;
-  signal?: AbortSignal;
-  /**
-   * Force unconstrained mode (skip json_schema entirely).
-   * Default: try constrained first, fallback only on unsupported-format errors.
-   */
-  forceUnconstrained?: boolean;
-}
-
-const JSON_SCHEMA_RESPONSE_FORMAT = {
-  type: 'json_schema' as const,
-  json_schema: {
-    name: PLAN_JSON_SCHEMA.name,
-    strict: PLAN_JSON_SCHEMA.strict,
-    schema: PLAN_JSON_SCHEMA.schema as unknown as Record<string, unknown>
-  }
-};
-
-/** Errors that mean "this endpoint cannot honor response_format", not a
- *  general transport failure. Conservative: only match when the message
- *  clearly points at structured-output / schema parameters. */
-export function isUnsupportedResponseFormatError(error: unknown): boolean {
-  const msg = (error instanceof Error ? error.message : String(error || '')).toLowerCase();
-  if (!msg) return false;
-
-  // Transport / auth — never treat as schema-unsupported
-  if (
-    /econnrefused|enotfound|etimedout|network|fetch failed|unauthorized|401|403|api key|invalid.?api/.test(
-      msg
-    )
-  ) {
-    return false;
-  }
-
-  const mentionsFormat =
-    /response[_ ]?format|json[_ ]?schema|guided[_ ]?json|structured[_ ]?output|constrained[_ ]?decoding/.test(
-      msg
-    );
-  const mentionsRejection =
-    /unsupported|not supported|unknown|invalid|unexpected|unrecognized|ignored|does not support|not valid|400|422/.test(
-      msg
-    );
-
-  if (mentionsFormat && mentionsRejection) return true;
-  if (mentionsFormat && /\b(400|422)\b/.test(msg)) return true;
-
-  return false;
+/** 4xx-shaped error text from LiteLLMProvider ("API Error (400): ...") that
+ *  suggests the gateway rejected the request itself — not a generation
+ *  failure. Only retry-without-schema for this class; a network error
+ *  (ECONNREFUSED, timeout, "fetch failed" — no "API Error (" prefix from
+ *  LiteLLMProvider's catch path) means the schema was never the issue and a
+ *  bare retry would just fail again for the same reason, one request later. */
+function looksLikeRejectedRequestParam(message: string): boolean {
+  return /API Error \(4\d\d\)/.test(message) ||
+    /response_format|json_schema|unsupported|unknown param|invalid.*param/i.test(message);
 }
 
 export class LiteLLMPlanModel implements PlanGenerationModel {
   constructor(
     private readonly provider: LLMProviderInterface,
-    private readonly opts: LiteLLMPlanModelOptions = {}
+    private readonly opts: { model?: string; signal?: AbortSignal } = {}
   ) {}
 
   async complete(messages: PlanGenerationMessage[]): Promise<string> {
-    if (this.opts.forceUnconstrained) {
-      return this.completeOnce(messages, /* withSchema */ false);
-    }
-
     try {
-      return await this.completeOnce(messages, /* withSchema */ true);
+      return await this.completeOnce(messages, /* useResponseFormat */ true);
     } catch (error) {
-      if (!isUnsupportedResponseFormatError(error)) {
-        throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!looksLikeRejectedRequestParam(message)) throw error;
+      // Gateway likely rejected response_format/json_schema itself (common
+      // on free-tier proxies) — one retry without it, relying on the
+      // schema-in-prompt + SchemaValidator instead of guided decoding.
+      try {
+        return await this.completeOnce(messages, /* useResponseFormat */ false);
+      } catch (retryError) {
+        const retryMessage = retryError instanceof Error ? retryError.message : String(retryError);
+        throw new Error(
+          `${retryMessage} (also failed without response_format after the first attempt was rejected: ${message})`
+        );
       }
-      // Provider rejected json_schema (e.g. OpenCode Zen free). Retry once
-      // without response_format so other models that succeed on the first
-      // attempt never enter this path.
-      return this.completeOnce(messages, /* withSchema */ false);
     }
   }
 
   private async completeOnce(
     messages: PlanGenerationMessage[],
-    withSchema: boolean
+    useResponseFormat: boolean
   ): Promise<string> {
     let full = '';
     for await (const chunk of this.provider.streamChat({
@@ -108,11 +78,18 @@ export class LiteLLMPlanModel implements PlanGenerationModel {
       // Planning is a one-shot structured task, not open-ended reasoning —
       // keep temperature low for reproducibility of task decomposition.
       temperature: 0.2,
-      // Keep thinking off for plan turns — reduces unknown-param failures on
-      // gateways that do not implement enable_thinking (Plan path only).
-      enableThinking: false,
-      thinkingEffort: 'off',
-      ...(withSchema ? { responseFormat: JSON_SCHEMA_RESPONSE_FORMAT } : {})
+      ...(useResponseFormat
+        ? {
+            responseFormat: {
+              type: 'json_schema' as const,
+              json_schema: {
+                name: PLAN_JSON_SCHEMA.name,
+                strict: PLAN_JSON_SCHEMA.strict,
+                schema: PLAN_JSON_SCHEMA.schema as unknown as Record<string, unknown>
+              }
+            }
+          }
+        : {})
     })) {
       if (chunk.error) throw new Error(chunk.error);
       if (chunk.content) full += chunk.content;
