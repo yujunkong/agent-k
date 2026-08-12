@@ -130,12 +130,84 @@ export class PlanModeControllerAdapter {
     this.session.recordEvent({ type: 'plan.review.opened', timestamp: Date.now() });
   }
 
+  /**
+   * Single door into approval: PlanSession must hold a structured PlanDocument.
+   * Markdown-only Review (promotePlanToReview) is not enough.
+   *
+   * If the session has no plan yet, `generate` is called once and the result is
+   * accepted into the session before returning. Callers (Approve button) should
+   * always go through this rather than executing via free-form chat.
+   */
+  async ensureStructuredPlan(params: {
+    generate: () => Promise<{
+      ok: boolean;
+      plan?: PlanDocumentV2;
+      attempts: number;
+      failures: FailureLike[];
+    }>;
+    researchContext?: string;
+    goalFallback?: string;
+  }): Promise<PlanDocumentV2> {
+    const existing = this.session.getPlan();
+    if (existing) return existing;
+
+    // Bring phase to a state that can legally receive plan.generated → review.
+    let phase = this.session.getPhase();
+    const goal =
+      this.session.getState().goal ||
+      params.goalFallback ||
+      'Plan';
+    const findings =
+      params.researchContext ??
+      this.session.getState().researchFindings ??
+      '';
+
+    if (phase === 'idle') {
+      this.session.recordEvent({ type: 'plan.started', goal, timestamp: Date.now() });
+      phase = this.session.getPhase();
+    }
+    if (phase === 'research') {
+      this.session.recordEvent({
+        type: 'research.completed',
+        findings,
+        timestamp: Date.now()
+      });
+    }
+
+    const result = await params.generate();
+    if (!result.ok || !result.plan) {
+      const last = result.failures[result.failures.length - 1];
+      const problems =
+        last?.errors.map((e) => `- [${e.code}] ${e.message}`).join('\n') ?? '(no details)';
+      throw new Error(
+        `구조화된 Plan이 없어 승인할 수 없습니다. 재생성에도 실패했습니다.\n${problems}`
+      );
+    }
+
+    await this.acceptGeneratedPlan(result.plan, {
+      attempts: result.attempts,
+      failures: result.failures,
+      researchContext: findings
+    });
+
+    const loaded = this.session.getPlan();
+    if (!loaded) {
+      throw new Error('구조화된 Plan을 세션에 적재하지 못했습니다.');
+    }
+    return loaded;
+  }
+
   /** Merge note: optional `taskIds` for partial approval (borrowed from
    *  the other Plan V2 implementation's `approve(sessionId, taskIds?)`).
    *  Omit to approve the whole plan (default, unchanged behavior). */
   async approve(taskIds?: string[]): Promise<void> {
     const plan = this.session.getPlan();
-    if (!plan) throw new Error('Cannot approve: no structured plan is loaded.');
+    if (!plan) {
+      throw new Error(
+        'Cannot approve: no structured plan is loaded. ' +
+          'Approve는 PlanSession의 구조화 Plan만 허용합니다. ensureStructuredPlan() 후 다시 시도하세요.'
+      );
+    }
     const requested = taskIds && taskIds.length > 0 ? [...new Set(taskIds)] : undefined;
     if (requested) {
       const known = new Set(plan.tasks.map((task) => task.id));

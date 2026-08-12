@@ -10,7 +10,10 @@
  */
 import type { PlanDocument, PlanTask, TaskStatus } from './schema';
 import type { PlanEvent } from './PlanEvent';
-import { assertLegalPhaseTransition } from './PlanPhaseTransitions';
+import {
+  assertEventPhaseTransition,
+  phaseForEvent
+} from './PlanPhaseTransitions';
 
 export type PlanPhase =
   | 'idle'
@@ -144,10 +147,12 @@ export class PlanSession {
    * guard — see PlanPhaseTransitions.ts for why.
    */
   recordEvent(event: PlanEvent): void {
-    const nextPhase = this.computeNextPhase(event);
-    if (nextPhase && nextPhase !== this.state.phase) {
-      assertLegalPhaseTransition(this.state.phase, nextPhase);
-    }
+    // FSM: event → target phase → edge table.
+    // plan.approved additionally requires a structured plan already in session.
+    assertEventPhaseTransition(this.state.phase, event, {
+      hasStructuredPlan:
+        event.type === 'plan.approved' ? this.state.plan != null : undefined
+    });
 
     this.state.events.push(event);
 
@@ -233,30 +238,9 @@ export class PlanSession {
     this.emit(event);
   }
 
-  /** Pure mapping from event -> the phase it would move to, if any.
-   *  Returns undefined for events that don't change phase (e.g.
-   *  task.status.changed) so recordEvent skips the transition guard. */
+  /** Event → phase mapping lives in PlanPhaseTransitions.phaseForEvent. */
   private computeNextPhase(event: PlanEvent): PlanPhase | undefined {
-    switch (event.type) {
-      case 'plan.started':
-        return 'research';
-      case 'research.completed':
-      case 'plan.generation.attempt':
-        return 'planning';
-      case 'plan.generated':
-      case 'plan.review.opened':
-        return 'review';
-      case 'plan.approved':
-        return 'executing';
-      case 'plan.rejected':
-        return 'planning';
-      case 'plan.completed':
-        return 'completed';
-      case 'plan.failed':
-        return 'failed';
-      default:
-        return undefined;
-    }
+    return phaseForEvent(event.type);
   }
 
   /**
