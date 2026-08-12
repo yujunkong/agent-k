@@ -47,9 +47,9 @@ import type { PendingQuestion } from '../tools/session/AskQuestionTool';
 import { normalizeMcqQuestion } from './normalizeAskQuestion';
 // RW-C5-04: Plan → Agent 핸드오프
 import { PlanToAgent } from '../plan/PlanToAgent';
-import { LiteLLMProvider } from '../providers/LiteLLMProvider';
 import type { ProviderType } from '../providers/types';
-import { PlanModeControllerAdapter, LiteLLMPlanModel, PlanV2Generator, toObservedToolCall } from '../plan/v2';
+import { PlanModeControllerAdapter, toObservedToolCall } from '../plan/v2';
+import type { PlanV2GenerationResult } from '../plan/v2/PlanV2Generator';
 // RW-C6-05-R2: ReproduceUI 대기 루프
 import { ReproduceUI } from '../debug/ReproduceUI';
 import { requestReproduceTool } from '../tools/debug/RequestReproduceTool';
@@ -472,6 +472,7 @@ export function ChatApp() {
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   const planFileExistsResolversRef = useRef(new Map<string, { resolve: (exists: boolean) => void; reject: (error: Error) => void; }>());
+  const planV2GenerateResolversRef = useRef(new Map<string, { resolve: (result: PlanV2GenerationResult) => void; reject: (error: Error) => void; }>());
   const showPlanReviewRef = useRef(showPlanReview);
   showPlanReviewRef.current = showPlanReview;
   const showClarifyingRef = useRef(showClarifying);
@@ -1113,18 +1114,51 @@ export function ChatApp() {
   }, []);
 
   const requestPlanV2 = useCallback(async (params: { goal: string; researchContext: string; rejectionFeedback?: string }) => {
-    const provider = new LiteLLMProvider({
-      id: `plan-v2-${sessionIdRef.current}`,
-      name: 'Agent K Plan V2',
-      type: providerType as ProviderType,
-      baseUrl: providerBaseUrl || 'http://127.0.0.1:52415',
-      apiKey: providerApiKey || undefined,
-      model: providerModel
+    // Runs in the Extension Host, not here -- see the 'plan.v2.generate'
+    // handler in extension.ts. This used to construct LiteLLMProvider /
+    // LiteLLMPlanModel / PlanV2Generator right here in the webview and
+    // call provider.fetch() from this browser context, which is a
+    // vscode-webview:// origin subject to full CORS. A local model server
+    // that doesn't send Access-Control-Allow-Origin (e.g. LM Studio's
+    // default on http://localhost:1234) gets its preflight rejected --
+    // "blocked by CORS policy ... Failed to fetch" -- surfaced as
+    // MODEL_REQUEST_FAILED, even though the exact same request succeeds
+    // fine from the Agent/Debug chat loop, which already runs in the
+    // Extension Host (Node has no CORS). Routing Plan V2 generation
+    // through the host the same way fixes this rather than working around
+    // CORS client-side (which isn't fixable from the webview at all --
+    // the server would have to add the header itself).
+    return new Promise<PlanV2GenerationResult>((resolve, reject) => {
+      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      if (!api?.postMessage) {
+        reject(new Error('VS Code API unavailable for Plan V2 generation.'));
+        return;
+      }
+      const requestId = `plan_v2_${uuidv4()}`;
+      // Generation can involve several LLM round-trips (attempts) against
+      // a possibly-slow local model -- give it real headroom, well above
+      // the single-request timeout used for file-existence checks.
+      const timeout = window.setTimeout(() => {
+        planV2GenerateResolversRef.current.delete(requestId);
+        reject(new Error('Plan generation timed out.'));
+      }, 180000);
+      planV2GenerateResolversRef.current.set(requestId, {
+        resolve: (result) => { window.clearTimeout(timeout); resolve(result); },
+        reject: (error) => { window.clearTimeout(timeout); reject(error); }
+      });
+      api.postMessage({
+        type: 'plan.v2.generate',
+        requestId,
+        goal: params.goal,
+        researchContext: params.researchContext,
+        rejectionFeedback: params.rejectionFeedback,
+        providerType,
+        baseUrl: providerBaseUrl || undefined,
+        apiKey: providerApiKey || undefined,
+        model: providerModel
+      });
     });
-    const model = new LiteLLMPlanModel(provider, { model: providerModel });
-    const generator = new PlanV2Generator(model, requestWorkspaceFileExists);
-    return generator.generate(params);
-  }, [providerType, providerBaseUrl, providerApiKey, providerModel, requestWorkspaceFileExists]);
+  }, [providerType, providerBaseUrl, providerApiKey, providerModel]);
 
   // ─── Plan mode lifecycle (RW-C5-01) ───────────────────
   useEffect(() => {
@@ -1240,6 +1274,20 @@ export function ChatApp() {
         if (resolver) {
           planFileExistsResolversRef.current.delete(requestId);
           resolver.resolve(Boolean(data.exists));
+        }
+        return;
+      }
+
+      if (data.type === 'plan.v2.generate.result' && data.requestId != null) {
+        const requestId = String(data.requestId);
+        const resolver = planV2GenerateResolversRef.current.get(requestId);
+        if (resolver) {
+          planV2GenerateResolversRef.current.delete(requestId);
+          if (data.error) {
+            resolver.reject(new Error(String(data.error)));
+          } else {
+            resolver.resolve(data.result as PlanV2GenerationResult);
+          }
         }
         return;
       }

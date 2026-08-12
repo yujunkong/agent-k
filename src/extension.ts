@@ -200,6 +200,49 @@ function updateUsageStatusBar(): void {
   }
 }
 
+/**
+ * Resolve a path the Plan V2 model reported (often workspace-relative, but
+ * sometimes an absolute path -- see the file-existence handlers below) to a
+ * workspace-relative segment list, or null if it can't be safely resolved
+ * (outside the workspace, traversal attempt, no workspace open).
+ *
+ * Shared by the legacy plan.fileExists webview round-trip and the
+ * in-process fileExists callback used when Plan V2 generation itself runs
+ * in the Extension Host (see 'plan.v2.generate' below) -- both need the
+ * exact same absolute-path rebasing so a file reported as
+ * C:\Users\...\src\foo.ts on Windows resolves the same way regardless of
+ * which caller checks it.
+ */
+function resolveWorkspaceRelativeSegments(rawPath: string, folder: vscode.WorkspaceFolder): string[] | null {
+  let normalized = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  // The planner model sometimes echoes back an absolute path instead of a
+  // workspace-relative one -- in practice almost always on Windows
+  // (drive-letter paths like C:\Users\...\src\foo.ts show up more
+  // saliently in planning context than POSIX /Users/... does on Mac).
+  // Rebase onto a relative path when it actually falls inside the
+  // workspace root instead of blanket-rejecting it; still reject anything
+  // outside the workspace (traversal guard preserved below).
+  const isDriveAbsolute = /^[A-Za-z]:\//.test(normalized);
+  const isPosixAbsolute = !isDriveAbsolute && rawPath.startsWith('/');
+  if (isDriveAbsolute || isPosixAbsolute) {
+    const root = folder.uri.fsPath.replace(/\\/g, '/').replace(/\/+$/, '');
+    const abs = isDriveAbsolute ? normalized : `/${normalized}`;
+    const onWin = process.platform === 'win32';
+    const rootCmp = onWin ? root.toLowerCase() : root;
+    const absCmp = onWin ? abs.toLowerCase() : abs;
+    if (absCmp === rootCmp || absCmp.startsWith(`${rootCmp}/`)) {
+      normalized = abs.slice(root.length).replace(/^\/+/, '');
+    } else {
+      return null;
+    }
+  }
+  const segments = normalized.split('/').filter(Boolean);
+  if (!normalized || normalized.includes('\0') || segments.includes('..')) {
+    return null;
+  }
+  return segments;
+}
+
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'agent-k.chat';
 
@@ -507,9 +550,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const rawPath = String(message.path || '').trim();
         try {
           const folder = vscode.workspace.workspaceFolders?.[0];
-          const normalized = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
-          const segments = normalized.split('/').filter(Boolean);
-          if (!folder || !normalized || normalized.includes('\0') || segments.includes('..') || /^[A-Za-z]:\//.test(normalized)) {
+          if (!folder) {
+            void this._view?.webview.postMessage({ type: 'plan.fileExists.result', requestId, exists: false });
+            return;
+          }
+          const segments = resolveWorkspaceRelativeSegments(rawPath, folder);
+          if (!segments) {
             void this._view?.webview.postMessage({ type: 'plan.fileExists.result', requestId, exists: false });
             return;
           }
@@ -522,6 +568,80 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           }
         } catch {
           void this._view?.webview.postMessage({ type: 'plan.fileExists.result', requestId, exists: false });
+        }
+      })();
+      return;
+    }
+    // Plan V2 generation: run the actual LLM request from the Extension
+    // Host, not the webview. LiteLLMPlanModel/PlanV2Generator used to be
+    // instantiated directly inside ChatApp.tsx and called provider.fetch()
+    // from the webview's browser context -- a vscode-webview:// origin,
+    // which is subject to full CORS like any other page. Any local model
+    // server that doesn't send Access-Control-Allow-Origin (LM Studio's
+    // default on http://localhost:1234, for one) gets its preflight
+    // rejected outright: "blocked by CORS policy ... Failed to fetch",
+    // surfaced up through PlanV2Generator as MODEL_REQUEST_FAILED. The
+    // main Agent/Plan/Debug chat loop never hit this because
+    // AgentLoopController + LiteLLMProvider already run here in the
+    // Extension Host (Node), where fetch has no CORS restriction at all --
+    // this handler brings Plan V2 generation in line with that, rather
+    // than special-casing CORS in the webview (which can't be fixed
+    // client-side; the server would have to add the header itself).
+    if (message.type === 'plan.v2.generate' && message.requestId != null) {
+      void (async () => {
+        const requestId = String(message.requestId);
+        const post = (payload: Record<string, unknown>) =>
+          void this._view?.webview.postMessage({ type: 'plan.v2.generate.result', requestId, ...payload });
+        try {
+          const cfg = vscode.workspace.getConfiguration('agent-k');
+          const baseUrl =
+            (message.baseUrl != null ? String(message.baseUrl) : undefined) ||
+            cfg.get<string>('provider.baseUrl') ||
+            'http://127.0.0.1:52415';
+          const model =
+            (message.model != null ? String(message.model) : undefined) ||
+            cfg.get<string>('provider.model') ||
+            'mlx-community/Qwen3.6-35B-A3B-4bit';
+          const apiKey =
+            message.apiKey != null ? String(message.apiKey) : cfg.get<string>('provider.apiKey') || undefined;
+          const providerType = String(
+            message.providerType || cfg.get('provider.type') || 'litellm'
+          ) as 'litellm' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'opencode-zen' | 'opencode-go';
+
+          const { LiteLLMProvider } = await import('./providers/LiteLLMProvider');
+          const { LiteLLMPlanModel } = await import('./plan/v2/LiteLLMPlanModel');
+          const { PlanV2Generator } = await import('./plan/v2/PlanV2Generator');
+
+          const provider = new LiteLLMProvider({
+            id: `plan-v2-${requestId}`,
+            name: 'Agent K Plan V2',
+            type: providerType,
+            baseUrl,
+            apiKey,
+            model
+          });
+          const planModel = new LiteLLMPlanModel(provider, { model });
+          const folder = vscode.workspace.workspaceFolders?.[0];
+          const generator = new PlanV2Generator(planModel, async (relativePath: string) => {
+            if (!folder) return false;
+            const segments = resolveWorkspaceRelativeSegments(relativePath, folder);
+            if (!segments) return false;
+            try {
+              await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, ...segments));
+              return true;
+            } catch {
+              return false;
+            }
+          });
+
+          const result = await generator.generate({
+            goal: String(message.goal || ''),
+            researchContext: String(message.researchContext || ''),
+            rejectionFeedback: message.rejectionFeedback != null ? String(message.rejectionFeedback) : undefined
+          });
+          post({ result });
+        } catch (error) {
+          post({ error: error instanceof Error ? error.message : String(error) });
         }
       })();
       return;
