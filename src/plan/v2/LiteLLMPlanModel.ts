@@ -61,7 +61,6 @@ export function isUnsupportedResponseFormatError(error: unknown): boolean {
       msg
     );
 
-  // Explicit combo, or bare 400/422 that quotes response_format
   if (mentionsFormat && mentionsRejection) return true;
   if (mentionsFormat && /\b(400|422)\b/.test(msg)) return true;
 
@@ -98,10 +97,16 @@ export class LiteLLMPlanModel implements PlanGenerationModel {
   ): Promise<string> {
     let full = '';
     for await (const chunk of this.provider.streamChat({
-      messages,
+      // PlanGenerationMessage ({role, content}) has no index signature, so
+      // it isn't structurally assignable to StreamChatOptions.messages
+      // (Array<Record<string, unknown>>) under strict mode — same class of
+      // cast already used below for `schema`. Safe: both are plain JSON-
+      // serializable objects; the provider only reads role/content off them.
+      messages: messages as unknown as Array<Record<string, unknown>>,
       model: this.opts.model,
       signal: this.opts.signal,
-      // Planning is structured extraction, not open-ended reasoning.
+      // Planning is a one-shot structured task, not open-ended reasoning —
+      // keep temperature low for reproducibility of task decomposition.
       temperature: 0.2,
       // Keep thinking off for plan turns — reduces unknown-param failures on
       // gateways that do not implement enable_thinking (Plan path only).
