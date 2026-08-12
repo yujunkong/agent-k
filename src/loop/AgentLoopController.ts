@@ -124,6 +124,26 @@ export interface LoopConfig {
   onAssistantDelta?: (delta: string) => void | Promise<void>;
   /** Streaming / final model reasoning (Thought UI) — not mixed into answer */
   onReasoning?: (fullText: string) => void | Promise<void>;
+  /**
+   * PHASE-1A diagnostics: observe the natural-language classifiers
+   * (isWeakFinalAnswer / looksLikeClosingSummary / claimsContinueWork /
+   * looksLikeBrokenToolPayload) that decide whether prose is a real
+   * final answer, a continuation, or a broken tool payload.
+   * Never changes control flow — purely an observation hook, default no-op.
+   * Wire to an OutputChannel/console in dev builds to find misclassification
+   * before touching the classifiers themselves.
+   */
+  onClassifyEvent?: (event: {
+    fn:
+      | 'isWeakFinalAnswer'
+      | 'looksLikeClosingSummary'
+      | 'claimsContinueWork'
+      | 'looksLikeBrokenToolPayload';
+    result: boolean;
+    /** First 160 chars only — diagnostics, not a transcript */
+    sample: string;
+    turn?: number;
+  }) => void;
   /** Live terminal output for Cursor-style terminal cards in chat */
   onTerminalEvent?: (ev: {
     id: string;
@@ -1378,6 +1398,12 @@ export class AgentLoopController {
    * under Worked for (what changed, why, outcome).
    */
   private isWeakFinalAnswer(prose: string): boolean {
+    const result = this.isWeakFinalAnswerImpl(prose);
+    this.emitClassifyEvent('isWeakFinalAnswer', prose, result);
+    return result;
+  }
+
+  private isWeakFinalAnswerImpl(prose: string): boolean {
     const t = (prose || '').trim();
     if (!t || t === '...') return true;
     if (this.looksLikeClosingSummary(t)) return false;
@@ -1399,6 +1425,12 @@ export class AgentLoopController {
 
   /** Real wrap-up (not "이제 작성하겠습니다" mid-work narration) */
   private looksLikeClosingSummary(prose: string): boolean {
+    const result = this.looksLikeClosingSummaryImpl(prose);
+    this.emitClassifyEvent('looksLikeClosingSummary', prose, result);
+    return result;
+  }
+
+  private looksLikeClosingSummaryImpl(prose: string): boolean {
     const t = (prose || '').trim();
     if (t.length < 80) return false;
     const hasStructure =
@@ -1725,13 +1757,37 @@ export class AgentLoopController {
 
   /** After tools: model narrates next work instead of calling tools */
   private claimsContinueWork(text: string): boolean {
-    return (
+    const result =
       this.claimsPendingFileWrites(text) ||
       this.reasoningIntendsTools(text) ||
       /다음\s*(단계|으로|은)|이어서\s*(진행|작업)|계속\s*(진행|하)|let me (continue|proceed|next)|next[,:]?\s*(i('ll| will)|step)|moving on to|now (that|i('ll| will))/i.test(
         text
-      )
-    );
+      );
+    this.emitClassifyEvent('claimsContinueWork', text, result);
+    return result;
+  }
+
+  /** PHASE-1A: no-op unless config.onClassifyEvent is wired — see LoopConfig */
+  private emitClassifyEvent(
+    fn:
+      | 'isWeakFinalAnswer'
+      | 'looksLikeClosingSummary'
+      | 'claimsContinueWork'
+      | 'looksLikeBrokenToolPayload',
+    text: string,
+    result: boolean
+  ): void {
+    if (!this.config.onClassifyEvent) return;
+    try {
+      this.config.onClassifyEvent({
+        fn,
+        result,
+        sample: (text || '').slice(0, 160),
+        turn: this._state.currentTurn
+      });
+    } catch {
+      // Diagnostics must never break the loop
+    }
   }
 
   private hasWriteToolSchemas(
@@ -1769,9 +1825,11 @@ export class AgentLoopController {
   }
 
   private looksLikeBrokenToolPayload(content: string): boolean {
-    return /```(?:json)?|"name"\s*:\s*"|tool_calls|<tool\s|tool_code|function_call/i.test(
+    const result = /```(?:json)?|"name"\s*:\s*"|tool_calls|<tool\s|tool_code|function_call/i.test(
       content
     );
+    this.emitClassifyEvent('looksLikeBrokenToolPayload', content, result);
+    return result;
   }
 
   /**

@@ -218,6 +218,11 @@
           "maximum": 100,
           "description": "Maximum agent-loop turns per run (Ask/Agent/Plan/Debug). Small/local models usually need 25–40; raise if you hit Max turns often."
         },
+        "agent-k.debugClassifiers": {
+          "type": "boolean",
+          "default": false,
+          "description": "Roadmap Phase 1a diagnostics. When on, logs every isWeakFinalAnswer / looksLikeClosingSummary / claimsContinueWork / looksLikeBrokenToolPayload classification (turn, result, text sample) to the Extension Host console. Never changes agent behavior — observation only. Off by default."
+        },
         "agent-k.verification.testEnabled": {
           "type": "boolean",
           "default": false,

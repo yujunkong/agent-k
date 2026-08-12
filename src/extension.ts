@@ -1694,6 +1694,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         onDebugStage: (stage) => {
           post('debug.stage', { stage });
         },
+        // PHASE-1A diagnostics: off by default. Enable with
+        // agent-k.debugClassifiers = true to see, in the Extension Host
+        // console, every time isWeakFinalAnswer / looksLikeClosingSummary /
+        // claimsContinueWork / looksLikeBrokenToolPayload fire and on what
+        // text — used to find real misclassifications before touching the
+        // classifiers themselves (see roadmap Phase 1a).
+        onClassifyEvent: configManager.get('agent-k.debugClassifiers')
+          ? (event) => {
+              console.log(
+                `[agent-k:classify] turn=${event.turn ?? '?'} ${event.fn}=${event.result} :: "${event.sample}"`
+              );
+            }
+          : undefined,
         // Re-bind ask_question UI on every tool call (new tab / interrupt safe)
         onAskQuestion: (q) => {
           if (this._hostLoopRequestId !== requestId) {
