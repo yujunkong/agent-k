@@ -144,6 +144,26 @@ export interface LoopConfig {
     sample: string;
     turn?: number;
   }) => void;
+  /**
+   * PHASE-1A diagnostics (cont'd): fires exactly when
+   * synthesizeFromToolResults() is about to hand the user "모델이 도구만
+   * 실행하고 임무를 끝내지 않은 채 중단했습니다" — i.e. after
+   * MAX_MISSION_CONTINUES nudges AND both wrap-up passes all came back
+   * empty/weak. Reports enough to tell "model hit context limits" from
+   * "model just won't stop calling tools" apart without guessing: total
+   * message count, the rough token estimate already computed for
+   * compaction (see estimateTotalTokens/contextBudget), and the tool
+   * names that ran right before the loop gave up. Never changes control
+   * flow — observation only, default no-op, same as onClassifyEvent.
+   */
+  onMissionExhausted?: (event: {
+    turn?: number;
+    messageCount: number;
+    estimatedTokens: number;
+    contextBudget: number;
+    missionContinueNudges: number;
+    lastTools: string[];
+  }) => void;
   /** Live terminal output for Cursor-style terminal cards in chat */
   onTerminalEvent?: (ev: {
     id: string;
@@ -1379,6 +1399,14 @@ export class AgentLoopController {
   /** Fallback prose when the model returns empty after successful tools */
   private synthesizeFromToolResults(): string {
     const tools = this.messages.filter((m) => m.role === 'tool').slice(-8);
+    this.config.onMissionExhausted?.({
+      turn: this._state.currentTurn,
+      messageCount: this.messages.length,
+      estimatedTokens: this.estimateTotalTokens(),
+      contextBudget: this.contextBudget,
+      missionContinueNudges: this.missionContinueNudges,
+      lastTools: tools.map((m) => m.name || 'tool')
+    });
     if (!tools.length) {
       return '도구는 실행됐지만 모델 최종 응답이 비었습니다. Regenerate로 다시 시도하세요.';
     }

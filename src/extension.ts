@@ -1840,6 +1840,39 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             );
           };
         })(),
+        // Same debugClassifiers flag: logs why the loop gave up and showed
+        // "모델이 도구만 실행하고 임무를 끝내지 않은 채 중단했습니다" instead of a
+        // real answer -- was the model near its context budget (compaction
+        // not keeping up / budget too small for this session) or did it
+        // just never produce a wrap-up despite having room left? Distinct
+        // symptom from the classify hook above (that's about individual
+        // prose being *mis*classified; this is about MAX_MISSION_CONTINUES
+        // + both wrap-up passes all coming back empty).
+        onMissionExhausted: (() => {
+          const enabled =
+            Boolean(configManager.get('agent-k.debugClassifiers')) ||
+            Boolean(
+              vscode.workspace.getConfiguration('agent-k').get('debugClassifiers')
+            );
+          if (!enabled) return undefined;
+          return (event: {
+            turn?: number;
+            messageCount: number;
+            estimatedTokens: number;
+            contextBudget: number;
+            missionContinueNudges: number;
+            lastTools: string[];
+          }) => {
+            const pct = event.contextBudget > 0
+              ? Math.round((event.estimatedTokens / event.contextBudget) * 100)
+              : 0;
+            console.log(
+              `[agent-k:mission-exhausted] turn=${event.turn ?? '?'} nudges=${event.missionContinueNudges} ` +
+              `tokens=${event.estimatedTokens}/${event.contextBudget} (${pct}%) ` +
+              `messages=${event.messageCount} lastTools=[${event.lastTools.join(', ')}]`
+            );
+          };
+        })(),
         // Re-bind ask_question UI on every tool call (new tab / interrupt safe)
         onAskQuestion: (q) => {
           if (this._hostLoopRequestId !== requestId) {
