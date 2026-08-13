@@ -3,6 +3,12 @@
  *
  * 1) Native tool_calls (OpenAI/Anthropic 네이티브) + plain [{name,arguments}]
  * 2) XML 태그: <tool name="grep">{"pattern":"foo"}</tool>
+ * 2a) Nested invoke/parameter XML (Claude-style function-calling convention
+ *     some local models imitate): <NS:invoke name="grep">
+ *     <NS:parameter name="pattern">foo</NS:parameter></NS:invoke>, optionally
+ *     wrapped in <NS:function_calls>...</NS:function_calls>. NS varies by
+ *     model/template (e.g. "antml", or a garbled "atem") or can be absent
+ *     entirely -- matched generically so any single consistent prefix works.
  * 2b) <tool_code> / tool_code blocks (Qwen/local models)
  * 2c) Bare: tool_name\\n{json args}
  * 3) JSON 펜스: ```json\n{"name":"grep","arguments":{...}}\n```
@@ -76,6 +82,15 @@ export class ToolCallParser {
     // Strategy 2: XML tags <tool name="...">
     const xml = this.parseXmlTags(content);
     results.push(...xml);
+
+    // Strategy 2a: nested <invoke name="...">/<parameter name="...">, the
+    // Claude-style function-calling XML convention some local models
+    // imitate (with a real or garbled namespace prefix, or none). Was
+    // completely unrecognized before -- every such tool call silently
+    // failed to parse, counted as a jsonParseFailure, and the raw XML plus
+    // any leaked chat-template tokens (<|eom|>, <|start|>...<|message|>)
+    // ended up shown to the user as plain prose instead of running.
+    results.push(...this.parseInvokeTags(content));
 
     // Strategy 2b: <tool_code>...</tool_code> / tool_code blocks
     if (results.length === 0) {
@@ -265,6 +280,58 @@ export class ToolCallParser {
           strategy: 'xml'
         });
       }
+    }
+    return results;
+  }
+
+  /**
+   * <NS:invoke name="tool"><NS:parameter name="p">v</NS:parameter></NS:invoke>,
+   * optionally wrapped in <NS:function_calls>...</NS:function_calls>. NS is
+   * whatever prefix the model used ("antml", "atem", ...) or empty -- the
+   * opening and closing tags must use the SAME prefix (backreference), so
+   * this won't cross-match an invoke from one namespace with a parameter
+   * closer from another. Multiple <invoke> blocks in one payload (parallel
+   * tool calls) are all captured.
+   */
+  private parseInvokeTags(content: string): ParsedToolCall[] {
+    const results: ParsedToolCall[] = [];
+    const invokeRegex = /<([\w-]+:)?invoke\s+name=["']([^"']+)["'][^>]*>([\s\S]*?)<\/\1invoke>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = invokeRegex.exec(content)) !== null) {
+      const prefix = match[1] || '';
+      const name = match[2].trim();
+      const body = match[3];
+      const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const paramRegex = new RegExp(
+        `<${escapedPrefix}parameter\\s+name=["']([^"']+)["'][^>]*>([\\s\\S]*?)<\\/${escapedPrefix}parameter>`,
+        'gi'
+      );
+      const args: Record<string, unknown> = {};
+      let paramMatch: RegExpExecArray | null;
+      while ((paramMatch = paramRegex.exec(body)) !== null) {
+        args[paramMatch[1].trim()] = paramMatch[2].trim();
+      }
+      if (Object.keys(args).length === 0 && body.trim()) {
+        // No <parameter> children found but there's a body -- the model
+        // may have dumped raw JSON args inside <invoke> instead. Try that
+        // before giving up; downstream tool-name allowlisting drops it if
+        // this still isn't usable.
+        try {
+          const parsed = JSON.parse(body.trim());
+          if (parsed && typeof parsed === 'object') Object.assign(args, parsed);
+        } catch {
+          /* leave args empty */
+        }
+      }
+      results.push({
+        id: this.nextId(),
+        name,
+        arguments: args,
+        raw: match[0],
+        confidence: 0.9,
+        strategy: 'xml'
+      });
     }
     return results;
   }
