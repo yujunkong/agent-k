@@ -136,14 +136,26 @@ export function ModelsTab() {
       values['agent-k.github.token'] = '';
     }
     setApiKeyMap(nextMap);
-    const catalog = Array.isArray(configManager.get('agent-k.provider.availableModels'))
-      ? (configManager.get('agent-k.provider.availableModels') as string[])
-      : [];
-    if (
-      values['agent-k.provider.model'] &&
-      !catalog.includes(String(values['agent-k.provider.model']))
-    ) {
-      catalog.push(String(values['agent-k.provider.model']));
+    const prevType = String(configManager.get('agent-k.provider.type') || '');
+    const isOpenCodeRemote =
+      providerType === 'opencode-zen' || providerType === 'opencode-go';
+    let catalog: string[];
+    if (isOpenCodeRemote && prevType !== providerType) {
+      // Switching to Zen/Go: drop leftover local/other provider models.
+      // Test Connection (replace) fills the curated catalog.
+      const seed = String(meta.defaultModel || values['agent-k.provider.model'] || '');
+      catalog = seed ? [seed] : [];
+      if (seed) values['agent-k.provider.model'] = seed;
+    } else {
+      catalog = Array.isArray(configManager.get('agent-k.provider.availableModels'))
+        ? [...(configManager.get('agent-k.provider.availableModels') as string[])]
+        : [];
+      if (
+        values['agent-k.provider.model'] &&
+        !catalog.includes(String(values['agent-k.provider.model']))
+      ) {
+        catalog.push(String(values['agent-k.provider.model']));
+      }
     }
     values['agent-k.provider.availableModels'] = catalog;
     values['agent-k.provider.models'] = catalog;
@@ -178,7 +190,13 @@ export function ModelsTab() {
     const result = await refreshComposerModels({
       baseUrl: url,
       apiKey: key,
-      model: probeModel
+      model: probeModel,
+      providerType,
+      // OpenCode Zen/Go: replace prior catalog (don't keep local MLX ids mixed in)
+      replace:
+        providerType === 'opencode-zen' || providerType === 'opencode-go'
+          ? true
+          : undefined
     });
 
     if (!result.ok) {
@@ -188,9 +206,13 @@ export function ModelsTab() {
     }
 
     setTestStatus('success');
+    const replaced =
+      providerType === 'opencode-zen' || providerType === 'opencode-go';
     setTestDetail(
       result.modelIds.length > 0
-        ? `OK — ${result.modelIds.length} models available in Composer`
+        ? replaced
+          ? `OK — replaced Composer with ${result.modelIds.length} models from provider`
+          : `OK — ${result.modelIds.length} models available in Composer`
         : result.detail
     );
   };

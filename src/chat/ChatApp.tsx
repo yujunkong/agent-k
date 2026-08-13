@@ -2987,7 +2987,9 @@ export function ChatApp() {
       const result = await refreshComposerModels({
         baseUrl: base,
         apiKey: providerApiKey || undefined,
-        model: providerModel
+        model: providerModel,
+        providerType:
+          providerType || String(configManager.get('agent-k.provider.type') || '')
       });
       if (cancelled) return;
       if (result.ok) {
@@ -3001,7 +3003,7 @@ export function ChatApp() {
     return () => {
       cancelled = true;
     };
-  }, [providerBaseUrl, providerApiKey]);
+  }, [providerBaseUrl, providerApiKey, providerType]);
 
   const sessionFileEdits = useMemo(
     () => collectSessionFileEdits(messages),

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, KeyboardEvent, useCallback } from 'react';
 import type { Attachment, Mode } from '../types';
 import { ModeSelector } from './ModeSelector';
+import { ModelSelector } from './ModelSelector';
 import { IconQueue } from './Icons';
 import { ComposerPalette, type PaletteItem } from './ComposerPalette';
 import {
@@ -827,30 +828,13 @@ export function Composer({
                 tooltips={modeTooltips}
               />
               {onModelChange && (modelOptions.length > 0 || modelId) ? (
-                <select
-                  className="composer-model composer-model-select"
+                <ModelSelector
                   value={modelId || modelOptions[0] || ''}
-                  onChange={(e) => onModelChange(e.target.value)}
+                  options={modelOptions}
+                  onChange={onModelChange}
                   disabled={isStreaming}
-                  title={modelId || modelLabel}
-                  aria-label="Model"
-                >
-                  {(modelOptions.includes(modelId || '')
-                    ? modelOptions
-                    : modelId
-                      ? [modelId, ...modelOptions]
-                      : modelOptions
-                  ).map((id) => {
-                    const short = id.split('/').pop() || id;
-                    const label =
-                      short.length > 32 ? `${short.slice(0, 30)}…` : short;
-                    return (
-                      <option key={id} value={id} title={id}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
+                  label={modelLabel}
+                />
               ) : (
                 <span className="composer-model" title={modelLabel}>
                   {modelLabel}

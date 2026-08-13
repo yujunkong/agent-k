@@ -87,6 +87,19 @@ export function mergeAvailableModels(ids: string[]): string[] {
   return setAvailableModels([...getComposerModels(), ...ids]);
 }
 
+/**
+ * OpenCode Zen / Go expose a curated remote catalog — keep Composer in sync
+ * by replacing the previous list (e.g. leftover local MLX ids) instead of merging.
+ */
+export function shouldReplaceComposerCatalog(providerType?: string): boolean {
+  const type = (
+    providerType ??
+    configManager.get('agent-k.provider.type') ??
+    ''
+  ).toString();
+  return type === 'opencode-zen' || type === 'opencode-go';
+}
+
 export function persistProviderModel(model: string): void {
   const nextModels = uniqSorted([model, ...getComposerModels()]);
   configManager.update({
@@ -99,6 +112,12 @@ export function persistProviderModel(model: string): void {
     [AVAILABLE_KEY]: nextModels,
     [LEGACY_REGISTERED_KEY]: nextModels
   });
+}
+
+/** Set active model without growing the catalog (used after a replace refresh). */
+function setActiveProviderModel(model: string): void {
+  configManager.update({ 'agent-k.provider.model': model });
+  persistToHost({ 'agent-k.provider.model': model });
 }
 
 /** @deprecated use getComposerModels */
@@ -285,26 +304,43 @@ export async function fetchProviderModels(opts?: {
 }
 
 /**
- * Fetch /v1/models and merge into Composer catalog (never wipe existing picks).
+ * Fetch /v1/models into the Composer catalog.
+ * Default: merge (keep prior picks). Pass `replace: true` (or OpenCode Zen/Go)
+ * to wipe the previous catalog and keep only server models.
  */
 export async function refreshComposerModels(opts?: {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  /** When true, replace catalog instead of merging. Defaults for OpenCode Zen/Go. */
+  replace?: boolean;
+  providerType?: string;
 }): Promise<ProviderModelsResult> {
   const result = await fetchProviderModels(opts);
   if (result.ok && result.modelIds.length > 0) {
     const active = String(
       opts?.model ?? configManager.get('agent-k.provider.model') ?? ''
     ).trim();
-    mergeAvailableModels(
-      active && !result.modelIds.includes(active)
-        ? [active, ...result.modelIds]
-        : result.modelIds
-    );
-    // Only pick a default when nothing is selected yet
-    if (!active && result.modelIds[0]) {
-      persistProviderModel(result.modelIds[0]);
+    const replace =
+      opts?.replace === true ||
+      (opts?.replace !== false &&
+        shouldReplaceComposerCatalog(opts?.providerType));
+
+    if (replace) {
+      setAvailableModels(result.modelIds);
+      if (!active || !result.modelIds.includes(active)) {
+        setActiveProviderModel(result.modelIds[0]);
+      }
+    } else {
+      mergeAvailableModels(
+        active && !result.modelIds.includes(active)
+          ? [active, ...result.modelIds]
+          : result.modelIds
+      );
+      // Only pick a default when nothing is selected yet
+      if (!active && result.modelIds[0]) {
+        persistProviderModel(result.modelIds[0]);
+      }
     }
   }
   return {

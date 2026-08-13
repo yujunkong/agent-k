@@ -1815,18 +1815,31 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           post('debug.stage', { stage });
         },
         // PHASE-1A diagnostics: off by default. Enable with
-        // agent-k.debugClassifiers = true to see, in the Extension Host
-        // console, every time isWeakFinalAnswer / looksLikeClosingSummary /
-        // claimsContinueWork / looksLikeBrokenToolPayload fire and on what
-        // text — used to find real misclassifications before touching the
-        // classifiers themselves (see roadmap Phase 1a).
-        onClassifyEvent: configManager.get('agent-k.debugClassifiers')
-          ? (event) => {
-              console.log(
-                `[agent-k:classify] turn=${event.turn ?? '?'} ${event.fn}=${event.result} :: "${event.sample}"`
-              );
-            }
-          : undefined,
+        // agent-k.debugClassifiers = true (user/workspace settings.json).
+        // Prefer VS Code configuration directly — ConfigManager only hydrates
+        // keys listed in AGENT_K_VSCODE_CONFIG_KEYS; missing keys used to make
+        // this always undefined even when settings.json was true.
+        onClassifyEvent: (() => {
+          const enabled =
+            Boolean(configManager.get('agent-k.debugClassifiers')) ||
+            Boolean(
+              vscode.workspace.getConfiguration('agent-k').get('debugClassifiers')
+            );
+          if (!enabled) return undefined;
+          console.log(
+            '[agent-k:classify] enabled — logging isWeakFinalAnswer / looksLikeClosingSummary / claimsContinueWork / looksLikeBrokenToolPayload'
+          );
+          return (event: {
+            fn: string;
+            result: boolean;
+            sample: string;
+            turn?: number;
+          }) => {
+            console.log(
+              `[agent-k:classify] turn=${event.turn ?? '?'} ${event.fn}=${event.result} :: "${event.sample}"`
+            );
+          };
+        })(),
         // Re-bind ask_question UI on every tool call (new tab / interrupt safe)
         onAskQuestion: (q) => {
           if (this._hostLoopRequestId !== requestId) {

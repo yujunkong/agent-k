@@ -62,7 +62,7 @@ export const PROVIDER_FIELDS: Record<ProviderType, ProviderFieldMeta> = {
     defaultBaseUrl: 'https://opencode.ai/zen',
     defaultModel: 'kimi-k2.6',
     hint:
-      'OpenCode Zen (pay-as-you-go). Use your Zen API key from opencode.ai/auth — not the Go key. Test Connection fills Composer.'
+      'OpenCode Zen (pay-as-you-go). Use your Zen API key from opencode.ai/auth — not the Go key. Test Connection replaces the Composer model list with Zen models only.'
   },
   'opencode-go': {
     needsBaseUrl: true,
@@ -71,7 +71,7 @@ export const PROVIDER_FIELDS: Record<ProviderType, ProviderFieldMeta> = {
     defaultBaseUrl: 'https://opencode.ai/zen/go',
     defaultModel: 'kimi-k2.6',
     hint:
-      'OpenCode Go (subscription). Use your Go API key — separate from Zen. Test Connection fills Composer.'
+      'OpenCode Go (subscription). Use your Go API key — separate from Zen. Test Connection replaces the Composer model list with Go models only.'
   }
 };
 

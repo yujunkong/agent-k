@@ -30,6 +30,9 @@ export const AGENT_K_VSCODE_CONFIG_KEYS = [
   'agent-k.verification.testEnabled',
   'agent-k.turnTimeoutMs',
   'agent-k.plan.forceOnComplex',
+  // Phase 1a: must be in this list or readAgentKFromVSCode() never hydrates it
+  // and configManager.get('agent-k.debugClassifiers') stays undefined → no logs.
+  'agent-k.debugClassifiers',
   'agent-k.telemetry.enabled',
   'agent-k.telemetry.statusBarEnabled',
   'agent-k.mcp.maxSchemaTokens',
@@ -148,6 +151,7 @@ export class ConfigManager {
       'agent-k.github.token': '',
       'agent-k.mode.default': 'agent',
       'agent-k.maxTurns': 25,
+      'agent-k.debugClassifiers': false,
       'agent-k.permission.level': 'accept_edits',
       'agent-k.queue.onEnterWhileRunning': 'resynthesize',
       'agent-k.queue.onStop': 'keep',
