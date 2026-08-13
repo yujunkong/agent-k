@@ -472,7 +472,16 @@ export function ChatApp() {
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   const planFileExistsResolversRef = useRef(new Map<string, { resolve: (exists: boolean) => void; reject: (error: Error) => void; }>());
-  const planV2GenerateResolversRef = useRef(new Map<string, { resolve: (result: PlanV2GenerationResult) => void; reject: (error: Error) => void; }>());
+  /** Plan V2 generation is proxied through the Extension Host (no CORS). */
+  const planV2GenerateResolversRef = useRef(
+    new Map<
+      string,
+      {
+        resolve: (result: PlanV2GenerationResult) => void;
+        reject: (error: Error) => void;
+      }
+    >()
+  );
   const showPlanReviewRef = useRef(showPlanReview);
   showPlanReviewRef.current = showPlanReview;
   const showClarifyingRef = useRef(showClarifying);
@@ -1113,50 +1122,56 @@ export function ChatApp() {
     });
   }, []);
 
-  const requestPlanV2 = useCallback(async (params: { goal: string; researchContext: string; rejectionFeedback?: string }) => {
-    // Runs in the Extension Host, not here -- see the 'plan.v2.generate'
-    // handler in extension.ts. Constructing LiteLLMProvider/LiteLLMPlanModel/
-    // PlanV2Generator here and calling provider.fetch() from this webview
-    // is a vscode-webview:// origin, subject to full CORS. A local/remote
-    // model server that doesn't send Access-Control-Allow-Origin for that
-    // origin gets its preflight rejected -- "blocked by CORS policy ...
-    // Failed to fetch" -- surfaced as MODEL_REQUEST_FAILED, even though the
-    // exact same request succeeds from the Agent/Debug chat loop, which
-    // already runs in the Extension Host (Node has no CORS). Routing Plan
-    // V2 generation through the host the same way fixes this instead of
-    // trying to work around CORS client-side (not possible -- the server
-    // would have to add the header itself).
-    return new Promise<PlanV2GenerationResult>((resolve, reject) => {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
-      if (!api?.postMessage) {
-        reject(new Error('VS Code API unavailable for Plan V2 generation.'));
-        return;
-      }
-      const requestId = `plan_v2_${uuidv4()}`;
-      // Generation can involve several LLM round-trips (attempts) against
-      // a possibly-slow local model -- give it real headroom, well above
-      // the single-request timeout used for file-existence checks.
-      const timeout = window.setTimeout(() => {
-        planV2GenerateResolversRef.current.delete(requestId);
-        reject(new Error('Plan generation timed out.'));
-      }, 180000);
-      planV2GenerateResolversRef.current.set(requestId, {
-        resolve: (result) => { window.clearTimeout(timeout); resolve(result); },
-        reject: (error) => { window.clearTimeout(timeout); reject(error); }
+  /**
+   * Plan V2 generation runs in the Extension Host, not the webview.
+   * Webview fetch() is subject to CORS (vscode-webview:// origin). Local
+   * servers without Access-Control-Allow-Origin fail with "Failed to fetch"
+   * → MODEL_REQUEST_FAILED, while Agent chat works (already on host/Node).
+   * Message: plan.v2.generate → extension.ts → plan.v2.generate.result
+   */
+  const requestPlanV2 = useCallback(
+    async (params: {
+      goal: string;
+      researchContext: string;
+      rejectionFeedback?: string;
+    }) => {
+      return new Promise<PlanV2GenerationResult>((resolve, reject) => {
+        const api =
+          (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        if (!api?.postMessage) {
+          reject(new Error('VS Code API unavailable for Plan V2 generation.'));
+          return;
+        }
+        const requestId = `plan_v2_${uuidv4()}`;
+        const timeout = window.setTimeout(() => {
+          planV2GenerateResolversRef.current.delete(requestId);
+          reject(new Error('Plan generation timed out.'));
+        }, 180000);
+        planV2GenerateResolversRef.current.set(requestId, {
+          resolve: (result) => {
+            window.clearTimeout(timeout);
+            resolve(result);
+          },
+          reject: (error) => {
+            window.clearTimeout(timeout);
+            reject(error);
+          }
+        });
+        api.postMessage({
+          type: 'plan.v2.generate',
+          requestId,
+          goal: params.goal,
+          researchContext: params.researchContext,
+          rejectionFeedback: params.rejectionFeedback,
+          providerType,
+          baseUrl: providerBaseUrl || undefined,
+          apiKey: providerApiKey || undefined,
+          model: providerModel
+        });
       });
-      api.postMessage({
-        type: 'plan.v2.generate',
-        requestId,
-        goal: params.goal,
-        researchContext: params.researchContext,
-        rejectionFeedback: params.rejectionFeedback,
-        providerType,
-        baseUrl: providerBaseUrl || undefined,
-        apiKey: providerApiKey || undefined,
-        model: providerModel
-      });
-    });
-  }, [providerType, providerBaseUrl, providerApiKey, providerModel]);
+    },
+    [providerType, providerBaseUrl, providerApiKey, providerModel]
+  );
 
   // ─── Plan mode lifecycle (RW-C5-01) ───────────────────
   useEffect(() => {
@@ -1316,63 +1331,27 @@ export function ChatApp() {
         setMode('plan');
         setShowPlanReview(false);
         lastPromotedPlanRef.current = content;
-        void (async () => {
-          try {
-            await planController.setPlanDocument({
-              slug,
-              title,
-              content,
-              sections: planGenerator.parseDocument(content),
-              todoCount: planGenerator.extractTodos(content).length,
-              createdAt: Date.now()
-            });
-            // Editor "Build" used to call planController.advanceToBuild()
-            // directly here -- the legacy stage FSM jumps straight to
-            // 'build' while PlanSession (the V2 source of truth) never
-            // sees a plan.approved event and can be left in whatever
-            // phase it was already in (review/planning/even idle if the
-            // editor was opened straight from a saved .md with no chat
-            // session behind it). That's exactly the desync case Plan V2's
-            // design doc warns about ("Session: review, Legacy: build --
-            // risky, this was the old bug") and the same free-form-bypass
-            // shape as "확정 진행하세요": legacy stage moves, PlanSession
-            // doesn't, so EvidenceEngine/task tracking runs against a
-            // session that never actually holds this plan.
-            // Route through the same door as the chat Approve button
-            // (ensureStructuredPlan + approve) using the edited markdown's
-            // own goal/content as the research context, instead of
-            // re-deriving one from a chat session that may not exist for
-            // an editor-only flow.
-            const researchContext =
-              planV2Adapter.session.getState().researchFindings ||
-              buildPlanResearchContext(planController) ||
-              content;
-            const goalFallback =
-              planV2Adapter.session.getState().goal ||
-              textFromPlanController(planController) ||
-              title;
-            await planV2Adapter.ensureStructuredPlan({
-              goalFallback,
-              researchContext,
-              generate: () =>
-                requestPlanV2({
-                  goal: goalFallback,
-                  researchContext,
-                  rejectionFeedback: planV2Adapter.session.getState().rejectionFeedback.slice(-1)[0]
-                })
-            });
-            await planV2Adapter.approve();
-            await planController.advanceToBuild();
+        void planController
+          .setPlanDocument({
+            slug,
+            title,
+            content,
+            sections: planGenerator.parseDocument(content),
+            todoCount: planGenerator.extractTodos(content).length,
+            createdAt: Date.now()
+          })
+          .then(() => planController.advanceToBuild())
+          .then(() => {
             setShowPlanReview(false);
             setPlanStage('build');
-          } catch (e) {
+          })
+          .catch((e) => {
             setError(
               e instanceof Error
                 ? e.message
                 : '에디터에서 Build를 시작하지 못했습니다.'
             );
-          }
-        })();
+          });
         return;
       }
 
@@ -1392,7 +1371,7 @@ export function ChatApp() {
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
-  }, [planController, promotePlanToReview, planV2Adapter, requestPlanV2]);
+  }, [planController, promotePlanToReview, planV2Adapter]);
 
   /**
    * Recovery: PLAN is visible in chat but stage stuck on Plan —
