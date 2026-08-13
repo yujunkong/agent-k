@@ -1316,27 +1316,63 @@ export function ChatApp() {
         setMode('plan');
         setShowPlanReview(false);
         lastPromotedPlanRef.current = content;
-        void planController
-          .setPlanDocument({
-            slug,
-            title,
-            content,
-            sections: planGenerator.parseDocument(content),
-            todoCount: planGenerator.extractTodos(content).length,
-            createdAt: Date.now()
-          })
-          .then(() => planController.advanceToBuild())
-          .then(() => {
+        void (async () => {
+          try {
+            await planController.setPlanDocument({
+              slug,
+              title,
+              content,
+              sections: planGenerator.parseDocument(content),
+              todoCount: planGenerator.extractTodos(content).length,
+              createdAt: Date.now()
+            });
+            // Editor "Build" used to call planController.advanceToBuild()
+            // directly here -- the legacy stage FSM jumps straight to
+            // 'build' while PlanSession (the V2 source of truth) never
+            // sees a plan.approved event and can be left in whatever
+            // phase it was already in (review/planning/even idle if the
+            // editor was opened straight from a saved .md with no chat
+            // session behind it). That's exactly the desync case Plan V2's
+            // design doc warns about ("Session: review, Legacy: build --
+            // risky, this was the old bug") and the same free-form-bypass
+            // shape as "확정 진행하세요": legacy stage moves, PlanSession
+            // doesn't, so EvidenceEngine/task tracking runs against a
+            // session that never actually holds this plan.
+            // Route through the same door as the chat Approve button
+            // (ensureStructuredPlan + approve) using the edited markdown's
+            // own goal/content as the research context, instead of
+            // re-deriving one from a chat session that may not exist for
+            // an editor-only flow.
+            const researchContext =
+              planV2Adapter.session.getState().researchFindings ||
+              buildPlanResearchContext(planController) ||
+              content;
+            const goalFallback =
+              planV2Adapter.session.getState().goal ||
+              textFromPlanController(planController) ||
+              title;
+            await planV2Adapter.ensureStructuredPlan({
+              goalFallback,
+              researchContext,
+              generate: () =>
+                requestPlanV2({
+                  goal: goalFallback,
+                  researchContext,
+                  rejectionFeedback: planV2Adapter.session.getState().rejectionFeedback.slice(-1)[0]
+                })
+            });
+            await planV2Adapter.approve();
+            await planController.advanceToBuild();
             setShowPlanReview(false);
             setPlanStage('build');
-          })
-          .catch((e) => {
+          } catch (e) {
             setError(
               e instanceof Error
                 ? e.message
                 : '에디터에서 Build를 시작하지 못했습니다.'
             );
-          });
+          }
+        })();
         return;
       }
 
@@ -1356,7 +1392,7 @@ export function ChatApp() {
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
-  }, [planController, promotePlanToReview, planV2Adapter]);
+  }, [planController, promotePlanToReview, planV2Adapter, requestPlanV2]);
 
   /**
    * Recovery: PLAN is visible in chat but stage stuck on Plan —
