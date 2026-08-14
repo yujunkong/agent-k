@@ -1862,9 +1862,23 @@ export class AgentLoopController {
   }
 
   private looksLikeBrokenToolPayload(content: string): boolean {
-    const result = /```(?:json)?|"name"\s*:\s*"|tool_calls|<tool\s|tool_code|function_call/i.test(
-      content
-    );
+    // Was `/```(?:json)?|.../ ` -- "json" is optional in that group, so
+    // ANY three-backtick fence matched: ```bash, ```python, even a bare
+    // ```. Every normal coding answer that includes a code block got
+    // flagged as a broken tool payload and counted into jsonParseFailures,
+    // which is exactly what Kong's classify log showed (turn=1/turn=2
+    // both flagged true on plain markdown roadmap/table answers with a
+    // ```bash fence -- neither is a broken tool call). Tightened to only
+    // match what actually looks like a model dumping raw tool-call JSON
+    // as prose instead of using tool_calls properly: a fenced json block,
+    // or literal tool-call-shaped tokens (tool_calls, <tool , tool_code,
+    // function_call, or a `"name": "..."` key -- kept narrow with a lookahead
+    // for `"arguments"` nearby so a normal `"name": "..."` in unrelated
+    // JSON content the model is discussing doesn't false-positive either).
+    const result =
+      /```json\b|tool_calls|<tool\s|tool_code|function_call|"name"\s*:\s*"[^"]*"\s*,\s*"arguments"\s*:/i.test(
+        content
+      );
     this.emitClassifyEvent('looksLikeBrokenToolPayload', content, result);
     return result;
   }
