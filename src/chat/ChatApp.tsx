@@ -16,7 +16,7 @@ import type { CheckpointSummary } from './components/ChangedFilesBar';
 import type { FileEditPreview } from './types';
 import { useChatStream } from './hooks/useChatStream';
 import { configManager } from '../core/ConfigManager';
-import type { ChatMessage, Mode, ModePicker, StreamDelta, Attachment } from './types';
+import type { ChatMessage, Mode, ModePicker, Attachment } from './types';
 import { formatAttachmentsForPayload } from './attachmentFormat';
 import {
   extractPlanMarkdownFromMessage,
@@ -45,8 +45,6 @@ import type { ChatSessionMeta } from './ChatSessionStore';
 // RW-C5-02: ask_question 도구 → ClarifyingQuestions 브리지
 import { askQuestionTool } from '../tools/session/AskQuestionTool';
 import type { PendingQuestion } from '../tools/session/AskQuestionTool';
-import { normalizeMcqQuestion } from './normalizeAskQuestion';
-// RW-C5-04: Plan → Agent 핸드오프
 import { PlanToAgent } from '../plan/PlanToAgent';
 import type { ProviderType } from '../providers/types';
 import { PlanModeControllerAdapter, toObservedToolCall } from '../plan/v2';
@@ -88,8 +86,11 @@ import {
   prependHarnessToUserPayload,
   stripHarnessForDisplay
 } from './harnessBridge';
-import { sealBodyBeforeTools, resolveSealTurn } from './sealTurnProse';
 import { stripFakeToolMarkup } from './displaySanitize';
+import {
+  createAssistantStreamSession,
+  dedupeAssistantBody
+} from './assistantStreamSession';
 import {
   getComposerModels,
   persistProviderModel,
@@ -153,60 +154,6 @@ function collectSessionFileEdits(messages: ChatMessage[]): FileEditPreview[] {
 }
 
 const sessionStore = new ChatSessionStore();
-
-function normalizeProse(text: string): string {
-  return text
-    .replace(/\r\n/g, '\n')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/^---+\s*$/gm, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function looksLikeDuplicateProse(aRaw: string, bRaw: string): boolean {
-  const a = normalizeProse(aRaw);
-  const b = normalizeProse(bRaw);
-  if (!a || !b) return false;
-  if (a === b) return true;
-  // Shorter Korean answers still duplicate often (~40+)
-  if (a.length >= 40 && b.includes(a)) return true;
-  if (b.length >= 40 && a.includes(b)) return true;
-  const n = Math.min(160, a.length, b.length);
-  if (n >= 40 && a.slice(0, n) === b.slice(0, n)) return true;
-  // Near-equal length with high prefix overlap
-  if (a.length >= 60 && b.length >= 60) {
-    const m = Math.min(120, a.length, b.length);
-    if (a.slice(0, m) === b.slice(0, m)) return true;
-  }
-  return false;
-}
-
-/**
- * Same plan/answer often lands in turnProse (mid-turn) and again in content
- * (final). Keep the final body (Worked collapsed still shows it) and drop
- * matching sealed entries so the open timeline does not show it twice.
- */
-function dedupeAssistantBody(msg: ChatMessage): ChatMessage {
-  const body = (msg.content || '').trim();
-  const prose = msg.turnProse || [];
-  if (!body || prose.length === 0) return msg;
-
-  const kept = prose.filter(
-    (p) => !looksLikeDuplicateProse(String(p.content || ''), body)
-  );
-  if (kept.length === prose.length) {
-    const sealed = prose
-      .map((p) => String(p.content || '').trim())
-      .filter(Boolean)
-      .join('\n\n');
-    if (looksLikeDuplicateProse(body, sealed)) {
-      return { ...msg, turnProse: [] };
-    }
-    return msg;
-  }
-  return { ...msg, turnProse: kept };
-}
 
 function sanitizeLoadedMessages(parsed: ChatMessage[]): ChatMessage[] {
   return parsed
@@ -1621,6 +1568,34 @@ export function ChatApp() {
     return finalizeStreamingMessages(prev);
   }, []);
 
+  const makeAssistantStream = useCallback(
+    (effectiveMode: Mode, isStale?: () => boolean) =>
+      createAssistantStreamSession({
+        isStale,
+        mode: effectiveMode,
+        stepStartRef,
+        turnNumberRef,
+        sessionIdRef,
+        loopSessionIdRef,
+        parkedAwaitingRef,
+        messagesRef,
+        planStageRef,
+        pendingQuestionsRef,
+        promotePlanOnCompleteRef,
+        planController,
+        debugController,
+        planV2HasPlan: () => Boolean(planV2Adapter.session.getPlan()),
+        setMessages,
+        setPendingQuestions,
+        setShowClarifying,
+        setAwaitingUser,
+        setDebugTick,
+        setError,
+        promotePlanToReview
+      }),
+    [planController, debugController, planV2Adapter, promotePlanToReview]
+  );
+
   // ─── Message handler ───────────────────────────────────
   /**
    * @param text - UI bubble에 보여줄 사용자 입력 (깨끗한 텍스트)
@@ -1754,518 +1729,23 @@ export function ChatApp() {
     stepStartRef.current = {};
     turnNumberRef.current += 1;
 
-    // AgentLoop status → toolStatus (never mix into content)
-    let sawProse = false;
-    /** After first tool call, further content is the final answer (not the opening lead) */
-    let toolsStarted = false;
-    let planPinned = false;
-
-    const TOOL_KINDS = new Set([
-      'searching',
-      'reading',
-      'editing',
-      'running',
-      'browsing',
-      'asking'
-    ]);
-
-    const sealLeadFromMessage = (
-      msg: ChatMessage,
-      explicitTurn?: number | null
-    ): ChatMessage => {
-      const sealed = sealBodyBeforeTools(msg, resolveSealTurn(msg, explicitTurn));
-      if (effectiveMode === 'plan' && !planPinned) {
-        const md = extractPlanMarkdownFromMessage(sealed);
-        if (looksLikePlanDocument(md) || looksLikePlanDraft(md)) {
-          planPinned = true;
-          promotePlanToReview(md);
-        }
-      }
-      return sealed;
-    };
-
+    const stream = makeAssistantStream(
+      effectiveMode,
+      () => epoch !== sendEpochRef.current
+    );
     sendMessage(
       payload,
       files,
       apiMessages,
       effectiveMode,
-      // onDelta — timeline (PRD-C0 §5.3) | ask_question | status | streamed prose
-      (delta: StreamDelta) => {
-        if (epoch !== sendEpochRef.current) return;
-        // Host ask_question → show ClarifyingQuestions (webview cannot see host singleton)
-        // Require id only — empty question used to skip UI while host still blocked → "Streaming…" freeze
-        if (delta.askQuestion?.id) {
-          const q = delta.askQuestion;
-          const normalized = normalizeMcqQuestion(
-            q.question ||
-              '확인이 필요합니다. 아래에서 선택하거나 기타에 적어 주세요.',
-            q.options
-          );
-          if (effectiveMode === 'plan') {
-            planController.enterQuestionsStage();
-          }
-          // Debug hypothesis: register MCQ options as selectable hypotheses
-          if (
-            effectiveMode === 'debug' &&
-            debugController.getStage() === 'hypothesis' &&
-            normalized.options.length >= 2
-          ) {
-            for (const opt of normalized.options) {
-              const title = String(opt).trim();
-              if (!title || /^기타$/i.test(title) || /^other$/i.test(title)) continue;
-              if (!debugController.getHypotheses().some((h) => h.title === title)) {
-                debugController.addHypothesis(title, title, []);
-              }
-            }
-            setDebugTick((t) => t + 1);
-          }
-          const ownerId = loopSessionIdRef.current || sessionIdRef.current;
-          const qEntry = {
-            id: q.id,
-            question: normalized.question,
-            options: normalized.options,
-            required: q.required !== false,
-            allowMultiple: Boolean(q.allowMultiple),
-            answered: false,
-          };
-          // User is on another chat tab — park Waiting UI for the owner session
-          if (ownerId && ownerId !== sessionIdRef.current) {
-            parkedAwaitingRef.current = {
-              sessionId: ownerId,
-              questions: [qEntry]
-            };
-            planController.addQuestion({ id: q.id, question: normalized.question });
-            return;
-          }
-          setPendingQuestions((prev) => {
-            if (prev.find((p) => p.id === q.id)) return prev;
-            // Model sometimes fires ask_question twice with different ids — same prompt
-            const normQ = normalized.question.replace(/\s+/g, ' ').trim().toLowerCase();
-            if (
-              prev.some(
-                (p) =>
-                  String(p.question || '')
-                    .replace(/\s+/g, ' ')
-                    .trim()
-                    .toLowerCase() === normQ
-              )
-            ) {
-              return prev;
-            }
-            planController.addQuestion({ id: q.id, question: normalized.question });
-            return [...prev, qEntry];
-          });
-          setShowClarifying(true);
-          setAwaitingUser(true);
-          return;
-        }
-        // Host debug FSM stage sync
-        if (delta.debugStage && effectiveMode === 'debug') {
-          debugController.syncStageFromHost(delta.debugStage as DebugStage);
-          setDebugTick((t) => t + 1);
-          return;
-        }
-        // Tools began — first dig ack → lead; mid-dig self-talk → Thought
-        if (delta.clearContent) {
-          toolsStarted = true;
-          setMessages((prev) => {
-            const lastIdx = prev.length - 1;
-            if (
-              lastIdx >= 0 &&
-              prev[lastIdx].role === 'assistant' &&
-              prev[lastIdx].status === 'streaming'
-            ) {
-              const newMsgs = [...prev];
-              newMsgs[lastIdx] = sealLeadFromMessage(
-                newMsgs[lastIdx],
-                delta.sealTurn
-              );
-              return newMsgs;
-            }
-            return prev;
-          });
-          return;
-        }
-        // Cursor-style file edit cards
-        if (delta.fileEdit) {
-          const fe = {
-            ...delta.fileEdit,
-            id:
-              delta.fileEdit.id ||
-              `fe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-            turn: delta.fileEdit.turn || turnNumberRef.current || 1
-          };
-          setMessages((prev) => {
-            const lastIdx = prev.length - 1;
-            if (
-              lastIdx < 0 ||
-              prev[lastIdx].role !== 'assistant' ||
-              prev[lastIdx].status !== 'streaming'
-            ) {
-              return prev;
-            }
-            const msg = prev[lastIdx];
-            const key = (fe.absPath || fe.path || '').replace(/\\/g, '/');
-            const prevEdits = msg.fileEdits || [];
-            // Same path+turn → replace (host sometimes double-posts one write)
-            const idx = key
-              ? prevEdits.findIndex((x) => {
-                  const xk = (x.absPath || x.path || '').replace(/\\/g, '/');
-                  return xk === key && (x.turn || 0) === (fe.turn || 0);
-                })
-              : -1;
-            const fileEdits =
-              idx >= 0
-                ? prevEdits.map((x, i) =>
-                    i === idx ? { ...fe, id: x.id || fe.id } : x
-                  )
-                : [...prevEdits, fe];
-            const copy = [...prev];
-            copy[lastIdx] = { ...msg, fileEdits };
-            return copy;
-          });
-          return;
-        }
-        // Cursor-style terminal run cards (live + final)
-        if (delta.terminalRun) {
-          const ev = delta.terminalRun;
-          setMessages((prev) => {
-            const lastIdx = prev.length - 1;
-            if (
-              lastIdx < 0 ||
-              prev[lastIdx].role !== 'assistant' ||
-              prev[lastIdx].status !== 'streaming'
-            ) {
-              return prev;
-            }
-            const msg = prev[lastIdx];
-            const runs = [...(msg.terminalRuns || [])];
-            const idx = runs.findIndex((r) => r.id === ev.id);
-            const turn = ev.turn || turnNumberRef.current || 1;
-            if (ev.phase === 'start' || idx < 0) {
-              const next = {
-                id: ev.id,
-                command: ev.command || '',
-                description: ev.description,
-                cwd: ev.cwd,
-                status: (ev.status || 'running') as 'running' | 'done' | 'error',
-                stdout: '',
-                stderr: '',
-                turn
-              };
-              if (idx >= 0) runs[idx] = { ...runs[idx], ...next };
-              else runs.push(next);
-            } else if (ev.phase === 'chunk') {
-              const cur = runs[idx];
-              if (ev.stream === 'stderr') {
-                runs[idx] = {
-                  ...cur,
-                  stderr: (cur.stderr || '') + (ev.chunk || '')
-                };
-              } else {
-                runs[idx] = {
-                  ...cur,
-                  stdout: (cur.stdout || '') + (ev.chunk || '')
-                };
-              }
-            } else if (ev.phase === 'end') {
-              const cur = runs[idx];
-              // Prefer streamed buffers; fall back to full end chunk dump
-              let stdout = cur.stdout || '';
-              let stderr = cur.stderr || '';
-              if (!stdout && !stderr && ev.chunk) {
-                stdout = ev.chunk;
-              }
-              runs[idx] = {
-                ...cur,
-                command: ev.command || cur.command,
-                cwd: ev.cwd || cur.cwd,
-                status: ev.status || (ev.error ? 'error' : 'done'),
-                exitCode: ev.exitCode,
-                error: ev.error,
-                durationMs: ev.durationMs,
-                stdout,
-                stderr,
-                turn: ev.turn || cur.turn
-              };
-            }
-            const copy = [...prev];
-            copy[lastIdx] = { ...msg, terminalRuns: runs };
-            return copy;
-          });
-          return;
-        }
-        // Cursor-style: append/upsert steps on the streaming assistant bubble
-        if (delta.timeline) {
-          const tl = delta.timeline;
-          // Keep planning (Planning next moves); drop only terminal "done" chrome
-          if (tl.kind === 'done') {
-            return;
-          }
-          if (TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running') {
-            toolsStarted = true;
-          }
-          const id =
-            tl.id ||
-            `step_${tl.kind}_${tl.turn}_${tl.toolName || 'x'}_${Date.now()}`;
-          const now = Date.now();
-          if (!stepStartRef.current[id]) stepStartRef.current[id] = now;
-          const durationMs =
-            tl.itemStatus === 'done' || tl.itemStatus === 'error'
-              ? now - stepStartRef.current[id]
-              : undefined;
-          setMessages((prev) => {
-            const lastIdx = prev.length - 1;
-            if (
-              lastIdx < 0 ||
-              prev[lastIdx].role !== 'assistant' ||
-              prev[lastIdx].status !== 'streaming'
-            ) {
-              return prev;
-            }
-            let msg = prev[lastIdx];
-            if (TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running') {
-              msg = sealLeadFromMessage(msg, tl.turn);
-            }
-            const steps = [...(msg.steps || [])];
-            const idx = steps.findIndex((s) => s.id === id);
-            const nextStep = {
-              id,
-              kind: tl.kind,
-              label: tl.label,
-              // Preserve Thought text when host closes thinking without re-sending detail
-              detail: tl.detail !== undefined ? tl.detail : steps[idx]?.detail,
-              toolName: tl.toolName,
-              turn: tl.turn,
-              thoughtRole:
-                tl.thoughtRole ??
-                (tl.kind === 'thinking'
-                  ? steps[idx]?.thoughtRole ?? 'opening'
-                  : steps[idx]?.thoughtRole),
-              itemStatus: tl.itemStatus,
-              durationMs: durationMs ?? steps[idx]?.durationMs
-            };
-            if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
-            else steps.push(nextStep);
-            const copy = [...prev];
-            copy[lastIdx] = { ...msg, steps };
-            return copy;
-          });
-          return;
-        }
-        // Ask-path / direct: append reasoning chunks into Thought step
-        if (delta.reasoning) {
-          const id = `tl_thinking_${turnNumberRef.current || 1}`;
-          const now = Date.now();
-          if (!stepStartRef.current[id]) stepStartRef.current[id] = now;
-          setMessages((prev) => {
-            const lastIdx = prev.length - 1;
-            if (
-              lastIdx < 0 ||
-              prev[lastIdx].role !== 'assistant' ||
-              prev[lastIdx].status !== 'streaming'
-            ) {
-              return prev;
-            }
-            const msg = prev[lastIdx];
-            const steps = [...(msg.steps || [])];
-            const idx = steps.findIndex((s) => s.id === id);
-            const prevDetail = idx >= 0 ? steps[idx].detail || '' : '';
-            const nextStep = {
-              id,
-              kind: 'thinking',
-              label: 'Thought',
-              detail: prevDetail + delta.reasoning,
-              turn: turnNumberRef.current || 1,
-              thoughtRole: 'opening' as const,
-              itemStatus: 'running' as const
-            };
-            if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
-            else steps.push(nextStep);
-            const copy = [...prev];
-            copy[lastIdx] = { ...msg, steps };
-            return copy;
-          });
-          return;
-        }
-        if (delta.status !== undefined) {
-          if (delta.status === 'asking') {
-            const ownerId = loopSessionIdRef.current || sessionIdRef.current;
-            if (!ownerId || ownerId === sessionIdRef.current) {
-              setAwaitingUser(true);
-            }
-          }
-          setMessages((prev) => {
-            const lastIdx = prev.length - 1;
-            if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
-              const newMsgs = [...prev];
-              newMsgs[lastIdx] = {
-                ...newMsgs[lastIdx],
-                toolStatus: undefined // status lives in MessageSteps now
-                // Never wipe content here — caused mid-answer flicker
-              };
-              return newMsgs;
-            }
-            return prev;
-          });
-          return;
-        }
-        if (delta.content) {
-          if (planPinned) return;
-          sawProse = true;
-          setMessages((prev) => {
-            const lastIdx = prev.length - 1;
-            if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
-              const newMsgs = [...prev];
-              const msg = newMsgs[lastIdx];
-              // Keep one content stream — mid-timeline seal places it after Thought
-              newMsgs[lastIdx] = {
-                ...msg,
-                toolStatus: undefined,
-                openingLead: undefined,
-                content: (msg.content || '') + delta.content!
-              };
-              return newMsgs;
-            }
-            return prev;
-          });
-        }
-      },
-      // onComplete - sanitize display + mark complete; close any stuck running steps
-      () => {
-        if (epoch !== sendEpochRef.current) return;
-        setAwaitingUser(false);
-        let completedAssistant: ChatMessage | undefined;
-        setMessages((prev) => {
-          const lastIdx = prev.length - 1;
-          if (lastIdx < 0 || prev[lastIdx].role !== 'assistant') return prev;
-          // Already sealed (e.g. cleanup raced) — still capture for plan promote
-          if (prev[lastIdx].status !== 'streaming') {
-            completedAssistant = prev[lastIdx];
-            return prev;
-          }
-          const newMsgs = [...prev];
-          let content = stripFakeToolMarkup(newMsgs[lastIdx].content);
-          // Drop leftover status if somehow still in content
-          if (/^🔧/.test(content.trim()) && content.length < 80) {
-            content = '';
-          }
-          const prevSteps = newMsgs[lastIdx].steps || [];
-          const steps = prevSteps.map((s) =>
-            s.itemStatus === 'running' ? { ...s, itemStatus: 'done' as const } : s
-          );
-          // Fold any legacy openingLead into body — no top lead promotion
-          const leadLeft = (newMsgs[lastIdx].openingLead || '').trim();
-          const body = content.trim();
-          const finalContent = (
-            leadLeft && body && !body.includes(leadLeft)
-              ? `${leadLeft}${body}`.trim()
-              : body || leadLeft
-          );
-          const draft = dedupeAssistantBody({
-            ...newMsgs[lastIdx],
-            toolStatus: undefined,
-            openingLead: undefined,
-            content: finalContent,
-            steps,
-            workedDurationMs: Math.max(
-              0,
-              Date.now() - (newMsgs[lastIdx].timestamp || Date.now())
-            )
-          });
-          const hasBody = Boolean(draft.content?.trim());
-          const hasOther =
-            (draft.turnProse?.length ?? 0) > 0 ||
-            (draft.steps?.length ?? 0) > 0 ||
-            (draft.fileEdits?.length ?? 0) > 0 ||
-            (draft.terminalRuns?.length ?? 0) > 0;
-          newMsgs[lastIdx] = {
-            ...draft,
-            status: hasBody || hasOther ? 'complete' : 'error',
-            content: hasBody ? draft.content : hasOther ? '' : '(no response)'
-          };
-          completedAssistant = newMsgs[lastIdx];
-          messagesRef.current = newMsgs;
-          return newMsgs;
-        });
-        // Plan mode: after planning turn, promote assistant text → PlanReview + plan_<hash>.md
-        const stageNow = planStageRef.current;
-        const shouldPromotePlan =
-          effectiveMode === 'plan' &&
-          !planV2Adapter.session.getPlan() &&
-          (promotePlanOnCompleteRef.current ||
-            stageNow === 'planning' ||
-            stageNow === 'questions' ||
-            stageNow === 'research');
-        if (shouldPromotePlan) {
-          const last =
-            completedAssistant ||
-            [...messagesRef.current]
-              .reverse()
-              .find((m) => m.role === 'assistant');
-          let planMd = extractPlanMarkdownFromMessage(last);
-          const soft =
-            promotePlanOnCompleteRef.current || stageNow === 'planning';
-          const ok = soft
-            ? looksLikePlanDraft(planMd) || looksLikePlanDocument(planMd)
-            : looksLikePlanDocument(planMd);
-          if (!ok) {
-            planMd = findLatestPlanMarkdown(messagesRef.current);
-          }
-          if (
-            looksLikePlanDocument(planMd) ||
-            (soft && looksLikePlanDraft(planMd))
-          ) {
-            promotePlanToReview(planMd);
-          }
-          // Do not clear promote flag on empty — wait for recovery / next complete
-        }
-        if (
-          effectiveMode === 'plan' &&
-          (planStageRef.current === 'research' ||
-            planStageRef.current === 'questions') &&
-          planController.getQuestions().length > 0 &&
-          pendingQuestionsRef.current.length > 0
-        ) {
-          setShowClarifying(true);
-        }
-      },
-      // onError (incl. idle timeout) — collapse steps so UI is not stuck Thinking
-      (err: string) => {
-        if (epoch !== sendEpochRef.current) return;
-        setAwaitingUser(false);
-        setError(err);
-        setMessages((prev) => {
-          const lastIdx = prev.length - 1;
-          if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
-            const newMsgs = [...prev];
-            const prevSteps = newMsgs[lastIdx].steps || [];
-            const steps = prevSteps.map((s) =>
-              s.itemStatus === 'running' ? { ...s, itemStatus: 'error' as const } : s
-            );
-            newMsgs[lastIdx] = {
-              ...newMsgs[lastIdx],
-              status: 'error',
-              toolStatus: undefined,
-              steps,
-              content: newMsgs[lastIdx].content?.trim()
-                ? `${newMsgs[lastIdx].content}\n\n⚠ ${err}`
-                : err,
-              workedDurationMs: Math.max(
-                0,
-                Date.now() - (newMsgs[lastIdx].timestamp || Date.now())
-              )
-            };
-            return newMsgs;
-          }
-          return prev;
-        });
-      },
+      stream.onDelta,
+      stream.onComplete,
+      stream.onError,
       opts?.planStageOverride
         ? { planStageOverride: opts.planStageOverride }
         : undefined
     );
-  }, [mode, modeAuto, sendMessage, planStage, planController, planV2Adapter, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom]);
+  }, [mode, modeAuto, sendMessage, planStage, planController, planV2Adapter, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom, makeAssistantStream]);
 
   handleSendRef.current = handleSend;
 
@@ -3617,392 +3097,19 @@ export function ChatApp() {
           seedNonce={composerSeed?.nonce ?? 0}
           onSlashCommand={runSlashCommand}
           onRegenerate={() => {
+            const epoch = ++sendEpochRef.current;
             stepStartRef.current = {};
-    let toolsStarted = false;
-    let planPinned = false;
-    const TOOL_KINDS = new Set([
-              'searching',
-              'reading',
-              'editing',
-              'running',
-              'browsing',
-              'asking'
-            ]);
-            const sealLeadFromMessage = (
-              msg: ChatMessage,
-              explicitTurn?: number | null
-            ): ChatMessage => {
-              const sealed = sealBodyBeforeTools(msg, resolveSealTurn(msg, explicitTurn));
-              if (mode === 'plan' && !planPinned) {
-                const md = extractPlanMarkdownFromMessage(sealed);
-                if (looksLikePlanDocument(md) || looksLikePlanDraft(md)) {
-                  planPinned = true;
-                  promotePlanToReview(md);
-                }
-              }
-              return sealed;
-            };
+            loopSessionIdRef.current = sessionIdRef.current;
+            const stream = makeAssistantStream(
+              mode,
+              () => epoch !== sendEpochRef.current
+            );
             regenerate(
               messages,
               mode,
-              (delta: StreamDelta) => {
-                if (delta.askQuestion?.id) {
-                  const q = delta.askQuestion;
-                  const normalized = normalizeMcqQuestion(
-                    q.question ||
-                      '확인이 필요합니다. 아래에서 선택하거나 기타에 적어 주세요.',
-                    q.options
-                  );
-                  setPendingQuestions((prev) => {
-                    if (prev.find((p) => p.id === q.id)) return prev;
-                    const normQ = normalized.question
-                      .replace(/\s+/g, ' ')
-                      .trim()
-                      .toLowerCase();
-                    if (
-                      prev.some(
-                        (p) =>
-                          String(p.question || '')
-                            .replace(/\s+/g, ' ')
-                            .trim()
-                            .toLowerCase() === normQ
-                      )
-                    ) {
-                      return prev;
-                    }
-                    return [
-                      ...prev,
-                      {
-                        id: q.id,
-                        question: normalized.question,
-                        options: normalized.options,
-                        required: q.required !== false,
-                        answered: false,
-                      },
-                    ];
-                  });
-                  setShowClarifying(true);
-                  setAwaitingUser(true);
-                  return;
-                }
-                if (delta.clearContent) {
-                  toolsStarted = true;
-                  setMessages((prev) => {
-                    const lastIdx = prev.length - 1;
-                    if (
-                      lastIdx >= 0 &&
-                      prev[lastIdx].role === 'assistant' &&
-                      prev[lastIdx].status === 'streaming'
-                    ) {
-                      const newMsgs = [...prev];
-                      newMsgs[lastIdx] = sealLeadFromMessage(
-                        newMsgs[lastIdx],
-                        delta.sealTurn
-                      );
-                      return newMsgs;
-                    }
-                    return prev;
-                  });
-                  return;
-                }
-                if (delta.fileEdit) {
-                  const fe = {
-                    ...delta.fileEdit,
-                    id:
-                      delta.fileEdit.id ||
-                      `fe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                    turn: delta.fileEdit.turn || turnNumberRef.current || 1
-                  };
-                  setMessages((prev) => {
-                    const lastIdx = prev.length - 1;
-                    if (
-                      lastIdx < 0 ||
-                      prev[lastIdx].role !== 'assistant' ||
-                      prev[lastIdx].status !== 'streaming'
-                    ) {
-                      return prev;
-                    }
-                    const msg = prev[lastIdx];
-                    const key = (fe.absPath || fe.path || '').replace(/\\/g, '/');
-                    const prevEdits = msg.fileEdits || [];
-                    const idx = key
-                      ? prevEdits.findIndex((x) => {
-                          const xk = (x.absPath || x.path || '').replace(
-                            /\\/g,
-                            '/'
-                          );
-                          return xk === key && (x.turn || 0) === (fe.turn || 0);
-                        })
-                      : -1;
-                    const fileEdits =
-                      idx >= 0
-                        ? prevEdits.map((x, i) =>
-                            i === idx ? { ...fe, id: x.id || fe.id } : x
-                          )
-                        : [...prevEdits, fe];
-                    const copy = [...prev];
-                    copy[lastIdx] = { ...msg, fileEdits };
-                    return copy;
-                  });
-                  return;
-                }
-                if (delta.terminalRun) {
-                  const ev = delta.terminalRun;
-                  setMessages((prev) => {
-                    const lastIdx = prev.length - 1;
-                    if (
-                      lastIdx < 0 ||
-                      prev[lastIdx].role !== 'assistant' ||
-                      prev[lastIdx].status !== 'streaming'
-                    ) {
-                      return prev;
-                    }
-                    const msg = prev[lastIdx];
-                    const runs = [...(msg.terminalRuns || [])];
-                    const idx = runs.findIndex((r) => r.id === ev.id);
-                    const turn = ev.turn || turnNumberRef.current || 1;
-                    if (ev.phase === 'start' || idx < 0) {
-                      const next = {
-                        id: ev.id,
-                        command: ev.command || '',
-                        description: ev.description,
-                        cwd: ev.cwd,
-                        status: (ev.status || 'running') as 'running' | 'done' | 'error',
-                        stdout: '',
-                        stderr: '',
-                        turn
-                      };
-                      if (idx >= 0) runs[idx] = { ...runs[idx], ...next };
-                      else runs.push(next);
-                    } else if (ev.phase === 'chunk') {
-                      const cur = runs[idx];
-                      if (ev.stream === 'stderr') {
-                        runs[idx] = {
-                          ...cur,
-                          stderr: (cur.stderr || '') + (ev.chunk || '')
-                        };
-                      } else {
-                        runs[idx] = {
-                          ...cur,
-                          stdout: (cur.stdout || '') + (ev.chunk || '')
-                        };
-                      }
-                    } else if (ev.phase === 'end') {
-                      const cur = runs[idx];
-                      let stdout = cur.stdout || '';
-                      let stderr = cur.stderr || '';
-                      if (!stdout && !stderr && ev.chunk) stdout = ev.chunk;
-                      runs[idx] = {
-                        ...cur,
-                        command: ev.command || cur.command,
-                        cwd: ev.cwd || cur.cwd,
-                        status: ev.status || (ev.error ? 'error' : 'done'),
-                        exitCode: ev.exitCode,
-                        error: ev.error,
-                        durationMs: ev.durationMs,
-                        stdout,
-                        stderr,
-                        turn: ev.turn || cur.turn
-                      };
-                    }
-                    const copy = [...prev];
-                    copy[lastIdx] = { ...msg, terminalRuns: runs };
-                    return copy;
-                  });
-                  return;
-                }
-                if (delta.timeline) {
-                  const tl = delta.timeline;
-                  // Keep planning (Planning next moves); drop only terminal "done" chrome
-                  if (tl.kind === 'done') {
-                    return;
-                  }
-                  if (TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running') {
-                    toolsStarted = true;
-                  }
-                  const id =
-                    tl.id ||
-                    `step_${tl.kind}_${tl.turn}_${tl.toolName || 'x'}_${Date.now()}`;
-                  const now = Date.now();
-                  if (!stepStartRef.current[id]) stepStartRef.current[id] = now;
-                  const durationMs =
-                    tl.itemStatus === 'done' || tl.itemStatus === 'error'
-                      ? now - stepStartRef.current[id]
-                      : undefined;
-                  setMessages((prev) => {
-                    const lastIdx = prev.length - 1;
-                    if (
-                      lastIdx < 0 ||
-                      prev[lastIdx].role !== 'assistant' ||
-                      prev[lastIdx].status !== 'streaming'
-                    ) {
-                      return prev;
-                    }
-                    let msg = prev[lastIdx];
-                    if (TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running') {
-                      msg = sealLeadFromMessage(msg, tl.turn);
-                    }
-                    const steps = [...(msg.steps || [])];
-                    const idx = steps.findIndex((s) => s.id === id);
-                    const nextStep = {
-                      id,
-                      kind: tl.kind,
-                      label: tl.label,
-                      // Preserve Thought text when host closes thinking without re-sending detail
-                      detail: tl.detail !== undefined ? tl.detail : steps[idx]?.detail,
-                      toolName: tl.toolName,
-                      turn: tl.turn,
-                      thoughtRole:
-                        tl.thoughtRole ??
-                        (tl.kind === 'thinking'
-                          ? steps[idx]?.thoughtRole ?? 'opening'
-                          : steps[idx]?.thoughtRole),
-                      itemStatus: tl.itemStatus,
-                      durationMs: durationMs ?? steps[idx]?.durationMs
-                    };
-                    if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
-                    else steps.push(nextStep);
-                    const copy = [...prev];
-                    copy[lastIdx] = { ...msg, steps };
-                    return copy;
-                  });
-                  return;
-                }
-                if (delta.reasoning) {
-                  const id = `tl_thinking_${turnNumberRef.current || 1}`;
-                  const now = Date.now();
-                  if (!stepStartRef.current[id]) stepStartRef.current[id] = now;
-                  setMessages((prev) => {
-                    const lastIdx = prev.length - 1;
-                    if (
-                      lastIdx < 0 ||
-                      prev[lastIdx].role !== 'assistant' ||
-                      prev[lastIdx].status !== 'streaming'
-                    ) {
-                      return prev;
-                    }
-                    const msg = prev[lastIdx];
-                    const steps = [...(msg.steps || [])];
-                    const idx = steps.findIndex((s) => s.id === id);
-                    const prevDetail = idx >= 0 ? steps[idx].detail || '' : '';
-                    const nextStep = {
-                      id,
-                      kind: 'thinking',
-                      label: 'Thought',
-                      detail: prevDetail + delta.reasoning,
-                      turn: turnNumberRef.current || 1,
-                      thoughtRole: 'opening' as const,
-                      itemStatus: 'running' as const
-                    };
-                    if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
-                    else steps.push(nextStep);
-                    const copy = [...prev];
-                    copy[lastIdx] = { ...msg, steps };
-                    return copy;
-                  });
-                  return;
-                }
-                if (delta.status !== undefined) {
-                  if (delta.status === 'asking') {
-                    setAwaitingUser(true);
-                  }
-                  setMessages((prev) => {
-                    const lastIdx = prev.length - 1;
-                    if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
-                      const newMsgs = [...prev];
-                      newMsgs[lastIdx] = {
-                        ...newMsgs[lastIdx],
-                        toolStatus: undefined
-                      };
-                      return newMsgs;
-                    }
-                    return prev;
-                  });
-                  return;
-                }
-                if (delta.content) {
-                  if (planPinned) return;
-                  setMessages((prev) => {
-                    const lastIdx = prev.length - 1;
-                    if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
-                      const newMsgs = [...prev];
-                      const msg = newMsgs[lastIdx];
-                      const hasToolStep = (msg.steps || []).some((s) => TOOL_KINDS.has(s.kind));
-                      newMsgs[lastIdx] = {
-                        ...msg,
-                        toolStatus: undefined,
-                        openingLead: undefined,
-                        content: (msg.content || '') + delta.content!
-                      };
-                      return newMsgs;
-                    }
-                    return prev;
-                  });
-                }
-              },
-              () => {
-                setMessages((prev) => {
-                  const lastIdx = prev.length - 1;
-                  if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
-                    const newMsgs = [...prev];
-                    let content = stripFakeToolMarkup(newMsgs[lastIdx].content);
-                    if (/^🔧/.test(content.trim()) && content.length < 80) {
-                      content = '';
-                    }
-                    const prevSteps = newMsgs[lastIdx].steps || [];
-                    const steps = prevSteps.map((s) =>
-                      s.itemStatus === 'running' ? { ...s, itemStatus: 'done' as const } : s
-                    );
-                    const leadLeft = (newMsgs[lastIdx].openingLead || '').trim();
-                    const body = content.trim();
-                    const finalContent = (
-                      leadLeft && body && !body.includes(leadLeft)
-                        ? `${leadLeft}${body}`.trim()
-                        : body || leadLeft
-                    );
-                    newMsgs[lastIdx] = {
-                      ...newMsgs[lastIdx],
-                      status: finalContent ? 'complete' : 'error',
-                      toolStatus: undefined,
-                      openingLead: undefined,
-                      content: finalContent || '(no response)',
-                      steps,
-                      workedDurationMs: Math.max(
-                        0,
-                        Date.now() - (newMsgs[lastIdx].timestamp || Date.now())
-                      )
-                    };
-                    return newMsgs;
-                  }
-                  return prev;
-                });
-              },
-              (err: string) => {
-                setError(err);
-                setMessages((prev) => {
-                  const lastIdx = prev.length - 1;
-                  if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
-                    const newMsgs = [...prev];
-                    const prevSteps = newMsgs[lastIdx].steps || [];
-                    const steps = prevSteps.map((s) =>
-                      s.itemStatus === 'running' ? { ...s, itemStatus: 'error' as const } : s
-                    );
-                    newMsgs[lastIdx] = {
-                      ...newMsgs[lastIdx],
-                      status: 'error',
-                      toolStatus: undefined,
-                      steps,
-                      content: err,
-                      workedDurationMs: Math.max(
-                        0,
-                        Date.now() - (newMsgs[lastIdx].timestamp || Date.now())
-                      )
-                    };
-                    return newMsgs;
-                  }
-                  return prev;
-                });
-              }
+              stream.onDelta,
+              stream.onComplete,
+              stream.onError
             );
           }}
           onQueueMessage={handleQueueMessage}
