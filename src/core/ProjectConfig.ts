@@ -5,6 +5,7 @@
  *
  * **All** project settings and agent-related artifacts live under `.agentk/`:
  * - `settings.json` — project config (provider, permissions, features, …)
+ * - `settings.example.json` — documented starter template (committed)
  * - `plans/` — Plan mode drafts (`plans/tmp/plan_*.md`)
  * - `debug/` — Debug mode sessions (`debug/tmp/debug_*.md`)
  * - `checkpoints/` — rollback index
@@ -12,6 +13,10 @@
  *
  * Do **not** create a parallel `.agent-k/` root. That hyphenated name is legacy
  * only (still read if present). New writes always go to `.agentk/`.
+ *
+ * Priority: `.agentk/settings.json` > VS Code User/Workspace settings > defaults.
+ * Secrets (apiKey / apiKeys / github.token) may appear in the file but should
+ * prefer VS Code SecretStorage / user settings — never commit real keys.
  */
 /** Canonical workspace directory for settings + agent data */
 export const AGENTK_DIR = '.agentk';
@@ -35,8 +40,13 @@ export const PROJECT_CONFIG_FILENAMES = [
   ...PROJECT_CONFIG_LEGACY_FILENAMES,
 ] as const;
 
-/** Keys allowed from project JSON (flat `agent-k.*`) */
+/**
+ * Keys allowed from project JSON (flat `agent-k.*`).
+ * Nested JSON under `.agentk/settings.json` is flattened via `flattenProjectConfig`.
+ * Keep in sync with Settings Hub tabs + ConfigManager defaults.
+ */
 export const PROJECT_CONFIG_KEYS = [
+  // ── Provider / Models ──────────────────────────────────────────────
   'agent-k.provider.type',
   'agent-k.provider.baseUrl',
   'agent-k.provider.model',
@@ -45,30 +55,43 @@ export const PROJECT_CONFIG_KEYS = [
   'agent-k.provider.apiKey',
   'agent-k.provider.apiKeys',
   'agent-k.github.token',
+  // ── Mode / Turns ───────────────────────────────────────────────────
   'agent-k.thinking.effort',
   'agent-k.mode.default',
   'agent-k.maxTurns',
+  'agent-k.debugClassifiers',
+  'agent-k.turnTimeoutMs',
+  'agent-k.plan.forceOnComplex',
+  // ── Permission ─────────────────────────────────────────────────────
   'agent-k.permission.level',
+  'agent-k.permission.denyGlobs',
+  // ── Queue ──────────────────────────────────────────────────────────
   'agent-k.queue.onEnterWhileRunning',
   'agent-k.queue.onStop',
   'agent-k.queue.resynthesizeDebounceMs',
   'agent-k.queue.debounceMs',
+  // ── Context ────────────────────────────────────────────────────────
   'agent-k.context.budget',
   'agent-k.context.readMaxLines',
+  'agent-k.context.maxTurnsA',
+  'agent-k.context.maxTurnsB',
+  // ── Privacy / Telemetry ────────────────────────────────────────────
   'agent-k.telemetry.enabled',
   'agent-k.telemetry.statusBarEnabled',
+  // ── MCP ────────────────────────────────────────────────────────────
   'agent-k.mcp.servers',
   'agent-k.mcp.maxSchemaTokens',
+  // ── Search / Verification / Budget ─────────────────────────────────
   'agent-k.search.localEmbedding',
   'agent-k.verification.testEnabled',
-  'agent-k.turnTimeoutMs',
-  'agent-k.plan.forceOnComplex',
   'agent-k.budget.dailyTokens',
   'agent-k.budget.monthlyTokens',
+  // ── Harness ────────────────────────────────────────────────────────
   'agent-k.harness.enabled',
   'agent-k.harness.verificationFirst',
   'agent-k.harness.prefetchEnabled',
   'agent-k.harness.verificationMicroLoop',
+  // ── Features ───────────────────────────────────────────────────────
   'agent-k.features.browser',
   'agent-k.features.design-mode',
   'agent-k.features.worktree',
@@ -160,28 +183,95 @@ export function parseProjectConfigJson(text: string): ParseProjectConfigResult {
   }
 }
 
-/** Sensible starter document (no secrets) */
+/**
+ * Full starter document for Create Example / new workspaces (no secrets).
+ * Mirrors Settings Hub categories so the JSON tab and example file stay aligned.
+ */
 export function exampleProjectConfig(): Record<string, unknown> {
   return {
     provider: {
       type: 'litellm',
       baseUrl: 'http://127.0.0.1:52415',
       model: 'mlx-community/Qwen3.6-35B-A3B-4bit',
+      // models / availableModels optional — filled by UI or discovery
     },
     thinking: {
       effort: 'medium',
     },
+    mode: {
+      default: 'agent',
+    },
     maxTurns: 25,
+    turnTimeoutMs: 120000,
+    plan: {
+      forceOnComplex: false,
+    },
+    debugClassifiers: false,
     permission: {
       level: 'accept_edits',
+      denyGlobs: [
+        '**/.env*',
+        '**/secrets/**',
+        '**/id_rsa*',
+        '**/*.pem',
+        '**/.git/**',
+        '**/node_modules/**',
+      ],
     },
     queue: {
       onEnterWhileRunning: 'resynthesize',
       onStop: 'keep',
       resynthesizeDebounceMs: 300,
+      debounceMs: 300,
     },
     context: {
+      budget: 100000,
       readMaxLines: 5000,
+      maxTurnsA: 25,
+      maxTurnsB: 15,
+    },
+    harness: {
+      enabled: true,
+      verificationFirst: true,
+      prefetchEnabled: true,
+      verificationMicroLoop: true,
+    },
+    features: {
+      browser: true,
+      'design-mode': true,
+      worktree: true,
+      'agent-review': true,
+      mcp: true,
+      skills: true,
+      'sub-agents': true,
+      memories: true,
+      'inline-completion': false,
+      github: true,
+      'codebase-index': true,
+    },
+    mcp: {
+      maxSchemaTokens: 8000,
+      servers: {
+        'sequential-thinking': {
+          type: 'local',
+          command: ['npx', '-y', '@modelcontextprotocol/server-sequential-thinking'],
+          enabled: true,
+        },
+      },
+    },
+    telemetry: {
+      enabled: true,
+      statusBarEnabled: true,
+    },
+    search: {
+      localEmbedding: false,
+    },
+    verification: {
+      testEnabled: true,
+    },
+    budget: {
+      dailyTokens: 10000000,
+      monthlyTokens: 100000000,
     },
   };
 }

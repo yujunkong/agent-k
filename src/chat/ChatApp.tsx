@@ -356,16 +356,40 @@ export function ChatApp() {
   // Settings / History / Design / Review / Artifacts
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<
-    | 'models'
-    | 'permission'
-    | 'queue'
-    | 'harness'
-    | 'context'
-    | 'mcp'
-    | 'features'
-    | 'privacy'
-  >('models');
+  const SETTINGS_TAB_IDS = [
+    'models',
+    'permission',
+    'queue',
+    'harness',
+    'context',
+    'mcp',
+    'features',
+    'privacy',
+    'json',
+  ] as const;
+  type SettingsTabId = (typeof SETTINGS_TAB_IDS)[number];
+  
+  function readLastSettingsTab(): SettingsTabId {
+    try {
+      const v = localStorage.getItem('agent-k.settings.lastTab');
+      if (v && (SETTINGS_TAB_IDS as readonly string[]).includes(v)) {
+        return v as SettingsTabId;
+      }
+    } catch {
+      /* ignore */
+    }
+    return 'models';
+  }
+  
+  const [settingsTab, setSettingsTab] = useState<SettingsTabId>(readLastSettingsTab);
+  const rememberSettingsTab = useCallback((tab: SettingsTabId) => {
+    setSettingsTab(tab);
+    try {
+      localStorage.setItem('agent-k.settings.lastTab', tab);
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [showDesignMode, setShowDesignMode] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [reviewFindings, setReviewFindings] = useState<ReviewFinding[]>([]);
@@ -880,7 +904,9 @@ export function ChatApp() {
       if (data.type === 'settings.open') {
         if (typeof data.tab === 'string') {
           const tab = data.tab === 'secrets' ? 'models' : data.tab;
-          setSettingsTab(tab as typeof settingsTab);
+          if ((SETTINGS_TAB_IDS as readonly string[]).includes(tab)) {
+            rememberSettingsTab(tab as SettingsTabId);
+          }
         }
         setShowSettings(true);
       }
@@ -3215,6 +3241,7 @@ export function ChatApp() {
           <SettingsPanel
             key={settingsTab}
             initialTab={settingsTab}
+            onTabChange={(tab) => rememberSettingsTab(tab as SettingsTabId)}
             onClose={handleCloseSettings}
           />
         </div>

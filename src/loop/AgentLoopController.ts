@@ -164,6 +164,50 @@ export interface LoopConfig {
     missionContinueNudges: number;
     lastTools: string[];
   }) => void;
+  /**
+   * PHASE-1A diagnostics (cont'd): fires every time the HARB-T26 compaction
+   * pass runs (every 5 turns, or when estimateTotalTokens() crosses 90% of
+   * contextBudget). Reports which level fired (truncate/drop/micro_summary/
+   * full) and how many messages went in vs came out, so a run that goes
+   * quiet or ends early can be checked against "was compaction eating the
+   * transcript" without re-instrumenting the loop each time. Never changes
+   * control flow — observation only, default no-op, same as onClassifyEvent.
+   */
+  onCompaction?: (event: {
+    turn: number;
+    level: 'truncate' | 'drop' | 'micro_summary' | 'full';
+    messagesBefore: number;
+    messagesAfter: number;
+    droppedSections: string[];
+  }) => void;
+  /**
+   * PHASE-1A diagnostics (cont'd): fires each time the loop forces another
+   * tool round because the model stopped empty/weak while missionStillOpen()
+   * is true (see requestMissionContinue). High counts close to
+   * MAX_MISSION_CONTINUES (8) mean the model kept stopping without a real
+   * answer and the loop kept re-prompting it — a different symptom from
+   * onMissionExhausted (that one fires once, at the very end, after this
+   * has already maxed out). Never changes control flow — observation only.
+   */
+  onMissionContinue?: (event: {
+    turn: number;
+    nudgeCount: number;
+    maxNudges: number;
+  }) => void;
+  /**
+   * HARB-T27: fires when the run hits maxTurns while still actively
+   * tool-calling and the loop auto-extends the turn budget instead of
+   * stopping and asking the user to type "계속" (Cursor-style continuation).
+   * Not fired for a genuine max-turns give-up — that still ends the run and
+   * shows the "Max turns reached" message, now after MAX_AUTO_CONTINUE_ROUNDS
+   * extensions instead of just one round.
+   */
+  onAutoContinue?: (event: {
+    round: number;
+    maxRounds: number;
+    previousTotalTurns: number;
+    newTotalTurns: number;
+  }) => void;
   /** Live terminal output for Cursor-style terminal cards in chat */
   onTerminalEvent?: (ev: {
     id: string;
@@ -204,6 +248,13 @@ export interface AgentMessage {
   }>;
   toolCallId?: string;
   name?: string;
+  /**
+   * HARB-T26-FIX2: the loop turn this message was produced in. Needed so
+   * compaction's "protect last N turns" window looks at each message's own
+   * turn instead of assuming every message belongs to the current turn.
+   * system/user seed messages may omit this — they're always protected by role.
+   */
+  turn?: number;
 }
 
 export class AgentLoopController {
@@ -214,6 +265,17 @@ export class AgentLoopController {
   private runTimeoutGuard = new RunTimeoutGuard();
   private timedOut = false;
   private messages: AgentMessage[] = [];
+
+  /**
+   * HARB-T26-FIX2: single choke point for appending to `this.messages` so
+   * every message is stamped with the turn it was actually produced in.
+   * Do not call `this.messages.push(...)` directly — use this instead.
+   */
+  private pushMessage(msg: AgentMessage): void {
+    this.messages.push({ ...msg, turn: msg.turn ?? this._state.currentTurn });
+  }
+  /** HARB-T26-FIX3: wall-clock start of the current loop turn, for accurate onTurnEnd elapsed time */
+  private turnStartedAt = Date.now();
 
   // HARB: 하네스 컴포넌트
   private prefetchEngine: PrefetchEngine;
@@ -245,6 +307,14 @@ export class AgentLoopController {
   /** Empty/weak stop after tools — force mission continuation (capped) */
   private missionContinueNudges = 0;
   private static readonly MAX_MISSION_CONTINUES = 8;
+  /**
+   * HARB-T27: Cursor-style auto-continue. When the run hits maxTurns while
+   * still actively tool-calling (never reached a real final answer), extend
+   * the turn budget and keep going instead of stopping and asking the user
+   * to type "계속". Capped so a genuinely stuck task can't run forever.
+   */
+  private autoContinueRounds = 0;
+  private static readonly MAX_AUTO_CONTINUE_ROUNDS = 3;
   /** edit_file / write_file / delete_file succeeded this run */
   private writeToolsUsedThisRun = false;
   /** Any tool ran this run — subsequent LLM passes use short mid-explore thinking */
@@ -357,6 +427,7 @@ export class AgentLoopController {
     this.writeIntentNudged = false;
     this.continueIntentNudges = 0;
     this.missionContinueNudges = 0;
+    this.autoContinueRounds = 0;
     this.writeToolsUsedThisRun = false;
     this.toolsRanThisRun = false;
     this.planAskQuestionNudged = false;
@@ -388,6 +459,7 @@ export class AgentLoopController {
     this.writeIntentNudged = false;
     this.continueIntentNudges = 0;
     this.missionContinueNudges = 0;
+    this.autoContinueRounds = 0;
     this.writeToolsUsedThisRun = false;
     this.toolsRanThisRun = false;
     this.planAskQuestionNudged = false;
@@ -445,18 +517,18 @@ export class AgentLoopController {
   private async runLoop(): Promise<void> {
     while (this._state.currentTurn < this._state.totalTurns) {
       if (this.abortController?.signal.aborted) {
-        console.warn('[agent-k:exit] reason: aborted');
         this._state.status = this.timedOut ? 'timeout' : 'stopped';
         this.config.onStatus?.(this._state.status);
         return;
       }
-  
+
       this._state.currentTurn++;
+      this.turnStartedAt = Date.now();
       this.bumpRunTimeout();
       this._state.status = 'streaming';
       this.config.onStatus?.(this._state.status);
       this.config.onTurnStart?.(this._state.currentTurn);
-  
+
       // ─── HARB: Prefetch at turn start ─────────────────────
       const lastUserMsg = [...this.messages].reverse().find(m => m.role === 'user');
       if (lastUserMsg) {
@@ -472,7 +544,7 @@ export class AgentLoopController {
           // Prefetch 실패는 치명적이지 않음
         }
       }
-  
+
       // ─── HARB: Routing Heuristics ─────────────────────────
       const routingSignal: RoutingSignal = {
         currentTier: this.currentTier,
@@ -484,33 +556,35 @@ export class AgentLoopController {
       const routingDecision = routeByHeuristics(routingSignal);
       if (routingDecision.tier !== this.currentTier) {
         this.currentTier = routingDecision.tier;
+        // Tier A (smaller/local): more turns — they burn steps on exploration.
+        // Tier B (strong): also allow a long run for complex tasks.
         if (routingDecision.tier === 'A') {
-          this._state.totalTurns = Math.max(this._state.totalTurns, 35);
+          this._state.totalTurns = Math.max(this._state.totalTurns, 25);
         } else if (routingDecision.tier === 'B') {
-          this._state.totalTurns = Math.max(this._state.totalTurns, 35);
+          this._state.totalTurns = Math.max(this._state.totalTurns, 25);
         }
       }
-  
+
       // --- Phase 1: Call model ---
       const response = await this.callModel();
-      if (!response) {
-        console.warn('[agent-k:exit] callModel() returned null/undefined');
-        break;
-      }
-  
-      // --- Phase 2: Process tool calls ---
+      if (!response) break;
+
+      // --- Phase 2: Process tool calls (PromptTurnStructure: ≤12 tools, ≤6 writes) ---
       if (response.toolCalls && response.toolCalls.length > 0) {
         this._state.status = 'tool_executing';
         this.config.onStatus?.(this._state.status);
-  
+
+        // ─── HARB: Turn Structure Validation ────────────────
         const turnValidation = validateTurnStructure(
           response.toolCalls.map(tc => ({ name: tc.name })),
         );
         const { DEFAULT_TURN_STRUCTURE } = await import('../harness/PromptTurnStructure');
         let toolCalls = response.toolCalls;
+        /** Write/tool calls over the limit — still returned as errors so the model knows they did not run */
         const deferredOverLimit: typeof response.toolCalls = [];
-  
         if (!turnValidation.valid) {
+          // Was: silent drop of extra writes → model thought files were created.
+          // Now: keep up to limits for execution; excess get explicit failure results.
           const maxN = DEFAULT_TURN_STRUCTURE.maxToolCallsPerTurn;
           const maxW = DEFAULT_TURN_STRUCTURE.maxWriteToolsPerTurn;
           const writeTools = new Set([
@@ -533,7 +607,7 @@ export class AgentLoopController {
           }
           toolCalls = kept;
           if (toolCalls.length === 0 && deferredOverLimit.length === 0) {
-            this.messages.push({
+            this.pushMessage({
               role: 'assistant',
               content:
                 `Turn structure error: ${turnValidation.errors.join('; ')}. Please use ≤${maxN} tools per turn.`
@@ -542,7 +616,8 @@ export class AgentLoopController {
             continue;
           }
         }
-  
+
+        // Ask / Plan (non-build): strip write tools before timeline — never show "Edit attempted"
         const { isWriteToolName } = await import('../plan/writeGate');
         const planBuild =
           this.config.mode === 'plan' && this.config.planStage === 'build';
@@ -558,13 +633,15 @@ export class AgentLoopController {
           }
           toolCalls = keptMode;
         }
-  
-        this.messages.push({
+
+        // Keep assistant tool_calls in history (OpenAI-style multi-turn)
+        this.pushMessage({
           role: 'assistant',
           content: response.content || '',
           toolCalls: [...toolCalls, ...deferredOverLimit, ...blockedModeWrites]
         });
-  
+
+        // Soft deny for Ask/Plan write attempts — model learns tools are unavailable, UI stays quiet
         for (const tc of blockedModeWrites) {
           const soft = {
             success: false as const,
@@ -573,14 +650,16 @@ export class AgentLoopController {
                 ? `[Ask Mode] "${tc.name}" is unavailable. Answer in Markdown or ask the user to switch to Agent mode. Do not retry write tools.`
                 : `[Plan Mode] "${tc.name}" is unavailable until Approve & Execute. Continue with research/ask_question/plan prose only.`
           };
-          this.messages.push({
+          this.pushMessage({
             role: 'tool',
             toolCallId: tc.id,
             name: tc.name,
             content: JSON.stringify({ error: soft.error })
           });
+          // Intentionally skip onToolCall — no Edit attempted row in the timeline
         }
-  
+
+        // Explicit failures for truncated calls (must not look like success)
         for (const tc of deferredOverLimit) {
           const err = {
             success: false as const,
@@ -589,7 +668,7 @@ export class AgentLoopController {
               `and ${DEFAULT_TURN_STRUCTURE.maxToolCallsPerTurn} total tools. ` +
               `Re-call "${tc.name}" next turn — this invocation did NOT run.`
           };
-          this.messages.push({
+          this.pushMessage({
             role: 'tool',
             toolCallId: tc.id,
             name: tc.name,
@@ -597,20 +676,22 @@ export class AgentLoopController {
           });
           await this.config.onToolResult?.(tc.name, err, tc.id);
         }
-  
+
         if (toolCalls.length === 0) {
+          // Soft-denied Ask/Plan writes already answered — next model turn continues cleanly
           if (blockedModeWrites.length === 0) {
             this.consecutiveFailures++;
           }
           continue;
         }
-  
+
         const { isParallelReadTool, mapPool } = await import('./parallelRead');
-  
+
         const handleToolOutcome = async (
           toolCall: (typeof toolCalls)[0],
           result: ToolOutput
         ): Promise<boolean> => {
+          // returns false if doom-loop should stop the run
           if (
             (toolCall.name === 'edit_file' || toolCall.name === 'write_file') &&
             result.success
@@ -625,7 +706,7 @@ export class AgentLoopController {
                 duration: 0
               });
               if (hookResult.action === 'modify' && hookResult.modifiedResult) {
-                this.messages.push({
+                this.pushMessage({
                   role: 'tool',
                   toolCallId: toolCall.id,
                   name: toolCall.name,
@@ -643,8 +724,8 @@ export class AgentLoopController {
               /* non-fatal */
             }
           }
-  
-          this.messages.push({
+
+          this.pushMessage({
             role: 'tool',
             toolCallId: toolCall.id,
             name: toolCall.name,
@@ -659,7 +740,7 @@ export class AgentLoopController {
                     : {})
                 })
           });
-  
+
           if (!result.success) {
             this.consecutiveFailures++;
           } else {
@@ -672,9 +753,9 @@ export class AgentLoopController {
               this.writeToolsUsedThisRun = true;
             }
           }
-  
+
           await this.config.onToolResult?.(toolCall.name, result, toolCall.id);
-  
+
           this.doomDetector.recordCall(
             toolCall.name,
             toolCall.arguments as Record<string, any>,
@@ -692,12 +773,13 @@ export class AgentLoopController {
           }
           return true;
         };
-  
+
         let i = 0;
         let stopRun = false;
         while (i < toolCalls.length && !stopRun) {
           if (this.abortController?.signal.aborted) break;
-  
+
+          // Batch consecutive read-only tools and run in parallel
           if (isParallelReadTool(toolCalls[i].name)) {
             const batch: typeof toolCalls = [];
             while (
@@ -707,7 +789,7 @@ export class AgentLoopController {
             ) {
               batch.push(toolCalls[i++]);
             }
-  
+
             for (const toolCall of batch) {
               const violation = isDontDoViolation(toolCall.name, this.currentTier);
               if (violation.violation) {
@@ -715,7 +797,7 @@ export class AgentLoopController {
                   success: false,
                   error: violation.reason || `Tool "${toolCall.name}" prohibited`
                 };
-                this.messages.push({
+                this.pushMessage({
                   role: 'tool',
                   toolCallId: toolCall.id,
                   name: toolCall.name,
@@ -735,12 +817,12 @@ export class AgentLoopController {
                 );
               }
             }
-  
+
             const runnable = batch.filter((tc) => {
               const v = isDontDoViolation(tc.name, this.currentTier);
               return !v.violation;
             });
-  
+
             const outcomes = await mapPool(runnable, 8, async (toolCall) => {
               const result = await this.executeTool(
                 toolCall.name,
@@ -748,7 +830,7 @@ export class AgentLoopController {
               );
               return { toolCall, result };
             });
-  
+
             for (const { toolCall, result } of outcomes) {
               const ok = await handleToolOutcome(toolCall, result);
               if (!ok) {
@@ -758,7 +840,8 @@ export class AgentLoopController {
             }
             continue;
           }
-  
+
+          // Write / terminal / other — serial
           const toolCall = toolCalls[i++];
           const violation = isDontDoViolation(toolCall.name, this.currentTier);
           if (violation.violation) {
@@ -766,7 +849,7 @@ export class AgentLoopController {
               success: false,
               error: violation.reason || `Tool "${toolCall.name}" prohibited`
             };
-            this.messages.push({
+            this.pushMessage({
               role: 'tool',
               toolCallId: toolCall.id,
               name: toolCall.name,
@@ -780,7 +863,7 @@ export class AgentLoopController {
             );
             continue;
           }
-  
+
           await this.config.onToolCall?.(
             toolCall.name,
             toolCall.arguments,
@@ -796,60 +879,78 @@ export class AgentLoopController {
             break;
           }
         }
-  
-        if (stopRun) {
-          console.warn('[agent-k:exit] reason: doom_loop');
-          return;
-        }
-  
+        if (stopRun) return;
         this.toolsRanThisRun = true;
+        // Next LLM turn may plan again — allow fresh nudges after tools ran
         this.toolIntentNudged = false;
         this.emptyFinalRetried = false;
         this.wrapUpRetried = false;
         this.wrapUpSimpleRetried = false;
       } else {
-        // No tool calls → assistant response only
+        // No tool calls → assistant response only (end of turn chain for this request)
         const finalContent = response.content || '';
-        this.messages.push({
+        this.pushMessage({
           role: 'assistant',
           content: finalContent
         });
         this._state.status = 'completed';
         this.config.onStatus?.(this._state.status);
         await this.config.onAssistantContent?.(finalContent);
-        console.warn('[agent-k:exit] reason: no_tool_calls (normal completion)');
         return;
       }
-  
-      // ─── Compaction ───
+
+      // ─── HARB-T26: Compaction check (provider model context window) ───
       const compactAt = Math.floor(this.contextBudget * 0.9);
       if (this._state.currentTurn % 5 === 0 || this.estimateTotalTokens() > compactAt) {
         try {
           const ctxMessages: ContextMessage[] = this.messages.map(m => ({
             role: m.role,
             content: m.content,
+            // HARB-T26-FIX: carry tool_call linkage through compaction so
+            // buildProviderMessages() can still pair assistant.tool_calls
+            // with tool.tool_call_id after this pass.
+            toolCalls: m.toolCalls,
+            toolCallId: m.toolCallId,
             metadata: {
-              turn: this._state.currentTurn,
+              // HARB-T26-FIX2: use each message's own turn, not the current
+              // one. Stamping every message with currentTurn made the
+              // "protect last 6 turns" window see the whole transcript as
+              // "recent", so truncate/drop/summary never actually fired.
+              // system/user messages have no turn — markProtected() already
+              // protects them by role, so a fallback here is harmless.
+              turn: m.turn ?? this._state.currentTurn,
               type: m.role === 'tool' ? 'tool_result' : undefined,
               toolName: m.name
             },
           }));
           const compacted = this.compactionEngine.compact(ctxMessages);
-          this.messages = compacted.messages.map((m: any): AgentMessage => {
-            const msg: any = {
-              role: m.role,
-              content: m.content,
-              name: m.metadata?.toolName ?? m.name,
-            };
-            if (m.toolCalls) msg.toolCalls = m.toolCalls;
-            if (m.toolCallId) msg.toolCallId = m.toolCallId;
-            return msg as AgentMessage;
+          const messagesBefore = this.messages.length;
+          this.messages = compacted.messages.map((m): AgentMessage => ({
+            role: m.role as AgentMessage['role'],
+            content: m.content,
+            name: m.metadata?.toolName,
+            // HARB-T26-FIX: without these, every assistant tool-call turn and
+            // every tool result loses its pairing after compaction, which
+            // corrupts the next provider request and can silently end the run.
+            // ContextMessage uses arguments: unknown; these were ToolInput going in.
+            toolCalls: m.toolCalls as AgentMessage['toolCalls'],
+            toolCallId: m.toolCallId,
+            // HARB-T26-FIX2: carry the real turn forward so a later
+            // compaction pass (turn 10, 15, ...) still protects correctly.
+            turn: m.metadata?.turn,
+          }));
+          this.config.onCompaction?.({
+            turn: this._state.currentTurn,
+            level: compacted.level,
+            messagesBefore,
+            messagesAfter: this.messages.length,
+            droppedSections: compacted.droppedSections,
           });
         } catch {
           // Compaction failure is non-fatal
         }
       }
-  
+
       this.config.onTurnEnd?.(this._state.currentTurn, {
         turnNumber: this._state.currentTurn,
         toolCalls: response.toolCalls.map(tc => ({
@@ -860,15 +961,37 @@ export class AgentLoopController {
         })),
         messages: this.messages,
         mode: this.config.mode,
-        startTime: Date.now()
+        // HARB-T26-FIX3: was Date.now() here — that stamps the END of the
+        // turn, not the start, making any elapsed-time diagnostic always
+        // read ~0ms. Use the timestamp captured when the turn began instead.
+        startTime: this.turnStartedAt
       });
     }
-  
-    // while 종료 후
+
     if (this._state.currentTurn >= this._state.totalTurns) {
-      console.warn('[agent-k:exit] reason: Max turns reached');
+      // HARB-T27: reaching here only happens when the last several turns
+      // were still actively tool-calling (the "no tool_calls" branch above
+      // always `return`s early with a real final answer). That means the
+      // model was still working, not stuck empty — so extend the budget and
+      // keep going instead of stopping and making the user type "계속".
+      if (this.autoContinueRounds < AgentLoopController.MAX_AUTO_CONTINUE_ROUNDS) {
+        this.autoContinueRounds++;
+        const modeConfig = modeRegistry.getModeConfig(this.config.mode);
+        const extension = Math.max(modeConfig.maxTurns, 10);
+        const previousTotalTurns = this._state.totalTurns;
+        this._state.totalTurns = previousTotalTurns + extension;
+        this.config.onAutoContinue?.({
+          round: this.autoContinueRounds,
+          maxRounds: AgentLoopController.MAX_AUTO_CONTINUE_ROUNDS,
+          previousTotalTurns,
+          newTotalTurns: this._state.totalTurns,
+        });
+        return this.runLoop();
+      }
+
       this._state.status = 'completed';
       this.config.onStatus?.(this._state.status);
+      // maxTurns: emit best-effort note if no final prose was sent
       const lastAssistant = [...this.messages].reverse().find(
         (m) => m.role === 'assistant' && m.content && !m.toolCalls?.length
       );
@@ -876,7 +999,8 @@ export class AgentLoopController {
         await this.config.onAssistantContent?.(lastAssistant.content);
       } else {
         await this.config.onAssistantContent?.(
-          `Max turns (${this._state.totalTurns}) reached. Type "계속" to resume, or narrow the task.`
+          `Max turns (${this._state.totalTurns}) reached after ${this.autoContinueRounds} automatic ` +
+          `continue${this.autoContinueRounds === 1 ? '' : 's'}. Type "계속" to resume, or narrow the task.`
         );
       }
     }
@@ -935,7 +1059,7 @@ export class AgentLoopController {
           if ((result.reasoning || '').trim()) {
             void this.config.onReasoning?.(result.reasoning);
           }
-          this.messages.push({
+          this.pushMessage({
             role: 'user',
             content: pendingWrites
               ? 'You claimed you would write/create files but emitted no write_file/edit_file. Call those tools now for the files you named. No planning prose — tool_calls only.'
@@ -964,7 +1088,7 @@ export class AgentLoopController {
           (this.config.mode === 'agent' || this.config.planStage === 'build')
         ) {
           this.writeIntentNudged = true;
-          this.messages.push({
+          this.pushMessage({
             role: 'user',
             content:
               'STOP summarizing. Emit write_file and/or edit_file tool_calls for the next plan files now. Do not say "Proceeding to write" — call the tools.'
@@ -1008,9 +1132,9 @@ export class AgentLoopController {
               (last.content || '').trim() === prose
             )
           ) {
-            this.messages.push({ role: 'assistant', content: prose });
+            this.pushMessage({ role: 'assistant', content: prose });
           }
-          this.messages.push({
+          this.pushMessage({
             role: 'user',
             content:
               'Do not stop after explaining. Call the next tools now (write_file/edit_file/read_file/run_terminal_cmd as needed). No more status prose — tool_calls only.'
@@ -1061,7 +1185,7 @@ export class AgentLoopController {
               (last.content || '').trim() === candidateProse
             )
           ) {
-            this.messages.push({ role: 'assistant', content: candidateProse });
+            this.pushMessage({ role: 'assistant', content: candidateProse });
           }
         }
 
@@ -1078,7 +1202,7 @@ export class AgentLoopController {
             (this.config.mode === 'agent' || this.config.planStage === 'build')
           ) {
             // After research tools: force implementation instead of "final analysis, no tools"
-            this.messages.push({
+            this.pushMessage({
               role: 'user',
               content:
                 'Tool results are above. Apply the approved plan now: call write_file/edit_file for the next files. Do not write a summary — emit tool_calls only.'
@@ -1129,7 +1253,7 @@ export class AgentLoopController {
                   (last.content || '').trim() === cont.content
                 )
               ) {
-                this.messages.push({ role: 'assistant', content: cont.content });
+                this.pushMessage({ role: 'assistant', content: cont.content });
               }
             }
             lastReasoning = '';
@@ -1502,7 +1626,7 @@ export class AgentLoopController {
       this.config.mode === 'plan' && this.config.planStage !== 'build'
         ? WRAP_UP_NUDGE_PLAN
         : WRAP_UP_NUDGE;
-    this.messages.push({ role: 'user', content: nudge });
+    this.pushMessage({ role: 'user', content: nudge });
     const retry = await this.streamOnce(this.buildProviderMessages(), [], {
       enableThinking: true,
       thinkingEffort: this.config.thinkingEffort || 'medium'
@@ -1527,7 +1651,7 @@ export class AgentLoopController {
   > {
     if (this.wrapUpSimpleRetried) return undefined;
     this.wrapUpSimpleRetried = true;
-    this.messages.push({ role: 'user', content: WRAP_UP_NUDGE_SIMPLE });
+    this.pushMessage({ role: 'user', content: WRAP_UP_NUDGE_SIMPLE });
     const retry = await this.streamOnce(this.buildProviderMessages(), [], {
       enableThinking: false
     });
@@ -1602,6 +1726,11 @@ export class AgentLoopController {
     | undefined
   > {
     this.missionContinueNudges++;
+    this.config.onMissionContinue?.({
+      turn: this._state.currentTurn,
+      nudgeCount: this.missionContinueNudges,
+      maxNudges: AgentLoopController.MAX_MISSION_CONTINUES,
+    });
     if (lastReasoning) {
       // Keep internal notes in transcript so the next call has context
       const last = this.messages[this.messages.length - 1];
@@ -1611,10 +1740,10 @@ export class AgentLoopController {
           (last.content || '').trim() === lastReasoning
         )
       ) {
-        this.messages.push({ role: 'assistant', content: lastReasoning });
+        this.pushMessage({ role: 'assistant', content: lastReasoning });
       }
     }
-    this.messages.push({ role: 'user', content: this.missionContinueNudge() });
+    this.pushMessage({ role: 'user', content: this.missionContinueNudge() });
     const retry = await this.streamOnce(this.buildProviderMessages(), schemas as any);
     if (retry === null) return null;
     if (retry.toolCalls && retry.toolCalls.length > 0) {
@@ -1634,7 +1763,7 @@ export class AgentLoopController {
     const prose = (retry.content || '').trim();
     if (prose && prose !== '...' && !this.isWeakFinalAnswer(prose)) {
       if (this.missionStillOpen()) {
-        this.messages.push({ role: 'assistant', content: prose });
+        this.pushMessage({ role: 'assistant', content: prose });
         return undefined;
       }
       return { content: prose, toolCalls: [] };

@@ -20,6 +20,13 @@ export interface CompactionResult {
 export interface ContextMessage {
   role: string;
   content: string;
+  /**
+   * HARB-T26-FIX: tool_call linkage must survive compaction, or the next
+   * provider request loses assistant.tool_calls / tool.tool_call_id pairing
+   * (breaks OpenAI-compatible tool-call protocol every 5 turns).
+   */
+  toolCalls?: Array<{ id: string; name: string; arguments: unknown }>;
+  toolCallId?: string;
   metadata?: {
     type?: string;
     turn?: number;

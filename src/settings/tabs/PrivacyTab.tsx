@@ -1,26 +1,69 @@
+/**
+ * Privacy & telemetry.
+ */
 import React, { useState } from 'react';
 import { configManager } from '../../core/ConfigManager';
+import {
+  SettingsActions,
+  SettingsSection,
+  SettingsStatus,
+  SettingsToggle,
+} from '../components/SettingsUI';
+import { persistToHost } from '../persistConfig';
 
 export function PrivacyTab() {
-  const [telemetryEnabled, setTelemetryEnabled] = useState<boolean>(configManager.get('agent-k.telemetry.enabled') !== false);
+  const [telemetryEnabled, setTelemetryEnabled] = useState(
+    configManager.get('agent-k.telemetry.enabled') !== false
+  );
+  const [statusBarEnabled, setStatusBarEnabled] = useState(
+    configManager.get('agent-k.telemetry.statusBarEnabled') !== false
+  );
+  const [status, setStatus] = useState<'idle' | 'saved'>('idle');
 
   const handleSave = () => {
-    configManager.set('agent-k.telemetry.enabled', telemetryEnabled);
+    const values = {
+      'agent-k.telemetry.enabled': telemetryEnabled,
+      'agent-k.telemetry.statusBarEnabled': statusBarEnabled,
+    };
+    configManager.update(values);
+    persistToHost(values);
+    setStatus('saved');
   };
 
   return (
     <div className="settings-tab-content">
-      <h3>Privacy & Telemetry</h3>
-      <div className="settings-field">
-        <label className="checkbox-label">
-          <input type="checkbox" checked={telemetryEnabled} onChange={(e) => setTelemetryEnabled(e.target.checked)} />
-          Enable Telemetry
-        </label>
-        <p className="settings-help">Telemetry helps improve Agent K by sending anonymous usage data.</p>
-      </div>
-      <div className="settings-actions">
-        <button onClick={handleSave} className="settings-btn primary">Save</button>
-      </div>
+      <SettingsSection
+        title="Privacy & telemetry"
+        description="Anonymous product signals only. API keys and file contents are not included in telemetry payloads."
+      >
+        <SettingsToggle
+          label="Enable telemetry"
+          description="Helps improve Agent K with anonymous usage metrics"
+          checked={telemetryEnabled}
+          onChange={(v) => {
+            setTelemetryEnabled(v);
+            setStatus('idle');
+          }}
+        />
+        <SettingsToggle
+          label="Status bar metrics"
+          description="Show lightweight usage indicators in the VS Code status bar"
+          checked={statusBarEnabled}
+          onChange={(v) => {
+            setStatusBarEnabled(v);
+            setStatus('idle');
+          }}
+        />
+      </SettingsSection>
+
+      <SettingsActions>
+        <button type="button" className="settings-btn primary" onClick={handleSave}>
+          Save
+        </button>
+      </SettingsActions>
+      {status === 'saved' ? (
+        <SettingsStatus kind="success">Privacy settings saved.</SettingsStatus>
+      ) : null}
     </div>
   );
 }

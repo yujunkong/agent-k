@@ -4195,7 +4195,8 @@ body.vscode-high-contrast .ak-code__cursor {
   font-size: 14px;
 }
 
-/* ─── Settings overlay (CSS — CSP-safe, no inline styles) ─ */
+/* ─── Settings Hub redesign (append / replace .settings-* block in chat.css) ─── */
+
 .settings-overlay {
   position: absolute;
   inset: 0;
@@ -4205,6 +4206,530 @@ body.vscode-high-contrast .ak-code__cursor {
   background: var(--vscode-editor-background, #1e1e1e);
   border-left: 1px solid var(--ak-chrome-border, rgba(255, 255, 255, 0.12));
   box-shadow: -4px 0 16px rgba(0, 0, 0, 0.35);
+}
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--vscode-sideBar-background, #252526);
+  color: var(--vscode-sideBar-foreground, #ccc);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--vscode-panel-border, #3c3c3c);
+  flex-shrink: 0;
+}
+
+.settings-header__titles {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-header__subtitle {
+  font-size: 12px;
+  opacity: 0.55;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.settings-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-input-border, #3c3c3c);
+  background: var(--vscode-input-background, #3c3c3c);
+  min-width: 140px;
+  max-width: 220px;
+}
+
+.settings-search__icon {
+  opacity: 0.5;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.settings-search__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--vscode-input-foreground, #ccc);
+  font-size: 12px;
+  outline: none;
+}
+
+.settings-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.settings-close:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+  opacity: 1;
+}
+
+.settings-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-nav {
+  width: 148px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--vscode-panel-border, #3c3c3c);
+  padding: 8px 6px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-nav__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-nav__group-label {
+  padding: 4px 8px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.45;
+}
+
+.settings-nav__empty {
+  margin: 12px 8px;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 6px;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.settings-tab:hover {
+  background: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.25));
+}
+
+.settings-tab.active {
+  background: var(--vscode-list-activeSelectionBackground, rgba(0, 127, 212, 0.18));
+  border-left-color: var(--vscode-focusBorder, #007fd4);
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+.tab-icon {
+  font-size: 12px;
+  width: 16px;
+  text-align: center;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 14px 16px 24px;
+}
+
+.settings-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 560px;
+}
+
+.settings-tab-content > h3 {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Sections & fields */
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.28));
+  background: var(--vscode-editor-background, rgba(0, 0, 0, 0.15));
+}
+
+.settings-section__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-section__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-section__desc {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.65;
+}
+
+.settings-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-field__label,
+.settings-field label {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.settings-field__hint {
+  font-size: 11px;
+  opacity: 0.55;
+  line-height: 1.35;
+}
+
+.settings-field input,
+.settings-field select,
+.settings-field textarea {
+  padding: 6px 8px;
+  border: 1px solid var(--vscode-input-border, #3c3c3c);
+  border-radius: 4px;
+  background: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-input-foreground, #ccc);
+  font-size: 12px;
+}
+
+.settings-field input:focus,
+.settings-field select:focus,
+.settings-field textarea:focus {
+  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: -1px;
+}
+
+/* Toggle switch */
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+.settings-toggle.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-toggle__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-toggle__label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.settings-toggle__desc {
+  font-size: 11px;
+  opacity: 0.6;
+  line-height: 1.35;
+}
+
+.settings-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--vscode-input-background, #3c3c3c);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease;
+}
+
+.settings-switch.is-on {
+  background: var(--vscode-button-background, #0e639c);
+}
+
+.settings-switch__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.settings-switch.is-on .settings-switch__knob {
+  transform: translateX(16px);
+}
+
+/* Radio cards */
+.settings-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.28));
+  cursor: pointer;
+}
+
+.settings-radio:hover {
+  background: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.2));
+}
+
+.settings-radio.is-active {
+  border-color: var(--vscode-focusBorder, #007fd4);
+  background: var(--vscode-list-activeSelectionBackground, rgba(0, 127, 212, 0.12));
+}
+
+.settings-radio input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-radio__mark {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 2px solid var(--vscode-foreground, #ccc);
+  opacity: 0.5;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.settings-radio.is-active .settings-radio__mark {
+  border-color: var(--vscode-focusBorder, #007fd4);
+  opacity: 1;
+  box-shadow: inset 0 0 0 3px var(--vscode-focusBorder, #007fd4);
+}
+
+.settings-radio__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-radio__label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.settings-radio__desc {
+  font-size: 11px;
+  opacity: 0.6;
+  line-height: 1.35;
+}
+
+/* Legacy model list / secret rows (Models tab) */
+.settings-model-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.settings-model-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: var(--vscode-input-background, rgba(60, 60, 60, 0.5));
+  font-size: 12px;
+}
+
+.settings-model-list li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.settings-inline-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.settings-inline-add input,
+.settings-inline-add select {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-secret-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.settings-secret-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-stored-badge {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #4ade80;
+  opacity: 0.9;
+}
+
+.settings-btn {
+  align-self: flex-start;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-btn:hover {
+  background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.settings-btn.secondary {
+  background: transparent;
+  border-color: var(--vscode-button-secondaryBackground, #3c3c3c);
+  color: inherit;
+}
+
+.settings-btn.secondary:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.settings-btn--danger {
+  color: #f87171 !important;
+}
+
+.settings-btn--tiny {
+  padding: 2px 8px;
+  font-size: 11px;
+  align-self: center;
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.settings-success,
+.settings-status--success {
+  color: #22c55e;
+  font-size: 12px;
+  margin: 0;
+}
+
+.settings-error,
+.settings-status--error {
+  color: #f87171;
+  font-size: 12px;
+  margin: 0;
+}
+
+.settings-status--info {
+  font-size: 12px;
+  opacity: 0.75;
+  margin: 0;
 }
 
 /* History lives in .chat-rail — keep panel fill without double overlay chrome */

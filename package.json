@@ -132,6 +132,162 @@
     "configuration": {
       "title": "Agent K",
       "properties": {
+      "_comment": "Merge these entries into package.json → contributes.configuration.properties (v2.1). Keys used by Settings Hub redesign + PRD-29 stubs.",
+        "agent-k.permission.denyGlobs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "**/.env*",
+            "**/secrets/**",
+            "**/id_rsa*",
+            "**/*.pem",
+            "**/.git/**",
+            "**/node_modules/**"
+          ],
+          "description": "Glob patterns always denied by the permission gate, regardless of permission level."
+        },
+        "agent-k.context.maxTurnsA": {
+          "type": "integer",
+          "default": 25,
+          "minimum": 5,
+          "maximum": 100,
+          "description": "Max agent turns for stronger (tier A) models."
+        },
+        "agent-k.context.maxTurnsB": {
+          "type": "integer",
+          "default": 15,
+          "minimum": 5,
+          "maximum": 100,
+          "description": "Max agent turns for lighter (tier B) models."
+        },
+        "agent-k.harness.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable harness behaviors around agent turns."
+        },
+        "agent-k.harness.verificationFirst": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prefer verification before broad edits."
+        },
+        "agent-k.harness.prefetchEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable context/tool prefetch."
+        },
+        "agent-k.harness.verificationMicroLoop": {
+          "type": "boolean",
+          "default": true,
+          "description": "Tight verify → fix cycles inside a turn."
+        },
+        "agent-k.context.readMaxLines": {
+          "type": "integer",
+          "default": 5000,
+          "minimum": 100,
+          "maximum": 50000,
+          "description": "Max lines for a single file read tool call."
+        },
+        "agent-k.queue.debounceMs": {
+          "type": "integer",
+          "default": 300,
+          "minimum": 100,
+          "maximum": 5000,
+          "description": "Alias of resynthesizeDebounceMs for queue coalescing."
+        },
+        "agent-k.rules.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Load project rule files matched by agent-k.rules.globs."
+        },
+        "agent-k.rules.globs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "**/.agentk/rules/**/*.md",
+            "**/AGENTS.md",
+            "**/.cursorrules"
+          ],
+          "description": "Glob patterns for project rules injected into agent context."
+        },
+        "agent-k.terminal.timeoutMs": {
+          "type": "integer",
+          "default": 120000,
+          "minimum": 5000,
+          "maximum": 600000,
+          "description": "Wall-clock timeout for a single shell/terminal tool invocation."
+        },
+        "agent-k.terminal.denyPatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["rm -rf /", "mkfs", "dd if=", ":(){ :|:& };:"],
+          "description": "Substring patterns blocked before shell execution."
+        },
+        "agent-k.review.applyPolicy": {
+          "type": "string",
+          "enum": ["ask", "auto", "manual"],
+          "default": "ask",
+          "description": "How Agent Review patches are applied: ask | auto | manual."
+        },
+        "agent-k.review.autoCheckpoint": {
+          "type": "boolean",
+          "default": true,
+          "description": "Create a checkpoint before risky multi-file edits."
+        },
+        "agent-k.features.browser": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable browser automation tools."
+        },
+        "agent-k.features.design-mode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Design Mode overlay."
+        },
+        "agent-k.features.worktree": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable git worktree / Best-of-N."
+        },
+        "agent-k.features.agent-review": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Agent Review loop."
+        },
+        "agent-k.features.mcp": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable MCP client."
+        },
+        "agent-k.features.skills": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Skills system."
+        },
+        "agent-k.features.sub-agents": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable sub-agents (Task)."
+        },
+        "agent-k.features.memories": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Memories (SecretStorage)."
+        },
+        "agent-k.features.inline-completion": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable inline completion."
+        },
+        "agent-k.features.github": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable GitHub agent workflows."
+        },
+        "agent-k.features.codebase-index": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable codebase indexing / @codebase search."
+        },
         "agent-k.provider.type": {
           "type": "string",
           "enum": [

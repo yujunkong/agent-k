@@ -1,79 +1,127 @@
 /**
- * McpTab — shows configured MCP servers (agent-k.mcp.servers) and wiring hints.
- * Connection runs in the extension host on activate / agent-k.mcp.reload.
- * ADDON-T15: exposes the deferred-schema token budget (agent-k.mcp.maxSchemaTokens).
+ * McpTab — configured MCP servers + schema budget.
+ * Connection runs in extension host (activate / agent-k.mcp.reload).
  */
 import React, { useMemo, useState } from 'react';
 import { configManager } from '../../core/ConfigManager';
 import { parseMcpServersMap } from '../../mcp/parseMcpServers';
+import {
+  SettingsActions,
+  SettingsField,
+  SettingsSection,
+  SettingsStatus,
+} from '../components/SettingsUI';
+import { persistToHost } from '../persistConfig';
+
+function postHost(type: string, payload: Record<string, unknown> = {}): void {
+  try {
+    const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+    if (api?.postMessage) {
+      api.postMessage({ type, ...payload });
+      return;
+    }
+  } catch {
+    /* ignore */
+  }
+  window.parent.postMessage({ type, ...payload }, '*');
+}
 
 export function McpTab() {
   const servers = useMemo(() => {
-    const raw =
-      configManager.get('agent-k.mcp.servers') ||
-      // Fallback: defaults mirror package.json (webview may not have VS Code bridge yet)
-      undefined;
+    const raw = configManager.get('agent-k.mcp.servers');
     return parseMcpServersMap(raw);
   }, []);
 
-  const [maxSchemaTokens, setMaxSchemaTokens] = useState<number>(
+  const [maxSchemaTokens, setMaxSchemaTokens] = useState(
     Number(configManager.get('agent-k.mcp.maxSchemaTokens')) || 8000
   );
+  const [status, setStatus] = useState<'idle' | 'saved'>('idle');
 
   const handleSaveBudget = () => {
-    const tokens = Math.min(200000, Math.max(500, Math.floor(maxSchemaTokens) || 8000));
+    const tokens = Math.min(
+      200000,
+      Math.max(500, Math.floor(maxSchemaTokens) || 8000)
+    );
     setMaxSchemaTokens(tokens);
-    configManager.set('agent-k.mcp.maxSchemaTokens', tokens);
+    const values = { 'agent-k.mcp.maxSchemaTokens': tokens };
+    configManager.update(values);
+    persistToHost(values);
+    setStatus('saved');
+  };
+
+  const handleReload = () => {
+    postHost('mcp.reload');
+    // Also try command via host message pattern used elsewhere
+    try {
+      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      api?.postMessage?.({ type: 'command', command: 'agent-k.mcp.reload' });
+    } catch {
+      /* ignore */
+    }
   };
 
   return (
     <div className="settings-tab-content">
-      <h3>MCP Server Configuration</h3>
-      <p className="settings-hint">
-        Edit <code>agent-k.mcp.servers</code> in VS Code Settings (JSON). Continue/OpenCode-style map:
-        command as argv array, <code>enabled</code> flag. Host auto-connects on activate.
-      </p>
-      {servers.length === 0 ? (
-        <p className="settings-empty">
-          No MCP servers configured. Add e.g. searxng under <code>agent-k.mcp.servers</code>, then run
-          command <code>Agent K: MCP Reload</code> (agent-k.mcp.reload).
-        </p>
-      ) : (
-        <ul className="settings-list">
-          {servers.map((s) => (
-            <li key={s.name}>
-              <strong>{s.name}</strong>
-              <div className="settings-muted">
-                {[s.command, ...(s.args || [])].filter(Boolean).join(' ')}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="settings-field">
-        <label>Deferred Schema Token Budget</label>
-        <input
-          type="number"
-          value={maxSchemaTokens}
-          onChange={(e) => setMaxSchemaTokens(parseInt(e.target.value, 10) || 8000)}
-          min={500}
-          max={200000}
-          step={500}
-        />
-        <p className="settings-muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
-          Servers whose tool schema payload estimate exceeds this token budget stay deferred
-          (lazy-loaded) instead of being registered up front. Default 8000.
-        </p>
-        <button onClick={handleSaveBudget} className="settings-btn primary" style={{ marginTop: 8 }}>
-          Save
-        </button>
-      </div>
-      <div className="settings-actions">
-        <p className="settings-muted">
-          Tools register as <code>mcp_&lt;server&gt;_&lt;tool&gt;</code> (e.g.{' '}
-          <code>mcp_searxng_web_search</code>). Use Command Palette → MCP Reload after edits.
-        </p>
-      </div>
+      <SettingsSection
+        title="MCP servers"
+        description="Edit agent-k.mcp.servers in VS Code Settings or Settings → JSON (.agentk/settings.json). Host connects on activate / MCP Reload."
+      >
+        {servers.length === 0 ? (
+          <p className="settings-field__hint" style={{ margin: 0 }}>
+            No servers configured. Add entries under <code>mcp.servers</code>, then
+            reload.
+          </p>
+        ) : (
+          <ul className="settings-model-list">
+            {servers.map((s) => (
+              <li key={s.name}>
+                <span>
+                  <strong>{s.name}</strong>
+                  <span className="settings-field__hint" style={{ display: 'block' }}>
+                    {[s.command, ...(s.args || [])].filter(Boolean).join(' ')}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <SettingsActions>
+          <button type="button" className="settings-btn secondary" onClick={handleReload}>
+            Reload MCP
+          </button>
+        </SettingsActions>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Schema budget"
+        description="ADDON-T15 — servers whose tool schema estimate exceeds this stay deferred (lazy-loaded)."
+      >
+        <SettingsField label="Max schema tokens" hint="500 – 200000">
+          <input
+            type="number"
+            value={maxSchemaTokens}
+            min={500}
+            max={200000}
+            step={500}
+            onChange={(e) => {
+              setMaxSchemaTokens(parseInt(e.target.value, 10) || 8000);
+              setStatus('idle');
+            }}
+          />
+        </SettingsField>
+        <SettingsActions>
+          <button
+            type="button"
+            className="settings-btn primary"
+            onClick={handleSaveBudget}
+          >
+            Save budget
+          </button>
+        </SettingsActions>
+        {status === 'saved' ? (
+          <SettingsStatus kind="success">Schema budget saved.</SettingsStatus>
+        ) : null}
+      </SettingsSection>
     </div>
   );
 }

@@ -1873,6 +1873,95 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             );
           };
         })(),
+        // HARB-T26 diagnostics: fires every compaction pass (every 5 turns, or
+        // >90% context budget). Answers "did compaction eat the transcript
+        // right before this run went quiet" without re-instrumenting later.
+        onCompaction: (() => {
+          const enabled =
+            Boolean(configManager.get('agent-k.debugClassifiers')) ||
+            Boolean(
+              vscode.workspace.getConfiguration('agent-k').get('debugClassifiers')
+            );
+          if (!enabled) return undefined;
+          return (event: {
+            turn: number;
+            level: 'truncate' | 'drop' | 'micro_summary' | 'full';
+            messagesBefore: number;
+            messagesAfter: number;
+            droppedSections: string[];
+          }) => {
+            console.log(
+              `[agent-k:compaction] turn=${event.turn} level=${event.level} ` +
+              `messages=${event.messagesBefore}→${event.messagesAfter} ` +
+              `dropped=${event.droppedSections.length}` +
+              (event.droppedSections.length > 0
+                ? ` :: ${event.droppedSections.slice(0, 5).join(' | ')}${event.droppedSections.length > 5 ? ' …' : ''}`
+                : '')
+            );
+          };
+        })(),
+        // Fires each time the loop force-continues after an empty/weak stop
+        // mid-mission. Counts climbing toward MAX_MISSION_CONTINUES (8) mean
+        // the model kept stopping without a real answer and got re-prompted —
+        // this is the run-up to onMissionExhausted, turn by turn.
+        onMissionContinue: (() => {
+          const enabled =
+            Boolean(configManager.get('agent-k.debugClassifiers')) ||
+            Boolean(
+              vscode.workspace.getConfiguration('agent-k').get('debugClassifiers')
+            );
+          if (!enabled) return undefined;
+          return (event: { turn: number; nudgeCount: number; maxNudges: number }) => {
+            console.log(
+              `[agent-k:mission-continue] turn=${event.turn} nudge=${event.nudgeCount}/${event.maxNudges}`
+            );
+          };
+        })(),
+        // HARB-T27: Cursor-style auto-continue past maxTurns. Always on
+        // (not gated by debugClassifiers) — this is user-facing progress,
+        // not a diagnostic: without it the chat just goes quiet for another
+        // full round of turns and looks stuck.
+        onAutoContinue: (event: {
+          round: number;
+          maxRounds: number;
+          previousTotalTurns: number;
+          newTotalTurns: number;
+        }) => {
+          postTimeline({
+            kind: 'planning',
+            label: `계속 진행 중 (자동 연장 ${event.round}/${event.maxRounds}) — 턴 예산 ${event.previousTotalTurns} → ${event.newTotalTurns}`,
+            status: 'running',
+            id: `tl_autocontinue_${event.round}`,
+            turn: currentTurn
+          });
+          if (
+            Boolean(configManager.get('agent-k.debugClassifiers')) ||
+            Boolean(vscode.workspace.getConfiguration('agent-k').get('debugClassifiers'))
+          ) {
+            console.log(
+              `[agent-k:auto-continue] round=${event.round}/${event.maxRounds} ` +
+              `totalTurns=${event.previousTotalTurns}→${event.newTotalTurns}`
+            );
+          }
+        },
+        // Per-turn summary: which tools ran and how long the turn took.
+        // Answers "was the model actually making progress or repeating
+        // itself" across a long run without re-reading the whole transcript.
+        onTurnEnd: (() => {
+          const enabled =
+            Boolean(configManager.get('agent-k.debugClassifiers')) ||
+            Boolean(
+              vscode.workspace.getConfiguration('agent-k').get('debugClassifiers')
+            );
+          if (!enabled) return undefined;
+          return async (turn: number, context: { toolCalls: Array<{ name: string }>; startTime: number }) => {
+            const elapsedMs = Date.now() - context.startTime;
+            const toolNames = context.toolCalls.map((tc) => tc.name);
+            console.log(
+              `[agent-k:turn] turn=${turn} tools=[${toolNames.join(', ')}] elapsedMs=${elapsedMs}`
+            );
+          };
+        })(),
         // Re-bind ask_question UI on every tool call (new tab / interrupt safe)
         onAskQuestion: (q) => {
           if (this._hostLoopRequestId !== requestId) {
