@@ -1,34 +1,43 @@
-# Agent K
+# Agent-K Mode Auto Classifier (B)
 
-VS Code / Cursor용 로컬·원격 LLM 코딩 에이전트 확장입니다.
-commit test
-## Features
+실제 레포 구조(`yujunkong/agent-k` v2.1) 기준으로 작성됨.
 
-- Agent / Ask / Plan / Debug 모드
-- OpenAI-compatible providers (MLX, LiteLLM, Ollama, LM Studio)
-- OpenCode Zen / OpenCode Go
-- Tool loop: glob, grep, read, edit, terminal, MCP
-- Chat Composer에서 모델 선택
+## 파일 배치
 
-## Requirements
+```
+src/agent/
+  modeClassifier.ts   ← 새로 추가
+  types.ts            ← 기존 Mode 타입 재사용 (수정 불필요)
+  modeRegistry.ts     ← maxTurns 등은 여기 (이미 50으로 바꿨다면 OK)
+```
 
-- VS Code / Cursor `^1.125.0`
-- OpenAI-compatible endpoint 또는 OpenCode API key
+## 적용 방법
 
-## Quick start
+1. `src/agent/modeClassifier.ts` 를 프로젝트에 복사
+2. `ChatApp.tsx` (또는 메시지 전송 핸들러)에서 사용자 메시지 전송 직전 호출
+3. 결정된 mode를 AgentLoopController / HostToolLoop config에 전달
 
-1. Install from VSIX (Extensions → … → Install from VSIX…)
-2. Open the **Agent K** activity bar view
-3. Settings → Models: set provider Base URL / API key → **Test Connection**
-4. Pick a model in the chat Composer
+## 호출 예시
 
-## Settings
+```ts
+import { classifyMode } from '../agent/modeClassifier';
+// 또는 ChatApp 위치에 따라
+// import { classifyMode } from './agent/modeClassifier';
 
-- `agent-k.provider.type` — litellm, openai, anthropic, ollama, lmstudio, opencode-zen, opencode-go
-- `agent-k.provider.baseUrl` — API base URL (no trailing `/v1`)
-- `agent-k.provider.apiKey` — active provider key
-- `agent-k.provider.model` — active model id
+const decision = classifyMode({
+  userMessage: text,
+  previousMode: currentMode,
+  previousWasActive: lastHadToolCalls,
+});
 
-## License
+console.log('[agent-k:mode]', decision);
 
-See repository license.
+// decision.mode 를 loop에 넘김
+const mode = decision.mode;
+```
+
+## Sticky 동작
+
+- 직전 모드가 agent/debug 이고 도구를 쓰고 있었으면 → 명시적 전환 신호 없을 때 유지
+- "계획만", "질문만", "디버깅만", "그만" 등이 있으면 전환
+- 그 외 키워드 휴리스틱 → 낮으면 fallback

@@ -142,7 +142,7 @@ const MODE_CONFIGS: Record<Mode, ModeConfig> = {
     allowedTools: ASK_WHITELIST,
     contextBudget: 50000,
     // Small/local models need many read turns before answering
-    maxTurns: 15,
+    maxTurns: 35,
     description: 'Read-only exploration. No file edits.'
   },
   agent: {
@@ -151,7 +151,7 @@ const MODE_CONFIGS: Record<Mode, ModeConfig> = {
     systemPrompt: MODE_PROMPTS.agent,
     allowedTools: AGENT_WHITELIST,
     contextBudget: 100000,
-    maxTurns: 25,
+    maxTurns: 35,
     description: 'Autonomous implementation. Tools: read, edit, terminal.'
   },
   plan: {
@@ -159,8 +159,8 @@ const MODE_CONFIGS: Record<Mode, ModeConfig> = {
     displayName: 'Plan',
     systemPrompt: MODE_PROMPTS.plan,
     allowedTools: PLAN_WHITELIST,
-    contextBudget: 80000,
-    maxTurns: 15,
+    contextBudget: 200000,
+    maxTurns: 35,
     description: 'Design first. Outputs PLAN.md with Mermaid.'
   },
   debug: {
@@ -169,7 +169,7 @@ const MODE_CONFIGS: Record<Mode, ModeConfig> = {
     systemPrompt: MODE_PROMPTS.debug,
     allowedTools: DEBUG_WHITELIST,
     contextBudget: 80000,
-    maxTurns: 25,
+    maxTurns: 35,
     description: 'Hypothesis → Instrument → Reproduce → Minimal fix.'
   }
 };
