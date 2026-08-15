@@ -2173,6 +2173,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           }
           post('delta', { content: text });
         },
+        onInterimAssistantContent: async (content) => {
+          const full = String(content || '');
+          if (!full.trim()) return;
+          // Tools still running — do not mark the run as having a final answer
+          if (streamedAnswer.length === 0) {
+            post('delta', { content: full });
+            streamedAnswer = full;
+            return;
+          }
+          if (full.startsWith(streamedAnswer) && full.length > streamedAnswer.length) {
+            const rest = full.slice(streamedAnswer.length);
+            post('delta', { content: rest });
+            streamedAnswer = full;
+          }
+        },
         onToolCall: async (name, args, callId) => {
           const kind = toolKind(name);
           const detail = shortDetail(name, args as Record<string, unknown>);
@@ -2207,6 +2222,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             id: `tl_planning_${turn}`,
             turn
           });
+          // Seal body BEFORE the explore row is added — otherwise the plan
+          // markdown is folded into collapsed Thought.
+          if (sealedContentTurn !== turn) {
+            sealedContentTurn = turn;
+            post('tool.start', { toolName: name, turn });
+          }
           postTimeline({
             kind,
             label: `${kindVerb(kind)} · ${name}`,
@@ -2216,11 +2237,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             id,
             turn
           });
-          // Seal mid-turn prose once per turn — not on every parallel tool
-          if (sealedContentTurn !== turn) {
-            sealedContentTurn = turn;
-            post('tool.start', { toolName: name, turn });
-          }
         },
         onTerminalEvent: async (ev) => {
           post('terminal.run', {

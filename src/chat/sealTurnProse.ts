@@ -5,6 +5,7 @@
  * - Later seals while Exploring already has tools → fold into Thought (self-talk)
  */
 import type { ChatMessage } from './types';
+import { looksLikeVisibleTurnProse } from './planPromote';
 
 const TOOL_KINDS = new Set([
   'searching',
@@ -131,16 +132,21 @@ export function sealBodyBeforeTools(
 
   const sealTurn = Math.max(1, currentTurn || 1);
 
-  if (hasExploreToolsThisTurn(msg, sealTurn)) {
-    return foldTextIntoThought(msg, coalesced, sealTurn);
+  // Plan (re)drafts must stay in the bubble — not vanish into collapsed Thought
+  // just because search tools follow in the same turn.
+  if (
+    looksLikeVisibleTurnProse(coalesced) ||
+    !hasExploreToolsThisTurn(msg, sealTurn)
+  ) {
+    return {
+      ...msg,
+      openingLead: undefined,
+      content: '',
+      turnProse: pushProse(msg.turnProse || [], sealTurn, coalesced)
+    };
   }
 
-  return {
-    ...msg,
-    openingLead: undefined,
-    content: '',
-    turnProse: pushProse(msg.turnProse || [], sealTurn, coalesced)
-  };
+  return foldTextIntoThought(msg, coalesced, sealTurn);
 }
 
 /** Prefer explicit turn; else max turn already on steps (agent loop). */

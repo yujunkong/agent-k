@@ -120,6 +120,11 @@ export interface LoopConfig {
   onError?: (error: Error) => void;
   /** Final prose answer for this user request (no more tool_calls) — chat UI stream */
   onAssistantContent?: (content: string) => void | Promise<void>;
+  /**
+   * Mid-turn assistant prose that arrived together with tool_calls.
+   * Not a final answer — must not be treated as run-complete.
+   */
+  onInterimAssistantContent?: (content: string) => void | Promise<void>;
   /** Incremental answer tokens (same cadence as reasoning) — chat UI stream */
   onAssistantDelta?: (delta: string) => void | Promise<void>;
   /** Streaming / final model reasoning (Thought UI) — not mixed into answer */
@@ -641,6 +646,11 @@ export class AgentLoopController {
           toolCalls: [...toolCalls, ...deferredOverLimit, ...blockedModeWrites]
         });
 
+        const interimProse = String(response.content || '').trim();
+        if (interimProse) {
+          await this.config.onInterimAssistantContent?.(interimProse);
+        }
+
         // Soft deny for Ask/Plan write attempts — model learns tools are unavailable, UI stays quiet
         for (const tc of blockedModeWrites) {
           const soft = {
@@ -1033,14 +1043,17 @@ export class AgentLoopController {
         if (result === null) return null;
 
         if (result.toolCalls && result.toolCalls.length > 0) {
-          return { toolCalls: this.normalizeToolCalls(result.toolCalls, result.content || '') };
+          return {
+            content: result.content || '',
+            toolCalls: this.normalizeToolCalls(result.toolCalls, result.content || '')
+          };
         }
 
         const recovered = this.recoverToolCallsFromContent(
           result.content || result.reasoning || ''
         );
         if (recovered.length > 0) {
-          return { toolCalls: recovered };
+          return { content: result.content || '', toolCalls: recovered };
         }
 
         // Reasoning plans "I'll read/write…" but no tool_calls — nudge with tools still on
@@ -1068,13 +1081,16 @@ export class AgentLoopController {
           result = await this.streamOnce(this.buildProviderMessages(), schemas);
           if (result === null) return null;
           if (result.toolCalls && result.toolCalls.length > 0) {
-            return { toolCalls: this.normalizeToolCalls(result.toolCalls, result.content || '') };
+            return {
+              content: result.content || '',
+              toolCalls: this.normalizeToolCalls(result.toolCalls, result.content || '')
+            };
           }
           const recovered2 = this.recoverToolCallsFromContent(
             result.content || result.reasoning || ''
           );
           if (recovered2.length > 0) {
-            return { toolCalls: recovered2 };
+            return { content: result.content || '', toolCalls: recovered2 };
           }
         }
 
@@ -1096,13 +1112,16 @@ export class AgentLoopController {
           result = await this.streamOnce(this.buildProviderMessages(), schemas);
           if (result === null) return null;
           if (result.toolCalls && result.toolCalls.length > 0) {
-            return { toolCalls: this.normalizeToolCalls(result.toolCalls, result.content || '') };
+            return {
+              content: result.content || '',
+              toolCalls: this.normalizeToolCalls(result.toolCalls, result.content || '')
+            };
           }
           const recoveredW = this.recoverToolCallsFromContent(
             result.content || result.reasoning || ''
           );
           if (recoveredW.length > 0) {
-            return { toolCalls: recoveredW };
+            return { content: result.content || '', toolCalls: recoveredW };
           }
         }
 
@@ -1142,13 +1161,16 @@ export class AgentLoopController {
           result = await this.streamOnce(this.buildProviderMessages(), schemas);
           if (result === null) return null;
           if (result.toolCalls && result.toolCalls.length > 0) {
-            return { toolCalls: this.normalizeToolCalls(result.toolCalls, result.content || '') };
+            return {
+              content: result.content || '',
+              toolCalls: this.normalizeToolCalls(result.toolCalls, result.content || '')
+            };
           }
           const recoveredC = this.recoverToolCallsFromContent(
             result.content || result.reasoning || ''
           );
           if (recoveredC.length > 0) {
-            return { toolCalls: recoveredC };
+            return { content: result.content || '', toolCalls: recoveredC };
           }
           const prose2 = (result.content || '').trim();
           if (
@@ -1211,13 +1233,16 @@ export class AgentLoopController {
             const retry = await this.streamOnce(this.buildProviderMessages(), schemas);
             if (retry === null) return null;
             if (retry.toolCalls && retry.toolCalls.length > 0) {
-              return { toolCalls: this.normalizeToolCalls(retry.toolCalls, retry.content || '') };
+              return {
+                content: retry.content || '',
+                toolCalls: this.normalizeToolCalls(retry.toolCalls, retry.content || '')
+              };
             }
             const recoveredWrite = this.recoverToolCallsFromContent(
               retry.content || retry.reasoning || ''
             );
             if (recoveredWrite.length > 0) {
-              return { toolCalls: recoveredWrite };
+              return { content: retry.content || '', toolCalls: recoveredWrite };
             }
             if ((retry.reasoning || '').trim()) {
               void this.config.onReasoning?.(retry.reasoning);
@@ -1312,12 +1337,12 @@ export class AgentLoopController {
     if (this.config.mockResponse) {
       const mock = this.config.mockResponse;
       if (mock.toolCalls && mock.toolCalls.length > 0) {
-        return { toolCalls: mock.toolCalls };
+        return { content: mock.content || '', toolCalls: mock.toolCalls };
       }
       const content = mock.content || '';
       const recovered = this.recoverToolCallsFromContent(content);
       if (recovered.length > 0) {
-        return { toolCalls: recovered };
+        return { content, toolCalls: recovered };
       }
       if (content && this.looksLikeBrokenToolPayload(content)) {
         this.jsonParseFailures++;
@@ -1750,6 +1775,7 @@ export class AgentLoopController {
     if (retry === null) return null;
     if (retry.toolCalls && retry.toolCalls.length > 0) {
       return {
+        content: retry.content || '',
         toolCalls: this.normalizeToolCalls(retry.toolCalls, retry.content || '')
       };
     }
@@ -1757,7 +1783,7 @@ export class AgentLoopController {
       retry.content || retry.reasoning || ''
     );
     if (recovered.length > 0) {
-      return { toolCalls: recovered };
+      return { content: retry.content || '', toolCalls: recovered };
     }
     if ((retry.reasoning || '').trim()) {
       void this.config.onReasoning?.(retry.reasoning);

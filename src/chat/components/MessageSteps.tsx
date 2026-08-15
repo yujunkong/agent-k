@@ -3,6 +3,7 @@ import { FileEditCard } from './FileEditCard';
 import { TerminalRunCard } from './TerminalRunCard';
 import { StreamingMarkdown } from '../StreamingMarkdown';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
+import { looksLikeVisibleTurnProse } from '../planPromote';
 
 /**
  * Curiosity phases (Cursor-style):
@@ -1166,6 +1167,17 @@ export function MessageSteps({
           const payload = { id: note.id, content: text };
           const digIntent =
             looksLikeExploreStart(text) || looksLikeExploreContinue(text);
+
+          // Plan markdown / long structured prose: keep visible, never fold into Thought
+          if (looksLikeVisibleTurnProse(text)) {
+            if (hasExploreTools(cur) && !cur.resolved) {
+              cur.resolved = true;
+              cur.proseAfter.push(payload);
+            } else {
+              cur.leadProse.push(payload);
+            }
+            continue;
+          }
 
           if (looksLikeExploreSettled(text) && hasExploreTools(cur)) {
             cur.resolved = true;

@@ -37,6 +37,13 @@ export function looksLikePlanDraft(md: string): boolean {
   return hasH1 && headings >= 2;
 }
 
+/** Mid-turn prose that should stay visible — not folded into collapsed Thought. */
+export function looksLikeVisibleTurnProse(text: string): boolean {
+  if (looksLikePlanDocument(text) || looksLikePlanDraft(text)) return true;
+  const t = (text || '').trim();
+  return t.length >= 280 && /^#{1,3}\s/m.test(t);
+}
+
 function normalizePlanKey(text: string): string {
   return text.replace(/\s+/g, ' ').trim().toLowerCase();
 }
