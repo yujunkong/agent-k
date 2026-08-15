@@ -1170,6 +1170,7 @@ export class AgentLoopController {
         if (candidateProse && candidateProse !== '...') {
           const canFinish =
             !hadToolsAlready ||
+            this.looksLikeClosingSummary(candidateProse) ||
             (!this.isWeakFinalAnswer(candidateProse) && !this.missionStillOpen());
           if (canFinish) {
             if (lastReasoning) {
@@ -1594,6 +1595,7 @@ export class AgentLoopController {
 
   private looksLikeClosingSummaryImpl(prose: string): boolean {
     const t = (prose || '').trim();
+    if (this.looksLikeTaskHandoff(t)) return true;
     if (t.length < 80) return false;
     const hasStructure =
       /^#{1,3}\s/m.test(t) ||
@@ -1910,8 +1912,9 @@ export class AgentLoopController {
 
   /** Detect plan-only reasoning/prose that should have emitted tools */
   private reasoningIntendsTools(text: string): boolean {
+    const t = (text || '').replace(/진행\s*가능(?:합니다)?/g, '');
     return /read_file|list_dir|codebase_search|\bgrep\b|\bglob\b|edit_file|write_file|todo_write|ask_question|in parallel|let me (read|search|open|check|fix|proceed|write|create|update|start|implement)|i('ll| will) (read|search|open|fix|check|proceed|write|create|update|implement|add|start)|proceed(ing)? to (write|create|edit|implement)|writing (the )?files?|create(ing)? .{0,80}\.(rs|ts|tsx|js|py|toml|md)\b|읽어|살펴|확인하|수정하|고치|분석하|파악하|진행하|진행합|작성하|작성을|작성할|생성하|생성을|생성할|구현하|구현을|구현할|시작하|시작합니다|파일을 읽|파일을\s*(작성|생성|저장|만들)|병렬로 읽|먼저 .{0,80}(읽|확인|파악|수정|진행|작성|생성)|이어서|다음으로|이제 .{0,40}(읽|확인|작성|생성|구현|시작)/i.test(
-      text
+      t
     );
   }
 
@@ -1922,8 +1925,31 @@ export class AgentLoopController {
     );
   }
 
+  /**
+   * Current slice is done — "다음 작업으로 X 진행 가능합니다" is a handoff,
+   * not "I will keep implementing now". Must not force another tool round.
+   */
+  private looksLikeTaskHandoff(text: string): boolean {
+    const t = (text || '').trim();
+    if (!t) return false;
+    if (
+      /(이제|바로)\s*(작성|생성|구현|수정)|will now (write|implement|create)|proceeding to (write|implement)/i.test(
+        t
+      )
+    ) {
+      return false;
+    }
+    return /진행\s*가능(?:합니다)?|다음\s*작업으로.{0,60}가능|이어서\s*(?:진행|작업)\s*가능|다음으로\s*(?:넘어가|진행)\s*가능|ready to (?:proceed|continue) (?:to|with)|can proceed to/i.test(
+      t
+    );
+  }
+
   /** After tools: model narrates next work instead of calling tools */
   private claimsContinueWork(text: string): boolean {
+    if (this.looksLikeTaskHandoff(text)) {
+      this.emitClassifyEvent('claimsContinueWork', text, false);
+      return false;
+    }
     const result =
       this.claimsPendingFileWrites(text) ||
       this.reasoningIntendsTools(text) ||

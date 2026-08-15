@@ -15,6 +15,9 @@ import type { FileEditPreview, TerminalRunPreview } from '../types';
  *   Thinking only → "Thinking"
  */
 
+/** Live timeline row while Plan V2 JSON is generated after clarifying questions */
+export const PLAN_V2_GENERATE_STEP_ID = 'tl_plan_v2_generate';
+
 export interface MessageStep {
   id: string;
   kind: string;
@@ -70,6 +73,13 @@ const STEPS_MUTED = 'var(--vscode-descriptionForeground, #9d9d9d)';
 const THOUGHT_DISPLAY_MAX = 16000;
 /** Exploring mid-Thought — keep the nested pane short */
 const MID_THOUGHT_DISPLAY_MAX = 900;
+
+function isPlanGenerateStep(s: MessageStep): boolean {
+  return (
+    s.id === PLAN_V2_GENERATE_STEP_ID ||
+    /계획 생성|Creating plan|Created plan|Failed to create plan/.test(s.label || '')
+  );
+}
 
 function inferTurn(step: MessageStep): number {
   if (typeof step.turn === 'number' && step.turn > 0) return step.turn;
@@ -393,6 +403,11 @@ function summarizeActions(steps: MessageStep[]): string {
 }
 
 function formatThoughtTitle(th: MessageStep, live: boolean): string {
+  if (isPlanGenerateStep(th)) {
+    if (live && th.itemStatus === 'running') return 'Creating plan';
+    if (th.itemStatus === 'error') return 'Failed to create plan';
+    return 'Created plan';
+  }
   if (live && th.itemStatus === 'running') return 'Thinking';
   const ms = th.durationMs;
   if (ms != null && ms >= 1000) {
@@ -1016,8 +1031,17 @@ export function MessageSteps({
 }: MessageStepsProps) {
   const groups = useMemo(() => {
     const map = new Map<number, MessageStep[]>();
+    let maxOther = 0;
     for (const s of steps) {
-      const t = inferTurn(s);
+      if (isPlanGenerateStep(s)) continue;
+      maxOther = Math.max(maxOther, inferTurn(s));
+    }
+    for (const s of steps) {
+      const t = isPlanGenerateStep(s)
+        ? typeof s.turn === 'number' && s.turn > maxOther
+          ? s.turn
+          : maxOther + 1
+        : inferTurn(s);
       if (!map.has(t)) map.set(t, []);
       map.get(t)!.push(s);
     }
@@ -1501,6 +1525,10 @@ export function MessageSteps({
   );
   const showPlanningTail =
     Boolean(isStreaming) && !showLiveProse && !timelineBusy;
+  const planGenRunning = steps.some(
+    (s) => isPlanGenerateStep(s) && s.itemStatus === 'running'
+  );
+  const planningTailTitle = planGenRunning ? 'Creating plan' : 'Planning next moves';
 
   return (
     <div
@@ -1554,7 +1582,9 @@ export function MessageSteps({
         const actionHasError = actions.some((a) => a.itemStatus === 'error');
         const actionSummary = summarizeActions(actions);
 
-        const thoughtExpanded = thoughtLive || (openThought[p.id] ?? false);
+        const thoughtExpanded =
+          (thoughtLive && !(th && isPlanGenerateStep(th))) ||
+          (openThought[p.id] ?? false);
         const exploreExpanded = openExplore[p.id] ?? false;
         const actionExpanded = actionLive || (openAction[p.id] ?? false);
 
@@ -1715,7 +1745,7 @@ export function MessageSteps({
       {/* Chronological tail only — never inject above earlier steps */}
       {!phases.length && isStreaming && !showLiveProse ? (
         <ChevronRow
-          title="Planning next moves"
+          title={planningTailTitle}
           expanded={false}
           live
           onToggle={() => {}}
@@ -1724,7 +1754,7 @@ export function MessageSteps({
 
       {phases.length > 0 && showPlanningTail ? (
         <ChevronRow
-          title="Planning next moves"
+          title={planningTailTitle}
           expanded={false}
           live
           onToggle={() => {}}

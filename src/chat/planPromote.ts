@@ -149,6 +149,24 @@ export function extractPlanMarkdownFromMessage(
   return pickBestPlanParts(parts);
 }
 
+/** Plan markdown that should stay visible under the tool timeline (not only Thought). */
+export function visiblePlanProseFromMessage(
+  msg: ChatMessage | undefined | null
+): string {
+  if (!msg || msg.role !== 'assistant') return '';
+  const fromContent = String(msg.content || '').trim();
+  if (looksLikePlanDocument(fromContent) || looksLikePlanDraft(fromContent)) {
+    return fromContent;
+  }
+  for (const p of msg.turnProse || []) {
+    const t = String(p.content || '').trim();
+    if (looksLikePlanDocument(t) || looksLikePlanDraft(t)) return t;
+  }
+  const joined = extractPlanMarkdownFromMessage(msg);
+  if (looksLikePlanDocument(joined) || looksLikePlanDraft(joined)) return joined;
+  return '';
+}
+
 /** Newest complete assistant that looks like a plan */
 export function findLatestPlanMarkdown(messages: ChatMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {

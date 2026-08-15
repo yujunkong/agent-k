@@ -39,6 +39,8 @@ interface ComposerProps {
   isStreaming: boolean;
   /** Host blocked on ask_question — show Waiting… instead of Streaming… */
   isAwaitingUser?: boolean;
+  /** Plan V2 generation after clarifying questions */
+  isGeneratingPlan?: boolean;
   /** Mode pill (Cursor: left of model) */
   mode: Mode;
   onModeChange: (mode: Mode) => void;
@@ -149,6 +151,7 @@ export function Composer({
   onResynthesize,
   isStreaming,
   isAwaitingUser = false,
+  isGeneratingPlan = false,
   mode,
   onModeChange,
   modeLabels,
@@ -696,6 +699,9 @@ export function Composer({
   const getPlaceholder = () => {
     if (isAwaitingUser) {
       return 'Waiting for your answer…';
+    }
+    if (isGeneratingPlan) {
+      return 'Creating plan…';
     }
     if (isStreaming) {
       return 'Streaming… (Enter: queue · ⌘/Ctrl+Enter: interrupt)';

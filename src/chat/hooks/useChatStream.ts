@@ -287,6 +287,9 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
           case 'complete':
             finish(() => onComplete());
             break;
+          case 'stopped':
+            finish(() => onComplete());
+            break;
           case 'error':
             finish(() =>
               onError(

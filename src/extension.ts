@@ -253,6 +253,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private _hostLoopAbort?: AbortController;
   /** Serialize chat.send so interrupt/new-tab cannot interleave two loops */
   private _hostSendChain: Promise<void> = Promise.resolve();
+  /** In-flight Plan V2 LLM generations, keyed by webview requestId */
+  private _planV2Aborts = new Map<string, AbortController>();
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -283,6 +285,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.onDidDispose(() => {
       if (this._view === webviewView) {
         RuntimeServices.setAskQuestionNotifier(undefined);
+        this.abortPlanV2Generate();
+        this.abortHostChatLoop();
         this._view = undefined;
         projectConfigPostToWebview = undefined;
       }
@@ -517,6 +521,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Agent/Plan/Debug: host-mediated tool loop (webview cannot run fs tools)
     if (message.type === 'chat.send' && message.requestId != null) {
       // Abort current wait immediately, then run next send after prior promise settles
+      this.abortPlanV2Generate();
       this.abortHostChatLoop();
       this._hostSendChain = this._hostSendChain
         .catch(() => undefined)
@@ -529,6 +534,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     if (message.type === 'chat.stop') {
       this.abortHostChatLoop(message.requestId != null ? String(message.requestId) : undefined);
+      return;
+    }
+    if (message.type === 'plan.v2.cancel' && message.requestId != null) {
+      this.abortPlanV2Generate(String(message.requestId));
       return;
     }
     // ask_question answer from ClarifyingQuestions (host waits on RuntimeServices)
@@ -588,62 +597,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // than special-casing CORS in the webview (which can't be fixed
     // client-side; the server would have to add the header itself).
     if (message.type === 'plan.v2.generate' && message.requestId != null) {
-      void (async () => {
-        const requestId = String(message.requestId);
-        const post = (payload: Record<string, unknown>) =>
-          void this._view?.webview.postMessage({ type: 'plan.v2.generate.result', requestId, ...payload });
-        try {
-          const cfg = vscode.workspace.getConfiguration('agent-k');
-          const baseUrl =
-            (message.baseUrl != null ? String(message.baseUrl) : undefined) ||
-            cfg.get<string>('provider.baseUrl') ||
-            'http://127.0.0.1:52415';
-          const model =
-            (message.model != null ? String(message.model) : undefined) ||
-            cfg.get<string>('provider.model') ||
-            'mlx-community/Qwen3.6-35B-A3B-4bit';
-          const apiKey =
-            message.apiKey != null ? String(message.apiKey) : cfg.get<string>('provider.apiKey') || undefined;
-          const providerType = String(
-            message.providerType || cfg.get('provider.type') || 'litellm'
-          ) as 'litellm' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'opencode-zen' | 'opencode-go';
-
-          const { LiteLLMProvider } = await import('./providers/LiteLLMProvider');
-          const { LiteLLMPlanModel } = await import('./plan/v2/LiteLLMPlanModel');
-          const { PlanV2Generator } = await import('./plan/v2/PlanV2Generator');
-
-          const provider = new LiteLLMProvider({
-            id: `plan-v2-${requestId}`,
-            name: 'Agent K Plan V2',
-            type: providerType,
-            baseUrl,
-            apiKey,
-            model
-          });
-          const planModel = new LiteLLMPlanModel(provider, { model });
-          const folder = vscode.workspace.workspaceFolders?.[0];
-          const generator = new PlanV2Generator(planModel, async (relativePath: string) => {
-            if (!folder) return false;
-            const segments = resolveWorkspaceRelativeSegments(relativePath, folder);
-            if (!segments) return false;
-            try {
-              await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, ...segments));
-              return true;
-            } catch {
-              return false;
-            }
-          });
-
-          const result = await generator.generate({
-            goal: String(message.goal || ''),
-            researchContext: String(message.researchContext || ''),
-            rejectionFeedback: message.rejectionFeedback != null ? String(message.rejectionFeedback) : undefined
-          });
-          post({ result });
-        } catch (error) {
-          post({ error: error instanceof Error ? error.message : String(error) });
-        }
-      })();
+      // Stop any research AgentLoop first, then generate — never overlap.
+      this.abortHostChatLoop();
+      this._hostSendChain = this._hostSendChain
+        .catch(() => undefined)
+        .then(() => this.runPlanV2Generate(message));
       return;
     }
     // Persist plan draft → <workspace>/.agentk/plans/tmp/plan_<hash>.md
@@ -1339,14 +1297,128 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (requestId && this._hostLoopRequestId && requestId !== this._hostLoopRequestId) {
       return;
     }
+    const activeId = this._hostLoopRequestId;
     this._hostLoop?.stop();
     this._hostLoopAbort?.abort();
+    if (activeId && this._view) {
+      void this._view.webview.postMessage({
+        type: 'chat.stream',
+        requestId: activeId,
+        event: 'stopped'
+      });
+    }
     this._hostLoop = undefined;
     this._hostLoopAbort = undefined;
     this._hostLoopRequestId = undefined;
     // Unstick ask_question / reproduce waiters
     RuntimeServices.cancelQuestion('chat stopped');
     RuntimeServices.cancelReproduce();
+  }
+
+  private abortPlanV2Generate(requestId?: string): void {
+    if (requestId) {
+      const ac = this._planV2Aborts.get(requestId);
+      ac?.abort();
+      this._planV2Aborts.delete(requestId);
+      return;
+    }
+    for (const ac of this._planV2Aborts.values()) ac.abort();
+    this._planV2Aborts.clear();
+  }
+
+  private isAbortError(error: unknown): boolean {
+    if (!error) return false;
+    if (typeof error === 'object' && error !== null && 'name' in error) {
+      const name = String((error as { name?: string }).name || '');
+      if (name === 'AbortError') return true;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return /aborted|AbortError/i.test(message);
+  }
+
+  /**
+   * Plan V2 LLM generation. Always runs after the current AgentLoop chain
+   * so research turns cannot keep posting after the webview has moved on.
+   */
+  private async runPlanV2Generate(message: any): Promise<void> {
+    const requestId = String(message.requestId);
+    const post = (payload: Record<string, unknown>) =>
+      void this._view?.webview.postMessage({ type: 'plan.v2.generate.result', requestId, ...payload });
+
+    this.abortPlanV2Generate();
+    const abort = new AbortController();
+    this._planV2Aborts.set(requestId, abort);
+
+    try {
+      if (abort.signal.aborted) {
+        post({ error: 'Plan generation cancelled.', aborted: true });
+        return;
+      }
+      const cfg = vscode.workspace.getConfiguration('agent-k');
+      const baseUrl =
+        (message.baseUrl != null ? String(message.baseUrl) : undefined) ||
+        cfg.get<string>('provider.baseUrl') ||
+        'http://127.0.0.1:52415';
+      const model =
+        (message.model != null ? String(message.model) : undefined) ||
+        cfg.get<string>('provider.model') ||
+        'mlx-community/Qwen3.6-35B-A3B-4bit';
+      const apiKey =
+        message.apiKey != null ? String(message.apiKey) : cfg.get<string>('provider.apiKey') || undefined;
+      const providerType = String(
+        message.providerType || cfg.get('provider.type') || 'litellm'
+      ) as 'litellm' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'opencode-zen' | 'opencode-go';
+
+      const { LiteLLMProvider } = await import('./providers/LiteLLMProvider');
+      const { LiteLLMPlanModel } = await import('./plan/v2/LiteLLMPlanModel');
+      const { PlanV2Generator } = await import('./plan/v2/PlanV2Generator');
+
+      if (abort.signal.aborted) {
+        post({ error: 'Plan generation cancelled.', aborted: true });
+        return;
+      }
+
+      const provider = new LiteLLMProvider({
+        id: `plan-v2-${requestId}`,
+        name: 'Agent K Plan V2',
+        type: providerType,
+        baseUrl,
+        apiKey,
+        model
+      });
+      const planModel = new LiteLLMPlanModel(provider, { model, signal: abort.signal });
+      const folder = vscode.workspace.workspaceFolders?.[0];
+      const generator = new PlanV2Generator(planModel, async (relativePath: string) => {
+        if (!folder) return false;
+        const segments = resolveWorkspaceRelativeSegments(relativePath, folder);
+        if (!segments) return false;
+        try {
+          await vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, ...segments));
+          return true;
+        } catch {
+          return false;
+        }
+      });
+
+      const result = await generator.generate({
+        goal: String(message.goal || ''),
+        researchContext: String(message.researchContext || ''),
+        rejectionFeedback: message.rejectionFeedback != null ? String(message.rejectionFeedback) : undefined
+      });
+      if (abort.signal.aborted) {
+        post({ error: 'Plan generation cancelled.', aborted: true });
+        return;
+      }
+      post({ result });
+    } catch (error) {
+      if (abort.signal.aborted || this.isAbortError(error)) {
+        post({ error: 'Plan generation cancelled.', aborted: true });
+        return;
+      }
+      post({ error: error instanceof Error ? error.message : String(error) });
+    } finally {
+      this._planV2Aborts.delete(requestId);
+    }
   }
 
   /**

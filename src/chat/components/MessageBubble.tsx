@@ -6,6 +6,7 @@ import { MessageSteps } from './MessageSteps';
 import { FileEditCard } from './FileEditCard';
 import { IconCopy, IconEdit, IconFork } from './Icons';
 import { FileTypeIcon } from './FileTypeIcon';
+import { visiblePlanProseFromMessage } from '../planPromote';
 
 interface MessageBubbleProps {
   message: any;
@@ -187,8 +188,10 @@ export function MessageBubble({
     .map((p: { content: string }) => String(p.content || '').trim())
     .filter(Boolean)
     .join('\n\n');
+  const planBody = visiblePlanProseFromMessage(message);
   const assistantBodyText =
     displayContent.trim() ||
+    planBody ||
     (stepsDone && !streamBody && !hasSteps ? sealedProseFallback : '');
   const showAssistantBody = Boolean(isAssistant && assistantBodyText);
   const missionAborted =

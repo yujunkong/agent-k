@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { MessageBubble } from './components/MessageBubble';
+import { PLAN_V2_GENERATE_STEP_ID } from './components/MessageSteps';
 import { Composer } from './components/Composer';
 import { ChangedFilesBar } from './components/ChangedFilesBar';
 import type { CheckpointSummary } from './components/ChangedFilesBar';
@@ -339,6 +340,8 @@ export function ChatApp() {
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestion[]>([]);
   /** True while host is blocked on ask_question — Composer shows Waiting… not Streaming… */
   const [awaitingUser, setAwaitingUser] = useState(false);
+  /** Plan V2 JSON generation after questions — keep timeline live */
+  const [generatingPlan, setGeneratingPlan] = useState(false);
   /** Prefill composer after Stop on a user bubble */
   const [composerSeed, setComposerSeed] = useState<{
     text: string;
@@ -497,6 +500,8 @@ export function ChatApp() {
   sessionIdRef.current = sessionId;
   const planFileExistsResolversRef = useRef(new Map<string, { resolve: (exists: boolean) => void; reject: (error: Error) => void; }>());
   const planV2GenerateResolversRef = useRef(new Map<string, { resolve: (result: PlanV2GenerationResult) => void; reject: (error: Error) => void; }>());
+  const planV2TimedOutRef = useRef(new Set<string>());
+  const planV2ActiveRequestRef = useRef<string | null>(null);
   const showPlanReviewRef = useRef(showPlanReview);
   showPlanReviewRef.current = showPlanReview;
   const showClarifyingRef = useRef(showClarifying);
@@ -1159,16 +1164,43 @@ export function ChatApp() {
         return;
       }
       const requestId = `plan_v2_${uuidv4()}`;
+      planV2ActiveRequestRef.current = requestId;
       // Generation can involve several LLM round-trips (attempts) against
       // a possibly-slow local model -- give it real headroom, well above
       // the single-request timeout used for file-existence checks.
       const timeout = window.setTimeout(() => {
         planV2GenerateResolversRef.current.delete(requestId);
-        reject(new Error('Plan generation timed out.'));
+        planV2TimedOutRef.current.add(requestId);
+        try {
+          api.postMessage({ type: 'plan.v2.cancel', requestId });
+        } catch {
+          /* ignore */
+        }
+        if (planV2ActiveRequestRef.current === requestId) {
+          planV2ActiveRequestRef.current = null;
+        }
+        reject(
+          new Error(
+            'Plan 생성이 180초를 초과해 중단했습니다. 호스트 요청을 취소했습니다. 이미 생성이 끝나 있으면 잠시 후 자동으로 반영됩니다.'
+          )
+        );
       }, 180000);
       planV2GenerateResolversRef.current.set(requestId, {
-        resolve: (result) => { window.clearTimeout(timeout); resolve(result); },
-        reject: (error) => { window.clearTimeout(timeout); reject(error); }
+        resolve: (result) => {
+          window.clearTimeout(timeout);
+          planV2TimedOutRef.current.delete(requestId);
+          if (planV2ActiveRequestRef.current === requestId) {
+            planV2ActiveRequestRef.current = null;
+          }
+          resolve(result);
+        },
+        reject: (error) => {
+          window.clearTimeout(timeout);
+          if (planV2ActiveRequestRef.current === requestId) {
+            planV2ActiveRequestRef.current = null;
+          }
+          reject(error);
+        }
       });
       api.postMessage({
         type: 'plan.v2.generate',
@@ -1183,6 +1215,19 @@ export function ChatApp() {
       });
     });
   }, [providerType, providerBaseUrl, providerApiKey, providerModel]);
+
+  useEffect(() => {
+    return () => {
+      const id = planV2ActiveRequestRef.current;
+      if (!id) return;
+      try {
+        const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        api?.postMessage?.({ type: 'plan.v2.cancel', requestId: id });
+      } catch {
+        /* ignore */
+      }
+    };
+  }, []);
 
   // ─── Plan mode lifecycle (RW-C5-01) ───────────────────
   useEffect(() => {
@@ -1286,6 +1331,42 @@ export function ChatApp() {
     [planController]
   );
 
+  const commitPlanV2Result = useCallback(
+    async (result: PlanV2GenerationResult, opts?: { late?: boolean }) => {
+      if (!result.ok || !result.plan) return false;
+      const state = planV2Adapter.session.getState();
+      await planV2Adapter.acceptGeneratedPlan(result.plan, {
+        attempts: result.attempts,
+        failures: result.failures,
+        researchContext: state.researchFindings
+      });
+      const rendered = planV2Adapter.getFullPlanContext();
+      const summary = buildPlanChatSummary(rendered);
+      const content = opts?.late
+        ? `Plan 생성이 타임아웃 이후 완료되어 반영했습니다.\n\n${summary}`
+        : summary;
+      setMessages((prev) => {
+        const next = [
+          ...prev,
+          {
+            id: uuidv4(),
+            role: 'assistant' as const,
+            content,
+            timestamp: Date.now(),
+            status: 'complete' as const
+          }
+        ];
+        messagesRef.current = next;
+        return next;
+      });
+      setPlanStage('review');
+      setShowPlanReview(true);
+      setError(null);
+      return true;
+    },
+    [planV2Adapter]
+  );
+
   /** Editor CodeLens / title: Build or Open Review on plan_*.md */
   useEffect(() => {
     const onMsg = (event: MessageEvent) => {
@@ -1311,6 +1392,15 @@ export function ChatApp() {
             resolver.reject(new Error(String(data.error)));
           } else {
             resolver.resolve(data.result as PlanV2GenerationResult);
+          }
+          return;
+        }
+        if (planV2TimedOutRef.current.has(requestId)) {
+          planV2TimedOutRef.current.delete(requestId);
+          if (data.aborted || data.error) return;
+          const late = data.result as PlanV2GenerationResult;
+          if (late?.ok && late.plan) {
+            void commitPlanV2Result(late, { late: true });
           }
         }
         return;
@@ -1418,7 +1508,7 @@ export function ChatApp() {
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
-  }, [planController, promotePlanToReview, planV2Adapter, requestPlanV2]);
+  }, [planController, promotePlanToReview, planV2Adapter, requestPlanV2, commitPlanV2Result]);
 
   /**
    * Recovery: PLAN is visible in chat but stage stuck on Plan —
@@ -1637,6 +1727,7 @@ export function ChatApp() {
     let sawProse = false;
     /** After first tool call, further content is the final answer (not the opening lead) */
     let toolsStarted = false;
+    let planPinned = false;
 
     const TOOL_KINDS = new Set([
       'searching',
@@ -1651,7 +1742,15 @@ export function ChatApp() {
       msg: ChatMessage,
       explicitTurn?: number | null
     ): ChatMessage => {
-      return sealBodyBeforeTools(msg, resolveSealTurn(msg, explicitTurn));
+      const sealed = sealBodyBeforeTools(msg, resolveSealTurn(msg, explicitTurn));
+      if (effectiveMode === 'plan' && !planPinned) {
+        const md = extractPlanMarkdownFromMessage(sealed);
+        if (looksLikePlanDocument(md) || looksLikePlanDraft(md)) {
+          planPinned = true;
+          promotePlanToReview(md);
+        }
+      }
+      return sealed;
     };
 
     sendMessage(
@@ -1981,6 +2080,7 @@ export function ChatApp() {
           return;
         }
         if (delta.content) {
+          if (planPinned) return;
           sawProse = true;
           setMessages((prev) => {
             const lastIdx = prev.length - 1;
@@ -2269,15 +2369,131 @@ export function ChatApp() {
     return () => window.clearTimeout(t);
   }, [streaming, msgQueue, handleSend]);
 
+  const beginPlanGenerationUi = useCallback(() => {
+    setGeneratingPlan(true);
+    setAwaitingUser(false);
+    setShowClarifying(false);
+    setMessages((prev) => {
+      const next = [...prev];
+      let idx = -1;
+      for (let i = next.length - 1; i >= 0; i--) {
+        if (next[i].role === 'assistant') {
+          idx = i;
+          break;
+        }
+      }
+      const nextTurn = (steps: ChatMessage['steps']): number => {
+        let max = 0;
+        for (const s of steps || []) {
+          if (s.id === PLAN_V2_GENERATE_STEP_ID) continue;
+          if (typeof s.turn === 'number' && s.turn > 0) {
+            max = Math.max(max, s.turn);
+            continue;
+          }
+          const m = String(s.id || '').match(
+            /(?:thinking|planning|tool|step)[^\d]*(\d+)/i
+          );
+          max = Math.max(max, m ? Number(m[1]) : 1);
+        }
+        return max + 1;
+      };
+      const makeStep = (turn: number) => ({
+        id: PLAN_V2_GENERATE_STEP_ID,
+        kind: 'thinking' as const,
+        label: 'Creating plan',
+        itemStatus: 'running' as const,
+        thoughtRole: 'opening' as const,
+        turn
+      });
+      if (idx < 0) {
+        next.push({
+          id: uuidv4(),
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+          status: 'streaming',
+          steps: [makeStep(1)]
+        });
+      } else {
+        const msg = next[idx];
+        const existing = (msg.steps || []).find(
+          (s) => s.id === PLAN_V2_GENERATE_STEP_ID
+        );
+        const step = makeStep(
+          existing && typeof existing.turn === 'number' && existing.turn > 0
+            ? existing.turn
+            : nextTurn(msg.steps)
+        );
+        const steps = [
+          ...(msg.steps || []).map((s) =>
+            s.kind === 'asking' && s.itemStatus === 'running'
+              ? { ...s, itemStatus: 'done' as const }
+              : s.id === PLAN_V2_GENERATE_STEP_ID
+                ? step
+                : s
+          )
+        ];
+        if (!steps.some((s) => s.id === PLAN_V2_GENERATE_STEP_ID)) {
+          steps.push(step);
+        }
+        next[idx] = { ...msg, status: 'streaming', steps };
+      }
+      messagesRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const endPlanGenerationUi = useCallback((ok: boolean) => {
+    setGeneratingPlan(false);
+    setMessages((prev) => {
+      const next = prev.map((m) => {
+        if (
+          m.role !== 'assistant' ||
+          !m.steps?.some((s) => s.id === PLAN_V2_GENERATE_STEP_ID)
+        ) {
+          return m;
+        }
+        const steps = m.steps.map((s) =>
+          s.id === PLAN_V2_GENERATE_STEP_ID
+            ? {
+                ...s,
+                itemStatus: (ok ? 'done' : 'error') as 'done' | 'error',
+                label: ok ? 'Created plan' : 'Failed to create plan'
+              }
+            : s
+        );
+        return {
+          ...m,
+          status: m.status === 'streaming' ? 'complete' : m.status,
+          steps
+        };
+      });
+      messagesRef.current = next;
+      return next;
+    });
+  }, []);
+
   /** Stop button — abort + clear streaming orphans; composer accepts new messages */
   const handleStop = useCallback(() => {
     stopHandlerRef.current?.stop('user_stop');
     sendEpochRef.current += 1; // abandon in-flight handleSend awaiting harness
     setAwaitingUser(false);
     setShowClarifying(false);
+    if (generatingPlan) {
+      const id = planV2ActiveRequestRef.current;
+      if (id) {
+        try {
+          const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+          api?.postMessage?.({ type: 'plan.v2.cancel', requestId: id });
+        } catch {
+          /* ignore */
+        }
+      }
+      endPlanGenerationUi(false);
+    }
     setMessages(cleanupStreamingAssistants);
     setError(null);
-  }, [cleanupStreamingAssistants]);
+  }, [cleanupStreamingAssistants, generatingPlan, endPlanGenerationUi]);
 
   /** User bubble Stop: halt run and put that message back in the composer for resend */
   const handleStopAndPrefill = useCallback(
@@ -2554,6 +2770,8 @@ export function ChatApp() {
     questionsCompleteInFlightRef.current = true;
 
     if (streaming) {
+      // Host plan.v2.generate also abortHostChatLoop() and waits on the
+      // send chain before the LLM call — research turns cannot overlap.
       stopHandlerRef.current?.stop('user_stop');
       sendEpochRef.current += 1;
       const kept = cleanupStreamingAssistants(messagesRef.current);
@@ -2567,6 +2785,16 @@ export function ChatApp() {
       /* ignore */
     }
 
+    setPlanStage('planning');
+    planStageRef.current = 'planning';
+    setShowClarifying(false);
+    setAwaitingUser(false);
+    setShowPlanReview(false);
+    setPendingQuestions([]);
+    sealAskingSteps();
+    promotePlanOnCompleteRef.current = false;
+    beginPlanGenerationUi();
+
     const qa = planController
       .getQuestions()
       .map((q) => `- **Q:** ${q.question}\n  **A:** ${q.answer || '(no answer)'}`)
@@ -2576,14 +2804,6 @@ export function ChatApp() {
     void planController
       .moveToPlanning()
       .then(async () => {
-        setPlanStage('planning');
-        planStageRef.current = 'planning';
-        setShowClarifying(false);
-        setAwaitingUser(false);
-        setShowPlanReview(false);
-        setPendingQuestions([]);
-        sealAskingSteps();
-        promotePlanOnCompleteRef.current = false;
 
         await planV2Adapter.completeResearch([
           buildPlanResearchContext(planController),
@@ -2601,27 +2821,21 @@ export function ChatApp() {
         if (!result.ok || !result.plan) {
           const last = result.failures[result.failures.length - 1];
           const details = last?.errors.map((e) => `- [${e.code}] ${e.message}`).join('\n') || '(no details)';
+          endPlanGenerationUi(false);
           setError(`구조화된 Plan 생성에 실패했습니다.\n${details}`);
           return;
         }
-        await planV2Adapter.acceptGeneratedPlan(result.plan, {
-          attempts: result.attempts,
-          failures: result.failures,
-          researchContext: state.researchFindings
-        });
-        const rendered = planV2Adapter.getFullPlanContext();
-        const summary = buildPlanChatSummary(rendered);
-        setMessages((prev) => [...prev, {
-          id: uuidv4(), role: 'assistant', content: summary, timestamp: Date.now(), status: 'complete'
-        }]);
-        setPlanStage('review');
-        setShowPlanReview(true);
+        endPlanGenerationUi(true);
+        await commitPlanV2Result(result);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : '구조화된 Plan 생성에 실패했습니다.'))
+      .catch((e) => {
+        endPlanGenerationUi(false);
+        setError(e instanceof Error ? e.message : '구조화된 Plan 생성에 실패했습니다.');
+      })
       .finally(() => { questionsCompleteInFlightRef.current = false; });
   }, [
     planController, mode, streaming, cleanupStreamingAssistants, sealAskingSteps,
-    planV2Adapter, requestPlanV2
+    planV2Adapter, requestPlanV2, commitPlanV2Result, beginPlanGenerationUi, endPlanGenerationUi
   ]);
 
 
@@ -2754,6 +2968,7 @@ export function ChatApp() {
     void (async () => {
       await planV2Adapter.reject(reason || '계획을 더 명확하게 다듬어 주세요.');
       setPlanStage('planning');
+      beginPlanGenerationUi();
       const state = planV2Adapter.session.getState();
       const result = await requestPlanV2({
         goal: state.goal || textFromPlanController(planController),
@@ -2763,9 +2978,11 @@ export function ChatApp() {
       if (!result.ok || !result.plan) {
         const last = result.failures[result.failures.length - 1];
         const details = last?.errors.map((e) => `- [${e.code}] ${e.message}`).join('\n') || '(no details)';
+        endPlanGenerationUi(false);
         setError(`수정된 Plan 생성에 실패했습니다.\n${details}`);
         return;
       }
+      endPlanGenerationUi(true);
       await planV2Adapter.acceptGeneratedPlan(result.plan, {
         attempts: result.attempts,
         failures: result.failures,
@@ -2773,8 +2990,11 @@ export function ChatApp() {
       });
       setPlanStage('review');
       setShowPlanReview(true);
-    })().catch((e) => setError(e instanceof Error ? e.message : 'Plan 수정에 실패했습니다.'));
-  }, [planController, planV2Adapter, requestPlanV2]);
+    })().catch((e) => {
+      endPlanGenerationUi(false);
+      setError(e instanceof Error ? e.message : 'Plan 수정에 실패했습니다.');
+    });
+  }, [planController, planV2Adapter, requestPlanV2, beginPlanGenerationUi, endPlanGenerationUi]);
 
   /** Plan: close review overlay without approving (stay on Review stage) */
   const handlePlanReviewClose = useCallback(() => {
@@ -3278,9 +3498,10 @@ export function ChatApp() {
               key={item.id}
               message={item}
               isStreaming={
-                streaming && messages[messages.length - 1]?.id === item.id
+                (streaming || generatingPlan) &&
+                messages[messages.length - 1]?.id === item.id
               }
-              isAgentRunning={streaming}
+              isAgentRunning={streaming || generatingPlan}
               isLastUser={item.role === 'user' && item.id === lastUserId}
               isLastAssistant={
                 item.role === 'assistant' && item.id === lastAssistantId
@@ -3345,7 +3566,7 @@ export function ChatApp() {
           onOpenFile={handleOpenFile}
           onUndoAll={handleUndoAllEdits}
           onReview={handleReviewEdits}
-          isStreaming={streaming}
+          isStreaming={streaming || generatingPlan}
           onStop={handleStop}
           checkpoints={checkpoints}
           onListCheckpoints={handleListCheckpoints}
@@ -3353,15 +3574,16 @@ export function ChatApp() {
         />
         <Composer
           onSend={handleSend}
-          disabled={streaming}
+          disabled={streaming || generatingPlan}
           onStop={handleStop}
           seedText={composerSeed?.text ?? null}
           seedNonce={composerSeed?.nonce ?? 0}
           onSlashCommand={runSlashCommand}
           onRegenerate={() => {
             stepStartRef.current = {};
-            let toolsStarted = false;
-            const TOOL_KINDS = new Set([
+    let toolsStarted = false;
+    let planPinned = false;
+    const TOOL_KINDS = new Set([
               'searching',
               'reading',
               'editing',
@@ -3373,7 +3595,15 @@ export function ChatApp() {
               msg: ChatMessage,
               explicitTurn?: number | null
             ): ChatMessage => {
-              return sealBodyBeforeTools(msg, resolveSealTurn(msg, explicitTurn));
+              const sealed = sealBodyBeforeTools(msg, resolveSealTurn(msg, explicitTurn));
+              if (mode === 'plan' && !planPinned) {
+                const md = extractPlanMarkdownFromMessage(sealed);
+                if (looksLikePlanDocument(md) || looksLikePlanDraft(md)) {
+                  planPinned = true;
+                  promotePlanToReview(md);
+                }
+              }
+              return sealed;
             };
             regenerate(
               messages,
@@ -3654,6 +3884,7 @@ export function ChatApp() {
                   return;
                 }
                 if (delta.content) {
+                  if (planPinned) return;
                   setMessages((prev) => {
                     const lastIdx = prev.length - 1;
                     if (lastIdx >= 0 && prev[lastIdx].role === 'assistant' && prev[lastIdx].status === 'streaming') {
@@ -3739,8 +3970,9 @@ export function ChatApp() {
           }}
           onQueueMessage={handleQueueMessage}
           onResynthesize={handleResynthesize}
-          isStreaming={streaming}
+          isStreaming={streaming || generatingPlan}
           isAwaitingUser={awaitingUser}
+          isGeneratingPlan={generatingPlan}
           mode={mode}
           onModeChange={handleModeChange}
           modeLabels={MODE_LABELS}

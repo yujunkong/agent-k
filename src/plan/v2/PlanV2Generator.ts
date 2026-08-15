@@ -51,6 +51,15 @@ export interface PlanV2GenerationResult {
 const DEFAULT_MAX_ATTEMPTS = 3;
 const MAX_ALLOWED_ATTEMPTS = 5;
 
+function isAbortError(error: unknown): boolean {
+  if (!error) return false;
+  if (typeof error === 'object' && error !== null && 'name' in error) {
+    if (String((error as { name?: string }).name) === 'AbortError') return true;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return /aborted|AbortError/i.test(message);
+}
+
 export class PlanV2Generator {
   constructor(
     private readonly model: PlanGenerationModel,
@@ -73,6 +82,7 @@ export class PlanV2Generator {
       try {
         raw = await this.model.complete(messages);
       } catch (error) {
+        if (isAbortError(error)) throw error;
         const message = error instanceof Error ? error.message : 'Planner model request failed.';
         failures.push(
           buildFailureContext('schema_validation_failed', attempt, [{
