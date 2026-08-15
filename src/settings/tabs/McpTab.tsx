@@ -10,8 +10,8 @@ import {
   SettingsField,
   SettingsSection,
   SettingsStatus,
+  persistToHost,
 } from '../components/SettingsUI';
-import { persistToHost } from '../persistConfig';
 
 function postHost(type: string, payload: Record<string, unknown> = {}): void {
   try {

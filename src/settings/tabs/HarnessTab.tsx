@@ -8,8 +8,8 @@ import {
   SettingsSection,
   SettingsStatus,
   SettingsToggle,
+  persistToHost,
 } from '../components/SettingsUI';
-import { persistToHost } from '../persistConfig';
 
 export function HarnessTab() {
   const [enabled, setEnabled] = useState(

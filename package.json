@@ -132,7 +132,6 @@
     "configuration": {
       "title": "Agent K",
       "properties": {
-      "_comment": "Merge these entries into package.json → contributes.configuration.properties (v2.1). Keys used by Settings Hub redesign + PRD-29 stubs.",
         "agent-k.permission.denyGlobs": {
           "type": "array",
           "items": { "type": "string" },

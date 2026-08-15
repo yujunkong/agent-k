@@ -9,8 +9,8 @@ import {
   SettingsSection,
   SettingsStatus,
   SettingsToggle,
+  persistToHost,
 } from '../components/SettingsUI';
-import { persistToHost } from '../persistConfig';
 
 interface FeatureToggle {
   id: string;

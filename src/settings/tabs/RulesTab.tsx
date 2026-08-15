@@ -10,8 +10,8 @@ import {
   SettingsSection,
   SettingsStatus,
   SettingsToggle,
+  persistToHost,
 } from '../components/SettingsUI';
-import { persistToHost } from '../persistConfig';
 
 const DEFAULT_GLOBS = [
   '**/.agentk/rules/**/*.md',

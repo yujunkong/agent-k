@@ -10,8 +10,8 @@ import {
   SettingsRadioGroup,
   SettingsSection,
   SettingsStatus,
+  persistToHost,
 } from '../components/SettingsUI';
-import { persistToHost } from '../persistConfig';
 
 const DEFAULT_DENY_GLOBS = [
   '**/.env*',

@@ -9,8 +9,8 @@ import {
   SettingsSection,
   SettingsStatus,
   SettingsToggle,
+  persistToHost,
 } from '../components/SettingsUI';
-import { persistToHost } from '../persistConfig';
 
 export function ReviewTab() {
   const [applyPolicy, setApplyPolicy] = useState(

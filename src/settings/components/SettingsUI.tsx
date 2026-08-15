@@ -132,3 +132,18 @@ export function SettingsStatus({
 }) {
   return <p className={`settings-status settings-status--${kind}`}>{children}</p>;
 }
+
+/** Persist flat agent-k.* values to the extension host (VS Code configuration). */
+export function persistToHost(values: Record<string, unknown>): void {
+  try {
+    const vscodeApi =
+      (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+    if (vscodeApi?.postMessage) {
+      vscodeApi.postMessage({ type: 'config.update', values });
+      return;
+    }
+  } catch {
+    /* ignore */
+  }
+  window.parent.postMessage({ type: 'config.update', values }, '*');
+}

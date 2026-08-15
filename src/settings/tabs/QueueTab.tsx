@@ -10,8 +10,8 @@ import {
   SettingsRadioGroup,
   SettingsSection,
   SettingsStatus,
+  persistToHost,
 } from '../components/SettingsUI';
-import { persistToHost } from '../persistConfig';
 
 export function QueueTab() {
   const [onEnter, setOnEnter] = useState<string>(

@@ -8,8 +8,8 @@ import {
   SettingsField,
   SettingsSection,
   SettingsStatus,
+  persistToHost,
 } from '../components/SettingsUI';
-import { persistToHost } from '../persistConfig';
 
 export function ContextTab() {
   const [budget, setBudget] = useState(
