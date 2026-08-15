@@ -106,6 +106,16 @@ suite('Plan V2 — event → phase mapping', () => {
     assert.strictEqual(phaseForEvent('task.status.changed'), undefined);
   });
 
+  test('research.completed / generation.attempt do not rewind executing', () => {
+    assert.strictEqual(phaseForEvent('research.completed', 'executing'), undefined);
+    assert.strictEqual(phaseForEvent('plan.generation.attempt', 'executing'), undefined);
+    assert.strictEqual(phaseForEvent('research.completed', 'completed'), undefined);
+    assert.strictEqual(phaseForEvent('research.completed', 'research'), 'planning');
+    const r = validateEventPhaseTransition('executing', 'research.completed');
+    assert.strictEqual(r.ok, true);
+    if (r.ok) assert.strictEqual(r.self, true);
+  });
+
   test('validateEventPhaseTransition rejects plan.approved from idle', () => {
     const r = validateEventPhaseTransition('idle', 'plan.approved');
     assert.strictEqual(r.ok, false);

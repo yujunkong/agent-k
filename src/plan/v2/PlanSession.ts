@@ -154,11 +154,11 @@ export class PlanSession {
         event.type === 'plan.approved' ? this.state.plan != null : undefined
     });
 
+    const nextPhase = phaseForEvent(event.type, this.state.phase);
     this.state.events.push(event);
 
     switch (event.type) {
       case 'plan.started':
-        this.state.phase = 'research';
         this.state.goal = event.goal;
         this.state.researchFindings = '';
         this.state.plan = null;
@@ -169,11 +169,9 @@ export class PlanSession {
 
       case 'research.completed':
         this.state.researchFindings = event.findings;
-        this.state.phase = 'planning';
         break;
 
       case 'plan.generation.attempt':
-        this.state.phase = 'planning';
         break;
 
       case 'plan.generation.failed':
@@ -188,23 +186,19 @@ export class PlanSession {
           event.plan.tasks.map((t) => [t.id, 'pending' as TaskStatus])
         );
         this.state.approvedTaskIds = [];
-        this.state.phase = 'review';
         break;
 
       case 'plan.review.opened':
-        this.state.phase = 'review';
         break;
 
       case 'plan.approved':
         this.state.approvedTaskIds = event.taskIds && event.taskIds.length > 0
           ? this.expandApprovalScope(event.taskIds)
           : [];
-        this.state.phase = 'executing';
         break;
 
       case 'plan.rejected':
         this.state.rejectionFeedback.push(event.feedback);
-        this.state.phase = 'planning';
         break;
 
       case 'task.status.changed': {
@@ -227,20 +221,17 @@ export class PlanSession {
       }
 
       case 'plan.completed':
-        this.state.phase = 'completed';
         break;
 
       case 'plan.failed':
-        this.state.phase = 'failed';
         break;
     }
 
-    this.emit(event);
-  }
+    if (nextPhase !== undefined) {
+      this.state.phase = nextPhase;
+    }
 
-  /** Event → phase mapping lives in PlanPhaseTransitions.phaseForEvent. */
-  private computeNextPhase(event: PlanEvent): PlanPhase | undefined {
-    return phaseForEvent(event.type);
+    this.emit(event);
   }
 
   /**

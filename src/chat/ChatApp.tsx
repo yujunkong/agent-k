@@ -49,6 +49,10 @@ import { PlanToAgent } from '../plan/PlanToAgent';
 import type { ProviderType } from '../providers/types';
 import { PlanModeControllerAdapter, toObservedToolCall } from '../plan/v2';
 import type { PlanV2GenerationResult } from '../plan/v2/PlanV2Generator';
+import {
+  PLAN_V2_GENERATE_TIMEOUT_MESSAGE,
+  createPlanV2GenerateWatchdog
+} from './planV2GenerateWatchdog';
 // RW-C6-05-R2: ReproduceUI 대기 루프
 import { ReproduceUI } from '../debug/ReproduceUI';
 import { requestReproduceTool } from '../tools/debug/RequestReproduceTool';
@@ -458,7 +462,11 @@ export function ChatApp() {
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   const planFileExistsResolversRef = useRef(new Map<string, { resolve: (exists: boolean) => void; reject: (error: Error) => void; }>());
-  const planV2GenerateResolversRef = useRef(new Map<string, { resolve: (result: PlanV2GenerationResult) => void; reject: (error: Error) => void; }>());
+  const planV2GenerateResolversRef = useRef(new Map<string, {
+    resolve: (result: PlanV2GenerationResult) => void;
+    reject: (error: Error) => void;
+    beginGenerateTimeout: () => void;
+  }>());
   const planV2TimedOutRef = useRef(new Set<string>());
   const planV2ActiveRequestRef = useRef<string | null>(null);
   const showPlanReviewRef = useRef(showPlanReview);
@@ -1129,10 +1137,7 @@ export function ChatApp() {
       }
       const requestId = `plan_v2_${uuidv4()}`;
       planV2ActiveRequestRef.current = requestId;
-      // Generation can involve several LLM round-trips (attempts) against
-      // a possibly-slow local model -- give it real headroom, well above
-      // the single-request timeout used for file-existence checks.
-      const timeout = window.setTimeout(() => {
+      const fireWatchdog = (message: string) => {
         planV2GenerateResolversRef.current.delete(requestId);
         planV2TimedOutRef.current.add(requestId);
         try {
@@ -1143,15 +1148,16 @@ export function ChatApp() {
         if (planV2ActiveRequestRef.current === requestId) {
           planV2ActiveRequestRef.current = null;
         }
-        reject(
-          new Error(
-            'Plan 생성이 180초를 초과해 중단했습니다. 호스트 요청을 취소했습니다. 이미 생성이 끝나 있으면 잠시 후 자동으로 반영됩니다.'
-          )
-        );
-      }, 180000);
+        reject(new Error(message));
+      };
+      const watchdog = createPlanV2GenerateWatchdog({
+        setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+        clearTimeout: (id) => window.clearTimeout(id as number),
+        onGenerateTimeout: () => fireWatchdog(PLAN_V2_GENERATE_TIMEOUT_MESSAGE)
+      });
       planV2GenerateResolversRef.current.set(requestId, {
         resolve: (result) => {
-          window.clearTimeout(timeout);
+          watchdog.clear();
           planV2TimedOutRef.current.delete(requestId);
           if (planV2ActiveRequestRef.current === requestId) {
             planV2ActiveRequestRef.current = null;
@@ -1159,12 +1165,13 @@ export function ChatApp() {
           resolve(result);
         },
         reject: (error) => {
-          window.clearTimeout(timeout);
+          watchdog.clear();
           if (planV2ActiveRequestRef.current === requestId) {
             planV2ActiveRequestRef.current = null;
           }
           reject(error);
-        }
+        },
+        beginGenerateTimeout: watchdog.beginGenerateTimeout
       });
       api.postMessage({
         type: 'plan.v2.generate',
@@ -1298,6 +1305,10 @@ export function ChatApp() {
   const commitPlanV2Result = useCallback(
     async (result: PlanV2GenerationResult, opts?: { late?: boolean }) => {
       if (!result.ok || !result.plan) return false;
+      const phase = planV2Adapter.session.getPhase();
+      if (opts?.late && (phase === 'executing' || phase === 'completed')) {
+        return false;
+      }
       const state = planV2Adapter.session.getState();
       await planV2Adapter.acceptGeneratedPlan(result.plan, {
         attempts: result.attempts,
@@ -1344,6 +1355,11 @@ export function ChatApp() {
           planFileExistsResolversRef.current.delete(requestId);
           resolver.resolve(Boolean(data.exists));
         }
+        return;
+      }
+
+      if (data.type === 'plan.v2.generate.started' && data.requestId != null) {
+        planV2GenerateResolversRef.current.get(String(data.requestId))?.beginGenerateTimeout();
         return;
       }
 
@@ -2281,6 +2297,24 @@ export function ChatApp() {
       sealAskingSteps();
       setShowClarifying(false);
       setAwaitingUser(false);
+      return;
+    }
+    const sessionPhase = planV2Adapter.session.getPhase();
+    if (sessionPhase === 'executing' && planStageRef.current === 'build') {
+      try {
+        const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        for (const q of pendingQuestionsRef.current) {
+          const answer = (q.answer || '').trim();
+          if (!answer) continue;
+          api?.postMessage?.({ type: 'chat.answer', qid: q.id, answer });
+        }
+      } catch {
+        /* ignore */
+      }
+      sealAskingSteps();
+      setShowClarifying(false);
+      setAwaitingUser(false);
+      setPendingQuestions([]);
       return;
     }
     if (questionsCompleteInFlightRef.current) return;

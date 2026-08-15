@@ -169,12 +169,17 @@ export function assertLegalPhaseTransition(
  * Which phase an event would move the session to.
  * `undefined` = event does not change phase (e.g. task.status.changed).
  */
-export function phaseForEvent(eventType: PlanEventType): PlanPhase | undefined {
+export function phaseForEvent(
+  eventType: PlanEventType,
+  from?: PlanPhase
+): PlanPhase | undefined {
   switch (eventType) {
     case 'plan.started':
       return 'research';
     case 'research.completed':
     case 'plan.generation.attempt':
+      // Findings / attempt logs must not rewind an approved or finished run.
+      if (from === 'executing' || from === 'completed') return undefined;
       return 'planning';
     case 'plan.generation.failed':
       // Stay in planning while retries remain; exhausted path uses plan.failed.
@@ -210,7 +215,7 @@ export function validateEventPhaseTransition(
   ctx: PhaseTransitionContext = {}
 ): PhaseTransitionResult & { eventType: PlanEventType } {
   const eventType = typeof event === 'string' ? event : event.type;
-  const to = phaseForEvent(eventType);
+  const to = phaseForEvent(eventType, from);
 
   if (to === undefined) {
     // No phase change — always legal from the FSM table's point of view.

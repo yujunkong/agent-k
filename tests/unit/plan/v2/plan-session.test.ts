@@ -226,6 +226,25 @@ suite('Plan V2 — PlanSession', () => {
 
   // ─── Merged from the other Plan V2 implementation ─────────────────
 
+  test('research.completed during executing updates findings and stays executing', () => {
+    const session = new PlanSession('s1');
+    session.recordEvent({ type: 'plan.started', goal: 'x', timestamp: 1 });
+    session.recordEvent({ type: 'research.completed', findings: 'found stuff', timestamp: 2 });
+    session.recordEvent({ type: 'plan.generated', plan: makePlan(), attempt: 1, timestamp: 3 });
+    session.recordEvent({ type: 'plan.approved', timestamp: 4 });
+    assert.strictEqual(session.getPhase(), 'executing');
+    assert.doesNotThrow(() => {
+      session.recordEvent({
+        type: 'research.completed',
+        findings: 'late clarifying answers',
+        timestamp: 5
+      });
+      session.recordEvent({ type: 'plan.generation.attempt', attempt: 2, timestamp: 6 });
+    });
+    assert.strictEqual(session.getPhase(), 'executing');
+    assert.strictEqual(session.getState().researchFindings, 'late clarifying answers');
+  });
+
   test('illegal phase jump (idle -> executing) throws instead of silently applying', () => {
     const session = new PlanSession('s1');
     assert.throws(() => {

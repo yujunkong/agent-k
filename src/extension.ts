@@ -255,6 +255,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private _hostSendChain: Promise<void> = Promise.resolve();
   /** In-flight Plan V2 LLM generations, keyed by webview requestId */
   private _planV2Aborts = new Map<string, AbortController>();
+  /** Cancel arrived before runPlanV2Generate registered an AbortController. */
+  private _planV2CancelledIds = new Set<string>();
 
   constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -1317,11 +1319,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   private abortPlanV2Generate(requestId?: string): void {
     if (requestId) {
+      this._planV2CancelledIds.add(requestId);
       const ac = this._planV2Aborts.get(requestId);
       ac?.abort();
       this._planV2Aborts.delete(requestId);
       return;
     }
+    for (const id of this._planV2Aborts.keys()) this._planV2CancelledIds.add(id);
     for (const ac of this._planV2Aborts.values()) ac.abort();
     this._planV2Aborts.clear();
   }
@@ -1345,7 +1349,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const post = (payload: Record<string, unknown>) =>
       void this._view?.webview.postMessage({ type: 'plan.v2.generate.result', requestId, ...payload });
 
+    if (this._planV2CancelledIds.has(requestId)) {
+      this._planV2CancelledIds.delete(requestId);
+      post({ error: 'Plan generation cancelled.', aborted: true });
+      return;
+    }
     this.abortPlanV2Generate();
+    this._planV2CancelledIds.delete(requestId);
     const abort = new AbortController();
     this._planV2Aborts.set(requestId, abort);
 
@@ -1400,6 +1410,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
       });
 
+      // Webview 180s budget starts here — not when the generate message was
+      // queued behind the previous AgentLoop.
+      void this._view?.webview.postMessage({ type: 'plan.v2.generate.started', requestId });
+
       const result = await generator.generate({
         goal: String(message.goal || ''),
         researchContext: String(message.researchContext || ''),
@@ -1418,6 +1432,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       post({ error: error instanceof Error ? error.message : String(error) });
     } finally {
       this._planV2Aborts.delete(requestId);
+      this._planV2CancelledIds.delete(requestId);
     }
   }
 
