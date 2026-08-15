@@ -1,5 +1,8 @@
+import type { ModeDecision } from '../mode/types';
+
 export type Role = 'user' | 'assistant' | 'tool' | 'system';
 export type Mode = 'ask' | 'agent' | 'plan' | 'debug';
+export type ModePicker = Mode | 'auto';
 export type MessageStatus = 'pending' | 'streaming' | 'complete' | 'error';
 
 export interface ChatMessage {
@@ -54,10 +57,11 @@ export interface ChatMessage {
     content: string;
   }>;
   metadata?: {
-    model: string;
-    tokens: { input: number; output: number };
-    mode: Mode;
-    toolsUsed: string[];
+    model?: string;
+    tokens?: { input: number; output: number };
+    mode?: Mode;
+    toolsUsed?: string[];
+    modeDecision?: ModeDecision;
   };
 }
 

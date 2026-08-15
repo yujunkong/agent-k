@@ -225,3 +225,19 @@ export function IconMessage(p: IconProps) {
     </Svg>
   );
 }
+
+/** Auto mode — classify on send */
+export function IconSpark(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 3v4" />
+      <path d="M12 17v4" />
+      <path d="M3 12h4" />
+      <path d="M17 12h4" />
+      <path d="m6 6 2.5 2.5" />
+      <path d="m15.5 15.5 2.5 2.5" />
+      <path d="m18 6-2.5 2.5" />
+      <path d="m8.5 15.5-2.5 2.5" />
+    </Svg>
+  );
+}

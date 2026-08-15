@@ -1,20 +1,40 @@
 /**
- * B. 모드 관련 타입 정의
+ * Mode classifier types.
+ * Loop/registry Mode stays in `src/agent/types.ts` — do not fork a second union.
  */
+import type { Mode } from '../agent/types';
 
-export type Mode = 'ask' | 'plan' | 'debug' | 'agent';
+export type { Mode };
+
+/** UI picker: a locked mode, or Auto (classify on send). */
+export type ModePicker = Mode | 'auto';
 
 export interface ModeDecision {
   mode: Mode;
-  confidence: number; // 0 ~ 1
+  confidence: number;
   reason: string;
-  sticky: boolean; // 직전 모드를 유지했는지 여부
-  source: 'sticky' | 'heuristic' | 'llm' | 'fallback';
+  sticky: boolean;
+  source: 'sticky' | 'heuristic' | 'llm' | 'fallback' | 'manual';
 }
 
 export interface ClassifyInput {
   userMessage: string;
   previousMode?: Mode | null;
-  /** 직전 turn이 agent/debug로 실제로 도구를 실행 중이었는지 */
+  /** Previous turn actually ran tools (agent/debug sticky). */
   previousWasActive?: boolean;
+  /**
+   * Plan V2 is in research / planning / review — keep plan unless the
+   * user explicitly switches (do not sticky through build/execute).
+   */
+  planSessionActive?: boolean;
+}
+
+/** One user message + the assistant reply that followed it. */
+export interface ConversationTurn {
+  id: string;
+  mode: Mode;
+  userMessage: string;
+  hadToolCalls: boolean;
+  modeDecision?: ModeDecision;
+  timestamp: number;
 }

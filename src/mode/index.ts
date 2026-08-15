@@ -1,7 +1,19 @@
-export type { Mode, ModeDecision, ClassifyInput } from './types';
+export type {
+  Mode,
+  ModePicker,
+  ModeDecision,
+  ClassifyInput,
+  ConversationTurn
+} from './types';
 export {
   classifyMode,
   classifyModeWithLLM,
   classifyModeHybrid,
-  ROUTER_SYSTEM_PROMPT,
+  resolveSendMode,
+  ROUTER_SYSTEM_PROMPT
 } from './modeClassifier';
+export {
+  lastConversationTurn,
+  messageHadToolCalls,
+  type ConversationTurnMessage
+} from './conversationTurn';

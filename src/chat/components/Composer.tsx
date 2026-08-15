@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, KeyboardEvent, useCallback } from 'react';
-import type { Attachment, Mode } from '../types';
+import type { Attachment, ModePicker } from '../types';
 import { ModeSelector } from './ModeSelector';
 import { ModelSelector } from './ModelSelector';
 import { IconQueue } from './Icons';
@@ -41,9 +41,9 @@ interface ComposerProps {
   isAwaitingUser?: boolean;
   /** Plan V2 generation after clarifying questions */
   isGeneratingPlan?: boolean;
-  /** Mode pill (Cursor: left of model) */
-  mode: Mode;
-  onModeChange: (mode: Mode) => void;
+  /** Mode pill (Cursor: left of model). `auto` classifies on send. */
+  mode: ModePicker;
+  onModeChange: (mode: ModePicker) => void;
   modeLabels: Record<string, string>;
   modeTooltips: Record<string, string>;
   /** Short model label next to mode */

@@ -16,7 +16,7 @@ import type { CheckpointSummary } from './components/ChangedFilesBar';
 import type { FileEditPreview } from './types';
 import { useChatStream } from './hooks/useChatStream';
 import { configManager } from '../core/ConfigManager';
-import type { ChatMessage, Mode, StreamDelta, Attachment } from './types';
+import type { ChatMessage, Mode, ModePicker, StreamDelta, Attachment } from './types';
 import { formatAttachmentsForPayload } from './attachmentFormat';
 import {
   extractPlanMarkdownFromMessage,
@@ -75,6 +75,10 @@ import { FindingList } from '../review/FindingList';
 import { AcceptFix } from '../review/AcceptFix';
 import type { ReviewFinding } from '../review/AgentReviewLoop';
 import { modeRegistry } from '../agent/modeRegistry';
+import {
+  lastConversationTurn,
+  resolveSendMode
+} from '../mode';
 import { ArtifactGallery } from '../artifacts/ArtifactGallery';
 import type { Artifact } from '../artifacts/ArtifactStore';
 import { UXForMediumPanel } from '../harness/UXForMediumPanel';
@@ -94,19 +98,23 @@ import {
 // ADDON-T10: slash command UX (/compact /cost /model /permissions /help)
 import { SLASH_COMMANDS, resolveSlashCommand, type SlashCommand } from './composerPalette';
 
-const MODE_LABELS: Record<Mode, string> = {
+const MODE_LABELS: Record<ModePicker, string> = {
+  auto: 'Auto',
   ask: 'Ask',
   agent: 'Agent',
   plan: 'Plan',
   debug: 'Debug'
 };
 
-const MODE_TOOLTIPS: Record<Mode, string> = {
+const MODE_TOOLTIPS: Record<ModePicker, string> = {
+  auto: 'Pick Ask / Plan / Debug / Agent from the message.',
   ask: 'Read-only exploration. No file edits.',
   agent: 'Autonomous implementation. Tools: read, edit, terminal.',
   plan: 'Design first. Outputs PLAN.md with Mermaid.',
   debug: 'Hypothesis → Instrument → Reproduce → Minimal fix.'
 };
+
+const PLAN_STICKY_PHASES = new Set(['research', 'planning', 'review']);
 
 
 function textFromPlanController(controller: PlanModeController): string {
@@ -269,6 +277,10 @@ export function ChatApp() {
     return sanitizeLoadedMessages(active.messages || []);
   });
   const [mode, setMode] = useState<Mode>(() => sessionStore.loadActive().mode || 'agent');
+  const [modeAuto, setModeAuto] = useState(() => {
+    const loaded = sessionStore.loadActive();
+    return (loaded.messages?.length ?? 0) === 0;
+  });
   const [error, setError] = useState<string | null>(null);
 
   // HARB: 중급 모델 UX 상태바
@@ -670,6 +682,7 @@ export function ChatApp() {
       setOpenTabIds((prev) =>
         prev.includes(sessionId) ? prev : [sessionId, ...prev]
       );
+      setModeAuto(true);
       return;
     }
     parkPlanForSession(sessionId);
@@ -683,6 +696,7 @@ export function ChatApp() {
     resetPlanChrome();
     setError(null);
     setShowHistory(false);
+    setModeAuto(true);
   }, [
     streaming,
     awaitingUser,
@@ -721,6 +735,7 @@ export function ChatApp() {
       setSessionId(loaded.id);
       setMessages(sanitizeLoadedMessages(loaded.messages || []));
       setMode(loaded.mode || 'agent');
+      setModeAuto((loaded.messages?.length ?? 0) === 0);
       stepStartRef.current = {};
       setSessionList(sessionStore.list());
       setOpenTabIds((prev) =>
@@ -794,6 +809,7 @@ export function ChatApp() {
           setSessionId(loaded.id);
           setMessages(sanitizeLoadedMessages(loaded.messages || []));
           setMode(loaded.mode || 'agent');
+          setModeAuto((loaded.messages?.length ?? 0) === 0);
           stepStartRef.current = {};
           setSessionList(sessionStore.list());
           setOpenTabIds(
@@ -855,6 +871,7 @@ export function ChatApp() {
         setSessionId(next.id);
         setMessages(sanitizeLoadedMessages(next.messages || []));
         setMode(next.mode || 'agent');
+        setModeAuto((next.messages?.length ?? 0) === 0);
         stepStartRef.current = {};
         setOpenTabIds((prev) =>
           prev.includes(next.id) ? prev : [next.id, ...prev]
@@ -1634,7 +1651,17 @@ export function ChatApp() {
     }
 
     const epoch = ++sendEpochRef.current;
-    const effectiveMode = opts?.modeOverride ?? mode;
+    const planPhase = planV2Adapter.session.getPhase();
+    const { mode: effectiveMode, decision: modeDecision } = resolveSendMode({
+      userMessage: text,
+      picker: modeAuto ? 'auto' : mode,
+      lastTurn: lastConversationTurn(messagesRef.current),
+      planSessionActive: PLAN_STICKY_PHASES.has(planPhase),
+      modeOverride: opts?.modeOverride
+    });
+    if (effectiveMode !== mode) {
+      setMode(effectiveMode);
+    }
     loopSessionIdRef.current = sessionIdRef.current;
 
     if (effectiveMode === 'plan') {
@@ -1698,7 +1725,11 @@ export function ChatApp() {
       content: displayText,
       timestamp: Date.now(),
       attachments: files,
-      status: 'complete'
+      status: 'complete',
+      metadata: {
+        mode: effectiveMode,
+        modeDecision
+      }
     };
     const assistantMsg: ChatMessage = {
       id: uuidv4(),
@@ -2234,7 +2265,7 @@ export function ChatApp() {
         ? { planStageOverride: opts.planStageOverride }
         : undefined
     );
-  }, [mode, sendMessage, planStage, planController, planV2Adapter, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom]);
+  }, [mode, modeAuto, sendMessage, planStage, planController, planV2Adapter, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom]);
 
   handleSendRef.current = handleSend;
 
@@ -2248,6 +2279,7 @@ export function ChatApp() {
       setShowClarifying(false);
       setMessages(cleanupStreamingAssistants);
       setMode('agent');
+      setModeAuto(false);
 
       const structuredPlan = planV2Adapter.session.getPlan();
       const apiContent = structuredPlan
@@ -2588,8 +2620,13 @@ export function ChatApp() {
     [messages, streaming, sessionId, mode, parkPlanForSession, resetPlanChrome]
   );
 
-  const handleModeChange = useCallback((newMode: Mode) => {
-    if (newMode === mode) return;
+  const handleModeChange = useCallback((newMode: ModePicker) => {
+    if (newMode === 'auto') {
+      setModeAuto(true);
+      return;
+    }
+    if (newMode === mode && !modeAuto) return;
+    setModeAuto(false);
     // Shared transcript across modes — only tools/prompts change.
     // Stop in-flight stream so the next send uses the new mode cleanly.
     if (streaming) {
@@ -2602,7 +2639,7 @@ export function ChatApp() {
     setAwaitingUser(false);
     setShowPlanReview(false);
     setError(null);
-  }, [mode, streaming, cleanupStreamingAssistants]);
+  }, [mode, modeAuto, streaming, cleanupStreamingAssistants]);
 
   /** ADDON-T10: append a lightweight system notice (never sent back to the model — host filters role=system) */
   const pushSystemNotice = useCallback((content: string) => {
@@ -3973,7 +4010,7 @@ export function ChatApp() {
           isStreaming={streaming || generatingPlan}
           isAwaitingUser={awaitingUser}
           isGeneratingPlan={generatingPlan}
-          mode={mode}
+          mode={modeAuto ? 'auto' : mode}
           onModeChange={handleModeChange}
           modeLabels={MODE_LABELS}
           modeTooltips={MODE_TOOLTIPS}

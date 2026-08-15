@@ -5,24 +5,26 @@ import {
   IconChevronDown,
   IconInfinity,
   IconList,
-  IconMessage
+  IconMessage,
+  IconSpark
 } from './Icons';
-
-type ModeId = 'ask' | 'agent' | 'plan' | 'debug';
+import type { ModePicker } from '../types';
 
 interface ModeSelectorProps {
-  value: ModeId;
-  onChange: (mode: ModeId) => void;
+  value: ModePicker;
+  onChange: (mode: ModePicker) => void;
   disabled?: boolean;
   labels: Record<string, string>;
   tooltips: Record<string, string>;
 }
 
-/** Cursor-like order: Agent → Plan → Debug → Ask (no Multitask in Agent K) */
-const MODES: ModeId[] = ['agent', 'plan', 'debug', 'ask'];
+/** Auto first, then Cursor-like: Agent → Plan → Debug → Ask */
+const MODES: ModePicker[] = ['auto', 'agent', 'plan', 'debug', 'ask'];
 
-function ModeIcon({ mode, size = 14 }: { mode: ModeId; size?: number }) {
+function ModeIcon({ mode, size = 14 }: { mode: ModePicker; size?: number }) {
   switch (mode) {
+    case 'auto':
+      return <IconSpark size={size} />;
     case 'agent':
       return <IconInfinity size={size} />;
     case 'plan':
@@ -73,7 +75,7 @@ export function ModeSelector({
     if (disabled) setOpen(false);
   }, [disabled]);
 
-  const pick = (mode: ModeId) => {
+  const pick = (mode: ModePicker) => {
     onChange(mode);
     setOpen(false);
   };
