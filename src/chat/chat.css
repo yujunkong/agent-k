@@ -1634,6 +1634,42 @@ body {
   opacity: 0.9;
 }
 
+/* Phase 2: live turn-phase pill (streaming only; Worked for Xs takes over when done) */
+.ak-turn-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 4px;
+  padding-left: var(--ak-thread-inset, 12px);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.ak-turn-status[data-status='error'] {
+  color: #e2556f;
+}
+
+.ak-understanding-box {
+  border: 1px solid var(--vscode-widget-border, #454545);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 2px 0 8px;
+  margin-left: var(--ak-thread-inset, 12px);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--vscode-foreground, #cccccc);
+  background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
+}
+
+.ak-understanding-box__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  margin-bottom: 4px;
+}
+
 /* Cursor-style: collapse finished timeline under "Worked for …" */
 .ak-worked {
   margin: 2px 0 8px;

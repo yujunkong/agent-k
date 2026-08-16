@@ -7,6 +7,8 @@ import { FileEditCard } from './FileEditCard';
 import { IconCopy, IconEdit, IconFork } from './Icons';
 import { FileTypeIcon } from './FileTypeIcon';
 import { visiblePlanProseFromMessage } from '../planPromote';
+import { deriveTurnStatus, TURN_STATUS_LABEL } from '../turnState';
+import { extractUnderstandingLead } from '../understandingLead';
 
 interface MessageBubbleProps {
   message: any;
@@ -117,6 +119,18 @@ export function MessageBubble({
   const terminalRuns = Array.isArray(message.terminalRuns) ? message.terminalRuns : [];
   const turnProse = Array.isArray(message.turnProse) ? message.turnProse : [];
 
+  /**
+   * Phase 3 — live ack sentence from message.content (openingLead is never
+   * populated). Only before any tool step; body then shows `rest` so the
+   * lead is not duplicated, and the box disappears the instant hasSteps.
+   */
+  const understanding =
+    isAssistant && streamBody && !hasSteps
+      ? extractUnderstandingLead(stripped)
+      : { lead: '', rest: '' };
+  const showUnderstandingBox = Boolean(understanding.lead);
+  const bodyContent = showUnderstandingBox ? understanding.rest : displayContent;
+
   const stepsDone =
     isAssistant &&
     hasSteps &&
@@ -190,7 +204,7 @@ export function MessageBubble({
     .join('\n\n');
   const planBody = visiblePlanProseFromMessage(message);
   const assistantBodyText =
-    displayContent.trim() ||
+    bodyContent.trim() ||
     planBody ||
     (stepsDone && !streamBody && !hasSteps ? sealedProseFallback : '');
   const showAssistantBody = Boolean(isAssistant && assistantBodyText);
@@ -201,6 +215,14 @@ export function MessageBubble({
     /임무를 끝내지 않은 채 중단|최종 답변 문장을 비운 채|도구 결과 요약입니다 \(자동 복구\)/.test(
       assistantBodyText
     );
+
+  /**
+   * Phase 2 — live turn-phase badge. Only while this bubble is actually
+   * streaming; once settled, "Worked for Xs" already communicates
+   * completion and this would be redundant chrome.
+   */
+  const turnStatus =
+    isAssistant && streamBody ? deriveTurnStatus(message, true) : null;
 
   const showFooter =
     message.role !== 'system' &&
@@ -233,6 +255,21 @@ export function MessageBubble({
       {isUser && message.status === 'error' ? (
         <div className="message-header message-header--error">
           <span className="error-indicator">✗</span>
+        </div>
+      ) : null}
+
+      {/* Phase 2: live turn-phase badge — hidden while the understanding box is up */}
+      {turnStatus && !showUnderstandingBox ? (
+        <div className="ak-turn-status" data-status={turnStatus}>
+          <span aria-hidden>●</span>
+          {TURN_STATUS_LABEL[turnStatus]}
+        </div>
+      ) : null}
+
+      {showUnderstandingBox ? (
+        <div className="ak-understanding-box">
+          <div className="ak-understanding-box__label">요청 이해</div>
+          {understanding.lead}
         </div>
       ) : null}
 
@@ -373,7 +410,7 @@ export function MessageBubble({
                 content={assistantBodyText}
                 isStreaming={streamBody}
               />
-            ) : streamBody && !hasSteps ? (
+            ) : streamBody && !hasSteps && !showUnderstandingBox ? (
               <span className="message-streaming-ellipsis">…</span>
             ) : null}
           </div>
