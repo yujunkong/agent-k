@@ -1634,28 +1634,92 @@ body {
   opacity: 0.9;
 }
 
-/* Phase 2: live turn-phase pill (streaming only; Worked for Xs takes over when done) */
+/*
+ * Phase 5 — Cursor-style live phase chrome
+ * Progress rail + label + optional understanding card while streaming.
+ * Settled turns use .ak-worked ("Worked for Xs") instead.
+ */
+.ak-phase-chrome {
+  margin: 0 0 6px;
+  padding-left: var(--ak-thread-inset, 12px);
+}
+
+.ak-turn-rail {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 0 4px;
+  max-width: 160px;
+}
+
+.ak-turn-rail__seg {
+  flex: 1 1 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--vscode-widget-border, #454545);
+  opacity: 0.55;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.ak-turn-rail__seg--done {
+  background: var(--vscode-textLink-foreground, #4daafc);
+  opacity: 0.55;
+}
+
+.ak-turn-rail__seg--active {
+  background: var(--vscode-textLink-foreground, #4daafc);
+  opacity: 1;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-textLink-foreground, #4daafc) 25%, transparent);
+}
+
 .ak-turn-status {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 2px 0 4px;
-  padding-left: var(--ak-thread-inset, 12px);
+  margin: 0 0 4px;
+  padding-left: 0;
   font-size: 12px;
   line-height: 1.45;
   color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.ak-turn-status__dot {
+  font-size: 8px;
+  line-height: 1;
+  opacity: 0.9;
+  color: var(--vscode-textLink-foreground, #4daafc);
+  animation: ak-phase-pulse 1.4s ease-in-out infinite;
 }
 
 .ak-turn-status[data-status='error'] {
   color: #e2556f;
 }
 
+.ak-turn-status[data-status='error'] .ak-turn-status__dot {
+  color: #e2556f;
+  animation: none;
+}
+
+.ak-turn-status__label {
+  font-weight: 500;
+}
+
+@keyframes ak-phase-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .ak-understanding-box {
   border: 1px solid var(--vscode-widget-border, #454545);
   border-radius: 6px;
   padding: 8px 10px;
-  margin: 2px 0 8px;
-  margin-left: var(--ak-thread-inset, 12px);
+  margin: 4px 0 6px;
+  margin-left: 0;
   font-size: 13px;
   line-height: 1.5;
   color: var(--vscode-foreground, #cccccc);
@@ -1668,6 +1732,16 @@ body {
   letter-spacing: 0.02em;
   color: var(--vscode-descriptionForeground, #9d9d9d);
   margin-bottom: 4px;
+}
+
+.ak-understanding-box__text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Live phase: slightly tighter gap before MessageSteps / answer */
+.message-bubble--live-phase .message-steps {
+  margin-top: 2px;
 }
 
 /* Cursor-style: collapse finished timeline under "Worked for …" */

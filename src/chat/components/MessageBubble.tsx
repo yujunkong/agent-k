@@ -7,8 +7,20 @@ import { FileEditCard } from './FileEditCard';
 import { IconCopy, IconEdit, IconFork } from './Icons';
 import { FileTypeIcon } from './FileTypeIcon';
 import { visiblePlanProseFromMessage } from '../planPromote';
-import { deriveTurnStatus, TURN_STATUS_LABEL } from '../turnState';
+import {
+  deriveTurnStatus,
+  TURN_STATUS_LABEL,
+  TURN_STATUS_ORDER,
+  type TurnStatus
+} from '../turnState';
 import { extractUnderstandingLead } from '../understandingLead';
+
+/** Phase 5 — index of active status on the linear progress rail (excludes error). */
+function turnStatusRailIndex(status: TurnStatus | null): number {
+  if (!status || status === 'error') return -1;
+  const i = TURN_STATUS_ORDER.indexOf(status);
+  return i >= 0 ? i : -1;
+}
 
 interface MessageBubbleProps {
   message: any;
@@ -217,12 +229,14 @@ export function MessageBubble({
     );
 
   /**
-   * Phase 2 — live turn-phase badge. Only while this bubble is actually
-   * streaming; once settled, "Worked for Xs" already communicates
-   * completion and this would be redundant chrome.
+   * Phase 5 — Cursor-style live phase chrome.
+   * Progress rail + current label while streaming; "Worked for Xs" replaces
+   * this once the turn settles (badge would be redundant chrome).
    */
-  const turnStatus =
+  const turnStatus: TurnStatus | null =
     isAssistant && streamBody ? deriveTurnStatus(message, true) : null;
+  const railIndex = turnStatusRailIndex(turnStatus);
+  const showPhaseChrome = Boolean(turnStatus);
 
   const showFooter =
     message.role !== 'system' &&
@@ -238,7 +252,8 @@ export function MessageBubble({
         'message-bubble',
         message.role,
         showUserStop ? 'message-bubble--running' : '',
-        isLastAssistant ? 'message-bubble--latest' : ''
+        isLastAssistant ? 'message-bubble--latest' : '',
+        showPhaseChrome ? 'message-bubble--live-phase' : ''
       ]
         .filter(Boolean)
         .join(' ')}
@@ -258,22 +273,60 @@ export function MessageBubble({
         </div>
       ) : null}
 
-      {/* Phase 2: live turn-phase badge — hidden while the understanding box is up */}
-      {turnStatus && !showUnderstandingBox ? (
-        <div className="ak-turn-status" data-status={turnStatus}>
-          <span aria-hidden>●</span>
-          {TURN_STATUS_LABEL[turnStatus]}
+      {/*
+        Phase 5 unified live header:
+        - linear progress rail (TURN_STATUS_ORDER)
+        - current phase label
+        - understanding box as the first card under the rail
+        MessageSteps grouping (Thought / Exploring / actions) continues below.
+      */}
+      {showPhaseChrome && turnStatus ? (
+        <div
+          className="ak-phase-chrome"
+          data-status={turnStatus}
+          aria-live="polite"
+        >
+          <div className="ak-turn-rail" role="list" aria-label="진행 단계">
+            {TURN_STATUS_ORDER.map((s, i) => {
+              const done = railIndex >= 0 && i < railIndex;
+              const active = railIndex === i;
+              return (
+                <span
+                  key={s}
+                  role="listitem"
+                  className={[
+                    'ak-turn-rail__seg',
+                    done ? 'ak-turn-rail__seg--done' : '',
+                    active ? 'ak-turn-rail__seg--active' : ''
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  title={TURN_STATUS_LABEL[s]}
+                  data-status={s}
+                />
+              );
+            })}
+          </div>
+          <div className="ak-turn-status" data-status={turnStatus}>
+            <span className="ak-turn-status__dot" aria-hidden>
+              ●
+            </span>
+            <span className="ak-turn-status__label">
+              {TURN_STATUS_LABEL[turnStatus]}
+            </span>
+          </div>
+          {showUnderstandingBox ? (
+            <div className="ak-understanding-box">
+              <div className="ak-understanding-box__label">요청 이해</div>
+              <div className="ak-understanding-box__text">
+                {understanding.lead}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
-      {showUnderstandingBox ? (
-        <div className="ak-understanding-box">
-          <div className="ak-understanding-box__label">요청 이해</div>
-          {understanding.lead}
-        </div>
-      ) : null}
-
-      {/* 1) Timeline / Worked — tools & thoughts only */}
+      {/* 1) Timeline / Worked — tools & thoughts only (MessageSteps grouping) */}
       {stepsDone ? (
         <div
           className={[
