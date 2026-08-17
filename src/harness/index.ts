@@ -117,8 +117,14 @@ export type { RoutingSignal, RoutingDecision } from './RoutingHeuristics';
 // ProjectRulesLoader (ADDON-T08)
 export {
   PROJECT_RULES_FILES,
+  DEFAULT_RULES_FILE,
+  PROJECT_CUSTOM_RULES_DIR,
+  listCustomRuleFileNames,
+  listProjectRuleFiles,
+  titleFromRuleContent,
   loadProjectRulesFromFs,
   formatProjectRulesBlock,
   getProjectRulesCached,
   invalidateProjectRulesCache,
 } from './ProjectRulesLoader';
+export type { ProjectRuleKind, ProjectRuleFile } from './ProjectRulesLoader';

@@ -130,8 +130,8 @@ export function ClarifyingQuestions({
       unansweredRequired.forEach((q) => {
         const opts = q.options || [OTHER_OPTION];
         errs[q.id] = isOtherSelected(q.answer, opts)
-          ? '기타를 선택한 경우 내용을 입력하세요'
-          : '필수 질문에 답해주세요';
+          ? 'Enter a note if you selected Other'
+          : 'Please answer required questions';
       });
       setErrors(errs);
       return;
@@ -146,16 +146,16 @@ export function ClarifyingQuestions({
         <p>
           {isPlan ? (
             <>
-              답을 고른 뒤 <strong>Complete Questions</strong>를 눌러야 다음 단계로 진행합니다.
+              Pick an answer, then press <strong>Complete Questions</strong> to continue.
               {normalized.some((q) => q.allowMultiple) ? (
-                <> 복수 선택은 체크박스로 고를 수 있습니다.</>
+                <> Use checkboxes to select more than one.</>
               ) : null}
             </>
           ) : (
             <>
               {normalized.length > 1
-                ? '모든 필수 질문에 답하면 이어서 진행합니다.'
-                : '선택하면 바로 이어서 진행합니다.'}
+                ? 'Answer every required question to continue.'
+                : 'Selecting an option continues immediately.'}
             </>
           )}
         </p>
@@ -179,7 +179,7 @@ export function ClarifyingQuestions({
                 </span>
               ) : null}
               {multi ? (
-                <span className="clarifying-questions__multi-hint"> · 복수 선택</span>
+                <span className="clarifying-questions__multi-hint"> · Multiple choice</span>
               ) : null}
             </div>
 
@@ -277,7 +277,7 @@ export function ClarifyingQuestions({
                   }
                 }}
                 disabled={readOnly}
-                placeholder="기타 — 직접 입력…"
+                placeholder="Other — type your own…"
                 rows={3}
               />
             ) : null}

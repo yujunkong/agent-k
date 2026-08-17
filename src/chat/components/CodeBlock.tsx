@@ -117,8 +117,8 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
           type="button"
           className="ak-code__copy"
           onClick={handleCopy}
-          title={copied ? '복사됨' : '코드 복사'}
-          aria-label={copied ? '복사됨' : '코드 복사'}
+          title={copied ? 'Copied' : 'Copy code'}
+          aria-label={copied ? 'Copied' : 'Copy code'}
         >
           {copied ? <IconCheck size={13} /> : <IconCopy size={13} />}
         </button>

@@ -175,21 +175,21 @@ export class DebugModeController {
     }
 
     if (targetIdx > currentIdx + 1) {
-      return { ok: false, error: '이전 단계를 먼저 진행하세요.' };
+      return { ok: false, error: 'Complete the previous stage first.' };
     }
 
     // One step forward
     if (stage === 'instrument' && !this.state.activeHypothesisId) {
-      return { ok: false, error: '가설을 먼저 선택한 뒤 Instrument로 이동하세요.' };
+      return { ok: false, error: 'Select a hypothesis first, then move to Instrument.' };
     }
     if (stage === 'fix') {
       const confirmed = this.state.hypotheses.some((h) => h.status === 'confirmed');
       if (!confirmed) {
-        return { ok: false, error: '확인된 가설이 있어야 Fix 단계로 갈 수 있습니다.' };
+        return { ok: false, error: 'A confirmed hypothesis is required before Fix.' };
       }
     }
     if (stage === 'cleanup' && !this.state.fixApplied) {
-      return { ok: false, error: '수정(Fix)을 적용한 뒤 Cleanup으로 이동하세요.' };
+      return { ok: false, error: 'Apply a Fix first, then move to Cleanup.' };
     }
 
     this.setStage(stage);

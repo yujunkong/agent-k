@@ -108,7 +108,7 @@ export function ComposerPalette({
         kind === 'mention' ? ' composer-palette--mention' : ''
       }`}
       role="listbox"
-      aria-label={kind === 'mention' ? '파일 멘션' : '슬래시 커맨드'}
+      aria-label={kind === 'mention' ? 'File mentions' : 'Slash commands'}
     >
       <div className="composer-palette__main">
         <div className="composer-palette__header">
@@ -130,10 +130,10 @@ export function ComposerPalette({
         </div>
         <div className="composer-palette__list" ref={listRef}>
           {loading && items.length === 0 ? (
-            <div className="composer-palette__empty">검색 중…</div>
+            <div className="composer-palette__empty">Searching…</div>
           ) : items.length === 0 ? (
             <div className="composer-palette__empty">
-              {kind === 'mention' ? '결과 없음' : '일치하는 명령 없음'}
+              {kind === 'mention' ? 'No results' : 'No matching commands'}
             </div>
           ) : (
             items.map((item, idx) => {

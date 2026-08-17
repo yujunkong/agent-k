@@ -93,7 +93,7 @@ export class PlanModeControllerAdapter {
       this.session.recordEvent({ type: 'plan.failed', reason: `Plan generation failed after ${result.attempts} attempt(s).`, timestamp: Date.now() });
       const lastFailure = result.failures[result.failures.length - 1];
       const problems = lastFailure?.errors.map((e) => `- [${e.code}] ${e.message}`).join('\n') ?? '(no details)';
-      return { ok: false, message: `계획을 자동으로 검증할 수 없습니다. 다음 문제가 있습니다.\n${problems}` };
+      return { ok: false, message: `The plan could not be validated automatically. Issues:\n${problems}` };
     }
 
     await this.acceptGeneratedPlan(result.plan, {
@@ -180,7 +180,7 @@ export class PlanModeControllerAdapter {
       const problems =
         last?.errors.map((e) => `- [${e.code}] ${e.message}`).join('\n') ?? '(no details)';
       throw new Error(
-        `구조화된 Plan이 없어 승인할 수 없습니다. 재생성에도 실패했습니다.\n${problems}`
+        `Cannot approve without a structured Plan. Regeneration also failed.\n${problems}`
       );
     }
 
@@ -192,7 +192,7 @@ export class PlanModeControllerAdapter {
 
     const loaded = this.session.getPlan();
     if (!loaded) {
-      throw new Error('구조화된 Plan을 세션에 적재하지 못했습니다.');
+      throw new Error('Failed to load the structured Plan into the session.');
     }
     return loaded;
   }
@@ -205,7 +205,7 @@ export class PlanModeControllerAdapter {
     if (!plan) {
       throw new Error(
         'Cannot approve: no structured plan is loaded. ' +
-          'Approve는 PlanSession의 구조화 Plan만 허용합니다. ensureStructuredPlan() 후 다시 시도하세요.'
+          'Approve only accepts a structured Plan in PlanSession. Call ensureStructuredPlan() and retry.'
       );
     }
     const requested = taskIds && taskIds.length > 0 ? [...new Set(taskIds)] : undefined;

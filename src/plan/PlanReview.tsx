@@ -118,7 +118,7 @@ export function PlanReview({
             className="settings-btn"
             onClick={() => setShowRejectInput((v) => !v)}
           >
-            반려
+            Reject
           </button>
           {onDiscard ? (
             <button
@@ -139,11 +139,11 @@ export function PlanReview({
               onBlur={() => setArmDiscard(false)}
               title={
                 armDiscard
-                  ? '다시 누르면 계획을 폐기하고 Research로 갑니다'
-                  : '계획을 폐기하고 Research로 돌아갑니다'
+                  ? 'Click again to discard the plan and return to Research'
+                  : 'Discard the plan and return to Research'
               }
             >
-              {armDiscard ? '정말 폐기?' : '계획 폐기'}
+              {armDiscard ? 'Discard for real?' : 'Discard plan'}
             </button>
           ) : null}
           <button
@@ -153,13 +153,13 @@ export function PlanReview({
             disabled={!canApprove}
             title={
               !questionsAnswered
-                ? '질문에 모두 답한 뒤 승인할 수 있습니다'
+                ? 'Answer all questions before approving'
                 : !canApprove
-                  ? 'Plan 내용 또는 단계가 필요합니다'
-                  : '승인하면 리뷰를 마치고 계획대로 실행합니다'
+                  ? 'Plan content or steps are required'
+                  : 'Approve to leave review and execute the plan'
             }
           >
-            승인
+            Approve
           </button>
           {onClose ? (
             <button
@@ -193,7 +193,7 @@ export function PlanReview({
               Cancel
             </button>
             <button type="button" className="settings-btn" onClick={handleReject}>
-              반려 확정
+              Confirm reject
             </button>
           </div>
         </div>
@@ -217,7 +217,7 @@ export function PlanReview({
                   onEdit(content);
                   onOpenInEditor(content);
                 }}
-                title="프로젝트 .agentk/plans/tmp 에 저장하고 에디터에서 엽니다"
+                title="Save to .agentk/plans/tmp and open in the editor"
               >
                 Open in Editor
               </button>
@@ -228,8 +228,8 @@ export function PlanReview({
           </pre>
           <p className="plan-review__hint">
             {structuredSourceOfTruth
-              ? '이 Plan은 구조화된 TaskGraph가 원본입니다. 변경이 필요하면 반려 사유를 남겨 Planner가 다시 생성하도록 하세요.'
-              : <>편집은 <strong>Open in Editor</strong>로 파일에서 하세요. 저장 후 Review로 돌아오면 반영됩니다. 에디터 상단 CodeLens의 <strong>Build</strong>로도 바로 실행할 수 있습니다.</>}
+              ? 'This Plan is backed by a structured TaskGraph. To change it, leave a reject reason so the planner can regenerate.'
+              : <>Edit the file with <strong>Open in Editor</strong>. Changes apply when you return to Review. You can also run <strong>Build</strong> from the editor CodeLens.</>}
           </p>
         </section>
 
@@ -271,12 +271,12 @@ export function PlanReview({
         <div className="plan-review__manual-verify" role="status">
           <div className="plan-review__section-head">
             <span className="plan-review__label">
-              수동 확인 필요 ({tasksAwaitingVerification.length})
+              Manual verification needed ({tasksAwaitingVerification.length})
             </span>
           </div>
           <p className="plan-review__hint">
-            아래 작업은 자동 검증 커맨드가 없어서 완료 여부를 판단할 수 없습니다.
-            직접 확인 후 완료로 표시해 주세요.
+            These tasks have no automatic verification command, so completion cannot be judged automatically.
+            Confirm them yourself, then mark as done.
           </p>
           <ul className="plan-review__manual-verify-list">
             {tasksAwaitingVerification.map((task) => (
@@ -287,9 +287,9 @@ export function PlanReview({
                   className="settings-btn primary"
                   onClick={() => onVerifyTask?.(task.id)}
                   disabled={!onVerifyTask}
-                  title="이 작업을 검증 완료로 표시합니다"
+                  title="Mark this task as verified"
                 >
-                  확인 완료
+                  Mark verified
                 </button>
               </li>
             ))}

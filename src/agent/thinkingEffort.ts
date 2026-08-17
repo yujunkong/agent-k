@@ -22,14 +22,14 @@ export const THINKING_EFFORT_OPTIONS: Array<{
   label: string;
   title: string;
 }> = [
-  { value: 'off', label: 'Off', title: 'Thinking 끔 — 빠른 응답' },
-  { value: 'low', label: 'Low', title: 'Thinking 낮음 — 일상 코딩' },
-  { value: 'medium', label: 'Med', title: 'Thinking 중간 — 기본' },
-  { value: 'high', label: 'High', title: 'Thinking 높음 — 어려운 설계/디버그' },
+  { value: 'off', label: 'Off', title: 'Thinking off — faster replies' },
+  { value: 'low', label: 'Low', title: 'Thinking low — everyday coding' },
+  { value: 'medium', label: 'Med', title: 'Thinking medium — default' },
+  { value: 'high', label: 'High', title: 'Thinking high — hard design/debug' },
   {
     value: 'max',
     label: 'Max',
-    title: 'Thinking 최대 — DeepSeek 권장(복잡한 에이전트 작업)',
+    title: 'Thinking max — recommended for complex agent work',
   },
 ];
 

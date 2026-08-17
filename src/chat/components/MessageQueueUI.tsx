@@ -20,13 +20,13 @@ export function QueueUI({ messages, onApplyNow, onCancel }: QueueUIProps) {
   return (
     <div className="queue-ui" role="status" aria-live="polite">
       <div className="queue-ui__header">
-        <span className="queue-ui__title">대기열 · {activeMessages.length}</span>
-        <span className="queue-ui__hint">현재 턴 종료 후 전송 · 재생은 해당 항목만 지금 적용</span>
+        <span className="queue-ui__title">Queue · {activeMessages.length}</span>
+        <span className="queue-ui__hint">Sent after the current turn · Play applies this item now</span>
       </div>
 
       {activeMessages.map((msg) => (
         <div key={msg.id} className="queue-item">
-          <span className="queue-badge">대기</span>
+          <span className="queue-badge">Queued</span>
 
           <span className="queue-text" title={msg.text}>
             {msg.text.slice(0, 80)}
@@ -38,8 +38,8 @@ export function QueueUI({ messages, onApplyNow, onCancel }: QueueUIProps) {
               type="button"
               onClick={() => onApplyNow(msg.id)}
               className="queue-icon-btn"
-              title="이 항목만 지금 적용 (나머지는 대기열에 유지)"
-              aria-label="지금 적용"
+              title="Apply this item now (keep the rest queued)"
+              aria-label="Apply now"
             >
               <IconPlay />
             </button>
@@ -47,8 +47,8 @@ export function QueueUI({ messages, onApplyNow, onCancel }: QueueUIProps) {
               type="button"
               onClick={() => onCancel(msg.id)}
               className="queue-icon-btn queue-icon-btn--cancel"
-              title="대기열에서 제거"
-              aria-label="대기열에서 제거"
+              title="Remove from queue"
+              aria-label="Remove from queue"
             >
               <IconClose />
             </button>

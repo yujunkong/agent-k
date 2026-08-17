@@ -2,7 +2,7 @@
 export const PLAN_V2_GENERATE_TIMEOUT_MS = 180_000;
 
 export const PLAN_V2_GENERATE_TIMEOUT_MESSAGE =
-  'Plan 생성이 180초를 초과해 중단했습니다. 호스트 요청을 취소했습니다. 이미 생성이 끝나 있으면 잠시 후 자동으로 반영됩니다.';
+  'Plan generation exceeded 180s and was cancelled. If it already finished, it will be applied shortly.';
 
 export interface PlanV2GenerateWatchdog {
   beginGenerateTimeout: () => void;

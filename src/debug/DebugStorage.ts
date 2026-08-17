@@ -40,7 +40,7 @@ export class DebugStorage {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) {
       throw new Error(
-        '워크스페이스 폴더가 없습니다. 프로젝트 폴더를 연 뒤 Debug를 저장하세요.'
+        'No workspace folder. Open a project folder, then save Debug.'
       );
     }
     return folders[0].uri.fsPath;
@@ -62,7 +62,7 @@ export class DebugStorage {
   ): Promise<StoredDebugSession> {
     const body = String(content || '').trim();
     if (!body) {
-      throw new Error('Debug 세션 내용이 비어 있어 저장하지 않았습니다.');
+      throw new Error('Debug session content is empty — nothing was saved.');
     }
 
     const tmpDir = this.getTempDirFsPath();

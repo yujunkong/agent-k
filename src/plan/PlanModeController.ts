@@ -57,7 +57,7 @@ Write a complete plan document for Review (saved as \`.agentk/plans/tmp/plan_*.m
 
 If new material decisions appear while drafting, call \`ask_question\` (prefer one call with \`questions: [...]\` batch, use allow_multiple when several options may apply). Do not re-ask the same question.
 Output the full markdown document in your reply. The UI saves it to a file and replaces the chat with a short summary + TODO list.
-Do NOT implement. Do NOT call switch_mode. Wait for user 승인 / 반려.
+Do NOT implement. Do NOT call switch_mode. Wait for the user to Approve or Reject.
 Mermaid: quote labels with ( ), /, or <br/> — e.g. R["API<br/>(9)"]; DB as DB[(SQLite)].`,
 
   review: `You are Agent K in PLAN mode — REVIEW stage.
@@ -65,7 +65,7 @@ Mermaid: quote labels with ( ), /, or <br/> — e.g. R["API<br/>(9)"]; DB as DB[
 The plan is in the review UI. Respond to feedback only.
 If the user feedback requires a clarifying decision, you may call \`ask_question\` (batch when possible).
 Do NOT implement. Do NOT call switch_mode.
-Build starts only when the user clicks 승인 (Approve).`,
+Build starts only when the user clicks Approve.`,
 
   build: `You are Agent K — BUILD mode.
 
@@ -231,7 +231,7 @@ export class PlanModeController {
       if (!this.state.planDocument) {
         return {
           ok: false,
-          error: '아직 Plan 문서가 없습니다. Planning에서 먼저 계획을 생성하세요.'
+          error: 'There is no Plan document yet. Generate a plan in Planning first.'
         };
       }
       this.setStage('review');
@@ -239,18 +239,18 @@ export class PlanModeController {
     }
     if (stage === 'build') {
       if (!this.state.planDocument) {
-        return { ok: false, error: 'Plan 문서가 없어 Build로 갈 수 없습니다.' };
+        return { ok: false, error: 'Cannot Build without a Plan document.' };
       }
       if (!this.state.approved) {
         return {
           ok: false,
-          error: 'Plan을 Review에서 승인한 뒤에 Build로 진행할 수 있습니다.'
+          error: 'Approve the Plan in Review before moving to Build.'
         };
       }
       if (!this.areAllQuestionsAnswered()) {
         return {
           ok: false,
-          error: '질문에 모두 답한 뒤에 Build로 진행할 수 있습니다.'
+          error: 'Answer all questions before moving to Build.'
         };
       }
       this.setStage('build');
@@ -260,7 +260,7 @@ export class PlanModeController {
         } catch (e) {
           return {
             ok: false,
-            error: e instanceof Error ? e.message : 'Build 전환 실패'
+            error: e instanceof Error ? e.message : 'Failed to switch to Build'
           };
         }
       }

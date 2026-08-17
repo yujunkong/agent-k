@@ -81,8 +81,8 @@ export function ChangedFilesBar({
           className="changed-files-bar__toggle"
           aria-expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
-          title={expanded ? '파일 목록 접기' : '파일 목록 펼치기'}
-          aria-label={expanded ? '파일 목록 접기' : '파일 목록 펼치기'}
+          title={expanded ? 'Collapse file list' : 'Expand file list'}
+          aria-label={expanded ? 'Collapse file list' : 'Expand file list'}
         >
           <span className="changed-files-bar__chevron" aria-hidden>
             {expanded ? '▾' : '▸'}
@@ -98,8 +98,8 @@ export function ChangedFilesBar({
               type="button"
               className="changed-files-bar__stop"
               onClick={onStop}
-              title="중지"
-              aria-label="중지"
+              title="Stop"
+              aria-label="Stop"
             >
               Stop
               <kbd className="changed-files-bar__kbd">⌃c</kbd>
@@ -110,7 +110,7 @@ export function ChangedFilesBar({
               type="button"
               className="changed-files-bar__link"
               onClick={onUndoAll}
-              title="이번 세션의 모든 수정 되돌리기"
+              title="Undo all edits in this session"
             >
               Undo
             </button>
@@ -123,7 +123,7 @@ export function ChangedFilesBar({
                 setExpanded(true);
                 onReview();
               }}
-              title="변경된 파일 검토"
+              title="Review changed files"
             >
               Review
             </button>
@@ -134,7 +134,7 @@ export function ChangedFilesBar({
               className="changed-files-bar__link"
               aria-expanded={showCheckpoints}
               onClick={toggleCheckpoints}
-              title="최근 체크포인트 목록"
+              title="Recent checkpoints"
             >
               Checkpoints
             </button>
@@ -145,7 +145,7 @@ export function ChangedFilesBar({
       {showCheckpoints ? (
         <ul className="changed-files-bar__checkpoints" role="list">
           {!checkpoints || checkpoints.length === 0 ? (
-            <li className="changed-files-bar__checkpoint-empty">체크포인트 없음</li>
+            <li className="changed-files-bar__checkpoint-empty">No checkpoints</li>
           ) : (
             checkpoints.slice(0, 8).map((cp) => (
               <li key={cp.id} className="changed-files-bar__checkpoint-row">
@@ -162,7 +162,7 @@ export function ChangedFilesBar({
                     onRestoreCheckpoint?.(cp.id);
                     setShowCheckpoints(false);
                   }}
-                  title="이 체크포인트로 복원"
+                  title="Restore this checkpoint"
                 >
                   Restore
                 </button>

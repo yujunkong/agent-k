@@ -9,7 +9,8 @@
  * - `plans/` — Plan mode drafts (`plans/tmp/plan_*.md`)
  * - `debug/` — Debug mode sessions (`debug/tmp/debug_*.md`)
  * - `checkpoints/` — rollback index
- * - (future) `agents/`, `skills/`, `rules/`, …
+ * - `rules/` — custom project rule files (Settings → Rules)
+ * - (future) `agents/`, `skills/`, …
  *
  * Do **not** create a parallel `.agent-k/` root. That hyphenated name is legacy
  * only (still read if present). New writes always go to `.agentk/`.

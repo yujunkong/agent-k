@@ -230,18 +230,18 @@ export function buildPlanChatSummary(planMd: string): string {
   const lines = [
     `## ${title}`,
     '',
-    '전체 계획은 Review 문서에 저장했습니다. **승인**하면 리뷰를 마치고 계획대로 진행합니다. **반려**하면 수정합니다.',
+    'The full plan is saved in the Review document. **Approve** to leave review and proceed. **Reject** to revise.',
     ''
   ];
   if (blurb) {
     lines.push(blurb, '');
   }
-  lines.push('### 진행 순서 (TODO)', '');
+  lines.push('### Order of work (TODO)', '');
   if (todos.length > 0) {
     todos.forEach((t, i) => lines.push(`${i + 1}. ${t}`));
   } else {
-    lines.push('1. (TODO 항목을 Review 문서에서 확인하세요)');
+    lines.push('1. (See TODO items in the Review document)');
   }
-  lines.push('', '_상세·아키텍처·리스크는 Review 패널 또는 에디터에서 확인하세요._');
+  lines.push('', '_Details, architecture, and risks are in the Review panel or editor._');
   return lines.join('\n');
 }

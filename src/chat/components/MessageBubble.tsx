@@ -224,7 +224,7 @@ export function MessageBubble({
     isAssistant &&
     isLastAssistant &&
     !streamBody &&
-    /임무를 끝내지 않은 채 중단|최종 답변 문장을 비운 채|도구 결과 요약입니다 \(자동 복구\)/.test(
+    /did not finish the task|left the final answer empty|tool result summary \(auto-recovery\)|임무를 끝내지 않은 채 중단|최종 답변 문장을 비운 채|도구 결과 요약입니다 \(자동 복구\)/.test(
       assistantBodyText
     );
 
@@ -286,7 +286,7 @@ export function MessageBubble({
           data-status={turnStatus}
           aria-live="polite"
         >
-          <div className="ak-turn-rail" role="list" aria-label="진행 단계">
+          <div className="ak-turn-rail" role="list" aria-label="Turn progress">
             {TURN_STATUS_ORDER.map((s, i) => {
               const done = railIndex >= 0 && i < railIndex;
               const active = railIndex === i;
@@ -317,7 +317,7 @@ export function MessageBubble({
           </div>
           {showUnderstandingBox ? (
             <div className="ak-understanding-box">
-              <div className="ak-understanding-box__label">요청 이해</div>
+              <div className="ak-understanding-box__label">Understanding</div>
               <div className="ak-understanding-box__text">
                 {understanding.lead}
               </div>
@@ -413,7 +413,7 @@ export function MessageBubble({
             <div
               className="message-actions message-actions--user"
               role="group"
-              aria-label="메시지 작업"
+              aria-label="Message actions"
             >
               {showUserStop ? (
                 <button
@@ -424,8 +424,8 @@ export function MessageBubble({
                       typeof message.content === 'string' ? message.content : ''
                     )
                   }
-                  title="중지"
-                  aria-label="중지"
+                  title="Stop"
+                  aria-label="Stop"
                 >
                   <span className="msg-stop-square" aria-hidden />
                 </button>
@@ -435,8 +435,8 @@ export function MessageBubble({
                     type="button"
                     className="msg-action-btn"
                     onClick={() => onEdit?.(message.id, message.content)}
-                    title="편집"
-                    aria-label="편집"
+                    title="Edit"
+                    aria-label="Edit"
                   >
                     <IconEdit />
                   </button>
@@ -444,8 +444,8 @@ export function MessageBubble({
                     type="button"
                     className="msg-action-btn"
                     onClick={() => onCopy?.(copyText)}
-                    title="복사"
-                    aria-label="복사"
+                    title="Copy"
+                    aria-label="Copy"
                   >
                     <IconCopy />
                   </button>
@@ -490,7 +490,7 @@ export function MessageBubble({
           ) : null}
 
           {showFooter ? (
-            <div className="message-actions" role="group" aria-label="메시지 작업">
+            <div className="message-actions" role="group" aria-label="Message actions">
               {isAssistant && relativeTime ? (
                 <span
                   className="msg-action-time"
@@ -519,8 +519,8 @@ export function MessageBubble({
                     onRegenerate?.();
                   }}
                   disabled={!!isAgentRunning}
-                  title="다시 실행"
-                  aria-label="다시 실행"
+                  title="Regenerate"
+                  aria-label="Regenerate"
                 >
                   <span aria-hidden>↻</span>
                 </button>
@@ -530,8 +530,8 @@ export function MessageBubble({
                   type="button"
                   className="msg-action-btn"
                   onClick={() => onFork?.(message.id)}
-                  title="이 지점에서 대화 포크"
-                  aria-label="이 지점에서 대화 포크"
+                  title="Fork conversation from here"
+                  aria-label="Fork conversation from here"
                 >
                   <IconFork />
                 </button>
@@ -540,8 +540,8 @@ export function MessageBubble({
                 type="button"
                 className="msg-action-btn"
                 onClick={() => onCopy?.(copyText)}
-                title="메시지 복사"
-                aria-label="메시지 복사"
+                title="Copy message"
+                aria-label="Copy message"
               >
                 <IconCopy />
               </button>

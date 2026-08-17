@@ -78,7 +78,7 @@ export function ChatSessionTabs({
 
   return (
     <header className="chat-header chat-header--tabs">
-      <div className="chat-header-tabs" role="tablist" aria-label="채팅 세션">
+      <div className="chat-header-tabs" role="tablist" aria-label="Chat sessions">
         {tabs.map((s) => {
           const active = s.id === currentId;
           const title = formatTabTitle(s, sessions);
@@ -100,8 +100,8 @@ export function ChatSessionTabs({
               <button
                 type="button"
                 className="chat-tab__close"
-                title="탭 닫기"
-                aria-label={`${title} 탭 닫기`}
+                title="Close tab"
+                aria-label={`Close ${title} tab`}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -125,8 +125,8 @@ export function ChatSessionTabs({
           type="button"
           className="chat-icon-btn"
           onClick={onNew}
-          title="새 채팅"
-          aria-label="새 채팅"
+          title="New chat"
+          aria-label="New chat"
         >
           <IconPlus />
         </button>
@@ -134,8 +134,8 @@ export function ChatSessionTabs({
           type="button"
           className="chat-icon-btn"
           onClick={onHistory}
-          title="채팅 기록"
-          aria-label="채팅 기록"
+          title="Chat history"
+          aria-label="Chat history"
           aria-pressed={historyOpen}
         >
           <IconHistory />
@@ -145,8 +145,8 @@ export function ChatSessionTabs({
             type="button"
             className="chat-icon-btn"
             onClick={() => setMoreOpen((v) => !v)}
-            title="더보기"
-            aria-label="더보기"
+            title="More"
+            aria-label="More"
             aria-expanded={moreOpen}
           >
             <IconMore />
@@ -161,7 +161,7 @@ export function ChatSessionTabs({
                   onSettings();
                 }}
               >
-                설정
+                Settings
               </button>
               <button
                 type="button"
@@ -171,7 +171,7 @@ export function ChatSessionTabs({
                   onHistory();
                 }}
               >
-                채팅 기록
+                Chat history
               </button>
             </div>
           ) : null}
@@ -180,8 +180,8 @@ export function ChatSessionTabs({
           type="button"
           className="chat-icon-btn"
           onClick={onHistory}
-          title="기록 패널"
-          aria-label="기록 패널"
+          title="History panel"
+          aria-label="History panel"
           aria-pressed={historyOpen}
         >
           <IconSidebar />

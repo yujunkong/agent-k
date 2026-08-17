@@ -291,7 +291,7 @@ export function ChatApp() {
       try {
         planV2Adapter.verifyTaskManually(taskId);
       } catch (e) {
-        setError(e instanceof Error ? e.message : '작업을 확인 완료로 표시하지 못했습니다.');
+        setError(e instanceof Error ? e.message : 'Could not mark the task as verified.');
       }
     },
     [planV2Adapter]
@@ -918,11 +918,11 @@ export function ChatApp() {
         return;
       }
       if (data.type === 'plan.save.error' && data.error) {
-        setError(`Plan 저장 실패: ${String(data.error)}`);
+        setError(`Plan save failed: ${String(data.error)}`);
         return;
       }
       if (data.type === 'plan.load.error' && data.error) {
-        setError(`Plan 로드 실패: ${String(data.error)}`);
+        setError(`Plan load failed: ${String(data.error)}`);
         return;
       }
       if (data.type === 'debug.saved' && data.slug) {
@@ -933,7 +933,7 @@ export function ChatApp() {
         return;
       }
       if (data.type === 'debug.save.error' && data.error) {
-        setError(`Debug 저장 실패: ${String(data.error)}`);
+        setError(`Debug save failed: ${String(data.error)}`);
         return;
       }
       if (data.type === 'model.context') {
@@ -1237,7 +1237,7 @@ export function ChatApp() {
         const api =
           (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
         if (!api?.postMessage) {
-          setError('Plan 저장: VS Code API를 사용할 수 없습니다. F5로 Extension Host를 다시 여세요.');
+          setError('Plan save: VS Code API is unavailable. Press F5 to reopen the Extension Host.');
         } else {
           api.postMessage({
             type: 'plan.save',
@@ -1247,7 +1247,7 @@ export function ChatApp() {
           });
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Plan 저장 요청 실패');
+        setError(e instanceof Error ? e.message : 'Plan save request failed');
       }
 
       if (planMd === lastPromotedPlanRef.current && planStageRef.current === 'review') {
@@ -1295,7 +1295,7 @@ export function ChatApp() {
           });
         })
         .catch((e) => {
-          setError(e instanceof Error ? e.message : 'Plan review로 이동하지 못했습니다.');
+          setError(e instanceof Error ? e.message : 'Could not move to Plan review.');
         });
       return true;
     },
@@ -1318,7 +1318,7 @@ export function ChatApp() {
       const rendered = planV2Adapter.getFullPlanContext();
       const summary = buildPlanChatSummary(rendered);
       const content = opts?.late
-        ? `Plan 생성이 타임아웃 이후 완료되어 반영했습니다.\n\n${summary}`
+        ? `Plan generation finished after timeout and was applied.\n\n${summary}`
         : summary;
       setMessages((prev) => {
         const next = [
@@ -1402,7 +1402,7 @@ export function ChatApp() {
       if (data.type === 'plan.buildFromEditor') {
         const content = String(data.content || '').trim();
         if (!content) {
-          setError('에디터 Plan이 비어 있어 Build할 수 없습니다.');
+          setError('Editor Plan is empty — cannot Build.');
           return;
         }
         const slugRaw = String(data.slug || '');
@@ -1465,7 +1465,7 @@ export function ChatApp() {
             setError(
               e instanceof Error
                 ? e.message
-                : '에디터에서 Build를 시작하지 못했습니다.'
+                : 'Could not start Build from the editor.'
             );
           }
         })();
@@ -1475,7 +1475,7 @@ export function ChatApp() {
       if (data.type === 'plan.openReviewFromEditor') {
         const content = String(data.content || '').trim();
         if (!content) {
-          setError('에디터 Plan이 비어 있어 Review를 열 수 없습니다.');
+          setError('Editor Plan is empty — cannot open Review.');
           return;
         }
         setMode('plan');
@@ -1796,7 +1796,7 @@ export function ChatApp() {
           ].join('\n');
 
       queueMicrotask(() => {
-        void handleSendRef.current?.('승인한 계획을 실행해 주세요. 현재 작업을 완료하고 검증까지 진행해 주세요.', [], {
+        void handleSendRef.current?.('Please execute the approved plan. Finish the current work and run verification.', [], {
           apiUserContent: apiContent,
           modeOverride: 'agent'
         });
@@ -2373,7 +2373,7 @@ export function ChatApp() {
           const last = result.failures[result.failures.length - 1];
           const details = last?.errors.map((e) => `- [${e.code}] ${e.message}`).join('\n') || '(no details)';
           endPlanGenerationUi(false);
-          setError(`구조화된 Plan 생성에 실패했습니다.\n${details}`);
+          setError(`Failed to generate a structured Plan.\n${details}`);
           return;
         }
         endPlanGenerationUi(true);
@@ -2381,7 +2381,7 @@ export function ChatApp() {
       })
       .catch((e) => {
         endPlanGenerationUi(false);
-        setError(e instanceof Error ? e.message : '구조화된 Plan 생성에 실패했습니다.');
+        setError(e instanceof Error ? e.message : 'Failed to generate a structured Plan.');
       })
       .finally(() => { questionsCompleteInFlightRef.current = false; });
   }, [
@@ -2444,7 +2444,7 @@ export function ChatApp() {
         quiet: true
       });
     } catch {
-      setError('에디터에서 Plan을 열 수 없습니다.');
+      setError('Could not open the Plan from the editor.');
     }
   }, [planController]);
 
@@ -2507,7 +2507,7 @@ export function ChatApp() {
         setShowPlanReview(false);
         setPlanStage('build');
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Plan 승인에 실패했습니다.');
+        setError(e instanceof Error ? e.message : 'Failed to approve the Plan.');
       }
     })();
   }, [planController, planV2Adapter, requestPlanV2]);
@@ -2517,7 +2517,7 @@ export function ChatApp() {
     setShowPlanReview(false);
     promotePlanOnCompleteRef.current = false;
     void (async () => {
-      await planV2Adapter.reject(reason || '계획을 더 명확하게 다듬어 주세요.');
+      await planV2Adapter.reject(reason || 'Please refine the plan so it is clearer.');
       setPlanStage('planning');
       beginPlanGenerationUi();
       const state = planV2Adapter.session.getState();
@@ -2530,7 +2530,7 @@ export function ChatApp() {
         const last = result.failures[result.failures.length - 1];
         const details = last?.errors.map((e) => `- [${e.code}] ${e.message}`).join('\n') || '(no details)';
         endPlanGenerationUi(false);
-        setError(`수정된 Plan 생성에 실패했습니다.\n${details}`);
+        setError(`Failed to regenerate the Plan.\n${details}`);
         return;
       }
       endPlanGenerationUi(true);
@@ -2543,7 +2543,7 @@ export function ChatApp() {
       setShowPlanReview(true);
     })().catch((e) => {
       endPlanGenerationUi(false);
-      setError(e instanceof Error ? e.message : 'Plan 수정에 실패했습니다.');
+      setError(e instanceof Error ? e.message : 'Failed to revise the Plan.');
     });
   }, [planController, planV2Adapter, requestPlanV2, beginPlanGenerationUi, endPlanGenerationUi]);
 
@@ -2665,8 +2665,8 @@ export function ChatApp() {
 
     void handleSend(
       [
-        '사용자가 Confirm & Fix를 눌렀습니다. 확정된 가설에 대해 **최소 수정만** 적용하세요.',
-        '계측 마커 제거는 Cleanup 단계에서 합니다.',
+        'The user pressed Confirm & Fix. Apply a **minimal change** for the confirmed hypothesis.',
+        'Remove instrumentation markers in the Cleanup stage.',
         active ? `## Confirmed hypothesis\n${active.title}\n${active.description}` : '',
       ]
         .filter(Boolean)
@@ -2820,7 +2820,7 @@ export function ChatApp() {
   const handleUndoAllEdits = useCallback(() => {
     const withCp = sessionFileEdits.filter((f) => f.checkpointId);
     if (!withCp.length) {
-      setError('되돌릴 체크포인트가 없습니다.');
+      setError('No checkpoint to undo.');
       return;
     }
     // Earliest checkpoint undoes the whole edit batch for this session
@@ -2833,7 +2833,7 @@ export function ChatApp() {
         prev.map((m) => (m.fileEdits?.length ? { ...m, fileEdits: [] } : m))
       );
     } catch {
-      setError('Undo All 요청에 실패했습니다.');
+      setError('Undo All request failed.');
     }
   }, [sessionFileEdits]);
 
@@ -2863,7 +2863,7 @@ export function ChatApp() {
         prev.map((m) => (m.fileEdits?.length ? { ...m, fileEdits: [] } : m))
       );
     } catch {
-      setError('체크포인트 복원 요청에 실패했습니다.');
+      setError('Checkpoint restore request failed.');
     }
   }, []);
 
@@ -2877,7 +2877,7 @@ export function ChatApp() {
         <aside
           className={`chat-rail${showHistory ? ' is-open' : ''}`}
           aria-hidden={!showHistory}
-          aria-label={showHistory ? '채팅 기록' : undefined}
+          aria-label={showHistory ? 'Chat history' : undefined}
         >
           {showHistory ? (
             <HistoryPanel
@@ -3065,8 +3065,8 @@ export function ChatApp() {
               onContinueMission={() => {
                 void handleSendRef.current?.(
                   mode === 'plan'
-                    ? '이어서 진행해 주세요. 리서치를 마쳤으면 결정이 필요할 때만 질문하고, 아니면 계획 문서를 작성한 뒤 요약+TODO만 보여 주세요. 혼자 질문/계획을 반복하지 마세요.'
-                    : '계속. 중단하지 말고 위 도구 결과에 이어서 임무를 끝까지 완료해.',
+                    ? 'Please continue. If research is done, ask only when a decision is needed; otherwise write the plan document and show a summary + TODOs. Do not loop questions and planning by yourself.'
+                    : 'Continue. Do not stop — finish the task using the tool results above.',
                   []
                 );
               }}

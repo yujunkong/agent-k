@@ -34,6 +34,13 @@ import { WorktreeManager } from './worktree/WorktreeManager';
 import { BestOfN, type BoNTrial } from './worktree/BestOfN';
 import { AdoptWinner } from './worktree/AdoptWinner';
 import { AgentReviewLoop } from './review/AgentReviewLoop';
+import {
+  handleRulesList,
+  handleRulesLoad,
+  handleRulesSave,
+  handleRulesCreate,
+  handleRulesDelete,
+} from './settings/rulesHostHandlers';
 
 /** RW-P0-03: VS Code workspace config ↔ ConfigManager singleton bridge */
 function agentKSubKey(fullKey: string): string {
@@ -636,7 +643,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const reveal = 'Reveal';
             void vscode.window
               .showInformationMessage(
-                `Plan 저장됨: ${stored.filePath}`,
+                `Plan saved: ${stored.filePath}`,
                 open,
                 reveal
               )
@@ -656,7 +663,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             error: msg,
             requestId: message.requestId
           });
-          void vscode.window.showErrorMessage(`Plan 저장 실패: ${msg}`);
+          void vscode.window.showErrorMessage(`Plan save failed: ${msg}`);
         }
       })();
       return;
@@ -731,7 +738,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           const reveal = 'Reveal';
           void vscode.window
             .showInformationMessage(
-              `Debug 저장됨: ${stored.filePath}`,
+              `Debug saved: ${stored.filePath}`,
               open,
               reveal
             )
@@ -751,7 +758,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             error: msg,
             requestId: message.requestId
           });
-          void vscode.window.showErrorMessage(`Debug 저장 실패: ${msg}`);
+          void vscode.window.showErrorMessage(`Debug save failed: ${msg}`);
         }
       })();
       return;
@@ -831,6 +838,43 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       void this.handleProjectConfigCreateExample();
       return;
     }
+    if (message.type === 'rules.list') {
+      void handleRulesList(this._view?.webview, String(message.requestId || ''));
+      return;
+    }
+    if (message.type === 'rules.load') {
+      void handleRulesLoad(
+        this._view?.webview,
+        String(message.requestId || ''),
+        String(message.id || '')
+      );
+      return;
+    }
+    if (message.type === 'rules.save') {
+      void handleRulesSave(
+        this._view?.webview,
+        String(message.requestId || ''),
+        String(message.id || ''),
+        String(message.content ?? '')
+      );
+      return;
+    }
+    if (message.type === 'rules.create') {
+      void handleRulesCreate(
+        this._view?.webview,
+        String(message.requestId || ''),
+        String(message.title ?? '')
+      );
+      return;
+    }
+    if (message.type === 'rules.delete') {
+      void handleRulesDelete(
+        this._view?.webview,
+        String(message.requestId || ''),
+        String(message.id || '')
+      );
+      return;
+    }
     // ADDON-T06: webview session list changed — sync into host SessionManager
     if (message.type === 'host.sessions.persist' && Array.isArray(message.sessions)) {
       this.persistSessionsToHost(message.sessions, message.currentId);
@@ -905,7 +949,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       void webview?.postMessage({
         type: 'config.project.saved',
         ok: false,
-        error: '워크스페이스 폴더가 없습니다.',
+        error: 'No workspace folder open.',
       });
       return;
     }
@@ -949,7 +993,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (!uri) {
       uri = preferredProjectConfigUri();
       if (!uri) {
-        void vscode.window.showWarningMessage('워크스페이스 폴더가 없습니다.');
+        void vscode.window.showWarningMessage('No workspace folder open.');
         return;
       }
       const nested = unflattenProjectConfig(
@@ -968,7 +1012,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private async handleProjectConfigCreateExample(): Promise<void> {
     const uri = preferredProjectConfigUri();
     if (!uri) {
-      void vscode.window.showWarningMessage('워크스페이스 폴더가 없습니다.');
+      void vscode.window.showWarningMessage('No workspace folder open.');
       return;
     }
     try {
@@ -2016,7 +2060,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }) => {
           postTimeline({
             kind: 'planning',
-            label: `계속 진행 중 (자동 연장 ${event.round}/${event.maxRounds}) — 턴 예산 ${event.previousTotalTurns} → ${event.newTotalTurns}`,
+            label: `Still working (auto-continue ${event.round}/${event.maxRounds}) — turn budget ${event.previousTotalTurns} → ${event.newTotalTurns}`,
             status: 'running',
             id: `tl_autocontinue_${event.round}`,
             turn: currentTurn
@@ -2555,13 +2599,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   public attachEditorSelection() {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
-      void vscode.window.showWarningMessage('Agent K: 에디터에서 텍스트를 선택한 뒤 다시 시도하세요.');
+      void vscode.window.showWarningMessage('Agent K: select text in the editor, then try again.');
       return;
     }
     const { document, selection } = editor;
     const text = document.getText(selection);
     if (!text.trim()) {
-      void vscode.window.showWarningMessage('Agent K: 선택된 텍스트가 없습니다.');
+      void vscode.window.showWarningMessage('Agent K: no text is selected.');
       return;
     }
     const startLine = selection.start.line + 1;
@@ -2665,7 +2709,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const payload = await readPlanFromEditor(uri);
     if (!payload) {
       void vscode.window.showWarningMessage(
-        'Agent K: `.agentk/plans` 아래 plan_*.md 파일을 연 뒤 Build를 실행하세요.'
+        'Agent K: open a plan_*.md file under `.agentk/plans`, then run Build.'
       );
       return;
     }
@@ -2683,7 +2727,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const payload = await readPlanFromEditor(uri);
     if (!payload) {
       void vscode.window.showWarningMessage(
-        'Agent K: `.agentk/plans` 아래 plan_*.md 파일을 연 뒤 Review를 여세요.'
+        'Agent K: open a plan_*.md file under `.agentk/plans`, then open Review.'
       );
       return;
     }

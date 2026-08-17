@@ -4,7 +4,7 @@
  * - Coerce object options ({ label, text, value, … }) → display string
  * - Always append 기타
  */
-export const OTHER_OPTION = '기타';
+export const OTHER_OPTION = 'Other';
 
 /** Models often send { label/text/value } instead of plain strings */
 export function coerceOptionLabel(raw: unknown): string {
@@ -108,7 +108,7 @@ export function normalizeMcqQuestion(
   }
 
   return {
-    question: q || String(question || '').trim() || '질문을 선택하세요',
+    question: q || String(question || '').trim() || 'Please choose an option',
     options: opts
   };
 }

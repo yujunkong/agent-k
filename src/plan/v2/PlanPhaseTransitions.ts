@@ -82,10 +82,10 @@ export function validatePhaseTransition(
   ctx: PhaseTransitionContext = {}
 ): PhaseTransitionResult {
   if (!(from in PLAN_PHASE_TRANSITIONS)) {
-    return fail(from, to, 'UNKNOWN_PHASE', `알 수 없는 phase: ${from}`);
+    return fail(from, to, 'UNKNOWN_PHASE', `Unknown phase: ${from}`);
   }
   if (!(to in PLAN_PHASE_TRANSITIONS) && from !== to) {
-    return fail(from, to, 'UNKNOWN_PHASE', `알 수 없는 목표 phase: ${to}`);
+    return fail(from, to, 'UNKNOWN_PHASE', `Unknown target phase: ${to}`);
   }
 
   if (from === to) {
@@ -113,7 +113,7 @@ export function validatePhaseTransition(
         from,
         to,
         'GUARD_NOT_IN_REVIEW',
-        '실행(executing)은 review에서 approve 할 때만 진입할 수 있습니다.'
+        'Executing is only allowed after approve from review.'
       );
     }
     if (ctx.hasStructuredPlan === false) {
@@ -125,7 +125,7 @@ export function validatePhaseTransition(
         allowed: getAllowedPhases(from),
         message: 'Cannot enter executing without a structured plan.',
         hint:
-          '구조화된 Plan이 PlanSession에 없습니다. ensureStructuredPlan() 또는 plan.generated 이후 approve 하세요.'
+          'No structured Plan in PlanSession. Call ensureStructuredPlan() or approve after plan.generated.'
       };
     }
   }
@@ -273,10 +273,10 @@ function buildIllegalHint(
   to: PlanPhase,
   allowed: readonly PlanPhase[]
 ): string {
-  const list = allowed.length > 0 ? allowed.join(', ') : '(없음)';
+  const list = allowed.length > 0 ? allowed.join(', ') : '(none)';
   return (
-    `현재 phase "${from}"에서는 "${to}"로 갈 수 없습니다. ` +
-    `허용: ${list}. ` +
-    `이벤트 순서(plan.started → research.completed → plan.generated → plan.approved)를 확인하세요.`
+    `Cannot go from phase "${from}" to "${to}". ` +
+    `Allowed: ${list}. ` +
+    `Check event order (plan.started → research.completed → plan.generated → plan.approved).`
   );
 }

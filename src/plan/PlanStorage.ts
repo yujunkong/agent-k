@@ -48,7 +48,7 @@ export class PlanStorage {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) {
       throw new Error(
-        '워크스페이스 폴더가 없습니다. 프로젝트 폴더를 연 뒤 Plan을 저장하세요.'
+        'No workspace folder. Open a project folder, then save the Plan.'
       );
     }
     // Prefer folder that looks like the active project (first is fine for single-root)
@@ -75,7 +75,7 @@ export class PlanStorage {
   ): Promise<StoredPlan> {
     const body = String(content || '').trim();
     if (!body) {
-      throw new Error('Plan 내용이 비어 있어 저장하지 않았습니다.');
+      throw new Error('Plan content is empty — nothing was saved.');
     }
 
     const tmpDir = this.getTempDirFsPath();

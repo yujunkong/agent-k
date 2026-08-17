@@ -117,7 +117,7 @@ const TAB_GROUPS: TabGroup[] = [
         id: 'rules',
         label: 'Rules',
         icon: '§',
-        keywords: 'rules glob agents.md cursorrules project',
+        keywords: 'rules agentrules agents.md cursorrules clinerules custom .agentk/rules',
       },
       {
         id: 'terminal',

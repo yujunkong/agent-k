@@ -66,7 +66,7 @@ function parseAskItems(input: ToolInput): ParsedAskItem[] {
   }
   if (!questionText) {
     questionText =
-      '전환 범위나 우선순위에 대해 확인이 필요합니다. 아래에서 선택하거나 기타에 적어 주세요.';
+      'A decision is needed about scope or priority. Pick an option below, or type your own under Other.';
   }
   return [
     {

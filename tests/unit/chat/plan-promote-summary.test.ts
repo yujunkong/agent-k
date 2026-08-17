@@ -29,8 +29,8 @@ suite('buildPlanChatSummary', () => {
     ].join('\n');
     assert.ok(looksLikePlanDocument(plan));
     const summary = buildPlanChatSummary(plan);
-    assert.ok(/승인/.test(summary));
-    assert.ok(/진행 순서/.test(summary));
+    assert.ok(/Approve/.test(summary));
+    assert.ok(/Order of work/.test(summary));
     assert.ok(/1\. 스키마 정의/.test(summary));
     assert.ok(/2\. 라우터 이식/.test(summary));
     assert.ok(!/## Risks/.test(summary));

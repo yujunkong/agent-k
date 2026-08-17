@@ -193,21 +193,6 @@
           "maximum": 5000,
           "description": "Alias of resynthesizeDebounceMs for queue coalescing."
         },
-        "agent-k.rules.enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Load project rule files matched by agent-k.rules.globs."
-        },
-        "agent-k.rules.globs": {
-          "type": "array",
-          "items": { "type": "string" },
-          "default": [
-            "**/.agentk/rules/**/*.md",
-            "**/AGENTS.md",
-            "**/.cursorrules"
-          ],
-          "description": "Glob patterns for project rules injected into agent context."
-        },
         "agent-k.terminal.timeoutMs": {
           "type": "integer",
           "default": 120000,

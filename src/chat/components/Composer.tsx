@@ -497,13 +497,13 @@ export function Composer({
           : String(att.startLine)
         : '';
     const raw = window.prompt(
-      '줄 범위 (예: 10-30). 비우면 파일 전체.',
+      'Line range (e.g. 10-30). Leave empty for the whole file.',
       current
     );
     if (raw == null) return;
     const parsed = parseLineRangeInput(raw);
     if (parsed == null) {
-      window.alert('형식이 올바르지 않습니다. 예: 10-30');
+      window.alert('Invalid format. Example: 10-30');
       return;
     }
     setAttachments((prev) =>
@@ -707,9 +707,9 @@ export function Composer({
       return 'Streaming… (Enter: queue · ⌘/Ctrl+Enter: interrupt)';
     }
     if (attachments.length) {
-      return '메시지 추가, 또는 첨부만으로 전송… (로그 붙여넣기·칩 클릭=줄 범위)';
+      return 'Add a message, or send attachments only… (paste logs · click a chip for line range)';
     }
-    return '메시지 입력 · @ 파일 · / 명령…';
+    return 'Type a message · @ files · / commands…';
   };
 
   const usagePct = Math.max(0, Math.min(100, Math.round(contextUsagePercent)));
@@ -772,7 +772,7 @@ export function Composer({
                       onClick={() => editLineRange(a)}
                       title={
                         a.type === 'file' || a.type === 'snippet'
-                          ? '클릭하여 줄 범위 지정'
+                          ? 'Click to set a line range'
                           : undefined
                       }
                     >
@@ -782,7 +782,7 @@ export function Composer({
                       type="button"
                       className="composer-chip-remove"
                       onClick={() => removeAttachment(id)}
-                      title="첨부 제거"
+                      title="Remove attachment"
                       aria-label={`Remove ${label}`}
                     >
                       ×
@@ -858,9 +858,9 @@ export function Composer({
                   title={
                     (thinkingOptions || THINKING_EFFORT_OPTIONS).find(
                       (o) => o.value === thinkingEffort
-                    )?.title || 'Thinking 강도'
+                    )?.title || 'Thinking effort'
                   }
-                  aria-label="Thinking 강도"
+                  aria-label="Thinking effort"
                 >
                   {(thinkingOptions || THINKING_EFFORT_OPTIONS).map((o) => (
                     <option key={o.value} value={o.value} title={o.title}>
@@ -877,8 +877,8 @@ export function Composer({
                 onClick={pickAttachments}
                 disabled={disabled && !isStreaming}
                 className="composer-icon-btn"
-                title="파일 또는 폴더 첨부"
-                aria-label="파일 또는 폴더 첨부"
+                title="Attach file or folder"
+                aria-label="Attach file or folder"
               >
                 📎
               </button>
@@ -890,8 +890,8 @@ export function Composer({
                       onClick={() => submitQueue(text)}
                       disabled={!canSend}
                       className="composer-icon-btn composer-icon-btn--queue"
-                      title="대기열에 추가 (Enter) — 현재 턴 종료 후 전송"
-                      aria-label="대기열에 추가"
+                      title="Add to queue (Enter) — sent after the current turn"
+                      aria-label="Add to queue"
                     >
                       <IconQueue />
                     </button>
@@ -900,8 +900,8 @@ export function Composer({
                     type="button"
                     onClick={() => submitResynth(text)}
                     className="composer-icon-btn"
-                    title="중단 후 합치기 (⌘/Ctrl+Enter)"
-                    aria-label="중단 후 합치기"
+                    title="Interrupt and merge (⌘/Ctrl+Enter)"
+                    aria-label="Interrupt and merge"
                   >
                     ⏎
                   </button>
@@ -909,8 +909,8 @@ export function Composer({
                     type="button"
                     onClick={onStop}
                     className="composer-icon-btn composer-icon-btn--stop"
-                    title="중지"
-                    aria-label="중지"
+                    title="Stop"
+                    aria-label="Stop"
                   >
                     <span className="composer-stop-square" aria-hidden />
                   </button>
@@ -921,8 +921,8 @@ export function Composer({
                   onClick={() => submitIdle(text)}
                   disabled={disabled || !canSend}
                   className="composer-icon-btn composer-icon-btn--send"
-                  title="전송"
-                  aria-label="전송"
+                  title="Send"
+                  aria-label="Send"
                 >
                   ▲
                 </button>
@@ -944,8 +944,8 @@ export function Composer({
           className="composer-usage__regen"
           onClick={onRegenerate}
           disabled={disabled || isStreaming}
-          title="다시 실행"
-          aria-label="다시 실행"
+          title="Regenerate"
+          aria-label="Regenerate"
         >
           <span aria-hidden>↻</span>
         </button>

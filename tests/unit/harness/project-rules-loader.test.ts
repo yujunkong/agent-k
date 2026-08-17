@@ -10,7 +10,11 @@ import {
   formatProjectRulesBlock,
   getProjectRulesCached,
   invalidateProjectRulesCache,
+  listProjectRuleFiles,
+  titleFromRuleContent,
   PROJECT_RULES_FILES,
+  DEFAULT_RULES_FILE,
+  PROJECT_CUSTOM_RULES_DIR,
 } from '../../../src/harness/ProjectRulesLoader';
 
 function makeTempDir(): string {
@@ -104,5 +108,45 @@ suite('ADDON-T08 ProjectRulesLoader', () => {
       [...PROJECT_RULES_FILES],
       ['AGENTS.md', '.cursorrules', '.agentrules', '.clinerules']
     );
+  });
+
+  test('listProjectRuleFiles always includes basic .agentrules', () => {
+    const dir = makeTempDir();
+    const listed = listProjectRuleFiles(dir);
+    assert.strictEqual(listed[0]?.kind, 'basic');
+    assert.strictEqual(listed[0]?.relPath, DEFAULT_RULES_FILE);
+    assert.strictEqual(listed.length, 1);
+  });
+
+  test('loads custom rules from .agentk/rules after root files', () => {
+    const dir = makeTempDir();
+    fs.mkdirSync(path.join(dir, '.agentk', 'rules'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.agentrules'), 'basic content');
+    fs.writeFileSync(path.join(dir, '.agentk', 'rules', 'korean.md'), 'Always respond in Korean');
+    fs.writeFileSync(path.join(dir, '.agentk', 'rules', 'skip.bin'), 'not a rule');
+    const content = loadProjectRulesFromFs(dir);
+    assert.ok(content.includes('basic content'));
+    assert.ok(content.includes('Always respond in Korean'));
+    assert.ok(content.includes(`${PROJECT_CUSTOM_RULES_DIR}/korean.md`));
+    assert.ok(!content.includes('not a rule'));
+    assert.ok(content.indexOf('basic content') < content.indexOf('Always respond in Korean'));
+  });
+
+  test('listProjectRuleFiles includes custom markdown files', () => {
+    const dir = makeTempDir();
+    fs.mkdirSync(path.join(dir, '.agentk', 'rules'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.agentk', 'rules', 'korean.md'), '# Always respond in Korean\n');
+    const listed = listProjectRuleFiles(dir);
+    assert.strictEqual(listed.length, 2);
+    assert.strictEqual(listed[1]?.kind, 'custom');
+    assert.strictEqual(listed[1]?.fileName, 'korean.md');
+  });
+
+  test('titleFromRuleContent prefers the first heading', () => {
+    assert.strictEqual(
+      titleFromRuleContent('# Always respond in Korean\n\nDetails', 'fallback'),
+      'Always respond in Korean'
+    );
+    assert.strictEqual(titleFromRuleContent('', '기본 룰'), '기본 룰');
   });
 });

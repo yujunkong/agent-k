@@ -1010,7 +1010,7 @@ export class AgentLoopController {
       } else {
         await this.config.onAssistantContent?.(
           `Max turns (${this._state.totalTurns}) reached after ${this.autoContinueRounds} automatic ` +
-          `continue${this.autoContinueRounds === 1 ? '' : 's'}. Type "계속" to resume, or narrow the task.`
+          `continue${this.autoContinueRounds === 1 ? '' : 's'}. Type "continue" to resume, or narrow the task.`
         );
       }
     }
@@ -1313,7 +1313,7 @@ export class AgentLoopController {
         if ((intendsTools || this.claimsPendingFileWrites(said)) && !hadTools) {
           return {
             content:
-              '모델이 파일을 읽거나 작성하겠다고만 하고 도구를 호출하지 않았습니다. Regenerate로 다시 시도하거나, 대상 파일 경로를 구체적으로 지정해 주세요.',
+              'The model said it would read or write files but never called a tool. Press Regenerate, or specify the target file path.',
             toolCalls: []
           };
         }
@@ -1324,7 +1324,7 @@ export class AgentLoopController {
 
         return {
           content:
-            '응답이 비어 있습니다. 로컬 모델이 본문 없이 종료했습니다. Regenerate를 누르거나 Base URL/모델 ID를 확인하세요.',
+            'The response was empty. The local model ended with no body. Press Regenerate, or check the Base URL / model ID.',
           toolCalls: []
         };
       } catch (error: any) {
@@ -1508,7 +1508,7 @@ export class AgentLoopController {
 
       if (hitLengthLimit && fullContent.trim()) {
         const note =
-          '\n\n*(응답이 길이 제한으로 잘렸을 수 있습니다. Regenerate로 이어서 요청하세요.)*';
+          '\n\n*(The response may have been cut off by a length limit. Press Regenerate to continue.)*';
         fullContent += note;
         void this.config.onAssistantDelta?.(note);
       }
@@ -1531,7 +1531,7 @@ export class AgentLoopController {
       if (toolCallAcc.size > 0 && toolCalls.length === 0 && !fullContent.trim()) {
         return {
           content:
-            '모델이 등록되지 않은 도구 이름을 호출했습니다. 분석을 본문으로 이어갑니다.',
+            'The model called an unregistered tool name. Continuing with a written analysis.',
           reasoning: reasoningContent,
           toolCalls: []
         };
@@ -1559,7 +1559,7 @@ export class AgentLoopController {
       lastTools: tools.map((m) => m.name || 'tool')
     });
     if (!tools.length) {
-      return '도구는 실행됐지만 모델 최종 응답이 비었습니다. Regenerate로 다시 시도하세요.';
+      return 'Tools ran, but the model left the final answer empty. Press Regenerate to continue.';
     }
     const names = tools.map((m) => m.name || 'tool');
     const uniq: string[] = [];
@@ -1573,11 +1573,11 @@ export class AgentLoopController {
       })
       .join(', ');
     return [
-      '모델이 도구만 실행하고 임무를 끝내지 않은 채 중단했습니다.',
+      'The model ran tools and then stopped without finishing the task.',
       '',
-      `마지막 도구: ${counts}`,
+      `Last tools: ${counts}`,
       '',
-      '아래 메시지 하단의 **다시 실행**을 눌러 이어서 진행해 주세요.'
+      'Press **Regenerate** at the bottom of the message to continue.'
     ].join('\n');
   }
 

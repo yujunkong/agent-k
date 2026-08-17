@@ -151,7 +151,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       const q = delta.askQuestion;
       const normalized = normalizeMcqQuestion(
         q.question ||
-          '확인이 필요합니다. 아래에서 선택하거나 기타에 적어 주세요.',
+          'A decision is needed. Pick an option below, or type your own under Other.',
         q.options
       );
       if (ctx.mode === 'plan') {

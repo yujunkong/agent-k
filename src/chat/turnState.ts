@@ -28,13 +28,13 @@ export type TurnStatus =
   | 'error';
 
 export const TURN_STATUS_LABEL: Record<TurnStatus, string> = {
-  understanding: '요청 이해',
-  planning: '계획 수립',
-  exploring: '코드 탐색',
-  executing: '수정 중',
-  testing: '테스트 중',
-  completed: '완료',
-  error: '오류'
+  understanding: 'Understanding',
+  planning: 'Planning',
+  exploring: 'Exploring',
+  executing: 'Editing',
+  testing: 'Testing',
+  completed: 'Done',
+  error: 'Error'
 };
 
 /** Ordered for a linear progress rail (Phase 5 UI) — not used for derivation itself. */

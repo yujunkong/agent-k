@@ -45,14 +45,14 @@ export function HistoryPanel({
   onClose
 }: HistoryPanelProps) {
   return (
-    <div className="history-panel" role="dialog" aria-label="채팅 기록">
+    <div className="history-panel" role="dialog" aria-label="Chat history">
       <div className="history-panel__header">
         <h2>History</h2>
         <div className="history-panel__header-actions">
-          <button type="button" className="history-panel__icon-btn" onClick={onNew} title="새 채팅" aria-label="새 채팅">
+          <button type="button" className="history-panel__icon-btn" onClick={onNew} title="New chat" aria-label="New chat">
             <IconPlus />
           </button>
-          <button type="button" className="history-panel__icon-btn" onClick={onClose} title="닫기" aria-label="닫기">
+          <button type="button" className="history-panel__icon-btn" onClick={onClose} title="Close" aria-label="Close">
             <IconClose />
           </button>
         </div>
@@ -86,8 +86,8 @@ export function HistoryPanel({
                 <button
                   type="button"
                   className="history-panel__icon-btn history-panel__delete"
-                  title="세션 삭제"
-                  aria-label={`${s.title || '채팅'} 삭제`}
+                  title="Delete session"
+                  aria-label={`Delete ${s.title || 'chat'}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete(s.id);

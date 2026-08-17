@@ -124,8 +124,9 @@ Use only read/search tools (and ask_question / todo_write when appropriate).`;
 
     const memoryStore = this.resolveMemoryStore();
 
-    // ADDON-T08: auto-load AGENTS.md / .cursorrules / .agentrules / .clinerules into
-    // the rules slot. Never throws — falls back to no-op when vscode/fs are unavailable.
+    // ADDON-T08: auto-load AGENTS.md / .cursorrules / .agentrules / .clinerules
+    // and `.agentk/rules/*` into the rules slot. Never throws — falls back to
+    // no-op when vscode/fs are unavailable.
     const projectRulesBlock = formatProjectRulesBlock(this.resolveProjectRules(options?.projectRules));
 
     const slots: ContextSlot[] = [

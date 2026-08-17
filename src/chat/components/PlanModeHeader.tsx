@@ -67,11 +67,11 @@ export function PlanModeHeader({
                 onClick={onOpenReview}
                 title={
                   inReview
-                    ? 'Review 창을 다시 열어 승인하거나 수정합니다'
-                    : '채팅에 작성된 PLAN을 Review로 엽니다'
+                    ? 'Reopen Review to approve or revise'
+                    : 'Open the PLAN from chat in Review'
                 }
               >
-                {inReview ? 'Review 다시 열기' : 'Review 열기'}
+                {inReview ? 'Reopen Review' : 'Open Review'}
               </button>
             ) : null}
             {showDiscard ? (
@@ -86,11 +86,11 @@ export function PlanModeHeader({
                 onBlur={() => setArmDiscard(false)}
                 title={
                   armDiscard
-                    ? '다시 누르면 Research로 돌아갑니다 (plan_*.md 파일은 유지)'
-                    : '현재 계획을 폐기하고 Research로 돌아갑니다'
+                    ? 'Click again to return to Research (plan_*.md is kept)'
+                    : 'Discard the current plan and return to Research'
                 }
               >
-                {armDiscard ? '정말 폐기?' : '계획 폐기'}
+                {armDiscard ? 'Discard for real?' : 'Discard plan'}
               </button>
             ) : null}
           </div>
@@ -99,9 +99,9 @@ export function PlanModeHeader({
 
       {showHint ? (
         <div className="plan-mode-header__hint" role="status">
-          Review 창을 닫은 상태입니다. <strong>Review 다시 열기</strong>로 승인·반려하거나,{' '}
-          <strong>계획 폐기</strong>로 처음부터 다시 시작할 수 있습니다. Build는 Review에서
-          <strong> 승인</strong>할 때만 진행됩니다.
+          Review is closed. Use <strong>Reopen Review</strong> to approve or reject, or{' '}
+          <strong>Discard plan</strong> to start over. Build runs only after you{' '}
+          <strong>Approve</strong> in Review.
         </div>
       ) : null}
     </div>

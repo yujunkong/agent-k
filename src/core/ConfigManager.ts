@@ -46,8 +46,6 @@ export const AGENT_K_VSCODE_CONFIG_KEYS = [
   'agent-k.harness.verificationMicroLoop',
   'agent-k.context.readMaxLines',
   'agent-k.queue.debounceMs',
-  'agent-k.rules.enabled',
-  'agent-k.rules.globs',
   'agent-k.terminal.timeoutMs',
   'agent-k.terminal.denyPatterns',
   'agent-k.review.applyPolicy',

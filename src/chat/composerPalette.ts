@@ -33,77 +33,77 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: 'new',
     label: '/new',
-    description: '새 채팅 탭',
+    description: 'New chat tab',
     action: 'newChat'
   },
   {
     id: 'agent',
     label: '/agent',
-    description: 'Agent 모드로 전환',
+    description: 'Switch to Agent mode',
     action: 'mode',
     mode: 'agent'
   },
   {
     id: 'ask',
     label: '/ask',
-    description: 'Ask 모드로 전환',
+    description: 'Switch to Ask mode',
     action: 'mode',
     mode: 'ask'
   },
   {
     id: 'plan',
     label: '/plan',
-    description: 'Plan 모드로 전환',
+    description: 'Switch to Plan mode',
     action: 'mode',
     mode: 'plan'
   },
   {
     id: 'debug',
     label: '/debug',
-    description: 'Debug 모드로 전환',
+    description: 'Switch to Debug mode',
     action: 'mode',
     mode: 'debug'
   },
   {
     id: 'settings',
     label: '/settings',
-    description: '설정 열기',
+    description: 'Open settings',
     action: 'settings'
   },
   {
     id: 'compact',
     label: '/compact',
-    description: '오래된 컨텍스트 요약(compaction)',
+    description: 'Summarize older context (compaction)',
     action: 'compact'
   },
   {
     id: 'cost',
     label: '/cost',
-    description: '이번 세션 토큰/비용 확인',
+    description: 'Show token/cost for this session',
     action: 'cost'
   },
   {
     id: 'model',
     label: '/model',
-    description: '모델 설정 열기',
+    description: 'Open model settings',
     action: 'model'
   },
   {
     id: 'permissions',
     label: '/permissions',
-    description: '권한 설정 열기',
+    description: 'Open permission settings',
     action: 'permissions'
   },
   {
     id: 'help',
     label: '/help',
-    description: '사용 가능한 명령 목록',
+    description: 'List available commands',
     action: 'help'
   },
   {
     id: 'bon',
     label: '/bon',
-    description: 'Best-of-N: worktree N개에서 병렬 실행 후 비교',
+    description: 'Best-of-N: run in N worktrees, then compare',
     action: 'bestOfN'
   }
 ];
