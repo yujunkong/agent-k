@@ -4,6 +4,7 @@ import { AgentTurnAdapter } from '../conversation/agentTurnAdapter';
 import { getVariantMeta, setActiveVariant, useActiveVariant } from '../conversation/conversationVariants';
 import { normalizeWorkItems, type ConversationWorkEvent } from '../conversation/normalizeWorkItems';
 import { normalizeChangeSummary, type ConversationFileEdit } from '../conversation/normalizeChangeSummary';
+import './conversation-variants.css';
 
 export interface ConversationTurnProps {
   message: any;
@@ -26,7 +27,7 @@ export function ConversationTurn(props: ConversationTurnProps) {
   const streaming = !!isStreaming || message?.status === 'streaming';
   const isAssistant = message?.role === 'assistant';
   const variantMeta = isAssistant ? getVariantMeta(message) : null;
-  const activeVariant = variantMeta ? useActiveVariant(variantMeta.groupId) : 0;
+  const activeVariant = useActiveVariant(variantMeta?.groupId ?? '');
   const isActiveVariant = !variantMeta || variantMeta.index === activeVariant;
 
   const workEvents = Array.isArray(message?.workItems)
