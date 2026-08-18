@@ -48,6 +48,7 @@ class ScriptedModel implements PlanGenerationModel {
 
 const alwaysTrue = () => true;
 const alwaysFalse = () => false;
+const missingRetryFixtureFile = (path: string) => path !== 'src/does/not/exist.ts';
 
 suite('Plan V2 — PlanV2Generator', () => {
   test('succeeds on the first attempt when the plan is valid', async () => {
@@ -61,7 +62,7 @@ suite('Plan V2 — PlanV2Generator', () => {
 
   test('retries once on semantic failure, then succeeds, and feeds FailureContext back into the prompt', async () => {
     const model = new ScriptedModel([planWithMissingFile, goodPlan]);
-    const generator = new PlanV2Generator(model, alwaysTrue);
+    const generator = new PlanV2Generator(model, missingRetryFixtureFile);
     const result = await generator.generate({ goal: 'Add JWT auth', researchContext: '' });
     assert.strictEqual(result.ok, true);
     assert.strictEqual(result.attempts, 2);
@@ -92,7 +93,6 @@ suite('Plan V2 — PlanV2Generator', () => {
     assert.strictEqual(result.failures[0].type, 'schema_validation_failed');
     assert.ok(result.failures[0].errors.some((e) => e.code === 'JSON_PARSE_ERROR'));
   });
-
 
   test('retries after a planner transport error and exposes the failure reason', async () => {
     class FailingOnceModel extends ScriptedModel {
