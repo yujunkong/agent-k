@@ -134,7 +134,9 @@
       "properties": {
         "agent-k.permission.denyGlobs": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [
             "**/.env*",
             "**/secrets/**",
@@ -202,13 +204,24 @@
         },
         "agent-k.terminal.denyPatterns": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["rm -rf /", "mkfs", "dd if=", ":(){ :|:& };:"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "rm -rf /",
+            "mkfs",
+            "dd if=",
+            ":(){ :|:& };:"
+          ],
           "description": "Substring patterns blocked before shell execution."
         },
         "agent-k.review.applyPolicy": {
           "type": "string",
-          "enum": ["ask", "auto", "manual"],
+          "enum": [
+            "ask",
+            "auto",
+            "manual"
+          ],
           "default": "ask",
           "description": "How Agent Review patches are applied: ask | auto | manual."
         },
@@ -298,13 +311,17 @@
         },
         "agent-k.provider.models": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "description": "Legacy model list (synced with availableModels)"
         },
         "agent-k.provider.availableModels": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "description": "Models shown in the Composer dropdown (persisted after connect / selection)"
         },
@@ -485,20 +502,28 @@
               "command": {
                 "description": "Executable + args as array, or command string with separate args",
                 "oneOf": [
-                  { "type": "string" },
+                  {
+                    "type": "string"
+                  },
                   {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 ]
               },
               "args": {
                 "type": "array",
-                "items": { "type": "string" }
+                "items": {
+                  "type": "string"
+                }
               },
               "env": {
                 "type": "object",
-                "additionalProperties": { "type": "string" }
+                "additionalProperties": {
+                  "type": "string"
+                }
               },
               "enabled": {
                 "type": "boolean",
@@ -506,7 +531,10 @@
               },
               "transport": {
                 "type": "string",
-                "enum": ["stdio", "http"],
+                "enum": [
+                  "stdio",
+                  "http"
+                ],
                 "default": "stdio"
               },
               "url": {
@@ -514,7 +542,11 @@
               },
               "framing": {
                 "type": "string",
-                "enum": ["auto", "ndjson", "content-length"],
+                "enum": [
+                  "auto",
+                  "ndjson",
+                  "content-length"
+                ],
                 "default": "auto",
                 "description": "stdio framing (default ndjson; set content-length for SDK-strict servers)"
               }
@@ -637,7 +669,8 @@
     "tsx": "^4.23.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.1",
-    "vite": "^5.4.21"
+    "vite": "^5.4.21",
+    "vitest": "^2.1.9"
   },
   "overrides": {
     "diff": "^8.0.4",
