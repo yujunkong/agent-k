@@ -1,0 +1,127 @@
+/* Agent K v2.1 — final workspace polish. Imported by cursor-ui.css. */
+
+.changed-files-bar {
+  padding: 2px 8px;
+  overflow: visible;
+}
+
+.changed-files-bar__row {
+  min-height: 30px;
+}
+
+.changed-files-bar__toggle,
+.changed-files-bar__link,
+.changed-files-bar__review,
+.changed-files-bar__stop {
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 11px;
+}
+
+.changed-files-bar__toggle:hover,
+.changed-files-bar__link:hover,
+.changed-files-bar__review:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.25));
+}
+
+.changed-files-bar__review {
+  color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+}
+
+.changed-files-bar__list {
+  margin: 2px 0 5px;
+  padding: 4px 0 2px;
+  border-top: 1px solid var(--ak-ui-border);
+}
+
+.changed-files-bar__li {
+  list-style: none;
+}
+
+.changed-files-bar__file {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 7px;
+  min-height: 25px;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--vscode-foreground, #ccc);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.changed-files-bar__file:hover {
+  background: var(--vscode-list-hoverBackground, rgba(255,255,255,.06));
+}
+
+.changed-files-bar__name {
+  overflow: hidden;
+  flex: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.changed-files-bar__file-stats {
+  display: inline-flex;
+  gap: 5px;
+  font-size: 10px;
+  opacity: .8;
+}
+
+.composer,
+.composer-container {
+  border-radius: 10px;
+}
+
+.composer-input:focus,
+.composer__input:focus,
+.composer-textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 65%, transparent);
+}
+
+/* Mode chrome becomes a quiet context strip rather than another panel. */
+.mode-chrome,
+.mode-chrome--debug,
+.mode-chrome--questions {
+  padding: 5px 0;
+}
+
+.plan-editor-overlay,
+.settings-overlay,
+.error-banner {
+  border-radius: 8px;
+}
+
+.error-banner {
+  margin: 6px auto;
+  max-width: 860px;
+}
+
+/* Keep review/debug controls visually secondary to the conversation. */
+.plan-mode-header button,
+.debug-mode-ui button {
+  border-radius: 6px;
+}
+
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.attachment-tag,
+.user-chip {
+  border-radius: 5px;
+  font-size: 10px;
+}
+
+.user-turn__text {
+  line-height: 1.5;
+}
