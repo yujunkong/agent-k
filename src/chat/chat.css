@@ -995,7 +995,7 @@ body {
   background: transparent;
 }
 
-.message-list > .message-bubble {
+.message-list > .conversation-turn {
   display: block;
   width: 100%;
   max-width: 100%;

@@ -22,8 +22,16 @@ export interface ConversationTurnProps {
  * unchanged while presentation is migrated incrementally.
  */
 export function ConversationTurn(props: ConversationTurnProps) {
+  const { message, isStreaming } = props;
+  const streaming = !!isStreaming || message?.status === 'streaming';
+
   return (
-    <section className="conversation-turn" data-role={props.message?.role}>
+    <section
+      className="conversation-turn"
+      data-role={message?.role}
+      data-turn-id={message?.id}
+      data-streaming={streaming ? 'true' : undefined}
+    >
       <MessageBubble {...props} />
     </section>
   );

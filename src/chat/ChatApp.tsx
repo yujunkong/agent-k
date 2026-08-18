@@ -8,7 +8,7 @@
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { MessageBubble } from './components/MessageBubble';
+import { ConversationTurn } from './conversation';
 import { PLAN_V2_GENERATE_STEP_ID } from './components/MessageSteps';
 import { Composer } from './components/Composer';
 import { ChangedFilesBar } from './components/ChangedFilesBar';
@@ -3045,7 +3045,7 @@ export function ChatApp() {
             .reverse()
             .find((m) => m.role === 'assistant')?.id;
           return messages.map((item) => (
-            <MessageBubble
+            <ConversationTurn
               key={item.id}
               message={item}
               isStreaming={
