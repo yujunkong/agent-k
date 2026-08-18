@@ -1,0 +1,139 @@
+/* Agent K v2.1 — Cursor-inspired UI layer
+ * Phase 1: additive presentation layer; agent behavior/data model unchanged.
+ */
+:root {
+  --ak-ui-space-1: 4px;
+  --ak-ui-space-2: 8px;
+  --ak-ui-space-3: 12px;
+  --ak-ui-space-4: 16px;
+  --ak-ui-space-5: 20px;
+  --ak-ui-radius: 8px;
+  --ak-ui-radius-sm: 6px;
+  --ak-ui-muted: var(--vscode-descriptionForeground, #9d9d9d);
+  --ak-ui-border: color-mix(in srgb, var(--vscode-foreground, #ccc) 10%, transparent);
+  --ak-ui-border-strong: color-mix(in srgb, var(--vscode-foreground, #ccc) 16%, transparent);
+  --ak-ui-surface: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 94%, var(--vscode-foreground, #fff));
+}
+
+.message-bubble {
+  max-width: min(860px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.message-bubble.user {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--ak-ui-radius);
+  background: color-mix(in srgb, var(--vscode-editor-foreground, #ccc) 5%, transparent);
+}
+
+.message-bubble.assistant {
+  padding-top: 14px;
+  padding-bottom: 18px;
+}
+
+.message-bubble.assistant .message-bubble__body,
+.message-bubble.assistant .message-content {
+  line-height: 1.62;
+}
+
+.message-bubble .message-steps,
+.message-bubble .message-steps-container {
+  margin: 8px 0 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.message-bubble .message-step,
+.message-bubble .message-step-card {
+  border: 0;
+  border-left: 1px solid var(--ak-ui-border-strong);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 4px 0 4px 12px;
+}
+
+.message-bubble .message-step:hover,
+.message-bubble .message-step-card:hover {
+  background: color-mix(in srgb, var(--vscode-list-hoverBackground, #fff) 45%, transparent);
+}
+
+.message-bubble .worked,
+.message-bubble .worked-label {
+  color: var(--ak-ui-muted);
+  font-size: 11px;
+}
+
+.changed-files-bar {
+  max-width: min(860px, calc(100% - 32px));
+  margin: 6px auto 12px;
+  border: 1px solid var(--ak-ui-border);
+  border-radius: var(--ak-ui-radius);
+  background: var(--ak-ui-surface);
+  box-shadow: none;
+}
+
+.composer,
+.composer-container {
+  width: min(860px, calc(100% - 32px));
+  margin: 0 auto;
+}
+
+.composer-input,
+.composer__input,
+.composer-textarea {
+  border-radius: var(--ak-ui-radius);
+  border: 1px solid var(--ak-ui-border-strong);
+  box-shadow: 0 1px 8px color-mix(in srgb, #000 10%, transparent);
+}
+
+.mode-selector,
+.model-selector,
+.thinking-selector {
+  border-radius: var(--ak-ui-radius-sm);
+  border: 0;
+  background: transparent;
+}
+
+.mode-selector:hover,
+.model-selector:hover,
+.thinking-selector:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, .25));
+}
+
+.mode-chrome,
+.mode-chrome--debug,
+.mode-chrome--questions {
+  border-bottom: 1px solid var(--ak-ui-border);
+  background: transparent;
+}
+
+.debug-mode-ui {
+  border: 0;
+  border-radius: 0;
+  margin: 0 auto;
+  max-width: 860px;
+  background: transparent;
+}
+
+.plan-mode-header {
+  max-width: 860px;
+  margin: 0 auto;
+  border-bottom: 0;
+}
+
+.message-bubble .message-footer {
+  opacity: .55;
+}
+
+.message-bubble:hover .message-footer,
+.message-bubble:focus-within .message-footer {
+  opacity: 1;
+}
