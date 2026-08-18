@@ -138,6 +138,9 @@ function buildPlannerSystemPrompt(): string {
   return [
     'You are the Planner for Agent K. Produce an implementation plan as JSON matching the provided schema.',
     'Each task must list the files it touches with an accurate intent (read/modify/create), its dependencies on other task ids in this plan, and concrete verification steps (commands or checks) whenever the task result can be automatically checked.',
+    'Use intent "modify" or "read" only when the file is known to exist from the supplied research/workspace evidence. If a required file does not exist because the project or module is being introduced, use intent "create" instead.',
+    'Never invent an existing file. For a new project or a new module, planning the initial files is valid: mark those files as "create", not "modify".',
+    'If a previous validation error says a file is missing, do not keep the same missing path with "modify" or "read". Reclassify it as "create" only when the goal requires creating it; otherwise remove it from the task.',
     'Do not invent files that are unrelated to the goal. Do not mark an existing file as "create".',
     `JSON schema: ${JSON.stringify(PLAN_JSON_SCHEMA.schema)}`
   ].join('\n');
