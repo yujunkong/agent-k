@@ -21,7 +21,7 @@ export function AgentTurn({
   onOpenFile,
 }: AgentTurnProps) {
   return (
-    <article className="ak-agent-turn">
+    <article className="conversation-turn ak-agent-turn">
       {lead ? <div className="ak-agent-turn__lead">{lead}</div> : null}
       <WorkTimeline items={workItems} />
       {children ? <div className="ak-agent-turn__response">{children}</div> : null}
