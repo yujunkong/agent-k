@@ -3023,7 +3023,7 @@ body.vscode-high-contrast .ak-code__cursor {
   list-style: none;
   margin: 0;
   padding: 2px 0 4px;
-  max-height: 220px;
+  max-height: 160px;
   overflow-y: auto;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }

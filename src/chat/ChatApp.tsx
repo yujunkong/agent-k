@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { ConversationTurn } from './conversation';
+import { selectActiveConversationMessages } from './conversation/conversationVariants';
 import { PLAN_V2_GENERATE_STEP_ID } from './components/MessageSteps';
 import { Composer } from './components/Composer';
 import { ChangedFilesBar } from './components/ChangedFilesBar';
@@ -1350,9 +1351,13 @@ export function ChatApp() {
     // Snapshot + clean before append (avoid stale closure undoing interrupt cleanup)
     const cleaned = cleanupStreamingAssistants(messagesRef.current);
     const nextMessages = [...cleaned, userMsg, assistantMsg];
-    const apiMessages = nextMessages
-      .filter((m) => m.id !== assistantMsg.id)
-      .map((m) => (m.id === userMsg.id ? { ...m, content: payload } : m));
+    const contextMessages = selectActiveConversationMessages(
+      nextMessages.filter((m) => m.id !== assistantMsg.id)
+    );
+
+    const apiMessages = contextMessages.map((m) =>
+      m.id === userMsg.id ? { ...m, content: payload } : m
+    );
     messagesRef.current = nextMessages;
     setMessages(nextMessages);
     // New turn — pin to latest (user just sent)

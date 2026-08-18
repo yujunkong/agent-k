@@ -77,6 +77,19 @@
 .debug-mode-ui__hypo + .debug-mode-ui__hypo { margin-top: 7px; }
 .debug-mode-ui button:hover { background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.25)); }
 
+/* ChangeSummary (inline file list inside agent turn) */
+.ak-change-summary { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--ak-ui-border); border-radius: 8px; background: var(--ak-ui-surface); max-height: 160px; overflow: hidden; }
+.ak-change-summary__header { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ak-ui-muted); margin-bottom: 6px; }
+.ak-change-summary__stats { margin-left: auto; }
+.ak-change-summary__files { display: flex; flex-wrap: wrap; gap: 4px; max-height: 100px; overflow-y: auto; }
+.ak-change-summary__file { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border: 1px solid var(--ak-ui-border); border-radius: 5px; background: transparent; color: var(--vscode-foreground, #ccc); font-size: 11px; cursor: pointer; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.ak-change-summary__file:hover { background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.25)); }
+.ak-change-summary__status { font-weight: 600; font-size: 10px; opacity: .7; }
+.ak-change-summary__path { overflow: hidden; text-overflow: ellipsis; }
+.ak-change-summary__delta { margin-left: auto; font-size: 10px; opacity: .7; white-space: nowrap; }
+.ak-change-summary__review { margin-top: 6px; border: 0; border-radius: 5px; background: transparent; color: var(--vscode-textLink-foreground, var(--vscode-foreground)); font-size: 11px; cursor: pointer; padding: 2px 6px; }
+.ak-change-summary__review:hover { background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.25)); }
+
 .error-banner { margin: 6px auto; max-width: 860px; border-radius: 8px; }
 .message-attachments { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
 .attachment-tag,.user-chip { border-radius: 5px; font-size: 10px; }
