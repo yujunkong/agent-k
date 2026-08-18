@@ -4,7 +4,7 @@ import type { WorkItem } from '../components/WorkTimeline';
 import type { ChangeSummaryItem } from '../components/ChangeSummary';
 
 export interface AgentTurnAdapterProps {
-  message: any;
+  message: unknown;
   workItems?: WorkItem[];
   changes?: ChangeSummaryItem[];
   children?: React.ReactNode;
@@ -12,11 +12,7 @@ export interface AgentTurnAdapterProps {
   onOpenFile?: (path: string) => void;
 }
 
-/**
- * Presentation adapter for Phase 2.
- * Keeps message/agent state outside the presentation components while making
- * the AgentTurn shell usable from ConversationTurn without changing behavior.
- */
+/** Presentation adapter: owns no agent/message state. */
 export function AgentTurnAdapter({
   message,
   workItems = [],
@@ -25,8 +21,9 @@ export function AgentTurnAdapter({
   onReviewChanges,
   onOpenFile,
 }: AgentTurnAdapterProps) {
-  const lead = message?.role === 'assistant' && message?.title
-    ? message.title
+  const candidate = message as { role?: string; title?: unknown } | null;
+  const lead = candidate?.role === 'assistant' && typeof candidate.title === 'string'
+    ? candidate.title
     : undefined;
 
   return (
