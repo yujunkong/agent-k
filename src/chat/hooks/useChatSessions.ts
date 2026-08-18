@@ -16,6 +16,10 @@ import {
   finalizeStreamingMessages,
   sanitizeLoadedMessages
 } from '../chatAppHelpers';
+import {
+  hydrateActiveVariants,
+  setActiveVariantChangeHandler
+} from '../conversation/conversationVariants';
 import { getVsCodeApi } from '../host/vscodeApi';
 import type { ChatMessage, Mode } from '../types';
 import type { PendingQuestion } from '../../tools/session/AskQuestionTool';
@@ -82,6 +86,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
   } = lifecycle;
 
   const [sessionId, setSessionId] = useState(() => sessionStore.loadActive().id);
+  const sessionIdRef = useRef(sessionId);
   const [sessionList, setSessionList] = useState<ChatSessionMeta[]>(() =>
     sessionStore.list()
   );
@@ -94,6 +99,31 @@ export function useChatSessions(params: UseChatSessionsParams) {
   });
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+
+  // Keep an always-current ref for persistence callbacks.
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  // Hydrate active variant selection whenever we switch sessions/tabs.
+  useEffect(() => {
+    const loaded = sessionStore.get(sessionId);
+    hydrateActiveVariants(loaded?.activeVariants ?? {});
+  }, [sessionId]);
+
+  // Persist active variant selection back into the current session.
+  useEffect(() => {
+    setActiveVariantChangeHandler((groupId, index) => {
+      const id = sessionIdRef.current;
+      const loaded = sessionStore.get(id);
+      const prev = loaded?.activeVariants ?? {};
+      sessionStore.setActiveVariants(id, {
+        ...prev,
+        [groupId]: index
+      });
+    });
+    return () => setActiveVariantChangeHandler(null);
+  }, []);
 
   useEffect(() => {
     sessionStore.setOpenTabIds(openTabIds);

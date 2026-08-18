@@ -21,6 +21,13 @@ export interface ChatSessionMeta {
 
 export interface ChatSession extends ChatSessionMeta {
   messages: ChatMessage[];
+  /**
+   * Cursor-style "active assistant variant" selection.
+   * groupId -> active sibling index.
+   *
+   * Persisted per-session (not global) so tab switch / reload keeps UX.
+   */
+  activeVariants?: Record<string, number>;
 }
 
 const INDEX_KEY = 'agent-k.chat.sessions.index';
@@ -141,7 +148,8 @@ export class ChatSessionStore {
       messageCount: 0,
       createdAt: now,
       updatedAt: now,
-      messages: []
+      messages: [],
+      activeVariants: {}
     };
     this.writeSession(session);
     this.index = [session.id, ...this.index.filter((id) => id !== session.id)];
@@ -172,7 +180,9 @@ export class ChatSessionStore {
       messageCount: cloned.length,
       createdAt: now,
       updatedAt: now,
-      messages: cloned
+      messages: cloned,
+      // New session starts with a fresh active variant selection.
+      activeVariants: {}
     };
     this.writeSession(session);
     this.index = [session.id, ...this.index.filter((id) => id !== session.id)];
@@ -194,7 +204,8 @@ export class ChatSessionStore {
       messageCount: messages.length,
       createdAt: prev?.createdAt || now,
       updatedAt: now,
-      messages
+      messages,
+      activeVariants: prev?.activeVariants ?? {}
     };
     this.writeSession(session);
     if (!this.index.includes(id)) {
@@ -216,6 +227,38 @@ export class ChatSessionStore {
     this.currentId = id;
     this.persistCurrent();
     return session;
+  }
+
+  /**
+   * Persist "active assistant variant" selection for the session.
+   * Does not touch message history.
+   */
+  setActiveVariants(id: string, activeVariants: Record<string, number>): void {
+    const prev = this.readSession(id);
+    if (!prev) return;
+    const now = Date.now();
+
+    const session: ChatSession = {
+      ...prev,
+      activeVariants,
+      updatedAt: now,
+      messageCount: prev.messages.length
+    };
+
+    this.writeSession(session);
+
+    // bump recency
+    if (!this.index.includes(id)) {
+      this.index = [id, ...this.index];
+      this.trimExcess();
+      this.persistIndex();
+    } else {
+      this.index = [id, ...this.index.filter((x) => x !== id)];
+      this.persistIndex();
+    }
+
+    this.currentId = id;
+    this.persistCurrent();
   }
 
   /** ADDON-T06: metas to send host-ward on `host.sessions.persist` */
@@ -242,7 +285,8 @@ export class ChatSessionStore {
         messageCount: meta.messageCount,
         createdAt: meta.createdAt,
         updatedAt: meta.updatedAt,
-        messages: []
+        messages: [],
+        activeVariants: {}
       };
       this.writeSession(session);
       this.index.push(meta.id);
@@ -317,6 +361,9 @@ export class ChatSessionStore {
     const data = readJson<ChatSession | null>(sessionKey(id), null);
     if (!data || !data.id) return null;
     if (!Array.isArray(data.messages)) data.messages = [];
+    if (data.activeVariants == null || typeof data.activeVariants !== 'object') {
+      data.activeVariants = {};
+    }
     return data;
   }
 

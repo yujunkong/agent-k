@@ -11,9 +11,21 @@ type Listener = () => void;
 
 const activeByGroup = new Map<string, number>();
 const listeners = new Set<Listener>();
+type ActiveVariantChangeHandler = (groupId: string, index: number) => void;
+let onActiveVariantChange: ActiveVariantChangeHandler | null = null;
 
 function emit() {
   for (const listener of listeners) listener();
+}
+
+/**
+ * Called by the app layer to persist active variant selection.
+ * (We keep the in-module Map as a fast read cache, but persistence lives in ChatSession.)
+ */
+export function setActiveVariantChangeHandler(
+  handler: ActiveVariantChangeHandler | null
+) {
+  onActiveVariantChange = handler;
 }
 
 export function getVariantMeta(message: ChatMessage): ConversationVariantMeta | null {
@@ -34,6 +46,7 @@ export function setActiveVariant(groupId: string, index: number) {
   if (current === index) return;
   activeByGroup.set(groupId, index);
   emit();
+  onActiveVariantChange?.(groupId, index);
 }
 
 export function getActiveVariant(groupId: string): number {
@@ -80,6 +93,22 @@ export function annotateVariantSiblings(
   });
   setActiveVariant(groupId, activeIndex ?? count - 1);
   return next;
+}
+
+/** Replace active selection for all known groups (per-session hydrate). */
+export function hydrateActiveVariants(record: Record<string, number>) {
+  activeByGroup.clear();
+  for (const [groupId, index] of Object.entries(record ?? {})) {
+    if (typeof index === 'number' && Number.isFinite(index)) {
+      activeByGroup.set(groupId, index);
+    }
+  }
+  emit();
+}
+
+/** Snapshot current active selection (mainly useful for debugging). */
+export function exportActiveVariants(): Record<string, number> {
+  return Object.fromEntries(activeByGroup.entries());
 }
 
 /** Return only the active sibling from each conversation variant group. */
