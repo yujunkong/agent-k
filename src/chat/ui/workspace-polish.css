@@ -1,0 +1,90 @@
+/* Agent K v2.1 — final workspace polish. Imported by cursor-ui.css. */
+
+.changed-files-bar { padding: 2px 8px; overflow: visible; }
+.changed-files-bar__row { display: flex; align-items: center; min-height: 30px; }
+.changed-files-bar__actions { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; }
+.changed-files-bar__toggle,.changed-files-bar__link,.changed-files-bar__review,.changed-files-bar__stop,.changed-files-bar__checkpoint-restore { border: 0; border-radius: 5px; background: transparent; font-size: 11px; }
+.changed-files-bar__toggle:hover,.changed-files-bar__link:hover,.changed-files-bar__review:hover,.changed-files-bar__stop:hover,.changed-files-bar__checkpoint-restore:hover { background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.25)); }
+.changed-files-bar__review { color: var(--vscode-textLink-foreground, var(--vscode-foreground)); }
+.changed-files-bar__list,.changed-files-bar__checkpoints { margin: 2px 0 5px; padding: 4px 0 2px; border-top: 1px solid var(--ak-ui-border); }
+.changed-files-bar__li,.changed-files-bar__checkpoint-row { list-style: none; }
+.changed-files-bar__file { display: flex; width: 100%; align-items: center; gap: 7px; min-height: 25px; padding: 2px 5px; border: 0; border-radius: 5px; color: var(--vscode-foreground, #ccc); background: transparent; text-align: left; cursor: pointer; }
+.changed-files-bar__file:hover { background: var(--vscode-list-hoverBackground, rgba(255,255,255,.06)); }
+.changed-files-bar__name { overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.changed-files-bar__file-stats { display: inline-flex; gap: 5px; font-size: 10px; opacity: .8; }
+.changed-files-bar__checkpoint-row { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 5px; }
+.changed-files-bar__checkpoint-label { overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.changed-files-bar__checkpoint-time,.changed-files-bar__checkpoint-empty { color: var(--ak-ui-muted); font-size: 10px; }
+.changed-files-bar__kbd { margin-left: 4px; opacity: .55; }
+
+.composer,.composer-container { border-radius: 10px; }
+.composer-input:focus,.composer__input:focus,.composer-textarea:focus { outline: none; border-color: color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 65%, transparent); }
+.mode-chrome,.mode-chrome--debug,.mode-chrome--questions { padding: 5px 0; }
+
+/* Plan presentation: target only selectors mounted by PlanModeHeader, ClarifyingQuestions and PlanReview. */
+.plan-mode-header { max-width: 860px; margin: 0 auto 6px; padding: 5px 0 0; }
+.plan-mode-header__row { min-height: 34px; display: flex; align-items: center; gap: 8px; }
+.plan-mode-header__actions { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.plan-mode-header__discard { border: 0; border-radius: 6px; background: transparent; color: var(--ak-ui-muted); font-size: 11px; }
+.plan-mode-header__discard:hover { background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.25)); color: var(--vscode-foreground, #ccc); }
+.plan-mode-header__discard--armed { color: var(--vscode-errorForeground, #f48771); }
+.plan-mode-header__hint { padding: 5px 0 7px; color: var(--ak-ui-muted); font-size: 11px; }
+.plan-mode-header button,.debug-mode-ui button { border-radius: 6px; }
+
+.clarifying-dock { max-width: 860px; margin: 6px auto 10px; border: 1px solid var(--ak-ui-border); border-radius: 10px; background: var(--ak-ui-surface); box-shadow: 0 8px 26px color-mix(in srgb, #000 14%, transparent); overflow: hidden; display: flex; flex-direction: column; flex: 0 0 320px; height: 320px; min-height: 320px; max-height: 320px; }
+.clarifying-questions {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  flex: 1 1 auto;
+  padding: 12px 14px;
+}
+.clarifying-questions__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 0; flex-shrink: 0; }
+.clarifying-questions__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.clarifying-questions__item { padding: 10px 0; border-top: 1px solid var(--ak-ui-border); }
+.clarifying-questions__item:first-child { border-top: 0; padding-top: 0; }
+.clarifying-questions__prompt { margin-bottom: 7px; font-size: 12px; line-height: 1.45; }
+.clarifying-questions__options { display: flex; flex-wrap: wrap; gap: 6px; }
+.clarifying-questions__option { min-height: 28px; padding: 5px 9px; border: 1px solid var(--ak-ui-border); border-radius: 7px; color: var(--vscode-foreground, #ccc); background: transparent; font-size: 11px; cursor: pointer; }
+.clarifying-questions__option:hover { background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.25)); }
+.clarifying-questions__option--selected { border-color: var(--vscode-focusBorder, #007fd4); background: color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 10%, transparent); }
+.clarifying-questions__textarea { width: 100%; box-sizing: border-box; min-height: 72px; margin-top: 7px; padding: 8px 9px; border: 1px solid var(--ak-ui-border); border-radius: 7px; background: transparent; color: inherit; resize: vertical; }
+.clarifying-questions__textarea:focus { outline: none; border-color: var(--vscode-focusBorder, #007fd4); }
+.clarifying-questions__actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 0; flex-shrink: 0; padding-top: 10px; border-top: 1px solid var(--ak-ui-border); background: var(--ak-ui-surface); }
+.clarifying-questions__error { margin-top: 7px; color: var(--vscode-errorForeground, #f48771); font-size: 11px; }
+
+.plan-editor-overlay { border-radius: 10px; }
+.plan-review { display: grid; grid-template-rows: auto 1fr; min-height: 0; border: 1px solid var(--ak-ui-border); border-radius: 10px; background: var(--ak-ui-surface); overflow: hidden; }
+.plan-review__header { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 7px 11px; border-bottom: 1px solid var(--ak-ui-border); }
+.plan-review__title { font-size: 13px; font-weight: 600; }
+.plan-review__meta { color: var(--ak-ui-muted); font-size: 10px; }
+.plan-review__actions { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; }
+.plan-review__body { display: grid; grid-template-columns: minmax(0,1fr) minmax(220px,30%); min-height: 0; }
+.plan-review__main { min-width: 0; overflow: auto; }
+.plan-review__aside { min-width: 0; padding: 10px; border-left: 1px solid var(--ak-ui-border); overflow: auto; }
+.plan-review__preview { padding: 14px 16px; line-height: 1.55; }
+.plan-review__steps { display: grid; gap: 4px; padding: 8px 10px; }
+.plan-review__step { padding: 8px 9px; border: 1px solid var(--ak-ui-border); border-radius: 7px; background: transparent; }
+.plan-review__manual-verify,.plan-review__reject,.plan-review__banner { border-radius: 7px; }
+.plan-review__banner { margin: 8px 10px; padding: 8px 10px; background: color-mix(in srgb, var(--vscode-textLink-foreground, #ccc) 7%, transparent); }
+
+/* Debug presentation: real DebugModeUI selectors only. */
+.debug-mode-ui { max-width: 860px; margin: 0 auto 10px; padding: 8px 0 12px; border: 0; border-bottom: 1px solid var(--ak-ui-border); background: transparent; }
+.debug-mode-ui__hypo { margin: 0 0 9px; padding: 9px 11px; border: 1px solid var(--ak-ui-border); border-radius: 9px; background: var(--ak-ui-surface); }
+.debug-mode-ui__active { display: flex; align-items: center; gap: 7px; min-height: 28px; padding: 5px 8px; border-left: 2px solid var(--vscode-textLink-foreground, var(--vscode-foreground)); background: color-mix(in srgb, var(--vscode-textLink-foreground, #ccc) 5%, transparent); }
+.debug-mode-ui__fix-gate { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--ak-ui-border); border-radius: 7px; background: transparent; }
+.debug-mode-ui__hypo + .debug-mode-ui__hypo { margin-top: 7px; }
+.debug-mode-ui button:hover { background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.25)); }
+
+.error-banner { margin: 6px auto; max-width: 860px; border-radius: 8px; }
+.message-attachments { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.attachment-tag,.user-chip { border-radius: 5px; font-size: 10px; }
+.user-turn__text { line-height: 1.5; }
+
+@media (max-width: 720px) {
+  .plan-mode-header,.clarifying-dock,.debug-mode-ui { max-width: calc(100% - 20px); }
+  .plan-review__body { grid-template-columns: 1fr; }
+  .plan-review__aside { border-top: 1px solid var(--ak-ui-border); border-left: 0; max-height: 34vh; }
+  .clarifying-questions__options { display: grid; grid-template-columns: 1fr; }
+}

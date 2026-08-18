@@ -161,7 +161,8 @@ export function ClarifyingQuestions({
         </p>
       </div>
 
-      {normalized.map((q) => {
+      <div className="clarifying-questions__body">
+        {normalized.map((q) => {
         const opts = q.options || [OTHER_OPTION];
         const multi = Boolean(q.allowMultiple);
         const selected = selectedSet(q.answer, opts);
@@ -288,6 +289,7 @@ export function ClarifyingQuestions({
           </div>
         );
       })}
+      </div>
 
       {!readOnly ? (
         <div className="clarifying-questions__actions">

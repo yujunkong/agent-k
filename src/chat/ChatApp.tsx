@@ -8,13 +8,30 @@
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { MessageBubble } from './components/MessageBubble';
+import { ConversationTurn } from './conversation';
 import { PLAN_V2_GENERATE_STEP_ID } from './components/MessageSteps';
 import { Composer } from './components/Composer';
 import { ChangedFilesBar } from './components/ChangedFilesBar';
 import type { CheckpointSummary } from './components/ChangedFilesBar';
-import type { FileEditPreview } from './types';
 import { useChatStream } from './hooks/useChatStream';
+import { useChatSessions, sessionStore } from './hooks/useChatSessions';
+import { useHostMessages } from './hooks/useHostMessages';
+import { getVsCodeApi } from './host/vscodeApi';
+import {
+  MODE_LABELS,
+  MODE_TOOLTIPS,
+  PLAN_STICKY_PHASES,
+  textFromPlanController,
+  buildPlanResearchContext,
+  shortModelName,
+  collectSessionFileEdits,
+  sanitizeLoadedMessages,
+  finalizeStreamingMessages
+} from './chatAppHelpers';
+import {
+  appendRegenerateAssistantTurn,
+  createStreamingAssistantTurn
+} from './regenerateTurn';
 import { configManager } from '../core/ConfigManager';
 import type { ChatMessage, Mode, ModePicker, Attachment } from './types';
 import { formatAttachmentsForPayload } from './attachmentFormat';
@@ -40,7 +57,6 @@ import { DebugModeController } from '../debug/DebugModeController';
 import type { DebugStage, Hypothesis } from '../debug/DebugModeController';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
-import { ChatSessionStore } from './ChatSessionStore';
 import type { ChatSessionMeta } from './ChatSessionStore';
 // RW-C5-02: ask_question 도구 → ClarifyingQuestions 브리지
 import { askQuestionTool } from '../tools/session/AskQuestionTool';
@@ -69,7 +85,7 @@ import {
   type ThinkingEffort
 } from '../agent/thinkingEffort';
 import { StopHandler } from '../loop/StopHandler';
-import { buildResynthesizeMessages, stripResynthForDisplay } from '../loop/synthesizeInstructions';
+import { buildResynthesizeMessages } from '../loop/synthesizeInstructions';
 import type { AgentMessage } from '../loop/AgentLoopController';
 // RW-C7-05 / RW-C7-06 / RW-C7-10
 import { DesignModePanel, designModeContext } from '../browser/DesignModePanel';
@@ -87,13 +103,10 @@ import { UXForMediumPanel } from '../harness/UXForMediumPanel';
 import type { HarnessUXState, UXEventType } from '../harness/UXForMedium';
 import {
   buildHarnessTurnContext,
-  prependHarnessToUserPayload,
-  stripHarnessForDisplay
+  prependHarnessToUserPayload
 } from './harnessBridge';
-import { stripFakeToolMarkup } from './displaySanitize';
 import {
-  createAssistantStreamSession,
-  dedupeAssistantBody
+  createAssistantStreamSession
 } from './assistantStreamSession';
 import {
   getComposerModels,
@@ -103,130 +116,9 @@ import {
 // ADDON-T10: slash command UX (/compact /cost /model /permissions /help)
 import { SLASH_COMMANDS, resolveSlashCommand, type SlashCommand } from './composerPalette';
 
-const MODE_LABELS: Record<ModePicker, string> = {
-  auto: 'Auto',
-  ask: 'Ask',
-  agent: 'Agent',
-  plan: 'Plan',
-  debug: 'Debug'
-};
-
-const MODE_TOOLTIPS: Record<ModePicker, string> = {
-  auto: 'Pick Ask / Plan / Debug / Agent from the message.',
-  ask: 'Read-only exploration. No file edits.',
-  agent: 'Autonomous implementation. Tools: read, edit, terminal.',
-  plan: 'Design first. Outputs PLAN.md with Mermaid.',
-  debug: 'Hypothesis → Instrument → Reproduce → Minimal fix.'
-};
-
-const PLAN_STICKY_PHASES = new Set(['research', 'planning', 'review']);
-
-
-function textFromPlanController(controller: PlanModeController): string {
-  return controller.getState().researchResults || 'Plan';
-}
-
-function buildPlanResearchContext(controller: PlanModeController): string {
-  const state = controller.getState();
-  const questions = controller
-    .getQuestions()
-    .map((q) => `- Q: ${q.question}\n  A: ${q.answer || '(no answer)'}`)
-    .join('\n');
-  return [
-    state.researchResults ? `Research notes:\n${state.researchResults.slice(0, 8000)}` : '',
-    questions ? `Clarifying answers:\n${questions}` : ''
-  ].filter(Boolean).join('\n\n');
-}
-
-function shortModelName(raw: string): string {
-  const base = (raw || '').split('/').pop() || raw || 'model';
-  return base.length > 32 ? `${base.slice(0, 30)}…` : base;
-}
-
-/** Dedupe session file edits by path (latest wins) */
-function collectSessionFileEdits(messages: ChatMessage[]): FileEditPreview[] {
-  const map = new Map<string, FileEditPreview>();
-  for (const m of messages) {
-    if (!Array.isArray(m.fileEdits)) continue;
-    for (const fe of m.fileEdits) {
-      const key = (fe.absPath || fe.path || '').replace(/\\/g, '/');
-      if (!key) continue;
-      map.set(key, fe);
-    }
-  }
-  return [...map.values()];
-}
-
-const sessionStore = new ChatSessionStore();
-
-function sanitizeLoadedMessages(parsed: ChatMessage[]): ChatMessage[] {
-  return parsed
-    .map((m) => {
-      if (m.role === 'user') {
-        let content = stripHarnessForDisplay(m.content);
-        content = stripResynthForDisplay(content);
-        return { ...m, content };
-      }
-      if (m.role === 'assistant') {
-        return dedupeAssistantBody({
-          ...m,
-          content: stripFakeToolMarkup(m.content)
-        });
-      }
-      return m;
-    })
-    .map((m) => {
-      if (m.role !== 'assistant' || m.status !== 'streaming') return m;
-      return finalizeStreamingAssistant(m);
-    })
-    .filter((m): m is ChatMessage => m != null);
-}
-
-/** Finalize or drop a streaming assistant (shared by tab switch / reload). */
-function finalizeStreamingAssistant(m: ChatMessage): ChatMessage | null {
-  if (m.role !== 'assistant' || m.status !== 'streaming') return m;
-  const hasBody = Boolean(m.content?.trim());
-  const hasSteps = (m.steps?.length ?? 0) > 0;
-  const hasProse =
-    Boolean(m.openingLead?.trim()) || (m.turnProse?.length ?? 0) > 0;
-  const hasCards =
-    (m.fileEdits?.length ?? 0) > 0 || (m.terminalRuns?.length ?? 0) > 0;
-  if (!hasBody && !hasSteps && !hasProse && !hasCards) return null;
-  return {
-    ...m,
-    status: 'complete',
-    content: hasBody ? m.content : m.content,
-    workedDurationMs:
-      typeof m.workedDurationMs === 'number'
-        ? m.workedDurationMs
-        : Math.max(0, Date.now() - (m.timestamp || Date.now()))
-  };
-}
-
-function finalizeStreamingMessages(prev: ChatMessage[]): ChatMessage[] {
-  const out: ChatMessage[] = [];
-  for (const m of prev) {
-    if (m.role === 'assistant' && m.status === 'streaming') {
-      const next = finalizeStreamingAssistant(m);
-      if (next) out.push(next);
-    } else {
-      out.push(m);
-    }
-  }
-  return out;
-}
-
 export function ChatApp() {
-  const [sessionId, setSessionId] = useState(() => sessionStore.loadActive().id);
-  const [sessionList, setSessionList] = useState<ChatSessionMeta[]>(() => sessionStore.list());
-  /** Open tabs only (persisted). History stays in the History panel — not auto-opened as tabs. */
-  const [openTabIds, setOpenTabIds] = useState<string[]>(() => sessionStore.getOpenTabIds());
   /** ADDON-T07: recent checkpoints for the Checkpoints dropdown (host-populated) */
   const [checkpoints, setCheckpoints] = useState<CheckpointSummary[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const active = sessionStore.loadActive();
-    return sanitizeLoadedMessages(active.messages || []);
-  });
   const [mode, setMode] = useState<Mode>(() => sessionStore.loadActive().mode || 'agent');
   const [modeAuto, setModeAuto] = useState(() => {
     const loaded = sessionStore.loadActive();
@@ -255,47 +147,7 @@ export function ChatApp() {
   // ─── C5-C7 UI 상태 ─────────────────────────────────────
   // Plan mode state
   const [planController] = useState(() => new PlanModeController());
-  // Plan V2 (additive): structured PlanSession running alongside the
-  // existing PlanModeController stage machine. See
-  // src/plan/v2/PlanModeControllerAdapter.ts — it mirrors state INTO
-  // planController rather than replacing it, so PlanReview/PlanEditor
-  // keep working unmodified. Until plan generation itself is switched to
-  // PlanV2Generator, planV2Adapter.session.getPlan() stays null and
-  // recordToolEvent() below is a safe no-op.
   const planV2AdaptersRef = useRef<Map<string, PlanModeControllerAdapter>>(new Map());
-  const planV2Adapter = useMemo(() => {
-    const existing = planV2AdaptersRef.current.get(sessionId);
-    if (existing) return existing;
-    const created = new PlanModeControllerAdapter(sessionId, planController);
-    planV2AdaptersRef.current.set(sessionId, created);
-    return created;
-  }, [sessionId, planController]);
-  // Re-render on every PlanSession event (task status changes, phase
-  // changes, manual verification, ...) — reads of planV2Adapter.session.*
-  // in JSX are otherwise not React-reactive since PlanSession is a plain
-  // mutable class instance, not React state.
-  const [planV2Tick, setPlanV2Tick] = useState(0);
-  useEffect(() => {
-    return planV2Adapter.session.onEvent(() => setPlanV2Tick((t) => t + 1));
-  }, [planV2Adapter]);
-  const tasksAwaitingVerification = useMemo(() => {
-    void planV2Tick; // dependency: recompute whenever the session emits an event
-    const plan = planV2Adapter.session.getPlan();
-    if (!plan) return [];
-    return plan.tasks
-      .filter((t) => planV2Adapter.session.getTaskStatus(t.id) === 'awaiting_verification')
-      .map((t) => ({ id: t.id, title: t.title }));
-  }, [planV2Adapter, planV2Tick]);
-  const handleVerifyTaskManually = useCallback(
-    (taskId: string) => {
-      try {
-        planV2Adapter.verifyTaskManually(taskId);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not mark the task as verified.');
-      }
-    },
-    [planV2Adapter]
-  );
   const [planStage, setPlanStage] = useState<PlanStage>('research');
   const [showClarifying, setShowClarifying] = useState(false);
   const [showPlanReview, setShowPlanReview] = useState(false);
@@ -449,8 +301,6 @@ export function ChatApp() {
   /** ADDON-T10: handleSend (defined earlier) calls runSlashCommand (defined later) */
   const runSlashCommandRef = useRef<((cmd: SlashCommand) => void) | null>(null);
   const turnNumberRef = useRef(0);
-  const messagesRef = useRef(messages);
-  messagesRef.current = messages;
   /** Bumped on stop/resynth so in-flight handleSend (awaiting harness) is abandoned. */
   const sendEpochRef = useRef(0);
   /** After clarifying questions: next assistant complete → save as PLAN.md + open review */
@@ -459,8 +309,7 @@ export function ChatApp() {
   const lastPromotedPlanRef = useRef<string>('');
   const planStageRef = useRef(planStage);
   planStageRef.current = planStage;
-  const sessionIdRef = useRef(sessionId);
-  sessionIdRef.current = sessionId;
+  const sessionIdRef = useRef(sessionStore.loadActive().id);
   const planFileExistsResolversRef = useRef(new Map<string, { resolve: (exists: boolean) => void; reject: (error: Error) => void; }>());
   const planV2GenerateResolversRef = useRef(new Map<string, {
     resolve: (result: PlanV2GenerationResult) => void;
@@ -537,6 +386,88 @@ export function ChatApp() {
     sessionId: string;
     questions: PendingQuestion[];
   } | null>(null);
+
+  const {
+    sessionId,
+    setSessionId,
+    sessionList,
+    setSessionList,
+    openTabIds,
+    setOpenTabIds,
+    messages,
+    setMessages,
+    messagesRef,
+    handleNewChat,
+    handleOpenSession,
+    handleCloseTab,
+    handleDeleteSession,
+    applyHostHydration
+  } = useChatSessions({
+    mode,
+    setMode,
+    setModeAuto,
+    streaming,
+    awaitingUser,
+    pendingQuestions,
+    sendEpochRef,
+    loopSessionIdRef,
+    stopHandlerRef,
+    stepStartRef,
+    parkedAwaitingRef,
+    setError,
+    setShowHistory,
+    setShowClarifying,
+    setAwaitingUser,
+    setPendingQuestions,
+    lifecycle: {
+      parkPlanForSession,
+      restorePlanForSession,
+      resetPlanChrome,
+      hasPlanSnap: (id) => planSnapBySessionRef.current.has(id),
+      onDeletePlanSnap: (id) => {
+        planSnapBySessionRef.current.delete(id);
+      }
+    }
+  });
+  sessionIdRef.current = sessionId;
+
+  // Plan V2 (additive): structured PlanSession running alongside the
+  // existing PlanModeController stage machine. See
+  // src/plan/v2/PlanModeControllerAdapter.ts — it mirrors state INTO
+  // planController rather than replacing it, so PlanReview/PlanEditor
+  // keep working unmodified. Until plan generation itself is switched to
+  // PlanV2Generator, planV2Adapter.session.getPlan() stays null and
+  // recordToolEvent() below is a safe no-op.
+  const planV2Adapter = useMemo(() => {
+    const existing = planV2AdaptersRef.current.get(sessionId);
+    if (existing) return existing;
+    const created = new PlanModeControllerAdapter(sessionId, planController);
+    planV2AdaptersRef.current.set(sessionId, created);
+    return created;
+  }, [sessionId, planController]);
+  const [planV2Tick, setPlanV2Tick] = useState(0);
+  useEffect(() => {
+    return planV2Adapter.session.onEvent(() => setPlanV2Tick((t) => t + 1));
+  }, [planV2Adapter]);
+  const tasksAwaitingVerification = useMemo(() => {
+    void planV2Tick;
+    const plan = planV2Adapter.session.getPlan();
+    if (!plan) return [];
+    return plan.tasks
+      .filter((t) => planV2Adapter.session.getTaskStatus(t.id) === 'awaiting_verification')
+      .map((t) => ({ id: t.id, title: t.title }));
+  }, [planV2Adapter, planV2Tick]);
+  const handleVerifyTaskManually = useCallback(
+    (taskId: string) => {
+      try {
+        planV2Adapter.verifyTaskManually(taskId);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not mark the task as verified.');
+      }
+    },
+    [planV2Adapter]
+  );
+
   /** Debug session file slug under `.agentk/debug/tmp/debug_<hash>.md` */
   const debugSessionSlugRef = useRef<string | undefined>(undefined);
   /** Sticky bottom scroll — pause if user scrolls up (Cursor-like) */
@@ -604,411 +535,6 @@ export function ChatApp() {
     stopHandlerRef.current = new StopHandler({ abort: stop, queue: msgQueue });
   }, [stop, msgQueue]);
 
-  // Persist open tabs (closed tabs stay closed across reload)
-  useEffect(() => {
-    sessionStore.setOpenTabIds(openTabIds);
-  }, [openTabIds]);
-
-  /** New chat: archive current transcript, start empty session. */
-  const handleNewChat = useCallback(() => {
-    // New tab abandons any in-flight Wait/stream — do not leave a zombie ask_question
-    if (streaming) {
-      if (awaitingUser) {
-        parkedAwaitingRef.current = null;
-        setShowClarifying(false);
-        setAwaitingUser(false);
-        setPendingQuestions([]);
-      } else {
-        const kept = finalizeStreamingMessages(messagesRef.current);
-        messagesRef.current = kept;
-        setMessages(kept);
-      }
-      stopHandlerRef.current?.stop('user_stop');
-      sendEpochRef.current += 1;
-      loopSessionIdRef.current = null;
-    }
-    const snap = messagesRef.current.length ? messagesRef.current : messages;
-    if (snap.length === 0) {
-      // Still isolate Plan chrome — empty tab must not keep prior Review UI
-      parkPlanForSession(sessionId);
-      resetPlanChrome();
-      setShowHistory(false);
-      setError(null);
-      setOpenTabIds((prev) =>
-        prev.includes(sessionId) ? prev : [sessionId, ...prev]
-      );
-      setModeAuto(true);
-      return;
-    }
-    parkPlanForSession(sessionId);
-    sessionStore.saveMessages(sessionId, snap, mode);
-    const next = sessionStore.createEmpty(mode);
-    setSessionId(next.id);
-    setMessages([]);
-    stepStartRef.current = {};
-    setSessionList(sessionStore.list());
-    setOpenTabIds((prev) => [next.id, ...prev.filter((id) => id !== next.id)]);
-    resetPlanChrome();
-    setError(null);
-    setShowHistory(false);
-    setModeAuto(true);
-  }, [
-    streaming,
-    awaitingUser,
-    messages,
-    sessionId,
-    mode,
-    parkPlanForSession,
-    resetPlanChrome
-  ]);
-
-  const handleOpenSession = useCallback(
-    (id: string) => {
-      if (id === sessionId) {
-        setShowHistory(false);
-        return;
-      }
-      // Waiting…: keep host ask_question; park UI for this session
-      if (streaming && awaitingUser) {
-        parkedAwaitingRef.current = { sessionId, questions: pendingQuestions };
-        setShowClarifying(false);
-        setAwaitingUser(false);
-      } else if (streaming) {
-        const kept = finalizeStreamingMessages(messagesRef.current);
-        messagesRef.current = kept;
-        setMessages(kept);
-        sessionStore.saveMessages(sessionId, kept, mode);
-        stopHandlerRef.current?.stop('user_stop');
-        sendEpochRef.current += 1;
-        loopSessionIdRef.current = null;
-      } else if (messages.length > 0) {
-        sessionStore.saveMessages(sessionId, messages, mode);
-      }
-      parkPlanForSession(sessionId);
-      const loaded = sessionStore.switchTo(id);
-      if (!loaded) return;
-      setSessionId(loaded.id);
-      setMessages(sanitizeLoadedMessages(loaded.messages || []));
-      setMode(loaded.mode || 'agent');
-      setModeAuto((loaded.messages?.length ?? 0) === 0);
-      stepStartRef.current = {};
-      setSessionList(sessionStore.list());
-      setOpenTabIds((prev) =>
-        prev.includes(id) ? prev : [id, ...prev.filter((x) => x !== id)]
-      );
-      setError(null);
-      setShowHistory(false);
-      restorePlanForSession(id);
-      const parked = parkedAwaitingRef.current;
-      if (parked && parked.sessionId === id) {
-        setPendingQuestions(parked.questions);
-        setShowClarifying(true);
-        setAwaitingUser(true);
-        parkedAwaitingRef.current = null;
-      } else if (!planSnapBySessionRef.current.has(id)) {
-        setPendingQuestions([]);
-        setShowClarifying(false);
-      }
-    },
-    [
-      sessionId,
-      streaming,
-      awaitingUser,
-      messages,
-      mode,
-      pendingQuestions,
-      parkPlanForSession,
-      restorePlanForSession
-    ]
-  );
-
-  const handleCloseTab = useCallback(
-    (id: string) => {
-      const remaining = openTabIds.filter((x) => x !== id);
-
-      // Inactive tab — never abort the active session
-      if (id !== sessionId) {
-        setOpenTabIds(remaining);
-        return;
-      }
-
-      if (streaming && awaitingUser) {
-        parkedAwaitingRef.current = { sessionId, questions: pendingQuestions };
-        setShowClarifying(false);
-        setAwaitingUser(false);
-      } else if (streaming) {
-        const kept = finalizeStreamingMessages(messagesRef.current);
-        messagesRef.current = kept;
-        setMessages(kept);
-        stopHandlerRef.current?.stop('user_stop');
-        sendEpochRef.current += 1;
-        loopSessionIdRef.current = null;
-      }
-
-      const snap = messagesRef.current.length ? messagesRef.current : messages;
-      if (snap.length > 0) {
-        sessionStore.saveMessages(sessionId, snap, mode);
-      }
-      parkPlanForSession(sessionId);
-
-      const idx = openTabIds.indexOf(id);
-      const neighborId =
-        (idx >= 0 && openTabIds[idx + 1]) ||
-        (idx > 0 && openTabIds[idx - 1]) ||
-        remaining[0] ||
-        undefined;
-
-      if (neighborId && neighborId !== id) {
-        const loaded = sessionStore.switchTo(neighborId);
-        if (loaded) {
-          setSessionId(loaded.id);
-          setMessages(sanitizeLoadedMessages(loaded.messages || []));
-          setMode(loaded.mode || 'agent');
-          setModeAuto((loaded.messages?.length ?? 0) === 0);
-          stepStartRef.current = {};
-          setSessionList(sessionStore.list());
-          setOpenTabIds(
-            remaining.includes(neighborId) ? remaining : [neighborId, ...remaining]
-          );
-          restorePlanForSession(neighborId);
-          const parked = parkedAwaitingRef.current;
-          if (parked && parked.sessionId === neighborId) {
-            setPendingQuestions(parked.questions);
-            setShowClarifying(true);
-            setAwaitingUser(true);
-            parkedAwaitingRef.current = null;
-          } else if (!planSnapBySessionRef.current.has(neighborId)) {
-            setPendingQuestions([]);
-            setShowClarifying(false);
-          }
-          setError(null);
-          setShowHistory(false);
-          return;
-        }
-      }
-
-      const fresh = sessionStore.createEmpty(mode);
-      setSessionId(fresh.id);
-      setMessages([]);
-      stepStartRef.current = {};
-      setSessionList(sessionStore.list());
-      setOpenTabIds([fresh.id]);
-      resetPlanChrome();
-      setError(null);
-      setShowHistory(false);
-    },
-    [
-      sessionId,
-      openTabIds,
-      streaming,
-      awaitingUser,
-      messages,
-      mode,
-      pendingQuestions,
-      parkPlanForSession,
-      restorePlanForSession,
-      resetPlanChrome
-    ]
-  );
-
-  const handleDeleteSession = useCallback(
-    (id: string) => {
-      if (streaming && id === sessionId) {
-        stopHandlerRef.current?.stop('user_stop');
-        sendEpochRef.current += 1;
-      }
-      planSnapBySessionRef.current.delete(id);
-      const next = sessionStore.delete(id);
-      setSessionList(sessionStore.list());
-      setOpenTabIds((prev) => prev.filter((x) => x !== id));
-      if (!next) return;
-      if (id === sessionId) {
-        setSessionId(next.id);
-        setMessages(sanitizeLoadedMessages(next.messages || []));
-        setMode(next.mode || 'agent');
-        setModeAuto((next.messages?.length ?? 0) === 0);
-        stepStartRef.current = {};
-        setOpenTabIds((prev) =>
-          prev.includes(next.id) ? prev : [next.id, ...prev]
-        );
-        restorePlanForSession(next.id);
-        setError(null);
-      }
-    },
-    [streaming, sessionId, restorePlanForSession]
-  );
-
-  // Host commands → panel toggles + session.new
-  useEffect(() => {
-    const onMsg = (event: MessageEvent) => {
-      const data = event.data;
-      if (!data || typeof data !== 'object') return;
-      if (data.type === 'session.new') {
-        handleNewChat();
-        return;
-      }
-      if (data.type === 'ui.history.open') {
-        setShowHistory(true);
-        return;
-      }
-      if (data.type === 'ui.design.open') setShowDesignMode(true);
-      if (data.type === 'ui.review.open') {
-        setShowReview(true);
-        // ADDON-T14: host runs the real git-diff review; only fall back to a
-        // demo finding when there's no repo/diff to inspect.
-        if (Array.isArray(data.findings) && data.findings.length) {
-          setReviewFindings(data.findings as ReviewFinding[]);
-        } else if (Array.isArray(data.findings)) {
-          setReviewFindings([]);
-        } else {
-          setReviewFindings((prev) =>
-            prev.length
-              ? prev
-              : [
-                  {
-                    id: 'f-demo',
-                    file: 'src/example.ts',
-                    line: 1,
-                    severity: 'warning',
-                    message: 'Review session started. Run Agent Review on dirty files.',
-                    suggestion: 'Open a dirty workspace and Accept Fix to apply patches.'
-                  }
-                ]
-          );
-        }
-      }
-      if (data.type === 'ui.artifacts.open') setShowArtifacts(true);
-      if (data.type === 'settings.open') {
-        if (typeof data.tab === 'string') {
-          const tab = data.tab === 'secrets' ? 'models' : data.tab;
-          if ((SETTINGS_TAB_IDS as readonly string[]).includes(tab)) {
-            rememberSettingsTab(tab as SettingsTabId);
-          }
-        }
-        setShowSettings(true);
-      }
-      if (data.type === 'plan.saved' && data.slug) {
-        const existing = planController.getState().planDocument;
-        if (existing) {
-          // Patch slug/title only — never reset stage (Review must stay open)
-          void planController.setPlanDocument({
-            ...existing,
-            slug: String(data.slug),
-            title: String(data.title || existing.title)
-          });
-        }
-        if (data.filePath) {
-          console.info('[Agent K] Plan saved:', data.filePath);
-          setError(null);
-        }
-        return;
-      }
-      if (data.type === 'plan.loaded' && data.content != null) {
-        const existing = planController.getState().planDocument;
-        if (existing) {
-          void planController.setPlanDocument({
-            ...existing,
-            slug: String(data.slug || existing.slug),
-            title: String(data.title || existing.title),
-            content: String(data.content),
-            sections: planGenerator.parseDocument(String(data.content)),
-            todoCount: planGenerator.extractTodos(String(data.content)).length
-          });
-        }
-        return;
-      }
-      if (data.type === 'plan.save.error' && data.error) {
-        setError(`Plan save failed: ${String(data.error)}`);
-        return;
-      }
-      if (data.type === 'plan.load.error' && data.error) {
-        setError(`Plan load failed: ${String(data.error)}`);
-        return;
-      }
-      if (data.type === 'debug.saved' && data.slug) {
-        debugSessionSlugRef.current = String(data.slug);
-        if (data.filePath) {
-          console.info('[Agent K] Debug saved:', data.filePath);
-        }
-        return;
-      }
-      if (data.type === 'debug.save.error' && data.error) {
-        setError(`Debug save failed: ${String(data.error)}`);
-        return;
-      }
-      if (data.type === 'model.context') {
-        const n = Number(data.maxInputTokens);
-        if (Number.isFinite(n) && n > 0) {
-          setModelContextBudget(Math.floor(n));
-        }
-        if (typeof data.source === 'string') {
-          setModelContextSource(data.source);
-        }
-        if (typeof data.providerType === 'string') {
-          setProviderType(data.providerType);
-        }
-        return;
-      }
-      // ADDON-T07: Checkpoints dropdown list refresh
-      if (data.type === 'checkpoint.listResult') {
-        const list = Array.isArray(data.checkpoints) ? data.checkpoints : [];
-        setCheckpoints(
-          list.map((c: any) => ({
-            id: String(c.id),
-            label: String(c.label || 'Checkpoint'),
-            timestamp: Number(c.timestamp) || Date.now()
-          }))
-        );
-        return;
-      }
-      // ADDON-T06: host-restored session metas (workspaceState survives restarts)
-      if (data.type === 'host.sessions.hydrate') {
-        const metas = Array.isArray(data.sessions) ? data.sessions : [];
-        sessionStore.applyHostHydration(metas);
-        setSessionList(sessionStore.list());
-        return;
-      }
-      // Project / host config → webview ConfigManager
-      if (data.type === 'config.hydrate' && data.values && typeof data.values === 'object') {
-        configManager.syncFromVSCode(data.values as Record<string, unknown>);
-        return;
-      }
-    };
-    window.addEventListener('message', onMsg);
-    return () => window.removeEventListener('message', onMsg);
-  }, [handleNewChat]);
-
-  // ADDON-T06: request host session hydration once on mount
-  useEffect(() => {
-    try {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
-      api?.postMessage?.({ type: 'host.sessions.ready' });
-    } catch {
-      /* no host bridge (browser preview) */
-    }
-  }, []);
-
-  useEffect(() => {
-    const delay = streaming ? 400 : 0;
-    const t = window.setTimeout(() => {
-      sessionStore.saveMessages(sessionId, messages, mode);
-      const list = sessionStore.list();
-      setSessionList(list);
-      // ADDON-T06: mirror session metas to host SessionManager (workspaceState)
-      try {
-        const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
-        api?.postMessage?.({
-          type: 'host.sessions.persist',
-          sessions: sessionStore.exportMetasForHost(),
-          currentId: sessionStore.getCurrentId()
-        });
-      } catch {
-        /* no host bridge (browser preview) */
-      }
-    }, delay);
-    return () => window.clearTimeout(t);
-  }, [messages, sessionId, mode, streaming]);
-
   // RW-C6-05-R2: mount ReproduceUI when tool wait starts (callback + poll)
   useEffect(() => {
     requestReproduceTool.onPendingCallback((req) => {
@@ -1068,7 +594,7 @@ export function ChatApp() {
     ].join('\n');
     try {
       const api =
-        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        getVsCodeApi();
       api?.postMessage?.({
         type: 'debug.save',
         title,
@@ -1098,7 +624,7 @@ export function ChatApp() {
 
   const requestWorkspaceFileExists = useCallback((relativePath: string): Promise<boolean> => {
     return new Promise((resolve, reject) => {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      const api = getVsCodeApi();
       if (!api?.postMessage) {
         reject(new Error('VS Code API unavailable for Plan semantic validation.'));
         return;
@@ -1130,7 +656,7 @@ export function ChatApp() {
     // trying to work around CORS client-side (not possible -- the server
     // would have to add the header itself).
     return new Promise<PlanV2GenerationResult>((resolve, reject) => {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      const api = getVsCodeApi();
       if (!api?.postMessage) {
         reject(new Error('VS Code API unavailable for Plan V2 generation.'));
         return;
@@ -1192,7 +718,7 @@ export function ChatApp() {
       const id = planV2ActiveRequestRef.current;
       if (!id) return;
       try {
-        const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        const api = getVsCodeApi();
         api?.postMessage?.({ type: 'plan.v2.cancel', requestId: id });
       } catch {
         /* ignore */
@@ -1235,7 +761,7 @@ export function ChatApp() {
       // Always write `<workspace>/.agentk/plans/tmp/plan_*.md` (even on re-open)
       try {
         const api =
-          (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+          getVsCodeApi();
         if (!api?.postMessage) {
           setError('Plan save: VS Code API is unavailable. Press F5 to reopen the Extension Host.');
         } else {
@@ -1342,153 +868,244 @@ export function ChatApp() {
     [planV2Adapter]
   );
 
-  /** Editor CodeLens / title: Build or Open Review on plan_*.md */
-  useEffect(() => {
-    const onMsg = (event: MessageEvent) => {
-      const data = event.data;
-      if (!data || typeof data !== 'object') return;
-
-      if (data.type === 'plan.fileExists.result' && data.requestId != null) {
-        const requestId = String(data.requestId);
-        const resolver = planFileExistsResolversRef.current.get(requestId);
-        if (resolver) {
-          planFileExistsResolversRef.current.delete(requestId);
-          resolver.resolve(Boolean(data.exists));
-        }
-        return;
+  useHostMessages({
+    'session.new': () => {
+      handleNewChat();
+    },
+    'ui.history.open': () => {
+      setShowHistory(true);
+    },
+    'ui.design.open': () => {
+      setShowDesignMode(true);
+    },
+    'ui.review.open': (data) => {
+      setShowReview(true);
+      if (Array.isArray(data.findings) && data.findings.length) {
+        setReviewFindings(data.findings as ReviewFinding[]);
+      } else if (Array.isArray(data.findings)) {
+        setReviewFindings([]);
+      } else {
+        setReviewFindings((prev) =>
+          prev.length
+            ? prev
+            : [
+                {
+                  id: 'f-demo',
+                  file: 'src/example.ts',
+                  line: 1,
+                  severity: 'warning',
+                  message: 'Review session started. Run Agent Review on dirty files.',
+                  suggestion: 'Open a dirty workspace and Accept Fix to apply patches.'
+                }
+              ]
+        );
       }
-
-      if (data.type === 'plan.v2.generate.started' && data.requestId != null) {
-        planV2GenerateResolversRef.current.get(String(data.requestId))?.beginGenerateTimeout();
-        return;
+    },
+    'ui.artifacts.open': () => {
+      setShowArtifacts(true);
+    },
+    'settings.open': (data) => {
+      if (typeof data.tab === 'string') {
+        const tab = data.tab === 'secrets' ? 'models' : data.tab;
+        if ((SETTINGS_TAB_IDS as readonly string[]).includes(tab)) {
+          rememberSettingsTab(tab as SettingsTabId);
+        }
       }
-
-      if (data.type === 'plan.v2.generate.result' && data.requestId != null) {
-        const requestId = String(data.requestId);
-        const resolver = planV2GenerateResolversRef.current.get(requestId);
-        if (resolver) {
-          planV2GenerateResolversRef.current.delete(requestId);
-          if (data.error) {
-            resolver.reject(new Error(String(data.error)));
-          } else {
-            resolver.resolve(data.result as PlanV2GenerationResult);
-          }
-          return;
-        }
-        if (planV2TimedOutRef.current.has(requestId)) {
-          planV2TimedOutRef.current.delete(requestId);
-          if (data.aborted || data.error) return;
-          const late = data.result as PlanV2GenerationResult;
-          if (late?.ok && late.plan) {
-            void commitPlanV2Result(late, { late: true });
-          }
-        }
-        return;
-      }
-
-      if (data.type === 'plan.toolEvidence') {
-        // Plan V2 Evidence Engine — best-effort; no-ops until planV2Adapter
-        // actually holds a structured PlanDocument. See PlanSession.ts.
-        try {
-          planV2Adapter.recordToolEvent(
-            toObservedToolCall(String(data.name || ''), data.args, { success: Boolean(data.success) })
-          );
-        } catch {
-          /* evidence correlation must never break the chat loop */
-        }
-        return;
-      }
-
-      if (data.type === 'plan.buildFromEditor') {
-        const content = String(data.content || '').trim();
-        if (!content) {
-          setError('Editor Plan is empty — cannot Build.');
-          return;
-        }
-        const slugRaw = String(data.slug || '');
-        const slug =
-          slugRaw && /^plan_[a-f0-9]+$/i.test(slugRaw) ? slugRaw : 'plan_pending';
-        const title = String(data.title || 'Plan');
-        setMode('plan');
-        setShowPlanReview(false);
-        lastPromotedPlanRef.current = content;
-        void (async () => {
-          try {
-            await planController.setPlanDocument({
-              slug,
-              title,
-              content,
-              sections: planGenerator.parseDocument(content),
-              todoCount: planGenerator.extractTodos(content).length,
-              createdAt: Date.now()
-            });
-            // Editor "Build" used to call planController.advanceToBuild()
-            // directly here -- the legacy stage FSM jumps straight to
-            // 'build' while PlanSession (the V2 source of truth) never
-            // sees a plan.approved event and can be left in whatever
-            // phase it was already in (review/planning/even idle if the
-            // editor was opened straight from a saved .md with no chat
-            // session behind it). That's exactly the desync case Plan V2's
-            // design doc warns about ("Session: review, Legacy: build --
-            // risky, this was the old bug") and the same free-form-bypass
-            // shape as "확정 진행하세요": legacy stage moves, PlanSession
-            // doesn't, so EvidenceEngine/task tracking runs against a
-            // session that never actually holds this plan.
-            // Route through the same door as the chat Approve button
-            // (ensureStructuredPlan + approve) using the edited markdown's
-            // own goal/content as the research context, instead of
-            // re-deriving one from a chat session that may not exist for
-            // an editor-only flow.
-            const researchContext =
-              planV2Adapter.session.getState().researchFindings ||
-              buildPlanResearchContext(planController) ||
-              content;
-            const goalFallback =
-              planV2Adapter.session.getState().goal ||
-              textFromPlanController(planController) ||
-              title;
-            await planV2Adapter.ensureStructuredPlan({
-              goalFallback,
-              researchContext,
-              generate: () =>
-                requestPlanV2({
-                  goal: goalFallback,
-                  researchContext,
-                  rejectionFeedback: planV2Adapter.session.getState().rejectionFeedback.slice(-1)[0]
-                })
-            });
-            await planV2Adapter.approve();
-            await planController.advanceToBuild();
-            setShowPlanReview(false);
-            setPlanStage('build');
-          } catch (e) {
-            setError(
-              e instanceof Error
-                ? e.message
-                : 'Could not start Build from the editor.'
-            );
-          }
-        })();
-        return;
-      }
-
-      if (data.type === 'plan.openReviewFromEditor') {
-        const content = String(data.content || '').trim();
-        if (!content) {
-          setError('Editor Plan is empty — cannot open Review.');
-          return;
-        }
-        setMode('plan');
-        const slugRaw = String(data.slug || '');
-        promotePlanToReview(content, {
-          slug: slugRaw,
-          title: String(data.title || '')
+      setShowSettings(true);
+    },
+    'plan.saved': (data) => {
+      if (!data.slug) return;
+      const existing = planController.getState().planDocument;
+      if (existing) {
+        void planController.setPlanDocument({
+          ...existing,
+          slug: String(data.slug),
+          title: String(data.title || existing.title)
         });
       }
-    };
-    window.addEventListener('message', onMsg);
-    return () => window.removeEventListener('message', onMsg);
-  }, [planController, promotePlanToReview, planV2Adapter, requestPlanV2, commitPlanV2Result]);
+      if (data.filePath) {
+        console.info('[Agent K] Plan saved:', data.filePath);
+        setError(null);
+      }
+    },
+    'plan.loaded': (data) => {
+      if (data.content == null) return;
+      const existing = planController.getState().planDocument;
+      if (existing) {
+        void planController.setPlanDocument({
+          ...existing,
+          slug: String(data.slug || existing.slug),
+          title: String(data.title || existing.title),
+          content: String(data.content),
+          sections: planGenerator.parseDocument(String(data.content)),
+          todoCount: planGenerator.extractTodos(String(data.content)).length
+        });
+      }
+    },
+    'plan.save.error': (data) => {
+      if (data.error) setError(`Plan save failed: ${String(data.error)}`);
+    },
+    'plan.load.error': (data) => {
+      if (data.error) setError(`Plan load failed: ${String(data.error)}`);
+    },
+    'debug.saved': (data) => {
+      if (!data.slug) return;
+      debugSessionSlugRef.current = String(data.slug);
+      if (data.filePath) {
+        console.info('[Agent K] Debug saved:', data.filePath);
+      }
+    },
+    'debug.save.error': (data) => {
+      if (data.error) setError(`Debug save failed: ${String(data.error)}`);
+    },
+    'model.context': (data) => {
+      const n = Number(data.maxInputTokens);
+      if (Number.isFinite(n) && n > 0) {
+        setModelContextBudget(Math.floor(n));
+      }
+      if (typeof data.source === 'string') {
+        setModelContextSource(data.source);
+      }
+      if (typeof data.providerType === 'string') {
+        setProviderType(data.providerType);
+      }
+    },
+    'checkpoint.listResult': (data) => {
+      const list = Array.isArray(data.checkpoints) ? data.checkpoints : [];
+      setCheckpoints(
+        list.map((c: { id?: unknown; label?: unknown; timestamp?: unknown }) => ({
+          id: String(c.id),
+          label: String(c.label || 'Checkpoint'),
+          timestamp: Number(c.timestamp) || Date.now()
+        }))
+      );
+    },
+    'host.sessions.hydrate': (data) => {
+      const metas = Array.isArray(data.sessions) ? data.sessions : [];
+      applyHostHydration(metas as ChatSessionMeta[]);
+    },
+    'config.hydrate': (data) => {
+      if (data.values && typeof data.values === 'object') {
+        configManager.syncFromVSCode(data.values as Record<string, unknown>);
+      }
+    },
+    'plan.fileExists.result': (data) => {
+      if (data.requestId == null) return;
+      const requestId = String(data.requestId);
+      const resolver = planFileExistsResolversRef.current.get(requestId);
+      if (resolver) {
+        planFileExistsResolversRef.current.delete(requestId);
+        resolver.resolve(Boolean(data.exists));
+      }
+    },
+    'plan.v2.generate.started': (data) => {
+      if (data.requestId == null) return;
+      planV2GenerateResolversRef.current.get(String(data.requestId))?.beginGenerateTimeout();
+    },
+    'plan.v2.generate.result': (data) => {
+      if (data.requestId == null) return;
+      const requestId = String(data.requestId);
+      const resolver = planV2GenerateResolversRef.current.get(requestId);
+      if (resolver) {
+        planV2GenerateResolversRef.current.delete(requestId);
+        if (data.error) {
+          resolver.reject(new Error(String(data.error)));
+        } else {
+          resolver.resolve(data.result as PlanV2GenerationResult);
+        }
+        return;
+      }
+      if (planV2TimedOutRef.current.has(requestId)) {
+        planV2TimedOutRef.current.delete(requestId);
+        if (data.aborted || data.error) return;
+        const late = data.result as PlanV2GenerationResult;
+        if (late?.ok && late.plan) {
+          void commitPlanV2Result(late, { late: true });
+        }
+      }
+    },
+    'plan.toolEvidence': (data) => {
+      try {
+        planV2Adapter.recordToolEvent(
+          toObservedToolCall(
+            String(data.name || ''),
+            data.args as Record<string, unknown> | undefined,
+            { success: Boolean(data.success) }
+          )
+        );
+      } catch {
+        /* evidence correlation must never break the chat loop */
+      }
+    },
+    'plan.buildFromEditor': (data) => {
+      const content = String(data.content || '').trim();
+      if (!content) {
+        setError('Editor Plan is empty — cannot Build.');
+        return;
+      }
+      const slugRaw = String(data.slug || '');
+      const slug =
+        slugRaw && /^plan_[a-f0-9]+$/i.test(slugRaw) ? slugRaw : 'plan_pending';
+      const title = String(data.title || 'Plan');
+      setMode('plan');
+      setShowPlanReview(false);
+      lastPromotedPlanRef.current = content;
+      void (async () => {
+        try {
+          await planController.setPlanDocument({
+            slug,
+            title,
+            content,
+            sections: planGenerator.parseDocument(content),
+            todoCount: planGenerator.extractTodos(content).length,
+            createdAt: Date.now()
+          });
+          const researchContext =
+            planV2Adapter.session.getState().researchFindings ||
+            buildPlanResearchContext(planController) ||
+            content;
+          const goalFallback =
+            planV2Adapter.session.getState().goal ||
+            textFromPlanController(planController) ||
+            title;
+          await planV2Adapter.ensureStructuredPlan({
+            goalFallback,
+            researchContext,
+            generate: () =>
+              requestPlanV2({
+                goal: goalFallback,
+                researchContext,
+                rejectionFeedback:
+                  planV2Adapter.session.getState().rejectionFeedback.slice(-1)[0]
+              })
+          });
+          await planV2Adapter.approve();
+          await planController.advanceToBuild();
+          setShowPlanReview(false);
+          setPlanStage('build');
+        } catch (e) {
+          setError(
+            e instanceof Error
+              ? e.message
+              : 'Could not start Build from the editor.'
+          );
+        }
+      })();
+    },
+    'plan.openReviewFromEditor': (data) => {
+      const content = String(data.content || '').trim();
+      if (!content) {
+        setError('Editor Plan is empty — cannot open Review.');
+        return;
+      }
+      setMode('plan');
+      const slugRaw = String(data.slug || '');
+      promotePlanToReview(content, {
+        slug: slugRaw,
+        title: String(data.title || '')
+      });
+    }
+  });
 
   /**
    * Recovery: PLAN is visible in chat but stage stuck on Plan —
@@ -1765,6 +1382,40 @@ export function ChatApp() {
 
   handleSendRef.current = handleSend;
 
+  const handleRegenerate = useCallback(() => {
+    const epoch = ++sendEpochRef.current;
+    stepStartRef.current = {};
+    loopSessionIdRef.current = sessionIdRef.current;
+    const snapshot = messagesRef.current;
+    const stream = makeAssistantStream(
+      mode,
+      () => epoch !== sendEpochRef.current
+    );
+    regenerate(
+      snapshot,
+      mode,
+      stream.onDelta,
+      stream.onComplete,
+      stream.onError,
+      () => {
+        const assistantMsg = createStreamingAssistantTurn(uuidv4());
+        const cleaned = cleanupStreamingAssistants(messagesRef.current);
+        const next = appendRegenerateAssistantTurn(cleaned, assistantMsg);
+        messagesRef.current = next;
+        setMessages(next);
+        stickToBottomRef.current = true;
+        scrollMessagesToBottom(true);
+        turnNumberRef.current += 1;
+      }
+    );
+  }, [
+    mode,
+    regenerate,
+    makeAssistantStream,
+    cleanupStreamingAssistants,
+    scrollMessagesToBottom
+  ]);
+
   // Build-ready: Agent handoff without wiping the chat (RW-C5-04)
   useEffect(() => {
     planController.onBuildReadyCallback((_context: string) => {
@@ -2011,7 +1662,7 @@ export function ChatApp() {
       const id = planV2ActiveRequestRef.current;
       if (id) {
         try {
-          const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+          const api = getVsCodeApi();
           api?.postMessage?.({ type: 'plan.v2.cancel', requestId: id });
         } catch {
           /* ignore */
@@ -2171,7 +1822,7 @@ export function ChatApp() {
       if (cmd.action === 'compact') {
         try {
           const api =
-            (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+            getVsCodeApi();
           api?.postMessage?.({ type: 'session.compact', sessionId, messageCount: messages.length });
         } catch {
           /* no host bridge (browser preview) */
@@ -2208,7 +1859,7 @@ export function ChatApp() {
       if (cmd.action === 'bestOfN') {
         try {
           const api =
-            (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+            getVsCodeApi();
           api?.postMessage?.({ type: 'host.bestOfN' });
         } catch {
           /* ignore */
@@ -2258,7 +1909,7 @@ export function ChatApp() {
 
     try {
       const api =
-        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        getVsCodeApi();
       api?.postMessage?.({ type: 'chat.answer', qid: id, answer });
     } catch {
       /* ignore */
@@ -2302,7 +1953,7 @@ export function ChatApp() {
     const sessionPhase = planV2Adapter.session.getPhase();
     if (sessionPhase === 'executing' && planStageRef.current === 'build') {
       try {
-        const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        const api = getVsCodeApi();
         for (const q of pendingQuestionsRef.current) {
           const answer = (q.answer || '').trim();
           if (!answer) continue;
@@ -2330,7 +1981,7 @@ export function ChatApp() {
       setMessages(kept);
     }
     try {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      const api = getVsCodeApi();
       api?.postMessage?.({ type: 'chat.question.cancel' });
     } catch {
       /* ignore */
@@ -2393,7 +2044,7 @@ export function ChatApp() {
   /** Plan/Agent: 질문 취소 — must unblock host waiter */
   const handleQuestionsCancel = useCallback(() => {
     try {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      const api = getVsCodeApi();
       api?.postMessage?.({ type: 'chat.question.cancel' });
     } catch {
       /* ignore */
@@ -2410,7 +2061,7 @@ export function ChatApp() {
     if (!existing) return;
     void planController.setPlanDocument({ ...existing, content });
     try {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      const api = getVsCodeApi();
       api?.postMessage?.({
         type: 'plan.save',
         title: existing.title,
@@ -2431,7 +2082,7 @@ export function ChatApp() {
     const existing = planController.getState().planDocument;
     if (!existing) return;
     try {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      const api = getVsCodeApi();
       api?.postMessage?.({
         type: 'plan.save',
         title: existing.title,
@@ -2456,7 +2107,7 @@ export function ChatApp() {
     const reload = () => {
       try {
         const api =
-          (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+          getVsCodeApi();
         api?.postMessage?.({ type: 'plan.load', slug });
       } catch {
         /* ignore */
@@ -2602,7 +2253,7 @@ export function ChatApp() {
       ].join('\n');
       try {
         const api =
-          (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+          getVsCodeApi();
         api?.postMessage?.({
           type: 'debug.save',
           title: hyp?.title || 'Debug Session',
@@ -2650,7 +2301,7 @@ export function ChatApp() {
     ].join('\n');
     try {
       const api =
-        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        getVsCodeApi();
       api?.postMessage?.({
         type: 'debug.save',
         title,
@@ -2707,7 +2358,7 @@ export function ChatApp() {
   const handleOpenFile = useCallback((filePath: string) => {
     try {
       const api =
-        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        getVsCodeApi();
       api?.postMessage?.({ type: 'file.open', path: filePath });
     } catch {
       /* ignore */
@@ -2717,7 +2368,7 @@ export function ChatApp() {
   const requestModelContext = useCallback(() => {
     try {
       const api =
-        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        getVsCodeApi();
       api?.postMessage?.({
         type: 'model.context.refresh',
         providerType:
@@ -2827,7 +2478,7 @@ export function ChatApp() {
     const earliest = withCp[0].checkpointId!;
     try {
       const api =
-        (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+        getVsCodeApi();
       api?.postMessage?.({ type: 'checkpoint.restore', id: earliest });
       setMessages((prev) =>
         prev.map((m) => (m.fileEdits?.length ? { ...m, fileEdits: [] } : m))
@@ -2847,7 +2498,7 @@ export function ChatApp() {
   /** ADDON-T07: Checkpoints dropdown — refresh from host */
   const handleListCheckpoints = useCallback(() => {
     try {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      const api = getVsCodeApi();
       api?.postMessage?.({ type: 'checkpoint.list' });
     } catch {
       /* no host bridge (browser preview) */
@@ -2857,7 +2508,7 @@ export function ChatApp() {
   /** ADDON-T07: restore a specific checkpoint picked from the dropdown */
   const handleRestoreCheckpoint = useCallback((id: string) => {
     try {
-      const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
+      const api = getVsCodeApi();
       api?.postMessage?.({ type: 'checkpoint.restore', id });
       setMessages((prev) =>
         prev.map((m) => (m.fileEdits?.length ? { ...m, fileEdits: [] } : m))
@@ -3045,7 +2696,7 @@ export function ChatApp() {
             .reverse()
             .find((m) => m.role === 'assistant')?.id;
           return messages.map((item) => (
-            <MessageBubble
+            <ConversationTurn
               key={item.id}
               message={item}
               isStreaming={
@@ -3130,22 +2781,7 @@ export function ChatApp() {
           seedText={composerSeed?.text ?? null}
           seedNonce={composerSeed?.nonce ?? 0}
           onSlashCommand={runSlashCommand}
-          onRegenerate={() => {
-            const epoch = ++sendEpochRef.current;
-            stepStartRef.current = {};
-            loopSessionIdRef.current = sessionIdRef.current;
-            const stream = makeAssistantStream(
-              mode,
-              () => epoch !== sendEpochRef.current
-            );
-            regenerate(
-              messages,
-              mode,
-              stream.onDelta,
-              stream.onComplete,
-              stream.onError
-            );
-          }}
+          onRegenerate={handleRegenerate}
           onQueueMessage={handleQueueMessage}
           onResynthesize={handleResynthesize}
           isStreaming={streaming || generatingPlan}
