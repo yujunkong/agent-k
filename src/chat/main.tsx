@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ChatApp } from './ChatApp';
 import './chat.css';
+import './ui/cursor-ui.css';
 
 const el = document.getElementById('chat-root');
 if (!el) {
