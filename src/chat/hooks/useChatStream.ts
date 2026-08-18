@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ChatMessage, Mode, Attachment, StreamDelta } from '../types';
+import { apiHistoryForRegenerate } from '../regenerateTurn';
 
 /** No-token idle timeout — Ask path default */
 const IDLE_TIMEOUT_MS = 30_000;
@@ -38,7 +39,8 @@ interface UseChatStreamReturn {
     mode: Mode,
     onDelta: (delta: StreamDelta) => void,
     onComplete: () => void,
-    onError: (err: string) => void
+    onError: (err: string) => void,
+    onRegenerateStart?: () => void
   ) => Promise<void>;
 }
 
@@ -508,18 +510,20 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
     mode: Mode,
     onDelta: (delta: StreamDelta) => void,
     onComplete: () => void,
-    onError: (err: string) => void
+    onError: (err: string) => void,
+    onRegenerateStart?: () => void
   ) => {
-    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-    if (!lastUserMsg) return;
+    const apiMessages = apiHistoryForRegenerate(messages);
+    if (!apiMessages || apiMessages.length === 0) return;
+    const lastUserMsg = apiMessages[apiMessages.length - 1];
+    if (lastUserMsg.role !== 'user') return;
 
-    const idx = messages.findIndex(m => m.id === lastUserMsg.id);
-    const newMessages = messages.slice(0, idx + 1);
+    onRegenerateStart?.();
 
     await sendMessage(
       lastUserMsg.content,
       lastUserMsg.attachments || [],
-      newMessages,
+      apiMessages,
       mode,
       onDelta,
       onComplete,

@@ -28,6 +28,10 @@ import {
   sanitizeLoadedMessages,
   finalizeStreamingMessages
 } from './chatAppHelpers';
+import {
+  appendRegenerateAssistantTurn,
+  createStreamingAssistantTurn
+} from './regenerateTurn';
 import { configManager } from '../core/ConfigManager';
 import type { ChatMessage, Mode, ModePicker, Attachment } from './types';
 import { formatAttachmentsForPayload } from './attachmentFormat';
@@ -1377,6 +1381,40 @@ export function ChatApp() {
   }, [mode, modeAuto, sendMessage, planStage, planController, planV2Adapter, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom, makeAssistantStream]);
 
   handleSendRef.current = handleSend;
+
+  const handleRegenerate = useCallback(() => {
+    const epoch = ++sendEpochRef.current;
+    stepStartRef.current = {};
+    loopSessionIdRef.current = sessionIdRef.current;
+    const snapshot = messagesRef.current;
+    const stream = makeAssistantStream(
+      mode,
+      () => epoch !== sendEpochRef.current
+    );
+    regenerate(
+      snapshot,
+      mode,
+      stream.onDelta,
+      stream.onComplete,
+      stream.onError,
+      () => {
+        const assistantMsg = createStreamingAssistantTurn(uuidv4());
+        const cleaned = cleanupStreamingAssistants(messagesRef.current);
+        const next = appendRegenerateAssistantTurn(cleaned, assistantMsg);
+        messagesRef.current = next;
+        setMessages(next);
+        stickToBottomRef.current = true;
+        scrollMessagesToBottom(true);
+        turnNumberRef.current += 1;
+      }
+    );
+  }, [
+    mode,
+    regenerate,
+    makeAssistantStream,
+    cleanupStreamingAssistants,
+    scrollMessagesToBottom
+  ]);
 
   // Build-ready: Agent handoff without wiping the chat (RW-C5-04)
   useEffect(() => {
@@ -2743,22 +2781,7 @@ export function ChatApp() {
           seedText={composerSeed?.text ?? null}
           seedNonce={composerSeed?.nonce ?? 0}
           onSlashCommand={runSlashCommand}
-          onRegenerate={() => {
-            const epoch = ++sendEpochRef.current;
-            stepStartRef.current = {};
-            loopSessionIdRef.current = sessionIdRef.current;
-            const stream = makeAssistantStream(
-              mode,
-              () => epoch !== sendEpochRef.current
-            );
-            regenerate(
-              messages,
-              mode,
-              stream.onDelta,
-              stream.onComplete,
-              stream.onError
-            );
-          }}
+          onRegenerate={handleRegenerate}
           onQueueMessage={handleQueueMessage}
           onResynthesize={handleResynthesize}
           isStreaming={streaming || generatingPlan}
