@@ -1,0 +1,167 @@
+/* Cursor-style conversation tabs / session strip */
+.conversation-tabs,
+.session-tabs,
+.chat-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 36px;
+  padding: 4px 6px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--ak-ui-border);
+  background: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 96%, var(--vscode-foreground, #fff));
+}
+
+.conversation-tabs::-webkit-scrollbar,
+.session-tabs::-webkit-scrollbar,
+.chat-tabs::-webkit-scrollbar { display: none; }
+
+.conversation-tabs > *,
+.session-tabs > *,
+.chat-tabs > * {
+  flex: 0 0 auto;
+}
+
+.conversation-tab,
+.session-tab,
+.chat-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 220px;
+  height: 31px;
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: 7px 7px 0 0;
+  color: var(--ak-ui-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.conversation-tab:hover,
+.session-tab:hover,
+.chat-tab:hover {
+  color: var(--vscode-foreground, #ccc);
+  background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground, #5a5d5e) 55%, transparent);
+}
+
+.conversation-tab[aria-selected="true"],
+.conversation-tab.is-active,
+.session-tab[aria-selected="true"],
+.session-tab.is-active,
+.chat-tab[aria-selected="true"],
+.chat-tab.is-active {
+  color: var(--vscode-foreground, #ccc);
+  background: color-mix(in srgb, var(--vscode-editor-foreground, #ccc) 6%, transparent);
+}
+
+.conversation-tab[aria-selected="true"]::after,
+.conversation-tab.is-active::after,
+.session-tab[aria-selected="true"]::after,
+.session-tab.is-active::after,
+.chat-tab[aria-selected="true"]::after,
+.chat-tab.is-active::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--vscode-focusBorder, var(--vscode-textLink-foreground, #ccc));
+}
+
+.conversation-tab__title,
+.session-tab__title,
+.chat-tab__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-tab__close,
+.session-tab__close,
+.chat-tab__close {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 5px;
+  color: inherit;
+  background: transparent;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.conversation-tab:hover .conversation-tab__close,
+.conversation-tab:focus-within .conversation-tab__close,
+.session-tab:hover .session-tab__close,
+.session-tab:focus-within .session-tab__close,
+.chat-tab:hover .chat-tab__close,
+.chat-tab:focus-within .chat-tab__close,
+.conversation-tab.is-active .conversation-tab__close,
+.session-tab.is-active .session-tab__close,
+.chat-tab.is-active .chat-tab__close { opacity: .72; }
+
+.conversation-tab__close:hover,
+.session-tab__close:hover,
+.chat-tab__close:hover {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.25));
+}
+
+.conversation-tab__status,
+.session-tab__status,
+.chat-tab__status {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--ak-ui-muted);
+}
+
+.conversation-tab.is-running .conversation-tab__status,
+.session-tab.is-running .session-tab__status,
+.chat-tab.is-running .chat-tab__status {
+  background: var(--vscode-textLink-foreground, #ccc);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--vscode-textLink-foreground, #ccc) 12%, transparent);
+}
+
+.conversation-tabs__new,
+.session-tabs__new,
+.chat-tabs__new {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ak-ui-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.conversation-tabs__new:hover,
+.session-tabs__new:hover,
+.chat-tabs__new:hover {
+  color: var(--vscode-foreground, #ccc);
+  background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.25));
+}
+
+@media (max-width: 620px) {
+  .conversation-tabs,
+  .session-tabs,
+  .chat-tabs { padding-inline: 4px; }
+  .conversation-tab,
+  .session-tab,
+  .chat-tab { max-width: 160px; }
+}
