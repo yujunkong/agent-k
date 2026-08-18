@@ -398,6 +398,8 @@ export function ChatApp() {
     messages,
     setMessages,
     messagesRef,
+    updateSessionMessages,
+    getSessionMessages,
     handleNewChat,
     handleOpenSession,
     handleCloseTab,
@@ -1203,9 +1205,10 @@ export function ChatApp() {
   }, []);
 
   const makeAssistantStream = useCallback(
-    (effectiveMode: Mode, isStale?: () => boolean) =>
+    (effectiveMode: Mode, isStale?: () => boolean, ownerSessionId?: string) =>
       createAssistantStreamSession({
         isStale,
+        ownerSessionId,
         mode: effectiveMode,
         stepStartRef,
         turnNumberRef,
@@ -1220,6 +1223,8 @@ export function ChatApp() {
         debugController,
         planV2HasPlan: () => Boolean(planV2Adapter.session.getPlan()),
         setMessages,
+        updateSessionMessages,
+        getSessionMessages,
         setPendingQuestions,
         setShowClarifying,
         setAwaitingUser,
@@ -1227,7 +1232,14 @@ export function ChatApp() {
         setError,
         promotePlanToReview
       }),
-    [planController, debugController, planV2Adapter, promotePlanToReview]
+    [
+      planController,
+      debugController,
+      planV2Adapter,
+      promotePlanToReview,
+      updateSessionMessages,
+      getSessionMessages
+    ]
   );
 
   // ─── Message handler ───────────────────────────────────
@@ -1369,7 +1381,8 @@ export function ChatApp() {
 
     const stream = makeAssistantStream(
       effectiveMode,
-      () => epoch !== sendEpochRef.current
+      () => epoch !== sendEpochRef.current,
+      sessionIdRef.current
     );
     sendMessage(
       payload,
@@ -1379,9 +1392,12 @@ export function ChatApp() {
       stream.onDelta,
       stream.onComplete,
       stream.onError,
-      opts?.planStageOverride
-        ? { planStageOverride: opts.planStageOverride }
-        : undefined
+      {
+        ...(opts?.planStageOverride
+          ? { planStageOverride: opts.planStageOverride }
+          : {}),
+        runtimeKey: sessionIdRef.current
+      }
     );
   }, [mode, modeAuto, sendMessage, planStage, planController, planV2Adapter, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom, makeAssistantStream]);
 
@@ -1394,7 +1410,8 @@ export function ChatApp() {
     const snapshot = messagesRef.current;
     const stream = makeAssistantStream(
       mode,
-      () => epoch !== sendEpochRef.current
+      () => epoch !== sendEpochRef.current,
+      sessionIdRef.current
     );
     regenerate(
       snapshot,

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatMessage, Mode, Attachment, StreamDelta } from '../types';
 import { apiHistoryForRegenerate } from '../regenerateTurn';
 
@@ -19,6 +19,8 @@ interface UseChatStreamOptions {
   debugStage?: string;
   /** Thinking effort for host / direct API */
   thinkingEffort?: 'off' | 'low' | 'medium' | 'high' | 'max';
+  /** Active chat runtime key (usually current session id) for per-tab streaming state. */
+  activeRuntimeKey?: string;
 }
 
 interface UseChatStreamReturn {
@@ -31,7 +33,7 @@ interface UseChatStreamReturn {
     onDelta: (delta: StreamDelta) => void,
     onComplete: () => void,
     onError: (err: string) => void,
-    opts?: { planStageOverride?: string }
+    opts?: { planStageOverride?: string; runtimeKey?: string }
   ) => Promise<void>;
   stop: () => void;
   regenerate: (
@@ -60,11 +62,11 @@ function needsHostToolLoop(_mode: Mode): boolean {
 
 export function useChatStream(options: UseChatStreamOptions = {}): UseChatStreamReturn {
   const [streaming, setStreaming] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
-  /** Monotonic id so a stale request's finally cannot clear a newer stream. */
-  const requestIdRef = useRef(0);
-  /** Correlate host chat.stream events */
-  const hostRequestIdRef = useRef<string | null>(null);
+  /** Runtime-local in-flight host requests (supports multi-session parallel sends). */
+  const runtimeRequestsRef = useRef<Map<string, Set<string>>>(new Map());
+  /** Correlate host request id -> local abort controller. */
+  const abortByRequestRef = useRef<Map<string, AbortController>>(new Map());
+  const requestSeqRef = useRef(0);
   const idleTimeoutMs = options.idleTimeoutMs ?? IDLE_TIMEOUT_MS;
   const planStageRef = useRef(options.planStage);
   const debugStageRef = useRef(options.debugStage);
@@ -73,19 +75,67 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
   debugStageRef.current = options.debugStage;
   thinkingEffortRef.current = options.thinkingEffort;
 
-  const stop = useCallback(() => {
-    abortRef.current?.abort();
-    // Tell host to abort in-flight tool loop
-    const api = getVsCodeApi();
-    if (api && hostRequestIdRef.current) {
-      api.postMessage({ type: 'chat.stop', requestId: hostRequestIdRef.current });
+  const syncStreamingForActiveRuntime = useCallback(() => {
+    const key = options.activeRuntimeKey;
+    if (!key) {
+      setStreaming(abortByRequestRef.current.size > 0);
+      return;
     }
-    hostRequestIdRef.current = null;
-    // Bump request id so a late finally from a superseded race cannot revive streaming
-    requestIdRef.current += 1;
-    abortRef.current = null;
-    setStreaming(false);
-  }, []);
+    const set = runtimeRequestsRef.current.get(key);
+    setStreaming(Boolean(set && set.size > 0));
+  }, [options.activeRuntimeKey]);
+
+  const detachRequest = useCallback((runtimeKey: string, hostRequestId: string) => {
+    abortByRequestRef.current.delete(hostRequestId);
+    const bucket = runtimeRequestsRef.current.get(runtimeKey);
+    if (bucket) {
+      bucket.delete(hostRequestId);
+      if (bucket.size === 0) runtimeRequestsRef.current.delete(runtimeKey);
+    }
+    syncStreamingForActiveRuntime();
+  }, [syncStreamingForActiveRuntime]);
+
+  const attachRequest = useCallback(
+    (runtimeKey: string, hostRequestId: string, controller: AbortController) => {
+      abortByRequestRef.current.set(hostRequestId, controller);
+      const bucket =
+        runtimeRequestsRef.current.get(runtimeKey) ?? new Set<string>();
+      bucket.add(hostRequestId);
+      runtimeRequestsRef.current.set(runtimeKey, bucket);
+      syncStreamingForActiveRuntime();
+    },
+    [syncStreamingForActiveRuntime]
+  );
+
+  const stop = useCallback(() => {
+    const runtimeKey = options.activeRuntimeKey;
+    const requestIds = runtimeKey
+      ? [...(runtimeRequestsRef.current.get(runtimeKey) ?? [])]
+      : [...abortByRequestRef.current.keys()];
+    if (requestIds.length === 0) return;
+
+    const api = getVsCodeApi();
+    for (const requestId of requestIds) {
+      abortByRequestRef.current.get(requestId)?.abort();
+      if (api) {
+        api.postMessage({ type: 'chat.stop', requestId });
+      }
+      if (runtimeKey) {
+        detachRequest(runtimeKey, requestId);
+      } else {
+        abortByRequestRef.current.delete(requestId);
+        for (const [key, bucket] of runtimeRequestsRef.current.entries()) {
+          bucket.delete(requestId);
+          if (bucket.size === 0) runtimeRequestsRef.current.delete(key);
+        }
+        syncStreamingForActiveRuntime();
+      }
+    }
+  }, [detachRequest, options.activeRuntimeKey]);
+
+  useEffect(() => {
+    syncStreamingForActiveRuntime();
+  }, [syncStreamingForActiveRuntime, options.activeRuntimeKey]);
 
   /**
    * All modes: post chat.send → Extension Host runs tools → chat.stream events.
@@ -98,7 +148,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       onDelta: (delta: StreamDelta) => void,
       onComplete: () => void,
       onError: (err: string) => void,
-      opts?: { planStageOverride?: string }
+      opts?: { planStageOverride?: string; runtimeKey?: string }
     ) => {
       const api = getVsCodeApi();
       if (!api) {
@@ -108,13 +158,11 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         return;
       }
 
-      abortRef.current?.abort();
-      const requestId = ++requestIdRef.current;
-      const hostRequestId = `host_${requestId}_${Date.now()}`;
-      hostRequestIdRef.current = hostRequestId;
+      const requestId = ++requestSeqRef.current;
+      const runtimeKey = opts?.runtimeKey || options.activeRuntimeKey || 'global';
+      const hostRequestId = `host_${runtimeKey}_${requestId}_${Date.now()}`;
       const controller = new AbortController();
-      abortRef.current = controller;
-      setStreaming(true);
+      attachRequest(runtimeKey, hostRequestId, controller);
 
       const hostIdleMs = Math.max(idleTimeoutMs, HOST_IDLE_TIMEOUT_MS);
       let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -138,13 +186,11 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       bumpIdle();
 
       const finish = (fn: () => void) => {
-        if (finished || requestId !== requestIdRef.current) return;
+        if (finished) return;
         finished = true;
         clearIdle();
         window.removeEventListener('message', onMsg);
-        hostRequestIdRef.current = null;
-        setStreaming(false);
-        abortRef.current = null;
+        detachRequest(runtimeKey, hostRequestId);
         fn();
       };
 
@@ -153,7 +199,6 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         if (!data || data.type !== 'chat.stream' || data.requestId !== hostRequestId) {
           return;
         }
-        if (requestId !== requestIdRef.current) return;
         bumpIdle();
 
         switch (data.event) {
@@ -313,13 +358,13 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
 
       // AbortSignal from stop()/timeout
       controller.signal.addEventListener('abort', () => {
-        if (timedOut && !finished && requestId === requestIdRef.current) {
+        if (timedOut && !finished) {
           finish(() =>
             onError(
               `No tokens received for ${Math.round(hostIdleMs / 1000)}s — request timed out`
             )
           );
-        } else if (!finished && requestId === requestIdRef.current) {
+        } else if (!finished) {
           // User stop — ChatApp cleans bubbles; do not call onError
           finish(() => {});
         }
@@ -353,7 +398,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       onDelta: (delta: StreamDelta) => void,
       onComplete: () => void,
       onError: (err: string) => void,
-      opts?: { planStageOverride?: string }
+      opts?: { planStageOverride?: string; runtimeKey?: string }
     ) => {
       // Agent path: host executes tools (glob/read_file). Ask stays webview completions.
       if (needsHostToolLoop(mode)) {
@@ -361,13 +406,11 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         return;
       }
 
-      // One in-flight request: abort previous before starting (resynth / double-send safety)
-      abortRef.current?.abort();
-
-      const requestId = ++requestIdRef.current;
+      const requestId = ++requestSeqRef.current;
+      const runtimeKey = opts?.runtimeKey || options.activeRuntimeKey || 'global';
+      const directRequestId = `direct_${runtimeKey}_${requestId}_${Date.now()}`;
       const controller = new AbortController();
-      abortRef.current = controller;
-      setStreaming(true);
+      attachRequest(runtimeKey, directRequestId, controller);
 
       let idleTimer: ReturnType<typeof setTimeout> | null = null;
       let timedOut = false;
@@ -429,8 +472,6 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         try {
           while (true) {
             // Stale request superseded by a newer send — stop reading
-            if (requestId !== requestIdRef.current) break;
-
             const { done, value } = await reader.read();
             if (done) break;
 
@@ -443,7 +484,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
               if (line.startsWith('data: ')) {
                 const data = line.slice(6).trim();
                 if (data === '[DONE]') {
-                  if (requestId === requestIdRef.current) onComplete();
+                  onComplete();
                   return;
                 }
                 try {
@@ -452,19 +493,15 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                   let painted = false;
                   if (delta?.content) {
                     bumpIdle();
-                    if (requestId === requestIdRef.current) {
-                      onDelta({ content: delta.content });
-                      painted = true;
-                    }
+                    onDelta({ content: delta.content });
+                    painted = true;
                   }
                   const reasoning =
                     delta?.reasoning_content || delta?.reasoning;
                   if (reasoning) {
                     bumpIdle();
-                    if (requestId === requestIdRef.current) {
-                      onDelta({ reasoning: String(reasoning) });
-                      painted = true;
-                    }
+                    onDelta({ reasoning: String(reasoning) });
+                    painted = true;
                   }
                   // One TCP/SSE batch can hold many tokens — yield so React paints
                   // between chunks (Thought already felt live; answer should too)
@@ -478,14 +515,12 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             }
           }
           // Stream ended without [DONE]
-          if (requestId === requestIdRef.current) onComplete();
+          onComplete();
         } finally {
           reader.releaseLock();
         }
       } catch (e) {
-        if (requestId !== requestIdRef.current) {
-          // Superseded — ignore
-        } else if (e instanceof Error && e.name === 'AbortError') {
+        if (e instanceof Error && e.name === 'AbortError') {
           if (timedOut) {
             onError(`No tokens received for ${Math.round(idleTimeoutMs / 1000)}s — request timed out`);
           }
@@ -495,14 +530,10 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         }
       } finally {
         clearIdle();
-        // Only the active request may clear streaming (prevents abort race flipping flag early)
-        if (requestId === requestIdRef.current) {
-          setStreaming(false);
-          abortRef.current = null;
-        }
+        detachRequest(runtimeKey, directRequestId);
       }
     },
-    [options.baseUrl, options.apiKey, options.model, idleTimeoutMs, sendViaHost]
+    [options.baseUrl, options.apiKey, options.model, idleTimeoutMs, sendViaHost, options.activeRuntimeKey, attachRequest, detachRequest]
   );
 
   const regenerate = useCallback(async (

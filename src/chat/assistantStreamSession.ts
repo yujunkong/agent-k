@@ -100,6 +100,12 @@ export interface AssistantStreamCtx {
   };
   planV2HasPlan: () => boolean;
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
+  updateSessionMessages: (
+    sessionId: string,
+    updater: (prev: ChatMessage[]) => ChatMessage[]
+  ) => void;
+  getSessionMessages: (sessionId: string) => ChatMessage[];
+  ownerSessionId?: string;
   setPendingQuestions: Dispatch<SetStateAction<PendingQuestion[]>>;
   setShowClarifying: (v: boolean) => void;
   setAwaitingUser: (v: boolean) => void;
@@ -114,6 +120,11 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
   onError: (err: string) => void;
 } {
   let planPinned = false;
+  const getOwnerSessionId = () =>
+    ctx.ownerSessionId || ctx.loopSessionIdRef.current || ctx.sessionIdRef.current;
+  const applyOwnerMessages = (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
+    ctx.updateSessionMessages(getOwnerSessionId(), updater);
+  };
 
   const sealLeadFromMessage = (
     msg: ChatMessage,
@@ -217,7 +228,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
     }
 
     if (delta.clearContent) {
-      ctx.setMessages((prev) => {
+      applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         const newMsgs = [...prev];
@@ -235,7 +246,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
           `fe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         turn: delta.fileEdit.turn || ctx.turnNumberRef.current || 1
       };
-      ctx.setMessages((prev) => {
+      applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         const msg = hit.msg;
@@ -260,7 +271,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
 
     if (delta.terminalRun) {
       const ev = delta.terminalRun;
-      ctx.setMessages((prev) => {
+      applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         const msg = hit.msg;
@@ -324,7 +335,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         tl.itemStatus === 'done' || tl.itemStatus === 'error'
           ? now - ctx.stepStartRef.current[id]
           : undefined;
-      ctx.setMessages((prev) => {
+      applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         let msg = hit.msg;
@@ -361,7 +372,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       const id = `tl_thinking_${ctx.turnNumberRef.current || 1}`;
       const now = Date.now();
       if (!ctx.stepStartRef.current[id]) ctx.stepStartRef.current[id] = now;
-      ctx.setMessages((prev) => {
+      applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         const msg = hit.msg;
@@ -393,7 +404,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
           ctx.setAwaitingUser(true);
         }
       }
-      ctx.setMessages((prev) => {
+      applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         const newMsgs = [...prev];
@@ -408,7 +419,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
 
     if (delta.content) {
       if (planPinned) return;
-      ctx.setMessages((prev) => {
+      applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         const newMsgs = [...prev];
@@ -425,9 +436,12 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
 
   const onComplete = () => {
     if (ctx.isStale?.()) return;
-    ctx.setAwaitingUser(false);
+    const ownerId = getOwnerSessionId();
+    if (ownerId === ctx.sessionIdRef.current) {
+      ctx.setAwaitingUser(false);
+    }
     let completedAssistant: ChatMessage | undefined;
-    ctx.setMessages((prev) => {
+    applyOwnerMessages((prev) => {
       const lastIdx = prev.length - 1;
       if (lastIdx < 0 || prev[lastIdx].role !== 'assistant') return prev;
       if (prev[lastIdx].status !== 'streaming') {
@@ -472,7 +486,6 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         content: hasBody ? draft.content : hasOther ? '' : '(no response)'
       };
       completedAssistant = newMsgs[lastIdx];
-      ctx.messagesRef.current = newMsgs;
       return newMsgs;
     });
 
@@ -485,9 +498,10 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         stageNow === 'questions' ||
         stageNow === 'research');
     if (shouldPromotePlan) {
+      const ownerMessages = ctx.getSessionMessages(ownerId);
       const last =
         completedAssistant ||
-        [...ctx.messagesRef.current].reverse().find((m) => m.role === 'assistant');
+        [...ownerMessages].reverse().find((m) => m.role === 'assistant');
       let planMd = extractPlanMarkdownFromMessage(last);
       const soft =
         ctx.promotePlanOnCompleteRef.current || stageNow === 'planning';
@@ -495,7 +509,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         ? looksLikePlanDraft(planMd) || looksLikePlanDocument(planMd)
         : looksLikePlanDocument(planMd);
       if (!ok) {
-        planMd = findLatestPlanMarkdown(ctx.messagesRef.current);
+        planMd = findLatestPlanMarkdown(ownerMessages);
       }
       if (looksLikePlanDocument(planMd) || (soft && looksLikePlanDraft(planMd))) {
         ctx.promotePlanToReview(planMd);
@@ -514,9 +528,12 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
 
   const onError = (err: string) => {
     if (ctx.isStale?.()) return;
-    ctx.setAwaitingUser(false);
-    ctx.setError(err);
-    ctx.setMessages((prev) => {
+    const ownerId = getOwnerSessionId();
+    if (ownerId === ctx.sessionIdRef.current) {
+      ctx.setAwaitingUser(false);
+      ctx.setError(err);
+    }
+    applyOwnerMessages((prev) => {
       const hit = lastStreaming(prev);
       if (!hit) return prev;
       const newMsgs = [...prev];

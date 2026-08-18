@@ -193,8 +193,13 @@ export class ChatSessionStore {
     return session;
   }
 
-  /** Persist messages for a session and keep it current. */
-  saveMessages(id: string, messages: ChatMessage[], mode?: Mode): void {
+  /** Persist messages for a session. Default keeps it current (legacy behavior). */
+  saveMessages(
+    id: string,
+    messages: ChatMessage[],
+    mode?: Mode,
+    opts?: { setCurrent?: boolean }
+  ): void {
     const prev = this.readSession(id);
     const now = Date.now();
     const session: ChatSession = {
@@ -217,8 +222,10 @@ export class ChatSessionStore {
       this.index = [id, ...this.index.filter((x) => x !== id)];
       this.persistIndex();
     }
-    this.currentId = id;
-    this.persistCurrent();
+    if (opts?.setCurrent !== false) {
+      this.currentId = id;
+      this.persistCurrent();
+    }
   }
 
   switchTo(id: string): ChatSession | null {

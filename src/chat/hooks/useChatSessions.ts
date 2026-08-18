@@ -160,6 +160,33 @@ export function useChatSessions(params: UseChatSessionsParams) {
     setSessionList(sessionStore.list());
   }, []);
 
+  const getSessionMessages = useCallback((id: string): ChatMessage[] => {
+    if (id === sessionIdRef.current) return messagesRef.current;
+    const loaded = sessionStore.get(id);
+    return sanitizeLoadedMessages(loaded?.messages || []);
+  }, []);
+
+  const updateSessionMessages = useCallback(
+    (id: string, updater: (prev: ChatMessage[]) => ChatMessage[]) => {
+      if (!id) return;
+      if (id === sessionIdRef.current) {
+        setMessages((prev) => {
+          const next = updater(prev);
+          messagesRef.current = next;
+          return next;
+        });
+        return;
+      }
+      const loaded = sessionStore.get(id);
+      if (!loaded) return;
+      const base = sanitizeLoadedMessages(loaded.messages || []);
+      const next = updater(base);
+      sessionStore.saveMessages(id, next, loaded.mode, { setCurrent: false });
+      setSessionList(sessionStore.list());
+    },
+    []
+  );
+
   const handleNewChat = useCallback(() => {
     if (streaming) {
       if (awaitingUser) {
@@ -449,6 +476,8 @@ export function useChatSessions(params: UseChatSessionsParams) {
     handleOpenSession,
     handleCloseTab,
     handleDeleteSession,
-    applyHostHydration
+    applyHostHydration,
+    updateSessionMessages,
+    getSessionMessages
   };
 }

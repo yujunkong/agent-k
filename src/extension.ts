@@ -254,12 +254,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'agent-k.chat';
 
   private _view?: vscode.WebviewView;
-  /** Active AgentLoopController for chat Agent/Plan/Debug (turn contract) */
-  private _hostLoop?: import('./loop/AgentLoopController').AgentLoopController;
+  /** In-flight AgentLoopController runtimes keyed by requestId (parallel tabs). */
+  private _hostLoops = new Map<
+    string,
+    {
+      loop: import('./loop/AgentLoopController').AgentLoopController;
+      abort: AbortController;
+    }
+  >();
+  /** Latest request id (legacy bridge fallback only). */
   private _hostLoopRequestId?: string;
-  private _hostLoopAbort?: AbortController;
-  /** Serialize chat.send so interrupt/new-tab cannot interleave two loops */
-  private _hostSendChain: Promise<void> = Promise.resolve();
   /** In-flight Plan V2 LLM generations, keyed by webview requestId */
   private _planV2Aborts = new Map<string, AbortController>();
   /** Cancel arrived before runPlanV2Generate registered an AbortController. */
@@ -529,12 +533,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     // Agent/Plan/Debug: host-mediated tool loop (webview cannot run fs tools)
     if (message.type === 'chat.send' && message.requestId != null) {
-      // Abort current wait immediately, then run next send after prior promise settles
+      // Parallel tab runtime: do not abort existing loops from other sessions.
       this.abortPlanV2Generate();
-      this.abortHostChatLoop();
-      this._hostSendChain = this._hostSendChain
-        .catch(() => undefined)
-        .then(() => this.runHostChatSend(message));
+      void this.runHostChatSend(message);
       return;
     }
     if (message.type === 'model.context.refresh') {
@@ -608,9 +609,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (message.type === 'plan.v2.generate' && message.requestId != null) {
       // Stop any research AgentLoop first, then generate — never overlap.
       this.abortHostChatLoop();
-      this._hostSendChain = this._hostSendChain
-        .catch(() => undefined)
-        .then(() => this.runPlanV2Generate(message));
+      void this.runPlanV2Generate(message);
       return;
     }
     // Persist plan draft → <workspace>/.agentk/plans/tmp/plan_<hash>.md
@@ -1340,22 +1339,30 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private abortHostChatLoop(requestId?: string) {
-    if (requestId && this._hostLoopRequestId && requestId !== this._hostLoopRequestId) {
-      return;
+    const targets = requestId
+      ? requestId && this._hostLoops.has(requestId)
+        ? [requestId]
+        : []
+      : [...this._hostLoops.keys()];
+
+    for (const id of targets) {
+      const rt = this._hostLoops.get(id);
+      if (!rt) continue;
+      rt.loop.stop();
+      rt.abort.abort();
+      this._hostLoops.delete(id);
+      if (this._view) {
+        void this._view.webview.postMessage({
+          type: 'chat.stream',
+          requestId: id,
+          event: 'stopped'
+        });
+      }
+      if (this._hostLoopRequestId === id) {
+        this._hostLoopRequestId = undefined;
+      }
     }
-    const activeId = this._hostLoopRequestId;
-    this._hostLoop?.stop();
-    this._hostLoopAbort?.abort();
-    if (activeId && this._view) {
-      void this._view.webview.postMessage({
-        type: 'chat.stream',
-        requestId: activeId,
-        event: 'stopped'
-      });
-    }
-    this._hostLoop = undefined;
-    this._hostLoopAbort = undefined;
-    this._hostLoopRequestId = undefined;
+
     // Unstick ask_question / reproduce waiters
     RuntimeServices.cancelQuestion('chat stopped');
     RuntimeServices.cancelReproduce();
@@ -1494,13 +1501,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (!webview) return;
 
     const requestId = String(message.requestId);
-    this.abortHostChatLoop();
     const abort = new AbortController();
-    this._hostLoopAbort = abort;
     this._hostLoopRequestId = requestId;
+    const isActive = () => this._hostLoops.has(requestId);
+    const getRuntime = () => this._hostLoops.get(requestId);
 
     const post = (event: string, extra: Record<string, unknown> = {}) => {
-      if (this._hostLoopRequestId !== requestId) return;
+      if (!isActive()) return;
       void webview.postMessage({
         type: 'chat.stream',
         requestId,
@@ -1511,7 +1518,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     // Bridge ask_question → this request's post() (survives interrupt / new-tab races)
     RuntimeServices.setAskQuestionNotifier((q) => {
-      if (this._hostLoopRequestId !== requestId) {
+      if (!isActive()) {
         throw new Error(
           'ask_question: request superseded. Send a message again to continue.'
         );
@@ -2095,7 +2102,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         })(),
         // Re-bind ask_question UI on every tool call (new tab / interrupt safe)
         onAskQuestion: (q) => {
-          if (this._hostLoopRequestId !== requestId) {
+          if (!isActive()) {
             throw new Error(
               'ask_question: request superseded. Send a message again to continue.'
             );
@@ -2470,13 +2477,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
       });
 
-      this._hostLoop = loop;
+      this._hostLoops.set(requestId, { loop, abort });
 
       // Keepalive so webview idle watchdog does not fire during slow LLM TTFT / ask_question
       const heartbeat = setInterval(() => {
-        if (this._hostLoopRequestId !== requestId) return;
+        if (!isActive()) return;
         const asking = RuntimeServices.isAskQuestionPending();
-        if (this._hostLoop?.isRunning || asking) {
+        if (getRuntime()?.loop.isRunning || asking) {
           post('heartbeat', {});
         }
         // Re-broadcast pending MCQ — recovers if first ask_question event was missed
@@ -2511,7 +2518,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           ...history
         ]);
 
-        if (!deliveredFinal && streamedAnswer.length === 0 && this._hostLoopRequestId === requestId) {
+        if (!deliveredFinal && streamedAnswer.length === 0 && isActive()) {
           post('status', { status: '' });
           const snap = loop.getMessages();
           const last = [...snap].reverse().find(
@@ -2528,7 +2535,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         if (
           streamedAnswer.length === 0 &&
           sealedContentTurn >= 0 &&
-          this._hostLoopRequestId === requestId
+          isActive()
         ) {
           const snap = loop.getMessages();
           const last = [...snap].reverse().find(
@@ -2543,7 +2550,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           }
         }
 
-        if (this._hostLoopRequestId === requestId) {
+        if (isActive()) {
           // Don't send complete after a timeout/error already ended the stream
           const st = loop.state?.status;
           if (st !== 'timeout' && st !== 'error') {
@@ -2559,11 +2566,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       const msg = err instanceof Error ? err.message : String(err);
       post('error', { error: msg || 'Agent loop failed' });
     } finally {
-      if (this._hostLoopRequestId === requestId) {
-        this._hostLoop = undefined;
-        this._hostLoopAbort = undefined;
-        this._hostLoopRequestId = undefined;
-      }
+      this._hostLoops.delete(requestId);
+      if (this._hostLoopRequestId === requestId) this._hostLoopRequestId = undefined;
     }
   }
 
