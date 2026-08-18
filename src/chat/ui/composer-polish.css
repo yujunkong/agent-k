@@ -8,7 +8,8 @@
   border-radius: 14px;
   background: var(--vscode-input-background, rgba(255,255,255,.035));
   box-shadow: 0 8px 30px rgba(0,0,0,.16);
-  overflow: hidden;
+  /* Visible so mode / model menus can escape the rounded box */
+  overflow: visible;
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
@@ -80,6 +81,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  overflow: visible;
 }
 
 .composer--cursor .composer-toolbar__left,
@@ -88,6 +90,7 @@
   align-items: center;
   gap: 5px;
   min-width: 0;
+  overflow: visible;
 }
 
 .composer--cursor .composer-model,
@@ -131,7 +134,6 @@
 
 @media (max-width: 620px) {
   .composer--cursor { width: calc(100% - 20px); }
-  .composer--cursor .composer-toolbar__left { overflow: hidden; }
   .composer--cursor .composer-model,
   .composer--cursor .composer-thinking-select { max-width: 105px; }
 }

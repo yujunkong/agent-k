@@ -31,9 +31,17 @@
 .plan-mode-header__hint { padding: 5px 0 7px; color: var(--ak-ui-muted); font-size: 11px; }
 .plan-mode-header button,.debug-mode-ui button { border-radius: 6px; }
 
-.clarifying-dock { max-width: 860px; margin: 6px auto 10px; border: 1px solid var(--ak-ui-border); border-radius: 10px; background: var(--ak-ui-surface); box-shadow: 0 8px 26px color-mix(in srgb, #000 14%, transparent); overflow: hidden; }
-.clarifying-questions { padding: 12px 14px; }
-.clarifying-questions__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.clarifying-dock { max-width: 860px; margin: 6px auto 10px; border: 1px solid var(--ak-ui-border); border-radius: 10px; background: var(--ak-ui-surface); box-shadow: 0 8px 26px color-mix(in srgb, #000 14%, transparent); overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.clarifying-questions {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  flex: 1 1 auto;
+  padding: 12px 14px;
+}
+.clarifying-questions__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 0; flex-shrink: 0; }
+.clarifying-questions__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .clarifying-questions__item { padding: 10px 0; border-top: 1px solid var(--ak-ui-border); }
 .clarifying-questions__item:first-child { border-top: 0; padding-top: 0; }
 .clarifying-questions__prompt { margin-bottom: 7px; font-size: 12px; line-height: 1.45; }
@@ -43,7 +51,7 @@
 .clarifying-questions__option--selected { border-color: var(--vscode-focusBorder, #007fd4); background: color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 10%, transparent); }
 .clarifying-questions__textarea { width: 100%; box-sizing: border-box; min-height: 72px; margin-top: 7px; padding: 8px 9px; border: 1px solid var(--ak-ui-border); border-radius: 7px; background: transparent; color: inherit; resize: vertical; }
 .clarifying-questions__textarea:focus { outline: none; border-color: var(--vscode-focusBorder, #007fd4); }
-.clarifying-questions__actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+.clarifying-questions__actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 0; flex-shrink: 0; padding-top: 10px; border-top: 1px solid var(--ak-ui-border); background: var(--ak-ui-surface); }
 .clarifying-questions__error { margin-top: 7px; color: var(--vscode-errorForeground, #f48771); font-size: 11px; }
 
 .plan-editor-overlay { border-radius: 10px; }
