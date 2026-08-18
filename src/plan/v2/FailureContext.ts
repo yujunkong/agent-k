@@ -62,6 +62,7 @@ export function failureContextToPrompt(ctx: FailureContext): string {
     'Problems:',
     ...ctx.errors.map((e, i) => `${i + 1}. [${e.code}]${e.taskId ? ` (task: ${e.taskId})` : ''} ${e.message}`),
     '',
+    'For FILE_NOT_FOUND errors specifically: the referenced path is not present in the current workspace. Do not repeat it with intent "modify" or "read". If the goal requires that new file, change its intent to "create"; otherwise remove the file reference. Do not fabricate a different existing path.',
     'Regenerate the plan while correcting ONLY these issues. Keep everything else the same.'
   ];
   return lines.join('\n');
