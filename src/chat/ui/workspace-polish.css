@@ -31,7 +31,7 @@
 .plan-mode-header__hint { padding: 5px 0 7px; color: var(--ak-ui-muted); font-size: 11px; }
 .plan-mode-header button,.debug-mode-ui button { border-radius: 6px; }
 
-.clarifying-dock { max-width: 860px; margin: 6px auto 10px; border: 1px solid var(--ak-ui-border); border-radius: 10px; background: var(--ak-ui-surface); box-shadow: 0 8px 26px color-mix(in srgb, #000 14%, transparent); overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.clarifying-dock { max-width: 860px; margin: 6px auto 10px; border: 1px solid var(--ak-ui-border); border-radius: 10px; background: var(--ak-ui-surface); box-shadow: 0 8px 26px color-mix(in srgb, #000 14%, transparent); overflow: hidden; display: flex; flex-direction: column; flex: 0 0 320px; height: 320px; min-height: 320px; max-height: 320px; }
 .clarifying-questions {
   display: flex;
   flex-direction: column;

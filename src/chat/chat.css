@@ -326,7 +326,7 @@ body {
 }
 
 .mode-chrome--questions {
-  max-height: 75vh;
+  max-height: 320px;
   padding: 8px 12px;
 }
 
@@ -1990,11 +1990,13 @@ body {
   opacity: 0;
 }
 
-/* Clarifying questions stick above composer so ask_question never hides off-screen */
+/* Clarifying questions stick above composer so ask_question never hides off-screen.
+   Use a fixed px height — vh/% collapses the dock in a short sidebar. */
 .clarifying-dock {
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: min(75vh, calc(100dvh - 140px));
+  flex: 0 0 320px;
+  height: 320px;
+  min-height: 320px;
+  max-height: 320px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -2727,9 +2729,9 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .chat-footer:has(.clarifying-dock) {
-  flex: 0 1 auto;
-  min-height: 0;
-  max-height: 100%;
+  flex: 0 0 auto;
+  min-height: auto;
+  max-height: none;
 }
 
 .chat-footer:has(.clarifying-dock) .composer,
@@ -5398,7 +5400,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 /* ── Clarifying questions (Plan / Debug ask_question) ── */
 .mode-chrome--questions {
-  max-height: min(75vh, 720px);
+  max-height: 320px;
   padding: 10px 12px;
 }
 
@@ -5406,8 +5408,9 @@ body.vscode-high-contrast .ak-code__cursor {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1 1 auto;
+  height: 100%;
   min-height: 0;
-  max-height: 100%;
   overflow: hidden;
   padding: 12px 14px;
   border-radius: 8px;
