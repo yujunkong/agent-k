@@ -1,9 +1,9 @@
 import React from 'react';
 import { MessageBubble } from './MessageBubble';
 import { AgentTurnAdapter } from '../conversation/agentTurnAdapter';
+import type { ChangeSummaryItem } from './ChangeSummary';
 import { getVariantMeta, setActiveVariant, useActiveVariant } from '../conversation/conversationVariants';
 import { normalizeWorkItems, type ConversationWorkEvent } from '../conversation/normalizeWorkItems';
-import { normalizeChangeSummary, type ConversationFileEdit } from '../conversation/normalizeChangeSummary';
 import './conversation-variants.css';
 
 export interface ConversationTurnProps {
@@ -36,10 +36,12 @@ export function ConversationTurn(props: ConversationTurnProps) {
       ? message.steps as ConversationWorkEvent[]
       : [];
   const fileEdits = Array.isArray(message?.fileEdits)
-    ? message.fileEdits as ConversationFileEdit[]
+    ? message.fileEdits
     : [];
   const workItems = normalizeWorkItems(workEvents);
-  const changes = normalizeChangeSummary(fileEdits);
+  // UI policy: show changed files only in the pinned bottom ChangedFilesBar.
+  // (Avoid duplicate per-turn ChangeSummary chips that confuse users.)
+  const changes: ChangeSummaryItem[] = [];
 
   if (!isActiveVariant) return null;
 
