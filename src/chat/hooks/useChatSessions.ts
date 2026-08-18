@@ -260,13 +260,10 @@ export function useChatSessions(params: UseChatSessionsParams) {
         setShowClarifying(false);
         setAwaitingUser(false);
       } else if (streaming) {
-        const kept = finalizeStreamingMessages(messagesRef.current);
-        messagesRef.current = kept;
-        setMessages(kept);
-        sessionStore.saveMessages(sessionId, kept, mode);
-        stopHandlerRef.current?.stop('user_stop');
-        sendEpochRef.current += 1;
-        loopSessionIdRef.current = null;
+        // Keep runtime alive across tab switch.
+        // Only persist a snapshot; stream deltas continue in owner session.
+        const snap = messagesRef.current.length ? messagesRef.current : messages;
+        sessionStore.saveMessages(sessionId, snap, mode, { setCurrent: false });
       } else if (messages.length > 0) {
         sessionStore.saveMessages(sessionId, messages, mode);
       }
@@ -336,12 +333,10 @@ export function useChatSessions(params: UseChatSessionsParams) {
         setShowClarifying(false);
         setAwaitingUser(false);
       } else if (streaming) {
-        const kept = finalizeStreamingMessages(messagesRef.current);
-        messagesRef.current = kept;
-        setMessages(kept);
-        stopHandlerRef.current?.stop('user_stop');
-        sendEpochRef.current += 1;
-        loopSessionIdRef.current = null;
+        // Closing the active tab must not kill the runtime.
+        // Session stays in history and continues receiving deltas.
+        const snap = messagesRef.current.length ? messagesRef.current : messages;
+        sessionStore.saveMessages(sessionId, snap, mode, { setCurrent: false });
       }
 
       const snap = messagesRef.current.length ? messagesRef.current : messages;
