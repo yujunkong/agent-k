@@ -1,39 +1,18 @@
 /* Phase 2: conversation layout primitives. No behavior changes. */
-.conversation-turn,
-.agent-turn {
+.conversation-turn {
   width: min(860px, calc(100% - 32px));
   margin-inline: auto;
 }
 
-.agent-turn {
-  padding: 14px 0 20px;
-}
-
-.agent-turn__lead {
-  margin-bottom: 10px;
-}
-
-.agent-turn__response {
-  margin-top: 10px;
-}
-
-.work-timeline {
-  margin: 10px 0 12px;
-}
-
-.change-summary {
-  margin-top: 12px;
-}
-
 .conversation-turn__actions,
-.agent-turn__actions {
+.ak-agent-turn__actions {
   opacity: .55;
   transition: opacity 120ms ease;
 }
 
 .conversation-turn:hover .conversation-turn__actions,
 .conversation-turn:focus-within .conversation-turn__actions,
-.agent-turn:hover .agent-turn__actions,
-.agent-turn:focus-within .agent-turn__actions {
+.conversation-turn:hover .ak-agent-turn__actions,
+.conversation-turn:focus-within .ak-agent-turn__actions {
   opacity: 1;
 }
