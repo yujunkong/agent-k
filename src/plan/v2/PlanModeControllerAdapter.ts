@@ -48,7 +48,19 @@ export class PlanModeControllerAdapter {
   }
 
   async completeResearch(findings: string): Promise<void> {
-    // `research.completed` is also the legal edge into `planning`.
+    // `research.completed` maps straight to `planning`, which is only a
+    // legal edge from `research` (idle -> research is the only edge out of
+    // idle). Some Plan-mode paths — e.g. the clarifying-questions-complete
+    // handler in ChatApp.tsx — call completeResearch() directly without ever
+    // going through start(), because the host can drive research itself.
+    // If we're still idle here, self-heal into research first instead of
+    // letting recordEvent() throw IllegalPhaseTransitionError("idle -> planning").
+    // Only the session event is replayed — legacy state is assumed already
+    // current, since it's the caller's job (e.g. planController.moveToPlanning()).
+    if (this.session.getPhase() === 'idle') {
+      const goal = this.session.getState().goal || this.legacy.getState().researchResults || 'Plan';
+      this.session.recordEvent({ type: 'plan.started', goal, timestamp: Date.now() });
+    }
     this.session.recordEvent({ type: 'research.completed', findings, timestamp: Date.now() });
     await this.legacy.completeResearch(findings);
   }
@@ -117,6 +129,18 @@ export class PlanModeControllerAdapter {
     plan: PlanDocumentV2,
     options: { attempts?: number; failures?: Array<FailureLike>; researchContext?: string } = {}
   ): Promise<void> {
+    // Same self-heal as completeResearch(): ChatApp.tsx calls this directly
+    // in a couple of places (commitPlanV2Result, handlePlanReject) rather than
+    // through generatePlan()'s ensureGenerationPhase(). If a discard() reset
+    // the session to idle while a generation request was in flight, the first
+    // event below ('plan.generation.attempt' -> 'planning') would otherwise
+    // throw idle -> planning.
+    if (this.session.getPhase() === 'idle') {
+      const goal = this.session.getState().goal || this.legacy.getState().researchResults || 'Plan';
+      this.session.recordEvent({ type: 'plan.started', goal, timestamp: Date.now() });
+      this.session.recordEvent({ type: 'research.completed', findings: options.researchContext ?? '', timestamp: Date.now() });
+    }
+
     const attempts = Math.max(1, options.attempts ?? 1);
     const failures = options.failures ?? [];
     const failuresByAttempt = new Map(failures.map((failure) => [failure.attempt, failure]));
