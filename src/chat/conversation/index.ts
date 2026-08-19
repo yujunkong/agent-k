@@ -16,6 +16,7 @@ export { groupWorkTimelineItems } from './groupWorkTimelineItems';
 export {
   buildTimelinePresentation,
   eventToTimelineStep,
+  formatProgressLabel,
   mapWorkStatusToStepStatus,
   mapWorkTypeToStepKind,
   type TimelineNode,

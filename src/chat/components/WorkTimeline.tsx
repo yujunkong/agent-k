@@ -555,11 +555,13 @@ function stepStatusClass(status: TimelineStepStatus): string {
 
 function WorkTimelineStepRow({
   step,
+  activeStepId,
   onOpenFile,
   onAcceptFile,
   onRejectFile
 }: {
   step: TimelineStep;
+  activeStepId?: string;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
@@ -582,7 +584,11 @@ function WorkTimelineStepRow({
     ) : null;
 
   return (
-    <TimelineStepCard step={step} forceOpen={pendingInline || undefined}>
+    <TimelineStepCard
+      step={step}
+      activeStepId={activeStepId}
+      forceOpen={pendingInline || undefined}
+    >
       {panel}
     </TimelineStepCard>
   );
@@ -606,6 +612,7 @@ function fileEditsForSubagentSteps(
 function renderTimelineNode(
   node: TimelineNode,
   fileEdits: FileEditPreview[],
+  activeStepId: string | undefined,
   onOpenFile?: (path: string) => void,
   onAcceptFile?: (file: FileEditPreview) => void,
   onRejectFile?: (file: FileEditPreview) => void,
@@ -623,6 +630,7 @@ function renderTimelineNode(
       >
         <WorkTimelineStepRow
           step={node.step}
+          activeStepId={activeStepId}
           onOpenFile={onOpenFile}
           onAcceptFile={onAcceptFile}
           onRejectFile={onRejectFile}
@@ -633,6 +641,7 @@ function renderTimelineNode(
               <WorkTimelineStepRow
                 key={child.id}
                 step={child}
+                activeStepId={activeStepId}
                 onOpenFile={onOpenFile}
                 onAcceptFile={onAcceptFile}
                 onRejectFile={onRejectFile}
@@ -660,6 +669,7 @@ function renderTimelineNode(
     <WorkTimelineStepRow
       key={node.step.id}
       step={node.step}
+      activeStepId={activeStepId}
       onOpenFile={onOpenFile}
       onAcceptFile={onAcceptFile}
       onRejectFile={onRejectFile}
@@ -696,7 +706,7 @@ export function WorkTimeline({
   const summary = title
     ? title
     : timelineSummary.hasActive
-      ? `Working · ${stepsLabel(timelineSummary.stepCount)}`
+      ? presentation.progressLabel || `Working · ${stepsLabel(timelineSummary.stepCount)}`
       : `Worked · ${stepsLabel(timelineSummary.stepCount)}`;
 
   return (
@@ -722,6 +732,7 @@ export function WorkTimeline({
           renderTimelineNode(
             node,
             fileEdits,
+            presentation.activeStepId,
             onOpenFile,
             onAcceptFile,
             onRejectFile,

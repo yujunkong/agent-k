@@ -50,6 +50,8 @@ export type TimelineNode =
 export type TimelinePresentation = {
   nodes: TimelineNode[];
   activeStepId?: string;
+  /** Short live label for the timeline summary — e.g. "Reading session.ts". */
+  progressLabel?: string;
   summary: {
     stepCount: number;
     hasActive: boolean;
@@ -204,17 +206,63 @@ export function groupTimelineSteps(events: ConversationWorkEvent[] = []): Timeli
 }
 
 export function findActiveStepId(nodes: TimelineNode[]): string | undefined {
+  // Prefer the deepest running child so progress emphasizes live tool work,
+  // not just a long-running subagent header.
+  let fallback: string | undefined;
   for (const node of nodes) {
     if (node.kind === 'group') {
-      if (node.step.status === 'running') return node.step.id;
       for (const child of node.children) {
         if (child.status === 'running') return child.id;
       }
+      if (node.step.status === 'running' && !fallback) fallback = node.step.id;
       continue;
     }
     if (node.step.status === 'running') return node.step.id;
   }
+  return fallback;
+}
+
+function findStepById(
+  nodes: TimelineNode[],
+  id: string | undefined
+): TimelineStep | undefined {
+  if (!id) return undefined;
+  for (const node of nodes) {
+    if (node.step.id === id) return node.step;
+    if (node.kind === 'group') {
+      const child = node.children.find((entry) => entry.id === id);
+      if (child) return child;
+    }
+  }
   return undefined;
+}
+
+export function formatProgressLabel(step: TimelineStep | undefined): string | undefined {
+  if (!step || step.status !== 'running') return undefined;
+  if (step.kind === 'reasoning') {
+    const preview = String(step.body || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (preview) {
+      return preview.length > 64 ? `${preview.slice(0, 63)}…` : preview;
+    }
+    return 'Thinking…';
+  }
+  if (step.kind === 'subagent') {
+    const label = String(step.title || '')
+      .replace(/\s+·\s+(running|completed|failed|queued)$/i, '')
+      .trim();
+    return label || 'Working…';
+  }
+  const action =
+    step.kind === 'file'
+      ? 'Editing'
+      : step.kind === 'terminal'
+        ? 'Running'
+        : step.title || 'Working';
+  const target = step.subtitle || step.fileEdit?.path || step.terminalRun?.command;
+  if (target) return `${action} ${target}`;
+  return `${action}…`;
 }
 
 export function countTimelineSteps(nodes: TimelineNode[]): number {
@@ -305,9 +353,12 @@ export function buildTimelinePresentation(
     return node.step.status === 'failed';
   });
 
+  const activeStepId = findActiveStepId(nodes);
+
   return {
     nodes,
-    activeStepId: findActiveStepId(nodes),
+    activeStepId,
+    progressLabel: formatProgressLabel(findStepById(nodes, activeStepId)),
     summary: { stepCount, hasActive, hasError }
   };
 }

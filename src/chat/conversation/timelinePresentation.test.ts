@@ -123,6 +123,29 @@ describe('timelinePresentation', () => {
     expect(step?.fileEdit?.path).toBe('login.ts');
   });
 
+  it('tracks the active running child inside a subagent group', () => {
+    const presentation = buildTimelinePresentation([
+      {
+        id: 'tl_subagent_a',
+        type: 'subagent',
+        status: 'running',
+        label: 'Research authentication · running',
+        subagentId: 'a'
+      },
+      {
+        id: 'tl_sub_a_read',
+        type: 'read',
+        status: 'running',
+        label: 'Read',
+        detail: 'session.ts',
+        subagentId: 'a'
+      }
+    ]);
+    expect(presentation.activeStepId).toBe('tl_sub_a_read');
+    expect(presentation.summary.hasActive).toBe(true);
+    expect(presentation.progressLabel).toBe('Read session.ts');
+  });
+
   it('tracks the active running step', () => {
     const presentation = buildTimelinePresentation([
       {
@@ -141,6 +164,7 @@ describe('timelinePresentation', () => {
       }
     ]);
     expect(presentation.activeStepId).toBe('tl_read_live');
+    expect(presentation.progressLabel).toBe('Read session.ts');
     expect(presentation.summary.hasActive).toBe(true);
     expect(presentation.summary.stepCount).toBe(2);
   });

@@ -7,6 +7,8 @@ import {
 
 export interface TimelineStepCardProps {
   step: TimelineStep;
+  /** Presentation active step — drives density hierarchy. */
+  activeStepId?: string;
   defaultOpen?: boolean;
   forceOpen?: boolean;
   children?: React.ReactNode;
@@ -21,11 +23,12 @@ function statusClass(status: TimelineStepStatus): string {
 /** Shared Cursor-style card shell for timeline tool / reasoning / subagent rows. */
 export function TimelineStepCard({
   step,
+  activeStepId,
   defaultOpen: defaultOpenProp,
   forceOpen,
   children
 }: TimelineStepCardProps) {
-  const view = buildTimelineStepCardView(step);
+  const view = buildTimelineStepCardView(step, { activeStepId });
   const live = step.status === 'running';
   const [open, setOpen] = useState(forceOpen ?? defaultOpenProp ?? view.defaultOpen);
 
@@ -35,18 +38,23 @@ export function TimelineStepCard({
       return;
     }
     if (view.defaultOpen) setOpen(true);
-  }, [forceOpen, view.defaultOpen, step.id]);
+    else if (view.density === 'compact' && !live) setOpen(false);
+  }, [forceOpen, view.defaultOpen, view.density, live, step.id]);
 
   const expanded = open && Boolean(children);
   const HeaderTag = view.expandable ? 'button' : 'div';
+  const showSubtitle = Boolean(view.subtitle);
+  // Compact completed cards: keep subtitle; hide meta when expanded body is open.
+  const showMeta = Boolean(view.meta) && !expanded;
 
   return (
     <article
-      className={`ak-timeline-card ak-timeline-card--${statusClass(step.status)} ak-timeline-card--${view.kind}${
+      className={`ak-timeline-card ak-timeline-card--${statusClass(step.status)} ak-timeline-card--${view.kind} ak-timeline-card--${view.density}${
         view.expandable ? ' ak-timeline-card--expandable' : ''
       }${expanded ? ' ak-timeline-card--open' : ''}${live ? ' ak-timeline-card--live' : ''}`}
       data-step-id={step.id}
-      data-step-active={live ? 'true' : undefined}
+      data-step-active={view.density === 'active' ? 'true' : undefined}
+      data-step-density={view.density}
     >
       <HeaderTag
         type={view.expandable ? 'button' : undefined}
@@ -55,16 +63,14 @@ export function TimelineStepCard({
         onClick={view.expandable ? () => setOpen((value) => !value) : undefined}
       >
         <span className="ak-timeline-card__marker" aria-hidden>
-          {timelineStepMarker(step.status, live)}
+          {timelineStepMarker(step.status, live, view.marker)}
         </span>
         <span className="ak-timeline-card__text">
           <span className="ak-timeline-card__title">{view.title}</span>
-          {view.subtitle ? (
+          {showSubtitle ? (
             <span className="ak-timeline-card__subtitle">{view.subtitle}</span>
           ) : null}
-          {!expanded && view.meta ? (
-            <span className="ak-timeline-card__meta">{view.meta}</span>
-          ) : null}
+          {showMeta ? <span className="ak-timeline-card__meta">{view.meta}</span> : null}
         </span>
         {view.expandable ? (
           <span className="ak-timeline-card__chev" aria-hidden>

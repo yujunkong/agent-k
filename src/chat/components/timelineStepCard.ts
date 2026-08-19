@@ -1,14 +1,22 @@
 import type { TimelineStep, TimelineStepKind } from '../conversation/timelinePresentation';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 
+/** Visual density for Cursor-style progress hierarchy. */
+export type TimelineStepDensity = 'active' | 'compact' | 'failed';
+
 export type TimelineStepCardView = {
   title: string;
   subtitle?: string;
   meta?: string;
   kind: TimelineStepKind;
+  density: TimelineStepDensity;
   expandable: boolean;
   defaultOpen: boolean;
+  /** Reasoning uses a quieter secondary marker while running. */
+  marker?: string;
 };
+
+export const REASONING_PREVIEW_MAX = 96;
 
 const CARD_TITLES: Partial<Record<TimelineStepKind, string>> = {
   reasoning: 'Thought',
@@ -72,46 +80,73 @@ function terminalMeta(run: TerminalRunPreview): string | undefined {
   return run.status === 'error' ? 'Failed' : undefined;
 }
 
-function reasoningPreview(body: string | undefined): string | undefined {
+function reasoningPreview(
+  body: string | undefined,
+  max = REASONING_PREVIEW_MAX
+): string | undefined {
   const text = String(body || '').replace(/\s+/g, ' ').trim();
   if (!text) return undefined;
-  return text.length > 120 ? `${text.slice(0, 117)}…` : text;
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+export function resolveTimelineStepDensity(
+  step: TimelineStep,
+  activeStepId?: string
+): TimelineStepDensity {
+  if (step.status === 'failed') return 'failed';
+  if (step.status === 'running' || (activeStepId != null && step.id === activeStepId)) {
+    return 'active';
+  }
+  return 'compact';
 }
 
 /** Map a presentation step onto unified card chrome fields. */
-export function buildTimelineStepCardView(step: TimelineStep): TimelineStepCardView {
-  const title = normalizeToolTitle(step.title, step.kind);
+export function buildTimelineStepCardView(
+  step: TimelineStep,
+  options: { activeStepId?: string } = {}
+): TimelineStepCardView {
+  const density = resolveTimelineStepDensity(step, options.activeStepId);
+  const live = density === 'active' && step.status === 'running';
+  let title = normalizeToolTitle(step.title, step.kind);
   let subtitle = step.subtitle;
   let meta: string | undefined;
   let expandable = Boolean(step.body || step.fileEdit || step.terminalRun);
-  let defaultOpen = step.status === 'running';
+  let defaultOpen = live;
+  let marker: string | undefined;
 
   if (step.kind === 'subagent') {
     subtitle = parseSubagentSubtitle(step.title);
-    if (step.result?.summary) meta = step.result.summary;
+    if (step.result?.filesChanged != null && step.result.filesChanged > 0) {
+      meta =
+        step.result.filesChanged === 1
+          ? '1 file changed'
+          : `${step.result.filesChanged} files changed`;
+    } else if (step.result?.summary) {
+      meta = reasoningPreview(step.result.summary, 80);
+    }
     expandable = Boolean(step.result?.summary);
-    defaultOpen = step.status === 'running';
+    defaultOpen = live;
   } else if (step.kind === 'reasoning') {
+    title = live ? 'Thinking' : 'Thought';
     subtitle = reasoningPreview(step.body);
-    expandable = Boolean(step.body && step.body.length > 120);
-    defaultOpen = step.status === 'running';
+    expandable = Boolean(step.body && String(step.body).replace(/\s+/g, ' ').trim().length > REASONING_PREVIEW_MAX);
+    // Reasoning stays collapsed even while streaming — subtitle carries the live preview.
+    defaultOpen = false;
+    marker = live ? '⌁' : undefined;
   } else if (step.kind === 'file' && step.fileEdit) {
     subtitle = step.fileEdit.path || subtitle;
     meta = fileEditMeta(step.fileEdit);
-    defaultOpen = defaultOpen || expandable;
+    expandable = true;
+    // Active file edits expand; completed stay compact until clicked.
+    defaultOpen = live;
   } else if (step.kind === 'terminal' && step.terminalRun) {
     subtitle = step.terminalRun.command || subtitle;
     meta = terminalMeta(step.terminalRun);
-    defaultOpen = defaultOpen || step.terminalRun.status === 'running';
+    expandable = true;
+    defaultOpen = live || step.terminalRun.status === 'running';
   } else if (step.body) {
     meta = reasoningPreview(step.body);
-  }
-
-  if (step.kind === 'file' && step.fileEdit) {
-    expandable = true;
-  }
-  if (step.kind === 'terminal' && step.terminalRun) {
-    expandable = true;
+    defaultOpen = false;
   }
 
   return {
@@ -119,15 +154,19 @@ export function buildTimelineStepCardView(step: TimelineStep): TimelineStepCardV
     subtitle,
     meta,
     kind: step.kind,
+    density,
     expandable,
-    defaultOpen
+    defaultOpen,
+    marker
   };
 }
 
 export function timelineStepMarker(
   status: TimelineStep['status'],
-  live = false
+  live = false,
+  override?: string
 ): string {
+  if (override) return override;
   if (status === 'failed') return '×';
   if (status === 'running' || live) return '●';
   return '✓';

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { TimelineStep } from '../conversation/timelinePresentation';
-import { buildTimelineStepCardView } from './timelineStepCard';
+import {
+  buildTimelineStepCardView,
+  resolveTimelineStepDensity
+} from './timelineStepCard';
 
 describe('buildTimelineStepCardView', () => {
   it('normalizes read/search tool titles', () => {
@@ -13,7 +16,9 @@ describe('buildTimelineStepCardView', () => {
     };
     expect(buildTimelineStepCardView(step)).toMatchObject({
       title: 'Read',
-      subtitle: 'login.ts'
+      subtitle: 'login.ts',
+      density: 'compact',
+      defaultOpen: false
     });
   });
 
@@ -27,11 +32,13 @@ describe('buildTimelineStepCardView', () => {
     };
     expect(buildTimelineStepCardView(step)).toMatchObject({
       title: 'Agent',
-      subtitle: 'Research authentication'
+      subtitle: 'Research authentication',
+      density: 'active',
+      defaultOpen: true
     });
   });
 
-  it('shows file stats in meta', () => {
+  it('shows file stats in meta and keeps completed edits compact', () => {
     const step: TimelineStep = {
       id: 'edit_1',
       kind: 'file',
@@ -49,7 +56,9 @@ describe('buildTimelineStepCardView', () => {
       title: 'Edit',
       subtitle: 'src/auth/login.ts',
       meta: '+82 −21',
-      expandable: true
+      expandable: true,
+      density: 'compact',
+      defaultOpen: false
     });
   });
 
@@ -71,7 +80,52 @@ describe('buildTimelineStepCardView', () => {
     expect(buildTimelineStepCardView(step)).toMatchObject({
       title: 'Terminal',
       subtitle: 'npm test',
-      meta: '31 tests passed'
+      meta: '31 tests passed',
+      density: 'compact',
+      defaultOpen: false
     });
+  });
+
+  it('renders compact reasoning with Thinking/Thought labels', () => {
+    const longBody =
+      'Authentication uses JWT middleware across session and login routes, and dependencies need a careful review.';
+    const running: TimelineStep = {
+      id: 'thought_1',
+      kind: 'reasoning',
+      status: 'running',
+      title: 'Thinking',
+      body: longBody
+    };
+    const done: TimelineStep = {
+      ...running,
+      status: 'completed'
+    };
+
+    expect(buildTimelineStepCardView(running)).toMatchObject({
+      title: 'Thinking',
+      density: 'active',
+      defaultOpen: false,
+      marker: '⌁',
+      expandable: true
+    });
+    expect(buildTimelineStepCardView(done)).toMatchObject({
+      title: 'Thought',
+      density: 'compact',
+      defaultOpen: false,
+      expandable: true
+    });
+    expect(buildTimelineStepCardView(done).subtitle?.endsWith('…')).toBe(true);
+  });
+
+  it('highlights failed steps', () => {
+    const step: TimelineStep = {
+      id: 'read_fail',
+      kind: 'tool',
+      status: 'failed',
+      title: 'Read',
+      subtitle: 'missing.ts'
+    };
+    expect(resolveTimelineStepDensity(step)).toBe('failed');
+    expect(buildTimelineStepCardView(step).density).toBe('failed');
   });
 });
