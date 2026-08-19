@@ -15,6 +15,8 @@ export interface FileEditCardProps {
   onOpenFile?: (path: string) => void;
   /** Force the complete diff open (used by the multi-file review surface). */
   expanded?: boolean;
+  /** Nested under TimelineStepCard — hide duplicate header chrome. */
+  embedded?: boolean;
 }
 
 function basename(p: string): string {
@@ -57,34 +59,39 @@ export function FileEditCard({
   deletions,
   lines,
   onOpenFile,
-  expanded: expandedProp
+  expanded: expandedProp,
+  embedded = false
 }: FileEditCardProps) {
   const [localExpanded, setLocalExpanded] = useState(false);
   const [hovered, setHovered] = useState(false);
   const openTarget = absPath || path;
   const previewCount = 5;
-  const isExpanded = expandedProp ?? localExpanded;
+  const isExpanded = embedded ? true : expandedProp ?? localExpanded;
   const visible = isExpanded ? lines : lines.slice(0, previewCount);
-  const canExpand = lines.length > previewCount;
-  const showExpand = expandedProp == null && (canExpand || hovered);
+  const canExpand = !embedded && lines.length > previewCount;
+  const showExpand = !embedded && expandedProp == null && (canExpand || hovered);
   const lang = useMemo(() => guessLanguageFromPath(path), [path]);
   const htmlCache = useMemo(() => new Map<string, string>(), [path]);
 
   return (
     <div
-      className={`ak-file-edit-card${isExpanded ? ' ak-file-edit-card--expanded' : ''}`}
+      className={`ak-file-edit-card${isExpanded ? ' ak-file-edit-card--expanded' : ''}${
+        embedded ? ' ak-file-edit-card--embedded' : ''
+      }`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <button type="button" className="ak-file-edit-header" title={`Open ${path}`} onClick={() => onOpenFile?.(openTarget)}>
-        <span className="ak-file-edit-header__lang" aria-hidden>{languageBadge(path)}</span>
-        <span className="ak-file-edit-header__name">{basename(path)}</span>
-        <span className="ak-file-edit-header__stats">
-          {additions > 0 ? <span className="ak-file-edit-header__add">+{additions}</span> : null}
-          {deletions > 0 ? <span className="ak-file-edit-header__del">-{deletions}</span> : null}
-          {additions === 0 && deletions === 0 ? <span style={{ opacity: 0.5 }}>0</span> : null}
-        </span>
-      </button>
+      {embedded ? null : (
+        <button type="button" className="ak-file-edit-header" title={`Open ${path}`} onClick={() => onOpenFile?.(openTarget)}>
+          <span className="ak-file-edit-header__lang" aria-hidden>{languageBadge(path)}</span>
+          <span className="ak-file-edit-header__name">{basename(path)}</span>
+          <span className="ak-file-edit-header__stats">
+            {additions > 0 ? <span className="ak-file-edit-header__add">+{additions}</span> : null}
+            {deletions > 0 ? <span className="ak-file-edit-header__del">-{deletions}</span> : null}
+            {additions === 0 && deletions === 0 ? <span style={{ opacity: 0.5 }}>0</span> : null}
+          </span>
+        </button>
+      )}
 
       {visible.length > 0 ? (
         <div className="ak-file-edit-diff" style={{ maxHeight: isExpanded ? 520 : undefined, overflow: isExpanded ? 'auto' : 'hidden' }}>

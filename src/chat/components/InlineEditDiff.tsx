@@ -10,6 +10,7 @@ import { FileEditCard } from './FileEditCard';
 export interface InlineEditDiffProps {
   file: FileEditPreview;
   expanded?: boolean;
+  embedded?: boolean;
   onOpenFile?: (path: string) => void;
   onAccept?: (file: FileEditPreview) => void;
   onReject?: (file: FileEditPreview) => void;
@@ -18,6 +19,7 @@ export interface InlineEditDiffProps {
 export function InlineEditDiff({
   file,
   expanded = true,
+  embedded = false,
   onOpenFile,
   onAccept,
   onReject
@@ -41,20 +43,24 @@ export function InlineEditDiff({
 
   return (
     <section
-      className={`ak-inline-edit-diff ak-inline-edit-diff--${status}`}
+      className={`ak-inline-edit-diff ak-inline-edit-diff--${status}${
+        embedded ? ' ak-inline-edit-diff--embedded' : ''
+      }`}
       aria-label="Inline Edit"
       data-review-status={status}
       tabIndex={pending ? 0 : undefined}
       onKeyDown={onKeyDown}
     >
-      <header className="ak-inline-edit-diff__head">
-        <span className="ak-inline-edit-diff__title">Inline Edit</span>
-        {status !== 'pending' ? (
-          <span className="ak-inline-edit-diff__status">
-            {status === 'accepted' ? 'Accepted' : 'Rejected'}
-          </span>
-        ) : null}
-      </header>
+      {embedded ? null : (
+        <header className="ak-inline-edit-diff__head">
+          <span className="ak-inline-edit-diff__title">Inline Edit</span>
+          {status !== 'pending' ? (
+            <span className="ak-inline-edit-diff__status">
+              {status === 'accepted' ? 'Accepted' : 'Rejected'}
+            </span>
+          ) : null}
+        </header>
+      )}
       <FileEditCard
         path={file.path}
         absPath={file.absPath}
@@ -63,6 +69,7 @@ export function InlineEditDiff({
         lines={file.lines || []}
         onOpenFile={onOpenFile}
         expanded={expanded}
+        embedded={embedded}
       />
       {pending && (onAccept || onReject) ? (
         <div className="ak-inline-edit-diff__actions">

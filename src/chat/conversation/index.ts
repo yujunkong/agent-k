@@ -14,6 +14,17 @@ export {
 export { normalizeWorkItems } from './normalizeWorkItems';
 export { groupWorkTimelineItems } from './groupWorkTimelineItems';
 export {
+  buildTimelinePresentation,
+  eventToTimelineStep,
+  mapWorkStatusToStepStatus,
+  mapWorkTypeToStepKind,
+  type TimelineNode,
+  type TimelinePresentation,
+  type TimelineStep,
+  type TimelineStepKind,
+  type TimelineStepStatus
+} from './timelinePresentation';
+export {
   type SubagentResult,
   parseSubagentResult,
   applyHostWorktreeApplyResult,

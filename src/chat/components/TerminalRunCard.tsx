@@ -58,7 +58,7 @@ export function TerminalRunCard({
 
   const body = showBody ? (
     <div className="ak-terminal-card__body">
-      {embedded || (run.command && run.description) ? (
+      {!embedded && run.command && run.description ? (
         <div className="ak-terminal-card__cmd" title={run.command}>
           {run.command}
         </div>

@@ -7,6 +7,7 @@ import { InlineEditDiff } from './InlineEditDiff';
 export interface FileEditPreviewViewProps {
   file: FileEditPreview;
   expanded?: boolean;
+  embedded?: boolean;
   onOpenFile?: (path: string) => void;
   onAccept?: (file: FileEditPreview) => void;
   onReject?: (file: FileEditPreview) => void;
@@ -16,6 +17,7 @@ export interface FileEditPreviewViewProps {
 export function FileEditPreviewView({
   file,
   expanded,
+  embedded = false,
   onOpenFile,
   onAccept,
   onReject
@@ -25,6 +27,7 @@ export function FileEditPreviewView({
       <InlineEditDiff
         file={file}
         expanded={expanded}
+        embedded={embedded}
         onOpenFile={onOpenFile}
         onAccept={onAccept}
         onReject={onReject}
@@ -40,6 +43,7 @@ export function FileEditPreviewView({
       lines={file.lines || []}
       onOpenFile={onOpenFile}
       expanded={expanded}
+      embedded={embedded}
     />
   );
 }
