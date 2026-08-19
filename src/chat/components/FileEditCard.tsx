@@ -13,6 +13,8 @@ export interface FileEditCardProps {
   deletions: number;
   lines: EditDiffLine[];
   onOpenFile?: (path: string) => void;
+  /** Force the complete diff open (used by the multi-file review surface). */
+  expanded?: boolean;
 }
 
 function basename(p: string): string {
@@ -21,26 +23,12 @@ function basename(p: string): string {
 }
 
 function escapeText(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function DiffCodeLine({
-  text,
-  lang,
-  htmlCache
-}: {
-  text: string;
-  lang: string;
-  htmlCache: Map<string, string>;
-}) {
+function DiffCodeLine({ text, lang, htmlCache }: { text: string; lang: string; htmlCache: Map<string, string> }) {
   const key = `${lang}\0${text}`;
-  const [html, setHtml] = useState(
-    () => htmlCache.get(key) || escapeText(text)
-  );
+  const [html, setHtml] = useState(() => htmlCache.get(key) || escapeText(text));
 
   useEffect(() => {
     let cancelled = false;
@@ -59,12 +47,7 @@ function DiffCodeLine({
     };
   }, [key, text, lang, htmlCache]);
 
-  return (
-    <span
-      className="ak-file-edit-diff__text"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
+  return <span className="ak-file-edit-diff__text" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 export function FileEditCard({
@@ -73,69 +56,43 @@ export function FileEditCard({
   additions,
   deletions,
   lines,
-  onOpenFile
+  onOpenFile,
+  expanded: expandedProp
 }: FileEditCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [localExpanded, setLocalExpanded] = useState(false);
   const [hovered, setHovered] = useState(false);
   const openTarget = absPath || path;
   const previewCount = 5;
-  const visible = expanded ? lines : lines.slice(0, previewCount);
+  const isExpanded = expandedProp ?? localExpanded;
+  const visible = isExpanded ? lines : lines.slice(0, previewCount);
   const canExpand = lines.length > previewCount;
-  const showExpand = canExpand || hovered;
+  const showExpand = expandedProp == null && (canExpand || hovered);
   const lang = useMemo(() => guessLanguageFromPath(path), [path]);
   const htmlCache = useMemo(() => new Map<string, string>(), [path]);
 
   return (
     <div
-      className="ak-file-edit-card"
+      className={`ak-file-edit-card${isExpanded ? ' ak-file-edit-card--expanded' : ''}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <button
-        type="button"
-        className="ak-file-edit-header"
-        title={`Open ${path}`}
-        onClick={() => onOpenFile?.(openTarget)}
-      >
-        <span className="ak-file-edit-header__lang" aria-hidden>
-          {languageBadge(path)}
-        </span>
+      <button type="button" className="ak-file-edit-header" title={`Open ${path}`} onClick={() => onOpenFile?.(openTarget)}>
+        <span className="ak-file-edit-header__lang" aria-hidden>{languageBadge(path)}</span>
         <span className="ak-file-edit-header__name">{basename(path)}</span>
         <span className="ak-file-edit-header__stats">
-          {additions > 0 ? (
-            <span className="ak-file-edit-header__add">+{additions}</span>
-          ) : null}
-          {deletions > 0 ? (
-            <span className="ak-file-edit-header__del">-{deletions}</span>
-          ) : null}
-          {additions === 0 && deletions === 0 ? (
-            <span style={{ opacity: 0.5 }}>0</span>
-          ) : null}
+          {additions > 0 ? <span className="ak-file-edit-header__add">+{additions}</span> : null}
+          {deletions > 0 ? <span className="ak-file-edit-header__del">-{deletions}</span> : null}
+          {additions === 0 && deletions === 0 ? <span style={{ opacity: 0.5 }}>0</span> : null}
         </span>
       </button>
 
       {visible.length > 0 ? (
-        <div
-          className="ak-file-edit-diff"
-          style={{
-            maxHeight: expanded ? 320 : undefined,
-            overflow: expanded ? 'auto' : 'hidden'
-          }}
-        >
+        <div className="ak-file-edit-diff" style={{ maxHeight: isExpanded ? 520 : undefined, overflow: isExpanded ? 'auto' : 'hidden' }}>
           {visible.map((line, i) => {
-            const kind =
-              line.type === 'add'
-                ? 'add'
-                : line.type === 'delete'
-                  ? 'delete'
-                  : 'context';
-            const mark =
-              line.type === 'add' ? '+' : line.type === 'delete' ? '-' : ' ';
+            const kind = line.type === 'add' ? 'add' : line.type === 'delete' ? 'delete' : 'context';
+            const mark = line.type === 'add' ? '+' : line.type === 'delete' ? '-' : ' ';
             return (
-              <div
-                key={`${line.type}-${line.lineNumber}-${i}`}
-                className={`ak-file-edit-diff__line ak-file-edit-diff__line--${kind}`}
-              >
+              <div key={`${line.type}-${line.lineNumber}-${i}`} className={`ak-file-edit-diff__line ak-file-edit-diff__line--${kind}`}>
                 <span className="ak-file-edit-diff__ln">{line.lineNumber}</span>
                 <span className="ak-file-edit-diff__mark">{mark}</span>
                 <DiffCodeLine text={line.text} lang={lang} htmlCache={htmlCache} />
@@ -146,18 +103,8 @@ export function FileEditCard({
       ) : null}
 
       {showExpand && lines.length > 0 ? (
-        <button
-          type="button"
-          className={`ak-file-edit-expand${
-            hovered || expanded ? '' : ' ak-file-edit-expand--collapsed'
-          }`}
-          title={expanded ? 'Collapse diff' : 'Expand diff'}
-          aria-expanded={expanded}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          <span aria-hidden style={{ fontSize: 12, lineHeight: 1 }}>
-            {expanded ? '⌃' : '⌄'}
-          </span>
+        <button type="button" className="ak-file-edit-expand" title={isExpanded ? 'Collapse diff' : 'Expand diff'} aria-expanded={isExpanded} onClick={() => setLocalExpanded((v) => !v)}>
+          <span aria-hidden style={{ fontSize: 12, lineHeight: 1 }}>{isExpanded ? '⌃' : '⌄'}</span>
         </button>
       ) : null}
     </div>

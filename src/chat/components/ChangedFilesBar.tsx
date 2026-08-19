@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import type { FileEditPreview } from '../types';
 import { languageBadge } from '../editDiffPreview';
+import { DiffReviewPanel } from './DiffReviewPanel';
 
 /** ADDON-T07: lightweight checkpoint summary (no file contents over the wire) */
 export interface CheckpointSummary {
@@ -62,6 +63,7 @@ export function ChangedFilesBar({
   const [expanded, setExpanded] = useState(false);
   const [hoverPath, setHoverPath] = useState<string | null>(null);
   const [showCheckpoints, setShowCheckpoints] = useState(false);
+  const [showReview, setShowReview] = useState(false);
 
   if (!files.length) return null;
 
@@ -71,6 +73,12 @@ export function ChangedFilesBar({
       if (next) onListCheckpoints?.();
       return next;
     });
+  };
+
+  const openReview = () => {
+    setShowReview(true);
+    setExpanded(true);
+    onReview?.();
   };
 
   return (
@@ -84,9 +92,7 @@ export function ChangedFilesBar({
           title={expanded ? 'Collapse file list' : 'Expand file list'}
           aria-label={expanded ? 'Collapse file list' : 'Expand file list'}
         >
-          <span className="changed-files-bar__chevron" aria-hidden>
-            {expanded ? '▾' : '▸'}
-          </span>
+          <span className="changed-files-bar__chevron" aria-hidden>{expanded ? '▾' : '▸'}</span>
           <span className="changed-files-bar__count">
             {files.length} {files.length === 1 ? 'File' : 'Files'}
           </span>
@@ -94,53 +100,34 @@ export function ChangedFilesBar({
 
         <div className="changed-files-bar__actions">
           {isStreaming && onStop ? (
-            <button
-              type="button"
-              className="changed-files-bar__stop"
-              onClick={onStop}
-              title="Stop"
-              aria-label="Stop"
-            >
-              Stop
-              <kbd className="changed-files-bar__kbd">⌃c</kbd>
+            <button type="button" className="changed-files-bar__stop" onClick={onStop} title="Stop" aria-label="Stop">
+              Stop <kbd className="changed-files-bar__kbd">⌃c</kbd>
             </button>
           ) : null}
           {!isStreaming && onUndoAll ? (
-            <button
-              type="button"
-              className="changed-files-bar__link"
-              onClick={onUndoAll}
-              title="Undo all edits in this session"
-            >
+            <button type="button" className="changed-files-bar__link" onClick={onUndoAll} title="Undo all edits in this session">
               Undo
             </button>
           ) : null}
-          {onReview ? (
-            <button
-              type="button"
-              className="changed-files-bar__review"
-              onClick={() => {
-                setExpanded(true);
-                onReview();
-              }}
-              title="Review changed files"
-            >
-              Review
-            </button>
-          ) : null}
+          <button type="button" className="changed-files-bar__review" onClick={openReview} title="Review changed files">
+            Review
+          </button>
           {!isStreaming && onUndoAll && onListCheckpoints ? (
-            <button
-              type="button"
-              className="changed-files-bar__link"
-              aria-expanded={showCheckpoints}
-              onClick={toggleCheckpoints}
-              title="Recent checkpoints"
-            >
+            <button type="button" className="changed-files-bar__link" aria-expanded={showCheckpoints} onClick={toggleCheckpoints} title="Recent checkpoints">
               Checkpoints
             </button>
           ) : null}
         </div>
       </div>
+
+      {showReview ? (
+        <DiffReviewPanel
+          files={files}
+          onOpenFile={onOpenFile}
+          onUndoAll={onUndoAll}
+          onClose={() => setShowReview(false)}
+        />
+      ) : null}
 
       {showCheckpoints ? (
         <ul className="changed-files-bar__checkpoints" role="list">
@@ -149,12 +136,8 @@ export function ChangedFilesBar({
           ) : (
             checkpoints.slice(0, 8).map((cp) => (
               <li key={cp.id} className="changed-files-bar__checkpoint-row">
-                <span className="changed-files-bar__checkpoint-label" title={cp.label}>
-                  {cp.label}
-                </span>
-                <span className="changed-files-bar__checkpoint-time">
-                  {formatCheckpointTime(cp.timestamp)}
-                </span>
+                <span className="changed-files-bar__checkpoint-label" title={cp.label}>{cp.label}</span>
+                <span className="changed-files-bar__checkpoint-time">{formatCheckpointTime(cp.timestamp)}</span>
                 <button
                   type="button"
                   className="changed-files-bar__checkpoint-restore"
@@ -172,7 +155,7 @@ export function ChangedFilesBar({
         </ul>
       ) : null}
 
-      {expanded ? (
+      {expanded && !showReview ? (
         <ul className="changed-files-bar__list" role="list">
           {files.map((f) => {
             const full = f.absPath || f.path;
@@ -184,29 +167,17 @@ export function ChangedFilesBar({
                   className="changed-files-bar__file"
                   onClick={() => onOpenFile?.(full)}
                   onMouseEnter={() => setHoverPath(full)}
-                  onMouseLeave={() =>
-                    setHoverPath((cur) => (cur === full ? null : cur))
-                  }
+                  onMouseLeave={() => setHoverPath((cur) => (cur === full ? null : cur))}
                   title={full}
                 >
-                  <span
-                    className={`changed-files-bar__badge changed-files-bar__badge--${languageBadge(
-                      f.path
-                    ).toLowerCase()}`}
-                  >
+                  <span className={`changed-files-bar__badge changed-files-bar__badge--${languageBadge(f.path).toLowerCase()}`}>
                     {languageBadge(f.path)}
                   </span>
                   <span className="changed-files-bar__name">{name}</span>
                   <span className="changed-files-bar__file-stats">
-                    {f.additions > 0 ? (
-                      <span className="add">+{f.additions}</span>
-                    ) : null}
-                    {f.deletions > 0 ? (
-                      <span className="del">-{f.deletions}</span>
-                    ) : null}
-                    {f.additions <= 0 && f.deletions <= 0 ? (
-                      <span className="changed-files-bar__muted">·</span>
-                    ) : null}
+                    {f.additions > 0 ? <span className="add">+{f.additions}</span> : null}
+                    {f.deletions > 0 ? <span className="del">-{f.deletions}</span> : null}
+                    {f.additions <= 0 && f.deletions <= 0 ? <span className="changed-files-bar__muted">·</span> : null}
                   </span>
                 </button>
               </li>
@@ -215,14 +186,10 @@ export function ChangedFilesBar({
         </ul>
       ) : null}
 
-      {hoverPath ? (
+      {hoverPath && !showReview ? (
         <div className="changed-files-bar__path-tip" role="status">
-          <span className="changed-files-bar__path-tip-dir">
-            {dirHint(hoverPath)}
-          </span>
-          <span className="changed-files-bar__path-tip-name">
-            {basename(hoverPath)}
-          </span>
+          <span className="changed-files-bar__path-tip-dir">{dirHint(hoverPath)}</span>
+          <span className="changed-files-bar__path-tip-name">{basename(hoverPath)}</span>
         </div>
       ) : null}
     </div>
