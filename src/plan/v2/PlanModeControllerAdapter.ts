@@ -15,6 +15,7 @@ import { PlanV2Generator, type PlanGenerationModel } from './PlanV2Generator';
 import type { FileExistenceChecker } from './validators/SemanticValidator';
 import { deriveTaskUpdates, type ObservedToolCall } from './EvidenceEngine';
 import type { FailureContext } from './FailureContext';
+import { buildExecutionPlan, type ExecutionPlan } from '../execution';
 type FailureLike = FailureContext;
 
 function toLegacyPlanDocument(
@@ -258,5 +259,21 @@ export class PlanModeControllerAdapter {
     const plan = this.session.getPlan();
     if (!plan) return '';
     return renderPlanMarkdown(plan, this.session.getState().researchFindings, this.session.getState().taskStatus);
+  }
+
+  /** Approved structured plan → runnable task graph (scheduler input). */
+  toExecutionPlan(options: { approvedAt?: number } = {}): ExecutionPlan {
+    const plan = this.session.getPlan();
+    if (!plan) throw new Error('Cannot build execution plan: no structured plan is loaded.');
+    const phase = this.session.getPhase();
+    if (phase !== 'executing' && phase !== 'completed') {
+      throw new Error(`Cannot build execution plan: session phase is ${phase}, expected executing or completed.`);
+    }
+    const { approvedTaskIds } = this.session.getState();
+    return buildExecutionPlan(plan, {
+      status: phase === 'completed' ? 'completed' : 'executing',
+      approvedTaskIds: approvedTaskIds.length > 0 ? approvedTaskIds : undefined,
+      approvedAt: options.approvedAt
+    });
   }
 }
