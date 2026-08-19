@@ -43,6 +43,11 @@ import {
 import { runPlanV2Generate as executePlanV2Generate } from './planGenerate';
 import { runHostChatSend as executeHostChatSend, type HostLoopRuntime } from './chatSend';
 import type { InlineEditChatPayload } from '../inline/InlineEditController';
+import {
+  handleWorktreeApplyMessage,
+  handleWorktreeRejectMessage,
+  handleWorktreeReviewMessage
+} from './subagentWorktreeBridge';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'agent-k.chat';
@@ -178,6 +183,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     if (message.type === 'chat.stop') {
       this.abortHostChatLoop(message.requestId != null ? String(message.requestId) : undefined);
+      return;
+    }
+    if (message.type === 'worktree.review' && message.subagentId != null) {
+      void handleWorktreeReviewMessage(this._view?.webview, message);
+      return;
+    }
+    if (message.type === 'worktree.apply' && message.subagentId != null) {
+      void handleWorktreeApplyMessage(this._view?.webview, message);
+      return;
+    }
+    if (message.type === 'worktree.reject' && message.subagentId != null) {
+      void handleWorktreeRejectMessage(this._view?.webview, message);
       return;
     }
     if (message.type === 'plan.v2.cancel' && message.requestId != null) {

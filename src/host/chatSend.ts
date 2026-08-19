@@ -13,6 +13,7 @@ import {
   recordSubagentTool,
   snapshotSubagentResultStats
 } from './subagentHost';
+import { registerSubagentWorktree } from './subagentWorktreeRegistry';
 import { withInlineEditSource } from '../chat/inlineEditReview';
 import { getWorkspaceRoot } from '../tools/writeExecutors';
 
@@ -372,8 +373,16 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           filesChanged:
             task.worktreeSnapshot?.filesChanged ?? stats?.filesChanged,
           toolCount: stats?.toolCount,
-          duration: stats?.duration
+          duration: stats?.duration,
+          worktreePath: task.worktree?.path,
+          worktreeBranch: task.worktree?.branch
         });
+        if (finished && task.worktree) {
+          const repoRoot = getWorkspaceRoot();
+          if (repoRoot) {
+            registerSubagentWorktree(task.id, repoRoot, task.worktree);
+          }
+        }
         const status =
           event.type === 'subagent.completed'
             ? 'done'

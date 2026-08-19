@@ -4,6 +4,8 @@
  */
 
 export type SubagentResult = {
+  subagentId?: string;
+  worktreePath?: string;
   summary?: string;
   filesChanged?: number;
   toolCount?: number;
@@ -31,6 +33,10 @@ function finiteNumber(value: unknown): number | undefined {
 export function parseSubagentResult(
   data: Record<string, unknown>
 ): SubagentResult | undefined {
+  const subagentId =
+    String(data.taskId ?? data.subagentId ?? '').trim() || undefined;
+  const worktreePath =
+    data.worktreePath != null ? String(data.worktreePath).trim() : undefined;
   const summary = clipSubagentSummary(
     data.summary != null ? String(data.summary) : undefined
   );
@@ -41,11 +47,13 @@ export function parseSubagentResult(
     summary == null &&
     filesChanged == null &&
     toolCount == null &&
-    durationMs == null
+    durationMs == null &&
+    !subagentId &&
+    !worktreePath
   ) {
     return undefined;
   }
-  return { summary, filesChanged, toolCount, durationMs };
+  return { subagentId, worktreePath, summary, filesChanged, toolCount, durationMs };
 }
 
 export function formatSubagentDuration(durationMs: number): string {
@@ -72,6 +80,8 @@ export function mergeSubagentResult(
     summary: incoming.summary ?? prev.summary,
     filesChanged: incoming.filesChanged ?? prev.filesChanged,
     toolCount: incoming.toolCount ?? prev.toolCount,
-    durationMs: incoming.durationMs ?? prev.durationMs
+    durationMs: incoming.durationMs ?? prev.durationMs,
+    subagentId: incoming.subagentId ?? prev.subagentId,
+    worktreePath: incoming.worktreePath ?? prev.worktreePath
   };
 }

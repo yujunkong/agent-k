@@ -80,6 +80,43 @@ export interface HostSessionsPersistPayload {
 
 export interface HostSessionsReadyPayload {}
 
+/** Subagent worktree review / apply / reject (webview → host) */
+export interface WorktreeSubagentPayload {
+  subagentId: string;
+  requestId?: string;
+}
+
+/** Host → webview worktree action results */
+export interface WorktreeReviewResultPayload {
+  requestId: string;
+  subagentId?: string;
+  success: boolean;
+  worktreePath?: string;
+  worktreeBranch?: string;
+  filesChanged?: number;
+  files?: string[];
+  diff?: string;
+  untrackedFiles?: string[];
+  error?: string;
+}
+
+export interface WorktreeApplyResultPayload {
+  requestId: string;
+  subagentId?: string;
+  success: boolean;
+  applied?: boolean;
+  removed?: boolean;
+  filesChanged?: number;
+  error?: string;
+}
+
+export interface WorktreeRejectResultPayload {
+  requestId: string;
+  subagentId?: string;
+  success: boolean;
+  error?: string;
+}
+
 /** ADDON-T07: webview → host checkpoint list/restore */
 export interface CheckpointListPayload {}
 
@@ -188,6 +225,9 @@ export type WebviewMessage =
   | { type: 'host.sessions.ready'; payload?: HostSessionsReadyPayload }
   | { type: 'checkpoint.list'; payload?: CheckpointListPayload }
   | { type: 'checkpoint.restore'; payload: CheckpointRestorePayload }
+  | { type: 'worktree.review'; payload: WorktreeSubagentPayload }
+  | { type: 'worktree.apply'; payload: WorktreeSubagentPayload }
+  | { type: 'worktree.reject'; payload: WorktreeSubagentPayload }
   | { type: 'session.compact'; payload?: Record<string, never> };
 
 /** Host → Webview stream events for chat.send tool loop */
@@ -213,6 +253,8 @@ export interface ChatStreamEvent {
   role?: string;
   prompt?: string;
   summary?: string;
+  worktreePath?: string;
+  worktreeBranch?: string;
   filesChanged?: number;
   toolCount?: number;
   duration?: number;
@@ -237,7 +279,10 @@ export type ExtensionMessage =
   | { type: 'focus.input'; payload?: Record<string, never> }
   | { type: 'inline.edit.request'; payload?: Record<string, unknown> }
   | { type: 'host.sessions.hydrate'; payload: HostSessionsHydratePayload }
-  | { type: 'checkpoint.listResult'; payload: CheckpointListResultPayload };
+  | { type: 'checkpoint.listResult'; payload: CheckpointListResultPayload }
+  | { type: 'worktree.review.result'; payload: WorktreeReviewResultPayload }
+  | { type: 'worktree.apply.result'; payload: WorktreeApplyResultPayload }
+  | { type: 'worktree.reject.result'; payload: WorktreeRejectResultPayload };
 
 // ─── 유틸리티 ──────────────────────────────────────────
 
@@ -254,6 +299,9 @@ const VALID_TYPES = new Set<string>([
   'host.sessions.persist', 'host.sessions.ready', 'host.sessions.hydrate',
   // ADDON-T07: checkpoint list/restore UX
   'checkpoint.list', 'checkpoint.listResult', 'checkpoint.restore',
+  // Subagent worktree review / apply / reject
+  'worktree.review', 'worktree.apply', 'worktree.reject',
+  'worktree.review.result', 'worktree.apply.result', 'worktree.reject.result',
   // ADDON-T10: /compact best-effort host hook
   'session.compact'
 ]);

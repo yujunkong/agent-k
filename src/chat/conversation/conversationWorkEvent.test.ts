@@ -169,6 +169,7 @@ describe('work event lifecycle', () => {
     expect(completed?.label).toBe('Research authentication · completed');
     expect(completed?.detail).toBeUndefined();
     expect(completed?.result).toEqual({
+      subagentId: 'a',
       summary: 'Authentication flow is handled in session.ts.',
       filesChanged: 2,
       toolCount: 14,

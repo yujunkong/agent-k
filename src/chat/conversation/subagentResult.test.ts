@@ -10,12 +10,16 @@ describe('parseSubagentResult', () => {
   it('reads filesChanged, toolCount, and duration from the completion payload', () => {
     expect(
       parseSubagentResult({
+        taskId: 'subagent-1',
+        worktreePath: '/tmp/wt/subagent-1',
         summary: 'Authentication flow is handled in session.ts.',
         filesChanged: 2,
         toolCount: 14,
         duration: 8400
       })
     ).toEqual({
+      subagentId: 'subagent-1',
+      worktreePath: '/tmp/wt/subagent-1',
       summary: 'Authentication flow is handled in session.ts.',
       filesChanged: 2,
       toolCount: 14,

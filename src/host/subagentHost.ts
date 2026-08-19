@@ -30,6 +30,7 @@ import {
   type WorktreeApplyResult,
   type WorktreeReview
 } from '../agent/subagentWorktreeReview';
+import { getRegisteredSubagentWorktree } from './subagentWorktreeRegistry';
 
 const MAX_CONCURRENT = 4;
 const summarizer = new SubAgentResult();
@@ -234,11 +235,18 @@ export function createSubagentHost(options: CreateSubagentHostOptions): Subagent
     for (const id of created.keys()) runner.cancel(id);
   };
 
-  const taskForWorktreeAction = (taskId: string): SubagentTask => {
+  const taskForWorktreeAction = (
+    taskId: string
+  ): { repoRoot: string; worktree: NonNullable<SubagentTask['worktree']> } => {
+    const registered = getRegisteredSubagentWorktree(taskId);
+    if (registered) {
+      return { repoRoot: registered.repoRoot, worktree: registered.worktree };
+    }
     const task = created.get(taskId);
     if (!task) throw new Error(`Unknown subagent task: ${taskId}`);
     if (!task.worktree) throw new Error(`Subagent ${taskId} has no isolated worktree`);
-    return task;
+    if (!repoRoot) throw new Error('Subagent worktree action requires a repository root');
+    return { repoRoot, worktree: task.worktree };
   };
 
   return {
@@ -262,20 +270,18 @@ export function createSubagentHost(options: CreateSubagentHostOptions): Subagent
       return parentResultFromTask(finished);
     },
     reviewWorktree: (taskId) => {
-      if (!repoRoot) throw new Error('Subagent worktree review requires a repository root');
-      const task = taskForWorktreeAction(taskId);
-      return reviewSubagentWorktree(repoRoot, task.worktree!);
+      const { repoRoot: root, worktree } = taskForWorktreeAction(taskId);
+      return reviewSubagentWorktree(root, worktree);
     },
     applyWorktree: async (taskId) => {
-      if (!repoRoot) throw new Error('Subagent worktree apply requires a repository root');
-      const task = taskForWorktreeAction(taskId);
-      return applySubagentWorktree(repoRoot, task.worktree!);
+      const { repoRoot: root, worktree } = taskForWorktreeAction(taskId);
+      return applySubagentWorktree(root, worktree);
     },
     rejectWorktree: async (taskId) => {
-      if (!repoRoot) throw new Error('Subagent worktree reject requires a repository root');
-      const task = taskForWorktreeAction(taskId);
-      await rejectSubagentWorktree(repoRoot, task.worktree!);
-      created.set(task.id, { ...task, worktree: undefined });
+      const { repoRoot: root, worktree } = taskForWorktreeAction(taskId);
+      await rejectSubagentWorktree(root, worktree);
+      const task = created.get(taskId);
+      if (task) created.set(task.id, { ...task, worktree: undefined });
     }
   };
 }
