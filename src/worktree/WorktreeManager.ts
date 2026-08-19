@@ -76,7 +76,7 @@ export class WorktreeManager {
     const sanitized = branchName.replace(/[^a-zA-Z0-9_\-/]/g, '_');
     const worktreePath = path.join(this.repoRoot, WORKTREE_BASE, sanitized);
 
-    // Ensure directory exists
+    // Ensure parent directory exists
     fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
 
     // Create branch if needed
@@ -86,15 +86,49 @@ export class WorktreeManager {
       });
     } catch { /* branch may exist */ }
 
-    // Create worktree
-    execSync(`git worktree add ${worktreePath} ${sanitized} 2>/dev/null`, {
-      cwd: this.repoRoot, stdio: 'pipe'
-    });
+    // Attempt worktree add; on failure, prune stale entries and retry once.
+    // Stale worktree registrations (e.g. from a previous session that didn't
+    // clean up) cause `git worktree add` to fail with "already checked out"
+    // or "already registered" errors.
+    try {
+      execSync(`git worktree add ${worktreePath} ${sanitized} 2>/dev/null`, {
+        cwd: this.repoRoot, stdio: 'pipe'
+      });
+    } catch (firstErr: unknown) {
+      // Prune stale registrations and remove leftover directory
+      this.prune();
+      if (fs.existsSync(worktreePath)) {
+        fs.rmSync(worktreePath, { recursive: true, force: true });
+      }
+
+      // Delete the branch and recreate so git doesn't complain it's
+      // "already checked out in another worktree"
+      try {
+        execSync(`git branch -D ${sanitized} 2>/dev/null`, {
+          cwd: this.repoRoot, stdio: 'pipe'
+        });
+        execSync(`git branch -f ${sanitized} ${baseCommit || 'HEAD'} 2>/dev/null`, {
+          cwd: this.repoRoot, stdio: 'pipe'
+        });
+      } catch { /* best-effort */ }
+
+      try {
+        execSync(`git worktree add ${worktreePath} ${sanitized}`, {
+          cwd: this.repoRoot, stdio: 'pipe'
+        });
+      } catch (retryErr: unknown) {
+        const msg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        throw new Error(
+          `Failed to create worktree "${sanitized}" after prune+retry: ${msg}`
+        );
+      }
+    }
 
     const info: WorktreeInfo = {
       path: worktreePath,
       branch: sanitized,
       hash: execSync(`git rev-parse HEAD`, { cwd: worktreePath, stdio: 'pipe' }).toString().trim(),
+      detached: false,
       createdAt: Date.now(),
       active: true
     };
