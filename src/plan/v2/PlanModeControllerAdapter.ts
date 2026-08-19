@@ -15,7 +15,17 @@ import { PlanV2Generator, type PlanGenerationModel } from './PlanV2Generator';
 import type { FileExistenceChecker } from './validators/SemanticValidator';
 import { deriveTaskUpdates, type ObservedToolCall } from './EvidenceEngine';
 import type { FailureContext } from './FailureContext';
-import { buildExecutionPlan, type ExecutionPlan, runPlanExecution, type PlanExecutionDeps } from '../execution';
+import { buildExecutionPlan, type ExecutionPlan, runPlanExecution, type PlanExecutionDeps, type PlanExecutionHooks } from '../execution';
+import {
+  cancelPlanExecution,
+  finalizePlanExecution,
+  getPersistedExecutionPlan,
+  recordTaskExecutionCompleted,
+  recordTaskExecutionFailed,
+  recordTaskExecutionStarted,
+  startPlanExecution,
+  updatePlanExecutionSnapshot
+} from '../execution/planExecutionPersistence';
 type FailureLike = FailureContext;
 
 function toLegacyPlanDocument(
@@ -279,7 +289,51 @@ export class PlanModeControllerAdapter {
 
   /** Sequential v1 executor — dispatches ready tasks via injected subagent/main runners. */
   async runApprovedPlanExecution(deps: PlanExecutionDeps): Promise<ExecutionPlan> {
-    const executionPlan = this.toExecutionPlan({ approvedAt: Date.now() });
-    return runPlanExecution(executionPlan, deps);
+    let executionPlan = getPersistedExecutionPlan(this.session);
+    if (!executionPlan || executionPlan.status === 'approved') {
+      executionPlan = executionPlan ?? this.toExecutionPlan({ approvedAt: Date.now() });
+      if (!this.session.getExecutionPlan()) {
+        startPlanExecution(this.session, executionPlan);
+      }
+    }
+
+    const hooks: PlanExecutionHooks = {
+      onTaskStarted: (plan, task) => {
+        recordTaskExecutionStarted(this.session, task.id, task.execution, task.subagentId);
+        updatePlanExecutionSnapshot(this.session, plan);
+        deps.hooks?.onTaskStarted?.(plan, task);
+      },
+      onTaskCompleted: (plan, task) => {
+        const current = plan.tasks.find((item) => item.id === task.id) ?? task;
+        recordTaskExecutionCompleted(this.session, current);
+        updatePlanExecutionSnapshot(this.session, plan);
+        deps.hooks?.onTaskCompleted?.(plan, task);
+      },
+      onTaskFailed: (plan, task, error) => {
+        const current = plan.tasks.find((item) => item.id === task.id) ?? task;
+        recordTaskExecutionFailed(this.session, current, error);
+        updatePlanExecutionSnapshot(this.session, plan);
+        deps.hooks?.onTaskFailed?.(plan, task, error);
+      }
+    };
+
+    const finalPlan = await runPlanExecution(executionPlan, { ...deps, hooks });
+    finalizePlanExecution(this.session, finalPlan);
+    return finalPlan;
+  }
+
+  /** Abort an in-flight execution graph and move session to failed. */
+  cancelApprovedPlanExecution(reason?: string): ExecutionPlan | null {
+    const current = getPersistedExecutionPlan(this.session);
+    if (!current) return null;
+    cancelPlanExecution(this.session, reason);
+    const cancelled: ExecutionPlan = { ...current, status: 'cancelled' };
+    updatePlanExecutionSnapshot(this.session, cancelled);
+    this.session.recordEvent({
+      type: 'plan.failed',
+      reason: reason ?? 'Plan execution cancelled',
+      timestamp: Date.now()
+    });
+    return cancelled;
   }
 }

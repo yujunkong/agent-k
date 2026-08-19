@@ -95,6 +95,14 @@ export async function runPlanExecution(
   plan: ExecutionPlan,
   deps: PlanExecutionDeps
 ): Promise<ExecutionPlan> {
+  if (
+    plan.status === 'completed' ||
+    plan.status === 'failed' ||
+    plan.status === 'cancelled'
+  ) {
+    return plan;
+  }
+
   let current: ExecutionPlan =
     plan.status === 'executing' ? plan : { ...plan, status: 'executing' };
 

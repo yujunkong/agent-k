@@ -13,6 +13,7 @@
  */
 import type { PlanDocument, TaskStatus } from './schema';
 import type { FailureContext } from './FailureContext';
+import type { ExecutionPlan, TaskExecutionDelegate } from '../execution/types';
 
 export interface ToolEvidence {
   toolName: string;
@@ -40,6 +41,30 @@ export type PlanEvent =
       timestamp: number;
     }
   | { type: 'plan.completed'; timestamp: number }
-  | { type: 'plan.failed'; reason: string; timestamp: number };
+  | { type: 'plan.failed'; reason: string; timestamp: number }
+  | { type: 'plan.execution.started'; executionPlan: ExecutionPlan; timestamp: number }
+  | { type: 'plan.execution.updated'; executionPlan: ExecutionPlan; timestamp: number }
+  | {
+      type: 'task.execution.started';
+      taskId: string;
+      delegate: TaskExecutionDelegate;
+      subagentId?: string;
+      timestamp: number;
+    }
+  | {
+      type: 'task.execution.completed';
+      taskId: string;
+      subagentId?: string;
+      worktreePath?: string;
+      timestamp: number;
+    }
+  | {
+      type: 'task.execution.failed';
+      taskId: string;
+      error: string;
+      subagentId?: string;
+      timestamp: number;
+    }
+  | { type: 'plan.execution.cancelled'; reason?: string; timestamp: number };
 
 export type PlanEventType = PlanEvent['type'];

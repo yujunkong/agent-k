@@ -197,6 +197,13 @@ export function phaseForEvent(
       return 'failed';
     case 'task.status.changed':
       return undefined;
+    case 'plan.execution.started':
+    case 'plan.execution.updated':
+    case 'task.execution.started':
+    case 'task.execution.completed':
+    case 'task.execution.failed':
+    case 'plan.execution.cancelled':
+      return undefined;
     default: {
       const _exhaustive: never = eventType;
       void _exhaustive;

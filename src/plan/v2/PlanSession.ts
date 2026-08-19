@@ -10,6 +10,7 @@
  */
 import type { PlanDocument, PlanTask, TaskStatus } from './schema';
 import type { PlanEvent } from './PlanEvent';
+import type { ExecutionPlan } from '../execution/types';
 import {
   assertEventPhaseTransition,
   phaseForEvent
@@ -39,6 +40,10 @@ export interface PlanSessionState {
    *  in scope for execution / isAllTasksVerified(). */
   approvedTaskIds: string[];
   rejectionFeedback: string[];
+  /** Latest runnable task graph snapshot during/after approve. */
+  executionPlan: ExecutionPlan | null;
+  /** Last execution failure message for plan.failed / UI. */
+  executionError: string | null;
   events: PlanEvent[];
 }
 
@@ -66,6 +71,8 @@ export class PlanSession {
       taskStatus: {},
       approvedTaskIds: [],
       rejectionFeedback: [],
+      executionPlan: null,
+      executionError: null,
       events: []
     };
   }
@@ -91,8 +98,18 @@ export class PlanSession {
       taskStatus: {},
       approvedTaskIds: [],
       rejectionFeedback: [],
+      executionPlan: null,
+      executionError: null,
       events: []
     };
+  }
+
+  getExecutionPlan(): ExecutionPlan | null {
+    return this.state.executionPlan;
+  }
+
+  getExecutionError(): string | null {
+    return this.state.executionError;
   }
 
   getPlan(): PlanDocument | null {
@@ -165,6 +182,8 @@ export class PlanSession {
         this.state.taskStatus = {};
         this.state.approvedTaskIds = [];
         this.state.rejectionFeedback = [];
+        this.state.executionPlan = null;
+        this.state.executionError = null;
         break;
 
       case 'research.completed':
@@ -186,6 +205,8 @@ export class PlanSession {
           event.plan.tasks.map((t) => [t.id, 'pending' as TaskStatus])
         );
         this.state.approvedTaskIds = [];
+        this.state.executionPlan = null;
+        this.state.executionError = null;
         break;
 
       case 'plan.review.opened':
@@ -224,6 +245,36 @@ export class PlanSession {
         break;
 
       case 'plan.failed':
+        break;
+
+      case 'plan.execution.started':
+        this.state.executionPlan = event.executionPlan;
+        this.state.executionError = null;
+        break;
+
+      case 'plan.execution.updated':
+        this.state.executionPlan = event.executionPlan;
+        break;
+
+      case 'task.execution.started':
+        break;
+
+      case 'task.execution.completed':
+        this.state.executionError = null;
+        break;
+
+      case 'task.execution.failed':
+        this.state.executionError = event.error;
+        break;
+
+      case 'plan.execution.cancelled':
+        if (this.state.executionPlan) {
+          this.state.executionPlan = {
+            ...this.state.executionPlan,
+            status: 'cancelled'
+          };
+        }
+        this.state.executionError = event.reason ?? 'Plan execution cancelled';
         break;
     }
 
@@ -380,7 +431,11 @@ export class PlanSession {
 
   static fromJSON(state: PlanSessionState): PlanSession {
     const session = new PlanSession(state.id);
-    session.state = state;
+    session.state = {
+      ...state,
+      executionPlan: state.executionPlan ?? null,
+      executionError: state.executionError ?? null
+    };
     return session;
   }
 }
