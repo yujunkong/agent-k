@@ -3,7 +3,7 @@ import type { TimelineStep } from '../conversation/timelinePresentation';
 import {
   buildTimelineStepCardView,
   resolveTimelineStepDensity
-} from './timelineStepCard';
+} from './timelineStepCardView';
 
 describe('buildTimelineStepCardView', () => {
   it('normalizes read/search tool titles', () => {

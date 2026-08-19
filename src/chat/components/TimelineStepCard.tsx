@@ -3,7 +3,7 @@ import type { TimelineStep, TimelineStepStatus } from '../conversation/timelineP
 import {
   buildTimelineStepCardView,
   timelineStepMarker
-} from './timelineStepCard';
+} from './timelineStepCardView';
 
 export interface TimelineStepCardProps {
   step: TimelineStep;
