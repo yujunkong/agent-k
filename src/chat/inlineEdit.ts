@@ -96,6 +96,101 @@ export function toInlineEditAgentRequest(
   };
 }
 
+/**
+ * chat.send `inlineEdit` field (flat Agent request).
+ * Also accepts nested `selection` if a host payload is passed through.
+ */
+export function parseInlineEditAgentRequest(
+  data: unknown
+): InlineEditAgentRequest | null {
+  const root = asRecord(data);
+  if (!root) return null;
+  const nested = asRecord(root.selection);
+  const src = nested ?? root;
+  const uri = asString(src.uri || src.file || src.path).trim();
+  const selectedText = asString(src.selectedText ?? src.text);
+  if (!uri || !selectedText) return null;
+  const startColumn = asInt(
+    src.startColumn != null ? src.startColumn : src.startCharacter
+  );
+  const endColumn = asInt(
+    src.endColumn != null ? src.endColumn : src.endCharacter
+  );
+  return {
+    instruction: asString(root.instruction ?? src.instruction).trim(),
+    selectedText,
+    uri,
+    languageId: asString(src.languageId || src.language).trim() || 'text',
+    startLine: asInt(src.startLine),
+    startColumn,
+    endLine: asInt(src.endLine),
+    endColumn
+  };
+}
+
+export function inlineEditFsPath(uri: string): string {
+  const trimmed = uri.trim();
+  if (!trimmed.startsWith('file:')) {
+    return trimmed.replace(/\\/g, '/');
+  }
+  try {
+    const u = new URL(trimmed);
+    let p = decodeURIComponent(u.pathname);
+    if (/^\/[A-Za-z]:/.test(p)) p = p.slice(1);
+    return p;
+  } catch {
+    return trimmed.replace(/^file:\/\//, '');
+  }
+}
+
+/**
+ * Protected system/sticky context for AgentLoop.
+ * Instruction + exact range + selected source — not a composer dump.
+ */
+export function formatInlineEditSystemContext(
+  request: InlineEditAgentRequest
+): string {
+  const file = inlineEditFileLabel(request.uri);
+  const path = inlineEditFsPath(request.uri);
+  const range = inlineEditRangeLabel(request);
+  const lang = request.languageId || 'text';
+  const body = request.selectedText.replace(/\s+$/, '');
+  const readOffset = request.startLine + 1;
+  const lineCount = inlineEditLineCount(request);
+  const instruction =
+    request.instruction.trim() || '(see the latest user message)';
+  return [
+    '## Inline Edit (mandatory this turn)',
+    'You are applying a scoped editor selection edit. This is not a whole-file rewrite.',
+    '',
+    'Target:',
+    `- uri: ${request.uri}`,
+    `- path: ${path}`,
+    `- file: ${file}`,
+    `- languageId: ${lang}`,
+    `- startLine: ${request.startLine} (0-based)`,
+    `- startColumn: ${request.startColumn} (0-based)`,
+    `- endLine: ${request.endLine} (0-based)`,
+    `- endColumn: ${request.endColumn} (0-based)`,
+    `- displayRange: ${range}`,
+    '',
+    'Instruction:',
+    instruction,
+    '',
+    'Selected source (this MUST be edit_file hunks[].oldText — unique match):',
+    `\`\`\`${lang}`,
+    body,
+    '```',
+    '',
+    'Rules:',
+    `1. Call edit_file on path \`${path}\` only. Do not write_file or delete_file.`,
+    '2. hunks[0].oldText MUST be the selected source above (or the smallest unique substring of it).',
+    '3. hunks[0].newText is that region after applying the instruction. Change nothing else in the file.',
+    `4. Optional: read_file with offset=${readOffset} and limit=${lineCount} before editing.`,
+    '5. After the patch, briefly confirm the range you changed.'
+  ].join('\n');
+}
+
 /** API/harness context only — never used as composer seedText. */
 export function formatInlineEditForPayload(context: InlineEditContext): string {
   const file = inlineEditFileLabel(context.uri);

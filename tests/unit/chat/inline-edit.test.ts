@@ -4,12 +4,16 @@
 import * as assert from 'assert';
 import {
   formatInlineEditForPayload,
+  formatInlineEditSystemContext,
   inlineEditFileLabel,
+  inlineEditFsPath,
   inlineEditLineCount,
   inlineEditRangeLabel,
+  parseInlineEditAgentRequest,
   parseInlineEditHostMessage,
   toInlineEditAgentRequest
 } from '../../../src/chat/inlineEdit';
+import { ContextAssembler } from '../../../src/agent/ContextAssembler';
 
 suite('inlineEdit', () => {
   const hostMsg = {
@@ -96,5 +100,61 @@ suite('inlineEdit', () => {
       }),
       null
     );
+  });
+
+  test('parseInlineEditAgentRequest reads chat.send.inlineEdit', () => {
+    const req = parseInlineEditAgentRequest({
+      instruction: 'async/await로 리팩터링해',
+      selectedText: 'const x = 1;',
+      uri: 'file:///d:/workspace/agent-k/src/foo.ts',
+      languageId: 'typescript',
+      startLine: 41,
+      startColumn: 0,
+      endLine: 57,
+      endColumn: 2
+    });
+    assert.ok(req);
+    assert.strictEqual(req!.instruction, 'async/await로 리팩터링해');
+    assert.strictEqual(req!.startLine, 41);
+    assert.strictEqual(req!.startColumn, 0);
+    assert.strictEqual(inlineEditFsPath(req!.uri), 'd:/workspace/agent-k/src/foo.ts');
+  });
+
+  test('formatInlineEditSystemContext injects instruction + range + source', () => {
+    const parsed = parseInlineEditHostMessage(hostMsg);
+    assert.ok(parsed);
+    const req = toInlineEditAgentRequest(parsed!.instruction, parsed!.context);
+    const block = formatInlineEditSystemContext(req);
+    assert.ok(block.includes('## Inline Edit'));
+    assert.ok(block.includes('async/await로 리팩터링해'));
+    assert.ok(block.includes(req.uri));
+    assert.ok(block.includes('startLine: 41'));
+    assert.ok(block.includes('startColumn: 0'));
+    assert.ok(block.includes('endLine: 57'));
+    assert.ok(block.includes('endColumn: 2'));
+    assert.ok(block.includes('L42-L58'));
+    assert.ok(block.includes('line 1'));
+    assert.ok(block.includes('edit_file'));
+    assert.ok(block.includes('oldText'));
+  });
+
+  test('ContextAssembler system+sticky consume inlineEdit for AgentLoop', () => {
+    const parsed = parseInlineEditHostMessage(hostMsg);
+    assert.ok(parsed);
+    const req = toInlineEditAgentRequest(parsed!.instruction, parsed!.context);
+    const assembler = new ContextAssembler();
+    const assembly = assembler.assemble(
+      'agent',
+      [{ role: 'user', content: req.instruction }],
+      { tier: 'A', inlineEdit: req, projectRules: '' }
+    );
+    const system = assembly.slots.find((s) => s.name === 'system')?.content || '';
+    const sticky = assembly.slots.find((s) => s.name === 'sticky')?.content || '';
+    assert.ok(system.includes('## Inline Edit'));
+    assert.ok(system.includes(req.uri));
+    assert.ok(system.includes(req.selectedText.split('\n')[0]));
+    assert.ok(system.includes(req.instruction));
+    assert.ok(sticky.includes('## Inline Edit'));
+    assert.ok(sticky.includes('startLine: 41'));
   });
 });

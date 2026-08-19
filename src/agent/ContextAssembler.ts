@@ -19,6 +19,8 @@ import { injectCursorPattern } from '../harness/CursorPattern';
 import { injectTurnStructure } from '../harness/PromptTurnStructure';
 import { injectDontDoMedium } from '../harness/DontDoMedium';
 import { getProjectRulesCached, formatProjectRulesBlock } from '../harness/ProjectRulesLoader';
+import type { InlineEditAgentRequest } from '../chat/inlineEdit';
+import { formatInlineEditSystemContext } from '../chat/inlineEdit';
 
 export interface ContextSlot {
   name: string;
@@ -83,6 +85,8 @@ export class ContextAssembler {
       tier?: 'A' | 'B' | 'C'; // HARB: 티어 정보
       /** ADDON-T08: pre-loaded rules content (skips fs/vscode lookup when set) */
       projectRules?: string;
+      /** 1-4e: scoped editor selection — injected into system + sticky */
+      inlineEdit?: InlineEditAgentRequest;
     }
   ): ContextAssembly {
     const modeConfig = modeRegistry.getModeConfig(mode);
@@ -120,6 +124,13 @@ Use only read/search tools (and ask_question / todo_write when appropriate).`;
       }
       systemPrompt = injectDesignSlogans(systemPrompt);
       systemPrompt = injectDontDoMedium(systemPrompt);
+    }
+
+    const inlineEditBlock = options?.inlineEdit
+      ? formatInlineEditSystemContext(options.inlineEdit)
+      : '';
+    if (inlineEditBlock) {
+      systemPrompt = `${systemPrompt}\n\n${inlineEditBlock}`;
     }
 
     const memoryStore = this.resolveMemoryStore();
@@ -165,7 +176,9 @@ Use only read/search tools (and ask_question / todo_write when appropriate).`;
       {
         name: 'sticky',
         budgetPercent: 12,
-        content: options?.stickyContext || '',
+        content: [options?.stickyContext || '', inlineEditBlock]
+          .filter(Boolean)
+          .join('\n\n'),
         priority: 60,
         protected_: true
       },

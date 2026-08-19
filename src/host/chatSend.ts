@@ -3,6 +3,7 @@ import { RuntimeServices } from '../core/RuntimeServices';
 import { configManager } from '../core/ConfigManager';
 import { sessionUsageTracker, updateUsageStatusBar } from './runtimeSingletons';
 import { toolKind, kindVerb, shortDetail, resultDetail } from './timelineLabels';
+import { parseInlineEditAgentRequest } from '../chat/inlineEdit';
 
 export type HostLoopRuntime = {
   loop: import('../loop/AgentLoopController').AgentLoopController;
@@ -63,7 +64,12 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
   });
 
 
-  const mode = (message.mode || 'agent') as 'ask' | 'agent' | 'plan' | 'debug';
+  const inlineEdit = parseInlineEditAgentRequest(message.inlineEdit);
+  let mode = (message.mode || 'agent') as 'ask' | 'agent' | 'plan' | 'debug';
+  // Inline Edit needs write tools — Ask/Plan would refuse edit_file.
+  if (inlineEdit && (mode === 'ask' || mode === 'plan')) {
+    mode = 'agent';
+  }
   const incoming = Array.isArray(message.messages) ? message.messages : [];
   const cfg = vscode.workspace.getConfiguration('agent-k');
   const baseUrl = String(
@@ -201,7 +207,8 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
               ? String(message.planStage || 'research')
               : undefined
         }),
-        customSystemPrompt
+        customSystemPrompt,
+        ...(inlineEdit ? { inlineEdit } : {})
       }
     );
     const systemPrompt =
