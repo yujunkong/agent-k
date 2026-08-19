@@ -4,6 +4,7 @@ import { configManager } from '../core/ConfigManager';
 import { sessionUsageTracker, updateUsageStatusBar } from './runtimeSingletons';
 import { toolKind, kindVerb, shortDetail, resultDetail } from './timelineLabels';
 import { parseInlineEditAgentRequest } from '../chat/inlineEdit';
+import { createSubagentHost, modeForSubagentRole } from './subagentHost';
 import { withInlineEditSource } from '../chat/inlineEditReview';
 
 export type HostLoopRuntime = {
@@ -127,6 +128,8 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
     turn?: number;
     /** opening = per-turn main Thought; mid = nested under Exploring */
     thoughtRole?: 'opening' | 'mid';
+    subagentId?: string;
+    parentTurnId?: string;
   }) => {
     const id = payload.id || `tl_${payload.kind}_${currentTurn}_${++timelineSeq}`;
     post('timeline', {
@@ -137,7 +140,9 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
       toolName: payload.toolName,
       status: payload.status,
       id,
-      thoughtRole: payload.thoughtRole
+      thoughtRole: payload.thoughtRole,
+      subagentId: payload.subagentId,
+      parentTurnId: payload.parentTurnId
     });
     return id;
   };
@@ -223,6 +228,242 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
       baseUrl,
       apiKey,
       model
+    });
+
+    const thinkingEffort =
+      (message.thinkingEffort as
+        | 'off'
+        | 'low'
+        | 'medium'
+        | 'high'
+        | 'max') ||
+      (configManager.get('agent-k.thinking.effort') as
+        | 'off'
+        | 'low'
+        | 'medium'
+        | 'high'
+        | 'max') ||
+      'medium';
+
+    const childToolStartDetails = new Map<string, string>();
+    const subagentHost = createSubagentHost({
+      systemPrompt,
+      createLoop: (context, hooks) => {
+        const childMode = modeForSubagentRole(context.task.role);
+        return new AgentLoopController({
+          mode: childMode,
+          maxTurns,
+          turnTimeoutMs,
+          modelId: model,
+          tier: 'A',
+          contextBudget: modelContext.maxInputTokens,
+          systemPrompt: modeRegistry.getSystemPrompt(childMode),
+          provider,
+          thinkingEffort,
+          onAssistantDelta: hooks.onAssistantDelta,
+          onReasoning: hooks.onReasoning,
+          onToolCall: async (name, args, callId) => {
+            await hooks.onToolCall?.(name, args, callId);
+          },
+          onToolResult: async (name, result, callId) => {
+            await hooks.onToolResult?.(name, result, callId);
+          },
+          onAskQuestion: (q) => {
+            if (!isActive()) {
+              throw new Error(
+                'ask_question: request superseded. Send a message again to continue.'
+              );
+            }
+            post('ask_question', {
+              qid: q.id,
+              question: q.question,
+              options: q.options,
+              required: q.required,
+              allowMultiple: Boolean(q.allowMultiple)
+            });
+            post('status', { status: 'asking' });
+          },
+          onUsage: (usage) => {
+            try {
+              const tracker =
+                RuntimeServices.getSessionUsageTracker() || sessionUsageTracker;
+              tracker.recordUsage(
+                usage.promptTokens || 0,
+                usage.completionTokens || 0
+              );
+              updateUsageStatusBar();
+            } catch {
+              /* usage tracking is best-effort */
+            }
+          },
+          runSubagent: async () => ({
+            success: false,
+            error: 'Nested subagents are not allowed'
+          })
+        });
+      },
+      buildMessages: (context) => [
+        {
+          role: 'system',
+          content: modeRegistry.getSystemPrompt(
+            modeForSubagentRole(context.task.role)
+          )
+        },
+        { role: 'user', content: context.task.prompt }
+      ],
+      onLifecycle: (event) => {
+        const task = event.task;
+        const turn = currentTurn || 1;
+        post('subagent.event', {
+          type: event.type,
+          taskId: task.id,
+          parentTurnId: task.parentTurnId,
+          role: task.role,
+          status: task.status,
+          turn
+        });
+        const status =
+          event.type === 'subagent.completed'
+            ? 'done'
+            : event.type === 'subagent.failed' ||
+                event.type === 'subagent.cancelled'
+              ? 'error'
+              : 'running';
+        postTimeline({
+          kind: 'task',
+          label: `${kindVerb('task')} · task_run`,
+          detail: task.prompt.slice(0, 80),
+          toolName: 'task_run',
+          status,
+          id: `tl_subagent_${task.id}`,
+          turn,
+          subagentId: task.id,
+          parentTurnId: task.parentTurnId
+        });
+      },
+      onReasoning: (context) => {
+        postTimeline({
+          kind: 'thinking',
+          label: 'Thought',
+          status: 'running',
+          id: `tl_sub_${context.task.id}_thought`,
+          turn: currentTurn || 1,
+          thoughtRole: 'mid',
+          subagentId: context.task.id,
+          parentTurnId: context.task.parentTurnId
+        });
+      },
+      onToolCall: (context, name, args, callId) => {
+        const kind = toolKind(name);
+        const detail = shortDetail(name, args as Record<string, unknown>);
+        const id = `tl_sub_${context.task.id}_${
+          callId && String(callId).trim() ? String(callId) : name
+        }`;
+        if (detail) childToolStartDetails.set(id, detail);
+        postTimeline({
+          kind,
+          label: `${kindVerb(kind)} · ${name}`,
+          detail,
+          toolName: name,
+          status: 'running',
+          id,
+          turn: currentTurn || 1,
+          subagentId: context.task.id,
+          parentTurnId: context.task.parentTurnId
+        });
+      },
+      onToolResult: (context, name, result, callId) => {
+        const kind = toolKind(name);
+        const id = `tl_sub_${context.task.id}_${
+          callId && String(callId).trim() ? String(callId) : name
+        }`;
+        const startDetail = childToolStartDetails.get(id);
+        childToolStartDetails.delete(id);
+        const output =
+          result && typeof result === 'object'
+            ? (result as {
+                success?: boolean;
+                data?: unknown;
+                error?: string;
+              })
+            : {};
+        const success = output.success !== false;
+        const endDetail = resultDetail(
+          kind,
+          { success, data: output.data, error: output.error },
+          name
+        );
+        const exploreKeepStart =
+          kind === 'searching' ||
+          kind === 'reading' ||
+          kind === 'browsing' ||
+          name === 'grep' ||
+          name === 'read_file' ||
+          name === 'read_files' ||
+          name === 'glob' ||
+          name === 'file_search' ||
+          name === 'codebase_search' ||
+          name === 'list_dir';
+        const detail = !success
+          ? endDetail || startDetail
+          : exploreKeepStart && startDetail
+            ? startDetail
+            : endDetail || startDetail;
+        postTimeline({
+          kind,
+          label: success
+            ? `${kindVerb(kind)} · ${name}`
+            : `Failed · ${name}`,
+          detail,
+          toolName: name,
+          status: success ? 'done' : 'error',
+          id,
+          turn: currentTurn || 1,
+          subagentId: context.task.id,
+          parentTurnId: context.task.parentTurnId
+        });
+        if (
+          success &&
+          (name === 'edit_file' || name === 'write_file') &&
+          output.data &&
+          typeof output.data === 'object'
+        ) {
+          const data = output.data as Record<string, unknown>;
+          const diff = data.diff as
+            | {
+                additions?: number;
+                deletions?: number;
+                lines?: Array<{
+                  type: string;
+                  lineNumber: number;
+                  text: string;
+                }>;
+              }
+            | undefined;
+          if (diff && Array.isArray(diff.lines)) {
+            post('file.edit', {
+              path: String(data.relPath || data.path || name),
+              absPath: data.path != null ? String(data.path) : undefined,
+              checkpointId:
+                data.checkpointId != null
+                  ? String(data.checkpointId)
+                  : undefined,
+              turn: currentTurn || 1,
+              toolId: id,
+              subagentId: context.task.id,
+              parentTurnId: context.task.parentTurnId,
+              additions: Number(diff.additions) || 0,
+              deletions: Number(diff.deletions) || 0,
+              lines: diff.lines.slice(0, 80).map((l) => ({
+                type:
+                  l.type === 'add' || l.type === 'delete' ? l.type : 'context',
+                lineNumber: Number(l.lineNumber) || 0,
+                text: String(l.text ?? '').slice(0, 400)
+              }))
+            });
+          }
+        }
+      }
     });
 
     const loop = new AgentLoopController({
@@ -420,20 +661,9 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
         });
         post('status', { status: 'asking' });
       },
-      thinkingEffort:
-        (message.thinkingEffort as
-          | 'off'
-          | 'low'
-          | 'medium'
-          | 'high'
-          | 'max') ||
-        (configManager.get('agent-k.thinking.effort') as
-          | 'off'
-          | 'low'
-          | 'medium'
-          | 'high'
-          | 'max') ||
-        'medium',
+      thinkingEffort,
+      runSubagent: (args) =>
+        subagentHost.runFromToolArgs(args, String(currentTurn || 1)),
       // Per-turn Thought / Exploring / Planning next moves (Cursor-style)
       onTurnStart: async (turn) => {
         // Freeze previous turn's Thought + Planning so UI stays sequential
@@ -822,7 +1052,14 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
         content: String(m.content || '')
       }));
 
-    abort.signal.addEventListener('abort', () => loop.stop(), { once: true });
+    abort.signal.addEventListener(
+      'abort',
+      () => {
+        loop.stop();
+        subagentHost.cancelAll();
+      },
+      { once: true }
+    );
 
     try {
       await loop.continue([

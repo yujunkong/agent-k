@@ -230,6 +230,11 @@ export interface LoopConfig {
   }) => void | Promise<void>;
   /** ADDON-T11: provider-reported token usage per stream pass (status bar cost tracker) */
   onUsage?: (usage: { promptTokens?: number; completionTokens?: number }) => void;
+  /**
+   * Host subagent bridge. When set, task_run uses SubagentRunner + the same
+   * AgentLoop/timeline pipeline instead of TaskTool's disconnected child loop.
+   */
+  runSubagent?: (args: ToolInput) => Promise<ToolOutput>;
 }
 
 export type LoopStatus = 'idle' | 'streaming' | 'tool_executing' | 'stopped' | 'completed' | 'error' | 'doom_loop' | 'timeout';
@@ -2400,8 +2405,11 @@ export class AgentLoopController {
         return result;
       }
 
-      // ─── task / task_run (RW-C7-04-R2 / ADDON-T09) ────────────────
+      // ─── task / task_run (RW-C7-04-R2 / ADDON-T09 / Subagent Host Bridge) ──
       if (name === 'task' || name === 'task_run') {
+        if (this.config.runSubagent) {
+          return this.config.runSubagent(args);
+        }
         const { getTaskTool, formatTaskToolResult, taskResultToSummary } = await import('../tools/orchestration/TaskTool');
         const taskTool = getTaskTool();
         const result = await taskTool.execute({
