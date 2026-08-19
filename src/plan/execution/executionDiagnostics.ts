@@ -122,12 +122,34 @@ export interface PreflightTargetEntry {
   verdict: 'passed' | 'missing' | 'create' | 'blocked' | 'error';
 }
 
+/** Structured context from a failed shell / git command. */
+export interface CommandFailureContext {
+  command: string;
+  cwd?: string;
+  exitCode?: number | null;
+  signal?: string | null;
+  stdout?: string;
+  stderr?: string;
+  /** Extra context fields (e.g. worktreePath, branch). */
+  [key: string]: unknown;
+}
+
 export interface TaskFailureDetail {
   category: PlanFailureCategory;
   code?: string;
   name?: string;
   message: string;
   retryable?: boolean;
+  cause?: TaskFailureCause;
+}
+
+/** Recursive cause chain — each level narrows category/code. */
+export interface TaskFailureCause {
+  category: PlanFailureCategory;
+  code?: string;
+  message?: string;
+  command?: CommandFailureContext;
+  cause?: TaskFailureCause;
 }
 
 export interface PlanExecutionDiagnosticEvent {
@@ -165,14 +187,26 @@ export interface PlanExecutionCompletedEvent extends PlanExecutionDiagnosticEven
   };
 }
 
+/** Root cause extracted from the first (chronologically) failed task. */
+export interface PlanRootCause {
+  taskId: string;
+  category: PlanFailureCategory;
+  code?: string;
+  message: string;
+  cause?: TaskFailureCause;
+}
+
 export interface PlanExecutionFailedEvent extends PlanExecutionDiagnosticEvent {
   type: 'plan.execution.failed';
   metadata: {
     failedTaskIds: string[];
+    total: number;
     completed: number;
     failed: number;
     blocked: number;
+    pending: number;
     reason: string;
+    rootCause?: PlanRootCause;
   };
 }
 
@@ -233,10 +267,17 @@ export interface TaskFailedEvent extends PlanExecutionDiagnosticEvent {
   };
 }
 
+export interface BlockedByEntry {
+  taskId: string;
+  status: 'failed';
+  failureCode?: string;
+}
+
 export interface TaskBlockedEvent extends PlanExecutionDiagnosticEvent {
   type: 'plan.task.blocked';
   metadata: {
     blockedBy: string[];
+    blockedByDetails?: BlockedByEntry[];
     reason: string;
   };
 }
@@ -270,18 +311,20 @@ export type PlanDiagnosticEmitter = (event: AnyPlanDiagnosticEvent) => void;
 
 export function taskCountSummary(plan: {
   tasks: Array<{ status: string }>;
-}): { completed: number; failed: number; blocked: number; cancelled: number } {
+}): { total: number; completed: number; failed: number; blocked: number; pending: number; cancelled: number } {
   let completed = 0;
   let failed = 0;
   let blocked = 0;
   let cancelled = 0;
+  let pending = 0;
   for (const t of plan.tasks) {
     if (t.status === 'completed') completed++;
     else if (t.status === 'failed') failed++;
     else if (t.status === 'blocked') blocked++;
     else if (t.status === 'cancelled') cancelled++;
+    else if (t.status === 'pending' || t.status === 'ready') pending++;
   }
-  return { completed, failed, blocked, cancelled };
+  return { total: plan.tasks.length, completed, failed, blocked, pending, cancelled };
 }
 
 export function formatDiagnosticEventLog(event: AnyPlanDiagnosticEvent): string {
@@ -298,11 +341,30 @@ export function formatDiagnosticEventLog(event: AnyPlanDiagnosticEvent): string 
     if ('category' in meta && typeof meta.category === 'string') parts.push(`category=${meta.category}`);
     if ('failure' in meta && typeof meta.failure === 'object' && meta.failure !== null) {
       const f = meta.failure as TaskFailureDetail;
-      parts.push(`[${f.category}] ${f.message.slice(0, 120)}`);
+      parts.push(`[${f.category}${f.code ? '/' + f.code : ''}] ${f.message.slice(0, 120)}`);
+      if (f.cause) {
+        parts.push(`cause=[${f.cause.category}${f.cause.code ? '/' + f.cause.code : ''}]`);
+        if (f.cause.command) {
+          const cmd = f.cause.command;
+          parts.push(`cmd=${cmd.command.slice(0, 80)}`);
+          if (cmd.exitCode != null) parts.push(`exit=${cmd.exitCode}`);
+          if (cmd.cwd) parts.push(`cwd=${cmd.cwd}`);
+        }
+      }
     }
     if ('blocked' in meta && meta.blocked === true) parts.push('BLOCKED');
     if ('blockedBy' in meta && Array.isArray(meta.blockedBy)) parts.push(`blockedBy=${(meta.blockedBy as string[]).join(',')}`);
+    if ('blockedByDetails' in meta && Array.isArray(meta.blockedByDetails)) {
+      const details = meta.blockedByDetails as BlockedByEntry[];
+      for (const d of details) {
+        if (d.failureCode) parts.push(`${d.taskId}:${d.failureCode}`);
+      }
+    }
     if ('reason' in meta && typeof meta.reason === 'string') parts.push(meta.reason.slice(0, 80));
+    if ('rootCause' in meta && typeof meta.rootCause === 'object' && meta.rootCause !== null) {
+      const rc = meta.rootCause as PlanRootCause;
+      parts.push(`rootCause=${rc.taskId}[${rc.category}${rc.code ? '/' + rc.code : ''}]`);
+    }
   }
   return parts.join(' | ');
 }

@@ -40,7 +40,28 @@ function labelForEvent(event: AnyPlanDiagnosticEvent): string {
 function detailForEvent(event: AnyPlanDiagnosticEvent): string | undefined {
   if (event.type === 'plan.task.failed') {
     const f = (event.metadata as any)?.failure;
-    return f?.message?.slice(0, 300);
+    if (!f) return undefined;
+    const parts: string[] = [];
+    if (f.code) parts.push(`[${f.category}/${f.code}]`);
+    parts.push((f.message ?? '').slice(0, 200));
+    if (f.cause) {
+      parts.push(`← ${f.cause.category}${f.cause.code ? '/' + f.cause.code : ''}`);
+      if (f.cause.command) {
+        const cmd = f.cause.command;
+        parts.push(`cmd: ${cmd.command?.slice(0, 80)}`);
+        if (cmd.exitCode != null) parts.push(`exit=${cmd.exitCode}`);
+        if (cmd.cwd) parts.push(`cwd=${cmd.cwd}`);
+        if (cmd.stderr) parts.push(`stderr: ${cmd.stderr.slice(0, 100)}`);
+      }
+    }
+    return parts.join(' ');
+  }
+  if (event.type === 'plan.task.blocked') {
+    const m = event.metadata as any;
+    const details = m?.blockedByDetails;
+    if (Array.isArray(details) && details.length > 0) {
+      return details.map((d: any) => `${d.taskId}${d.failureCode ? ':' + d.failureCode : ''}`).join(', ');
+    }
   }
   if (event.type === 'plan.task.preflight') {
     const m = event.metadata as any;
@@ -50,7 +71,17 @@ function detailForEvent(event: AnyPlanDiagnosticEvent): string | undefined {
     }
   }
   if (event.type === 'plan.execution.failed') {
-    return (event.metadata as any)?.reason;
+    const m = event.metadata as any;
+    const parts: string[] = [];
+    if (m?.reason) parts.push(m.reason);
+    if (m?.rootCause) {
+      const rc = m.rootCause;
+      parts.push(`Root cause: ${rc.taskId} [${rc.category}${rc.code ? '/' + rc.code : ''}]`);
+      if (rc.cause?.command) {
+        parts.push(`cmd: ${rc.cause.command.command?.slice(0, 60)}`);
+      }
+    }
+    return parts.join(' | ') || undefined;
   }
   return undefined;
 }
