@@ -40,6 +40,7 @@ export function AgentTurn({
         onOpenFile={onOpenFile}
         onAcceptFile={onAcceptFile}
         onRejectFile={onRejectFile}
+        onReviewChanges={onReviewChanges}
       />
       {children ? <div className="ak-agent-turn__response">{children}</div> : null}
       <ChangeSummary files={changes} onReview={onReviewChanges} onOpenFile={onOpenFile} />

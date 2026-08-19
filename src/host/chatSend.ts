@@ -4,7 +4,15 @@ import { configManager } from '../core/ConfigManager';
 import { sessionUsageTracker, updateUsageStatusBar } from './runtimeSingletons';
 import { toolKind, kindVerb, shortDetail, resultDetail } from './timelineLabels';
 import { parseInlineEditAgentRequest } from '../chat/inlineEdit';
-import { createSubagentHost, modeForSubagentRole, parentResultFromTask } from './subagentHost';
+import {
+  createSubagentHost,
+  createSubagentRunStats,
+  modeForSubagentRole,
+  parentResultFromTask,
+  recordSubagentFileChange,
+  recordSubagentTool,
+  snapshotSubagentResultStats
+} from './subagentHost';
 import { withInlineEditSource } from '../chat/inlineEditReview';
 
 export type HostLoopRuntime = {
@@ -246,6 +254,15 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
       'medium';
 
     const childToolStartDetails = new Map<string, string>();
+    const childStats = new Map<string, ReturnType<typeof createSubagentRunStats>>();
+    const statsFor = (taskId: string) => {
+      let stats = childStats.get(taskId);
+      if (!stats) {
+        stats = createSubagentRunStats();
+        childStats.set(taskId, stats);
+      }
+      return stats;
+    };
     const subagentHost = createSubagentHost({
       systemPrompt,
       createLoop: (context, hooks) => {
@@ -318,9 +335,10 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           event.type === 'subagent.completed' ||
           event.type === 'subagent.failed' ||
           event.type === 'subagent.cancelled';
+        const parentOut = finished ? parentResultFromTask(task) : undefined;
         const summary = finished
           ? String(
-              parentResultFromTask(task).data?.summary ||
+              parentOut?.data?.summary ||
                 task.result ||
                 task.error ||
                 ''
@@ -328,6 +346,12 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
               .replace(/\s+/g, ' ')
               .trim()
               .slice(0, 280)
+          : undefined;
+        const stats = finished
+          ? snapshotSubagentResultStats(
+              childStats.get(task.id),
+              Number(parentOut?.data?.duration) || 0
+            )
           : undefined;
         post('subagent.event', {
           type: event.type,
@@ -337,7 +361,10 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           status: task.status,
           turn,
           prompt: task.prompt.slice(0, 80),
-          summary
+          summary,
+          filesChanged: stats?.filesChanged,
+          toolCount: stats?.toolCount,
+          duration: stats?.duration
         });
         const status =
           event.type === 'subagent.completed'
@@ -377,6 +404,7 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           callId && String(callId).trim() ? String(callId) : name
         }`;
         if (detail) childToolStartDetails.set(id, detail);
+        recordSubagentTool(statsFor(context.task.id));
         postTimeline({
           kind,
           label: `${kindVerb(kind)} · ${name}`,
@@ -439,6 +467,19 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           subagentId: context.task.id,
           parentTurnId: context.task.parentTurnId
         });
+        if (
+          success &&
+          (name === 'edit_file' || name === 'write_file' || name === 'delete_file')
+        ) {
+          const data =
+            output.data && typeof output.data === 'object'
+              ? (output.data as Record<string, unknown>)
+              : {};
+          recordSubagentFileChange(
+            statsFor(context.task.id),
+            String(data.relPath || data.path || '')
+          );
+        }
         if (
           success &&
           (name === 'edit_file' || name === 'write_file') &&

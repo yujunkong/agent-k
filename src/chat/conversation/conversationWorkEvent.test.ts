@@ -161,11 +161,20 @@ describe('work event lifecycle', () => {
       role: 'research',
       status: 'completed',
       prompt: 'authentication',
-      summary: 'Authentication flow is handled in session.ts.'
+      summary: 'Authentication flow is handled in session.ts.',
+      filesChanged: 2,
+      toolCount: 14,
+      duration: 8400
     });
     expect(completed?.label).toBe('Research authentication · completed');
-    expect(completed?.detail).toBe('Authentication flow is handled in session.ts.');
-    expect(completed?.detail).not.toContain('line\n');
+    expect(completed?.detail).toBeUndefined();
+    expect(completed?.result).toEqual({
+      summary: 'Authentication flow is handled in session.ts.',
+      filesChanged: 2,
+      toolCount: 14,
+      durationMs: 8400
+    });
+    expect(completed?.result?.summary).not.toContain('line\n');
     expect(clipSubagentSummary(transcript)?.includes('line\n')).toBeFalsy();
   });
 

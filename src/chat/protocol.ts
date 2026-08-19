@@ -213,6 +213,10 @@ export interface ChatStreamEvent {
   role?: string;
   prompt?: string;
   summary?: string;
+  filesChanged?: number;
+  toolCount?: number;
+  duration?: number;
+  durationMs?: number;
 }
 
 export type ExtensionMessage =

@@ -125,6 +125,38 @@ export function parentResultFromTask(task: SubagentTask): ToolOutput {
   };
 }
 
+export type SubagentRunStats = {
+  toolCount: number;
+  files: Set<string>;
+};
+
+export function createSubagentRunStats(): SubagentRunStats {
+  return { toolCount: 0, files: new Set() };
+}
+
+export function recordSubagentTool(stats: SubagentRunStats): void {
+  stats.toolCount += 1;
+}
+
+export function recordSubagentFileChange(
+  stats: SubagentRunStats,
+  path?: string
+): void {
+  const value = String(path || '').trim();
+  if (value) stats.files.add(value);
+}
+
+export function snapshotSubagentResultStats(
+  stats: SubagentRunStats | undefined,
+  durationMs: number
+): { filesChanged: number; toolCount: number; duration: number } {
+  return {
+    filesChanged: stats?.files.size ?? 0,
+    toolCount: stats?.toolCount ?? 0,
+    duration: Math.max(0, durationMs)
+  };
+}
+
 export function createSubagentHost(options: CreateSubagentHostOptions): SubagentHost {
   const maxConcurrent = options.maxConcurrent ?? MAX_CONCURRENT;
   const execute =

@@ -8,6 +8,12 @@ import {
   resolveTerminalRunForEvent
 } from '../conversation/workEventDetails';
 import { groupWorkTimelineItems } from '../conversation/groupWorkTimelineItems';
+import {
+  formatSubagentDuration,
+  formatSubagentFilesChanged,
+  formatSubagentToolCount,
+  type SubagentResult
+} from '../conversation/subagentResult';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 import { isPendingInlineEdit } from '../inlineEditReview';
 import { FileEditPreviewView } from './FileEditPreviewView';
@@ -29,6 +35,96 @@ export interface WorkTimelineProps {
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
+  onReviewChanges?: () => void;
+}
+
+function fileEditsForSubagent(
+  fileEdits: FileEditPreview[],
+  subagentId: string,
+  children: ConversationWorkEvent[]
+): FileEditPreview[] {
+  const childIds = new Set(
+    children.filter((item) => item.type === 'edit').map((item) => item.id)
+  );
+  const prefix = `tl_sub_${subagentId}_`;
+  return fileEdits.filter((file) => {
+    const toolId = file.toolId || '';
+    return childIds.has(toolId) || toolId.startsWith(prefix);
+  });
+}
+
+function SubagentResultBlock({
+  result,
+  fileEdits,
+  onOpenFile,
+  onAcceptFile,
+  onRejectFile,
+  onReviewChanges
+}: {
+  result: SubagentResult;
+  fileEdits: FileEditPreview[];
+  onOpenFile?: (path: string) => void;
+  onAcceptFile?: (file: FileEditPreview) => void;
+  onRejectFile?: (file: FileEditPreview) => void;
+  onReviewChanges?: () => void;
+}) {
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const canReview = (result.filesChanged ?? 0) > 0 || fileEdits.length > 0;
+
+  return (
+    <div className="ak-subagent-result">
+      {result.summary ? (
+        <div className="ak-subagent-result__row">
+          <span className="ak-subagent-result__label">Summary</span>
+          <span className="ak-subagent-result__value">{result.summary}</span>
+        </div>
+      ) : null}
+      {result.filesChanged != null ? (
+        <div className="ak-subagent-result__row">
+          <span className="ak-subagent-result__value">
+            {formatSubagentFilesChanged(result.filesChanged)}
+          </span>
+        </div>
+      ) : null}
+      {result.toolCount != null ? (
+        <div className="ak-subagent-result__row">
+          <span className="ak-subagent-result__value">
+            {formatSubagentToolCount(result.toolCount)}
+          </span>
+        </div>
+      ) : null}
+      {result.durationMs != null ? (
+        <div className="ak-subagent-result__row">
+          <span className="ak-subagent-result__value">
+            {formatSubagentDuration(result.durationMs)}
+          </span>
+        </div>
+      ) : null}
+      {canReview ? (
+        <button
+          type="button"
+          className="ak-subagent-result__review"
+          onClick={() => {
+            setReviewOpen(true);
+            onReviewChanges?.();
+          }}
+        >
+          Review changes
+        </button>
+      ) : null}
+      {reviewOpen
+        ? fileEdits.map((file) => (
+            <FileEditPreviewView
+              key={file.id}
+              file={file}
+              onOpenFile={onOpenFile}
+              onAccept={onAcceptFile}
+              onReject={onRejectFile}
+            />
+          ))
+        : null}
+    </div>
+  );
 }
 
 function marker(status: ConversationWorkStatus = 'complete') {
@@ -130,7 +226,8 @@ export function WorkTimeline({
   title,
   onOpenFile,
   onAcceptFile,
-  onRejectFile
+  onRejectFile,
+  onReviewChanges
 }: WorkTimelineProps) {
   if (!items.length) return null;
   const active = items.some((item) => {
@@ -196,6 +293,20 @@ export function WorkTimeline({
                     />
                   ))}
                 </div>
+              ) : null}
+              {node.header.result ? (
+                <SubagentResultBlock
+                  result={node.header.result}
+                  fileEdits={fileEditsForSubagent(
+                    fileEdits,
+                    node.id,
+                    node.children
+                  )}
+                  onOpenFile={onOpenFile}
+                  onAcceptFile={onAcceptFile}
+                  onRejectFile={onRejectFile}
+                  onReviewChanges={onReviewChanges}
+                />
               ) : null}
             </div>
           ) : (

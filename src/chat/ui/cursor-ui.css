@@ -73,6 +73,12 @@ button.ak-work-item__row:hover .ak-work-item__label { color: var(--vscode-foregr
 .ak-work-item__detail { overflow: hidden; color: var(--ak-ui-muted); text-overflow: ellipsis; white-space: nowrap; }
 .ak-work-subagent { display: flex; flex-direction: column; gap: 0; }
 .ak-work-subagent__children { margin: 0 0 4px 8px; padding: 2px 0 2px 14px; border-left: 1px solid var(--ak-ui-border-strong); }
+.ak-subagent-result { margin: 0 0 6px 8px; padding: 2px 0 2px 14px; border-left: 1px solid var(--ak-ui-border-strong); display: flex; flex-direction: column; gap: 2px; }
+.ak-subagent-result__row { display: flex; gap: 8px; min-height: 23px; align-items: baseline; color: var(--vscode-foreground, #ccc); font-size: 12px; }
+.ak-subagent-result__label { color: var(--ak-ui-muted); flex: 0 0 auto; }
+.ak-subagent-result__value { min-width: 0; color: var(--ak-ui-muted); overflow: hidden; text-overflow: ellipsis; }
+.ak-subagent-result__review { align-self: flex-start; margin-top: 2px; border: 0; border-radius: 5px; background: transparent; color: var(--vscode-textLink-foreground, var(--vscode-foreground)); font-size: 11px; cursor: pointer; padding: 2px 0; }
+.ak-subagent-result__review:hover { text-decoration: underline; }
 .ak-worked { margin: 6px 0 10px; }
 .ak-worked__toggle { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; border: 0; color: var(--ak-ui-muted); background: transparent; font-size: 11px; cursor: pointer; }
 .ak-worked__toggle:hover { color: var(--vscode-foreground, #ccc); }

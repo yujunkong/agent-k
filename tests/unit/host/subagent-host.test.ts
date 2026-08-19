@@ -4,10 +4,14 @@
 import * as assert from 'assert';
 import {
   createSubagentHost,
+  createSubagentRunStats,
   modeForSubagentRole,
   parentResultFromTask,
   promptFromTaskArgs,
-  roleFromTaskArgs
+  recordSubagentFileChange,
+  recordSubagentTool,
+  roleFromTaskArgs,
+  snapshotSubagentResultStats
 } from '../../../src/host/subagentHost';
 import type { SubagentEvent } from '../../../src/agent/subagentRunner';
 
@@ -165,5 +169,18 @@ suite('subagentHost', () => {
     assert.ok(String(second.error).includes('concurrent'));
     host.cancelAll();
     await first;
+  });
+
+  test('snapshots filesChanged / toolCount / duration for the result UI', () => {
+    const stats = createSubagentRunStats();
+    recordSubagentTool(stats);
+    recordSubagentTool(stats);
+    recordSubagentFileChange(stats, 'src/auth.ts');
+    recordSubagentFileChange(stats, 'src/session.ts');
+    recordSubagentFileChange(stats, 'src/auth.ts');
+    const snap = snapshotSubagentResultStats(stats, 8400);
+    assert.strictEqual(snap.toolCount, 2);
+    assert.strictEqual(snap.filesChanged, 2);
+    assert.strictEqual(snap.duration, 8400);
   });
 });

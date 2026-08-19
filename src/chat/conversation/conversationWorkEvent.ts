@@ -4,6 +4,14 @@
  * Host tool lifecycle (HostToolLoop / AgentLoop timeline) maps onto this
  * explicit type — WorkTimeline must not guess from label strings.
  */
+import type { SubagentResult } from './subagentResult';
+import {
+  mergeSubagentResult,
+  parseSubagentResult
+} from './subagentResult';
+
+export type { SubagentResult } from './subagentResult';
+export { clipSubagentSummary } from './subagentResult';
 
 export type ConversationWorkType =
   | 'thinking'
@@ -30,6 +38,8 @@ export type ConversationWorkEvent = {
   /** Host subagent id — WorkTimeline groups child rows under this parent. */
   subagentId?: string;
   parentTurnId?: string;
+  /** Completion stats from subagent.event — not a child transcript. */
+  result?: SubagentResult;
 };
 
 export const WORK_TYPE_LABEL: Record<ConversationWorkType, string> = {
@@ -234,7 +244,8 @@ export function upsertWorkEvents(
     completedAt: incoming.completedAt ?? prev.completedAt,
     ref: incoming.ref ?? prev.ref,
     subagentId: incoming.subagentId ?? prev.subagentId,
-    parentTurnId: incoming.parentTurnId ?? prev.parentTurnId
+    parentTurnId: incoming.parentTurnId ?? prev.parentTurnId,
+    result: mergeSubagentResult(prev.result, incoming.result)
   };
   return events.map((event, i) => (i === idx ? merged : event));
 }
@@ -264,19 +275,11 @@ export type HostWorkPayload = {
   role?: string;
   prompt?: string;
   summary?: string;
+  filesChanged?: number;
+  toolCount?: number;
+  duration?: number;
+  durationMs?: number;
 };
-
-const MAX_SUBAGENT_SUMMARY = 280;
-
-export function clipSubagentSummary(text: string | undefined): string | undefined {
-  const clipped = String(text || '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!clipped) return undefined;
-  return clipped.length > MAX_SUBAGENT_SUMMARY
-    ? `${clipped.slice(0, MAX_SUBAGENT_SUMMARY - 1)}…`
-    : clipped;
-}
 
 export function subagentRoleTitle(role?: string): string {
   const value = String(role || '').trim().toLowerCase();
@@ -321,9 +324,7 @@ export function workEventFromSubagentHostEvent(
   if (!taskId) return null;
   const status = workStatusFromHost(String(data.status || ''));
   const prompt = String(data.prompt || '').trim();
-  const summary = clipSubagentSummary(
-    data.summary != null ? String(data.summary) : undefined
-  );
+  const terminal = status === 'complete' || status === 'error';
   return {
     id: `tl_subagent_${taskId}`,
     type: 'subagent',
@@ -333,8 +334,8 @@ export function workEventFromSubagentHostEvent(
       prompt,
       status
     ),
-    detail:
-      status === 'complete' || status === 'error' ? summary : undefined,
+    detail: undefined,
+    result: terminal ? parseSubagentResult(data) : undefined,
     subagentId: taskId,
     parentTurnId:
       data.parentTurnId != null ? String(data.parentTurnId) : undefined,
@@ -387,9 +388,10 @@ export function workEventFromHostPayload(
         data.prompt || rawDetail,
         status
       ),
-      detail:
+      detail: undefined,
+      result:
         status === 'complete' || status === 'error'
-          ? clipSubagentSummary(data.summary || data.error)
+          ? parseSubagentResult(data as Record<string, unknown>)
           : undefined,
       startedAt: status === 'complete' || status === 'error' ? undefined : now,
       completedAt: status === 'complete' || status === 'error' ? now : undefined,

@@ -13,6 +13,10 @@ export {
 export { normalizeWorkItems } from './normalizeWorkItems';
 export { groupWorkTimelineItems } from './groupWorkTimelineItems';
 export {
+  type SubagentResult,
+  parseSubagentResult
+} from './subagentResult';
+export {
   linkPreviewToWorkEvents,
   resolveFileEditForEvent,
   resolveTerminalRunForEvent
