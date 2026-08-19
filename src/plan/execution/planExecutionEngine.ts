@@ -12,7 +12,9 @@ import {
 } from './subagentTaskBridge';
 import {
   executionIssueToTaskError,
-  validateTaskExecutionLaunch
+  preflightTaskFiles,
+  validateTaskExecutionLaunch,
+  type TaskPreflightReport
 } from './validateExecutionContext';
 import type { ExecutionPlan, ExecutionPlanTask } from './types';
 
@@ -25,6 +27,7 @@ export type PlanExecutionHooks = {
   onTaskStarted?: (plan: ExecutionPlan, task: ExecutionPlanTask) => void;
   onTaskCompleted?: (plan: ExecutionPlan, task: ExecutionPlanTask) => void;
   onTaskFailed?: (plan: ExecutionPlan, task: ExecutionPlanTask, error: string) => void;
+  onTaskPreflight?: (report: TaskPreflightReport) => void;
 };
 
 export type PlanExecutionDeps = {
@@ -53,6 +56,18 @@ export async function executeNextPlanTask(
 
   let current = markTaskRunning(plan, next.id);
   deps.hooks?.onTaskStarted?.(current, next);
+
+  if (next.files.length > 0) {
+    const preflightReport = preflightTaskFiles(current, next, deps.repoRoot);
+    deps.hooks?.onTaskPreflight?.(preflightReport);
+
+    if (preflightReport.blocked) {
+      current = markTaskFailed(current, next.id);
+      const error = executionIssueToTaskError(preflightReport.issue!);
+      deps.hooks?.onTaskFailed?.(current, next, error);
+      return { plan: current, executed: true, taskId: next.id, error };
+    }
+  }
 
   const contextIssue = validateTaskExecutionLaunch(current, next, deps.repoRoot);
   if (contextIssue) {
