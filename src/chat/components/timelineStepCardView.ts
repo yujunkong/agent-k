@@ -22,29 +22,37 @@ export type TimelineStepCardView = {
 export const REASONING_PREVIEW_MAX = 96;
 
 const CARD_TITLES: Partial<Record<TimelineStepKind, string>> = {
-  reasoning: 'Thought',
-  tool: 'Work',
-  file: 'Edit',
-  terminal: 'Terminal',
+  reasoning: 'Thinking',
+  tool: 'Exploring',
+  file: 'Editing',
+  terminal: 'Running command',
   subagent: 'Agent',
-  verify: 'Verify',
-  generic: 'Work'
+  verify: 'Verifying',
+  generic: 'Working'
 };
 
-function normalizeToolTitle(raw: string, kind: TimelineStepKind): string {
-  const preset = CARD_TITLES[kind];
+const CARD_TITLES_COMPLETED: Partial<Record<TimelineStepKind, string>> = {
+  reasoning: 'Thought',
+  tool: 'Explored',
+  file: 'Edited',
+  terminal: 'Ran command',
+  subagent: 'Agent',
+  verify: 'Verified',
+  generic: 'Worked'
+};
+
+function normalizeToolTitle(raw: string, kind: TimelineStepKind, completed = false): string {
+  const titles = completed ? CARD_TITLES_COMPLETED : CARD_TITLES;
+  const preset = titles[kind];
   if (preset && kind !== 'tool' && kind !== 'generic') return preset;
   const base = String(raw || '').trim();
-  if (!base) return preset || 'Work';
+  if (!base) return preset || (completed ? 'Worked' : 'Working');
   const head = base.split(' · ')[0]?.trim();
-  if (!head) return preset || 'Work';
-  if (/^(read|search|edit|terminal|verify|thought|thinking|agent|work)$/i.test(head)) {
-    return head.charAt(0).toUpperCase() + head.slice(1).toLowerCase();
-  }
+  if (!head) return preset || (completed ? 'Worked' : 'Working');
   if (kind === 'tool' || kind === 'generic') {
-    if (/^read/i.test(head)) return 'Read';
-    if (/^search|^grep|^glob/i.test(head)) return 'Search';
-    if (/^edit|^write/i.test(head)) return 'Edit';
+    if (/^read/i.test(head)) return completed ? 'Read' : 'Reading';
+    if (/^search|^grep|^glob/i.test(head)) return completed ? 'Searched' : 'Searching';
+    if (/^edit|^write/i.test(head)) return completed ? 'Edited' : 'Editing';
   }
   return head;
 }
@@ -110,7 +118,8 @@ export function buildTimelineStepCardView(
 ): TimelineStepCardView {
   const density = resolveTimelineStepDensity(step, options.activeStepId);
   const live = density === 'active' && step.status === 'running';
-  let title = normalizeToolTitle(step.title, step.kind);
+  const completed = step.status === 'completed';
+  let title = normalizeToolTitle(step.title, step.kind, completed);
   let subtitle = step.subtitle;
   let meta: string | undefined;
   let expandable = Boolean(step.body || step.fileEdit || step.terminalRun);
@@ -136,7 +145,7 @@ export function buildTimelineStepCardView(
     }
     defaultOpen = live;
   } else if (step.kind === 'reasoning') {
-    title = live ? 'Thinking' : 'Thought';
+    title = live ? 'Thinking…' : 'Thought';
     subtitle = reasoningPreview(step.body);
     expandable = Boolean(step.body && String(step.body).replace(/\s+/g, ' ').trim().length > REASONING_PREVIEW_MAX);
     // Reasoning stays collapsed even while streaming — subtitle carries the live preview.

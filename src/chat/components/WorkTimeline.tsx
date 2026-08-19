@@ -237,8 +237,8 @@ export function WorkTimeline({
   const summary = title
     ? title
     : timelineSummary.hasActive
-      ? presentation.progressLabel || `Working · ${stepsLabel(timelineSummary.stepCount)}`
-      : `Worked · ${stepsLabel(timelineSummary.stepCount)}`;
+      ? presentation.progressLabel || `Working…`
+      : `${stepsLabel(timelineSummary.stepCount)} completed`;
 
   return (
     <details
