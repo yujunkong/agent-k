@@ -95,7 +95,10 @@ export class InlineEditController {
     };
   }
 
-  /** Build a deterministic composer seed for the inline-edit bridge. */
+  /** Build a deterministic composer seed for the inline-edit bridge.
+   * 1-4d ChatApp must NOT use this — instruction and selection stay separate.
+   * Kept for tests / fallback dumps only.
+   */
   toComposerSeed(request: InlineEditRequest): string {
     const file = request.uri.replace(/^file:\/\//, '');
     const range = `${request.startLine + 1}:${request.startCharacter + 1}-${request.endLine + 1}:${request.endCharacter + 1}`;

@@ -2,6 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatMessage, Mode, Attachment, StreamDelta } from '../types';
 import { apiHistoryForRegenerate } from '../regenerateTurn';
 import { workEventFromHostPayload } from '../conversation/conversationWorkEvent';
+import type { InlineEditAgentRequest } from '../inlineEdit';
+
+type SendMessageOpts = {
+  planStageOverride?: string;
+  runtimeKey?: string;
+  inlineEdit?: InlineEditAgentRequest;
+};
 
 /** No-token idle timeout — Ask path default */
 const IDLE_TIMEOUT_MS = 30_000;
@@ -34,7 +41,7 @@ interface UseChatStreamReturn {
     onDelta: (delta: StreamDelta) => void,
     onComplete: () => void,
     onError: (err: string) => void,
-    opts?: { planStageOverride?: string; runtimeKey?: string }
+    opts?: SendMessageOpts
   ) => Promise<void>;
   stop: () => void;
   regenerate: (
@@ -149,7 +156,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       onDelta: (delta: StreamDelta) => void,
       onComplete: () => void,
       onError: (err: string) => void,
-      opts?: { planStageOverride?: string; runtimeKey?: string }
+      opts?: SendMessageOpts
     ) => {
       const api = getVsCodeApi();
       if (!api) {
@@ -428,7 +435,8 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         })),
         baseUrl: options.baseUrl,
         apiKey: options.apiKey,
-        model: options.model
+        model: options.model,
+        ...(opts?.inlineEdit ? { inlineEdit: opts.inlineEdit } : {})
       });
     },
     [options.baseUrl, options.apiKey, options.model, idleTimeoutMs]
@@ -443,7 +451,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       onDelta: (delta: StreamDelta) => void,
       onComplete: () => void,
       onError: (err: string) => void,
-      opts?: { planStageOverride?: string; runtimeKey?: string }
+      opts?: SendMessageOpts
     ) => {
       // Agent path: host executes tools (glob/read_file). Ask stays webview completions.
       if (needsHostToolLoop(mode)) {

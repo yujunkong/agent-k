@@ -74,6 +74,11 @@
         "icon": "$(mention)"
       },
       {
+        "command": "agent-k.inlineEdit",
+        "title": "Agent K: Inline Edit",
+        "icon": "$(edit)"
+      },
+      {
         "command": "agent-k.plan.open",
         "title": "Plan Mode: Create Plan",
         "icon": "$(book)"
@@ -619,6 +624,11 @@
         }
       ],
       "editor/context": [
+        {
+          "command": "agent-k.inlineEdit",
+          "when": "editorHasSelection",
+          "group": "agent-k@0"
+        },
         {
           "command": "agent-k.chat.attachSelection",
           "when": "editorHasSelection",

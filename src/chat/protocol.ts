@@ -224,6 +224,7 @@ export type ExtensionMessage =
   | { type: 'session.new'; payload?: Record<string, never> }
   | { type: 'mode.switch'; payload?: Record<string, never> }
   | { type: 'focus.input'; payload?: Record<string, never> }
+  | { type: 'inline.edit.request'; payload?: Record<string, unknown> }
   | { type: 'host.sessions.hydrate'; payload: HostSessionsHydratePayload }
   | { type: 'checkpoint.listResult'; payload: CheckpointListResultPayload };
 

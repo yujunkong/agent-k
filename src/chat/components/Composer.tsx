@@ -1,5 +1,11 @@
 import React, { useState, useRef, useEffect, KeyboardEvent, useCallback } from 'react';
 import type { Attachment, ModePicker } from '../types';
+import {
+  inlineEditFileLabel,
+  inlineEditLineCount,
+  inlineEditRangeLabel,
+  type InlineEditContext
+} from '../inlineEdit';
 import { ModeSelector } from './ModeSelector';
 import { ModelSelector } from './ModelSelector';
 import { IconQueue } from './Icons';
@@ -65,6 +71,9 @@ interface ComposerProps {
   /** Prefill composer (e.g. Stop on user bubble → same text for resend) */
   seedText?: string | null;
   seedNonce?: number;
+  /** Inline Edit selection chip — instruction stays in the textarea */
+  inlineEdit?: InlineEditContext | null;
+  onClearInlineEdit?: () => void;
   /** Slash command actions (/new, /agent, /compact, /cost, /model, /permissions, /help, …) */
   onSlashCommand?: (cmd: SlashCommand) => void;
 }
@@ -167,6 +176,8 @@ export function Composer({
   contextUsageLabel,
   seedText = null,
   seedNonce = 0,
+  inlineEdit = null,
+  onClearInlineEdit,
   onSlashCommand
 }: ComposerProps) {
   const [text, setText] = useState('');
@@ -709,6 +720,9 @@ export function Composer({
     if (attachments.length) {
       return 'Add a message, or send attachments only… (paste logs · click a chip for line range)';
     }
+    if (inlineEdit) {
+      return 'Describe the change…';
+    }
     return 'Type a message · @ files · / commands…';
   };
 
@@ -741,6 +755,31 @@ export function Composer({
           />
         ) : null}
         <div className="composer-box">
+          {inlineEdit ? (
+            <div className="composer-inline-edit" role="status" aria-label="Inline Edit context">
+              <div className="composer-inline-edit-head">
+                <span className="composer-inline-edit-title">Inline Edit</span>
+                {onClearInlineEdit ? (
+                  <button
+                    type="button"
+                    className="composer-inline-edit-remove"
+                    onClick={onClearInlineEdit}
+                    title="Remove inline edit context"
+                    aria-label="Remove inline edit context"
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </div>
+              <div className="composer-inline-edit-meta">
+                {inlineEditFileLabel(inlineEdit.uri)} · {inlineEditRangeLabel(inlineEdit)}
+              </div>
+              <div className="composer-inline-edit-detail">
+                {inlineEditLineCount(inlineEdit)}{' '}
+                {inlineEditLineCount(inlineEdit) === 1 ? 'line' : 'lines'} selected
+              </div>
+            </div>
+          ) : null}
           {attachments.length > 0 ? (
             <div className="composer-chips" aria-label="Attached context">
               {attachments.map((a) => {

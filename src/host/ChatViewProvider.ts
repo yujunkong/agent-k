@@ -42,6 +42,7 @@ import {
 } from './composerHost';
 import { runPlanV2Generate as executePlanV2Generate } from './planGenerate';
 import { runHostChatSend as executeHostChatSend, type HostLoopRuntime } from './chatSend';
+import type { InlineEditChatPayload } from '../inline/InlineEditController';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'agent-k.chat';
@@ -688,6 +689,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   public focusInput() {
     this._view?.webview.postMessage({ type: 'focus.input' });
+  }
+
+  /** Host → webview Inline Edit (1-4d). Does not dump selection into composer text. */
+  public async requestInlineEdit(payload: InlineEditChatPayload): Promise<void> {
+    await this.revealChat();
+    if (!this._view?.webview) {
+      void vscode.window.showWarningMessage(
+        'Agent K: open the chat panel before using Inline Edit.'
+      );
+      return;
+    }
+    this._view.webview.postMessage(payload);
   }
 
   /**

@@ -19,6 +19,12 @@ import { useChatSessions, sessionStore } from './hooks/useChatSessions';
 import { useHostMessages } from './hooks/useHostMessages';
 import { getVsCodeApi } from './host/vscodeApi';
 import {
+  formatInlineEditForPayload,
+  parseInlineEditHostMessage,
+  toInlineEditAgentRequest,
+  type InlineEditContext
+} from './inlineEdit';
+import {
   MODE_LABELS,
   MODE_TOOLTIPS,
   PLAN_STICKY_PHASES,
@@ -163,6 +169,12 @@ export function ChatApp() {
     text: string;
     nonce: number;
   } | null>(null);
+  /** Inline Edit selection context — never mixed into composerSeed text */
+  const [inlineEditSeed, setInlineEditSeed] = useState<InlineEditContext | null>(
+    null
+  );
+  const inlineEditSeedRef = useRef<InlineEditContext | null>(null);
+  inlineEditSeedRef.current = inlineEditSeed;
 
   // Debug mode controller (RW-C6-01)
   const [debugController] = useState(() => new DebugModeController());
@@ -1107,6 +1119,14 @@ export function ChatApp() {
         slug: slugRaw,
         title: String(data.title || '')
       });
+    },
+    'inline.edit.request': (data) => {
+      const parsed = parseInlineEditHostMessage(data);
+      if (!parsed) return;
+      setInlineEditSeed(parsed.context);
+      if (parsed.instruction) {
+        setComposerSeed({ text: parsed.instruction, nonce: Date.now() });
+      }
     }
   });
 
@@ -1295,7 +1315,14 @@ export function ChatApp() {
     // Prefetch / context: @file/@folder + inline log/snippet / line ranges
     const displayText = text;
     const mentionBlock = formatAttachmentsForPayload(files);
+    const inlineCtx = inlineEditSeedRef.current;
+    const inlineBlock = inlineCtx ? formatInlineEditForPayload(inlineCtx) : '';
     let payload = opts?.apiUserContent ?? text;
+    if (inlineBlock) {
+      payload = payload.trim()
+        ? `${inlineBlock}\n\n${payload}`
+        : inlineBlock;
+    }
     if (mentionBlock) {
       // API/harness: Cursor-like context from chips (UI bubble keeps plain text + chips)
       payload = payload.trim()
@@ -1312,7 +1339,7 @@ export function ChatApp() {
     // HARB: Prefetch + ContextAssembler → user payload 주입 (API only)
     try {
       const t0 = Date.now();
-      const prefetchSource = [mentionBlock, displayText].filter(Boolean).join('\n');
+      const prefetchSource = [inlineBlock, mentionBlock, displayText].filter(Boolean).join('\n');
       const harnessCtx = await buildHarnessTurnContext(
         prefetchSource || displayText,
         effectiveMode,
@@ -1396,9 +1423,13 @@ export function ChatApp() {
         ...(opts?.planStageOverride
           ? { planStageOverride: opts.planStageOverride }
           : {}),
-        runtimeKey: sessionIdRef.current
+        runtimeKey: sessionIdRef.current,
+        ...(inlineCtx
+          ? { inlineEdit: toInlineEditAgentRequest(displayText, inlineCtx) }
+          : {})
       }
     );
+    if (inlineCtx) setInlineEditSeed(null);
   }, [mode, modeAuto, sendMessage, planStage, planController, planV2Adapter, cleanupStreamingAssistants, promotePlanToReview, scrollMessagesToBottom, makeAssistantStream]);
 
   handleSendRef.current = handleSend;
@@ -2802,6 +2833,8 @@ export function ChatApp() {
           onStop={handleStop}
           seedText={composerSeed?.text ?? null}
           seedNonce={composerSeed?.nonce ?? 0}
+          inlineEdit={inlineEditSeed}
+          onClearInlineEdit={() => setInlineEditSeed(null)}
           onSlashCommand={runSlashCommand}
           onRegenerate={handleRegenerate}
           onQueueMessage={handleQueueMessage}

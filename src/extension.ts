@@ -138,14 +138,9 @@ export function activate(context: vscode.ExtensionContext) {
     const inlineEdit = new InlineEditController();
     context.subscriptions.push(inlineEdit.register(context));
     inlineEdit.setHandler(async (request) => {
-      const selection = inlineEdit.toChatPayload(request);
-      const webview = (provider as unknown as { _view?: vscode.WebviewView })._view?.webview;
-      if (!webview) {
-        void vscode.window.showWarningMessage('Agent K: open the chat panel before using Inline Edit.');
-        return;
-      }
-      void webview.postMessage(selection);
-      outputChannel.appendLine(`[Agent K] Inline Edit request: ${selection.requestId}`);
+      const payload = inlineEdit.toChatPayload(request);
+      await provider.requestInlineEdit(payload);
+      outputChannel.appendLine(`[Agent K] Inline Edit request: ${payload.requestId}`);
     });
     context.subscriptions.push({ dispose: () => inlineEdit.dispose() });
 
