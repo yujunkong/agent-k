@@ -1,0 +1,78 @@
+import React, { useEffect, useState } from 'react';
+import type { TimelineStep, TimelineStepStatus } from '../conversation/timelinePresentation';
+import {
+  buildTimelineStepCardView,
+  timelineStepMarker
+} from './timelineStepCard';
+
+export interface TimelineStepCardProps {
+  step: TimelineStep;
+  defaultOpen?: boolean;
+  forceOpen?: boolean;
+  children?: React.ReactNode;
+}
+
+function statusClass(status: TimelineStepStatus): string {
+  if (status === 'failed') return 'error';
+  if (status === 'completed') return 'complete';
+  return 'running';
+}
+
+/** Shared Cursor-style card shell for timeline tool / reasoning / subagent rows. */
+export function TimelineStepCard({
+  step,
+  defaultOpen: defaultOpenProp,
+  forceOpen,
+  children
+}: TimelineStepCardProps) {
+  const view = buildTimelineStepCardView(step);
+  const live = step.status === 'running';
+  const [open, setOpen] = useState(forceOpen ?? defaultOpenProp ?? view.defaultOpen);
+
+  useEffect(() => {
+    if (forceOpen != null) {
+      setOpen(forceOpen);
+      return;
+    }
+    if (view.defaultOpen) setOpen(true);
+  }, [forceOpen, view.defaultOpen, step.id]);
+
+  const expanded = open && Boolean(children);
+  const HeaderTag = view.expandable ? 'button' : 'div';
+
+  return (
+    <article
+      className={`ak-timeline-card ak-timeline-card--${statusClass(step.status)} ak-timeline-card--${view.kind}${
+        view.expandable ? ' ak-timeline-card--expandable' : ''
+      }${expanded ? ' ak-timeline-card--open' : ''}${live ? ' ak-timeline-card--live' : ''}`}
+      data-step-id={step.id}
+      data-step-active={live ? 'true' : undefined}
+    >
+      <HeaderTag
+        type={view.expandable ? 'button' : undefined}
+        className="ak-timeline-card__header"
+        aria-expanded={view.expandable ? expanded : undefined}
+        onClick={view.expandable ? () => setOpen((value) => !value) : undefined}
+      >
+        <span className="ak-timeline-card__marker" aria-hidden>
+          {timelineStepMarker(step.status, live)}
+        </span>
+        <span className="ak-timeline-card__text">
+          <span className="ak-timeline-card__title">{view.title}</span>
+          {view.subtitle ? (
+            <span className="ak-timeline-card__subtitle">{view.subtitle}</span>
+          ) : null}
+          {!expanded && view.meta ? (
+            <span className="ak-timeline-card__meta">{view.meta}</span>
+          ) : null}
+        </span>
+        {view.expandable ? (
+          <span className="ak-timeline-card__chev" aria-hidden>
+            {expanded ? '▾' : '▸'}
+          </span>
+        ) : null}
+      </HeaderTag>
+      {expanded ? <div className="ak-timeline-card__body">{children}</div> : null}
+    </article>
+  );
+}

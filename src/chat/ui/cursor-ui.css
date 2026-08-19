@@ -56,7 +56,25 @@
 .ak-work-timeline__marker[data-active='true'] { color: var(--vscode-textLink-foreground, var(--vscode-foreground)); }
 .ak-work-item--pending { color: var(--ak-ui-muted); }
 .ak-work-item--pending .ak-work-item__label { opacity: .8; }
-.ak-work-timeline__items { margin: 3px 0 3px 6px; padding: 2px 0 2px 14px; border-left: 1px solid var(--ak-ui-border-strong); }
+.ak-work-timeline__items { margin: 3px 0 3px 6px; padding: 2px 0 2px 14px; border-left: 1px solid var(--ak-ui-border-strong); display: flex; flex-direction: column; gap: var(--ak-ui-space-2); }
+.ak-timeline-card { border: 1px solid var(--ak-ui-border-strong); border-radius: var(--ak-ui-radius-sm); background: var(--ak-ui-surface); color: var(--vscode-foreground, #ccc); font-size: 12px; overflow: hidden; }
+.ak-timeline-card__header { display: flex; align-items: flex-start; gap: var(--ak-ui-space-2); width: 100%; padding: 7px 9px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+button.ak-timeline-card__header { cursor: pointer; }
+button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vscode-list-hoverBackground, #fff) 35%, transparent); }
+.ak-timeline-card__marker { flex: 0 0 12px; width: 12px; margin-top: 1px; text-align: center; color: var(--ak-ui-muted); font-size: 10px; }
+.ak-timeline-card--running .ak-timeline-card__marker { color: var(--vscode-textLink-foreground, var(--vscode-foreground)); }
+.ak-timeline-card--error .ak-timeline-card__marker { color: var(--vscode-errorForeground, #f48771); }
+.ak-timeline-card__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.ak-timeline-card__title { font-size: 12px; line-height: 1.35; color: var(--vscode-foreground, #ccc); }
+.ak-timeline-card__subtitle { font-size: 11px; line-height: 1.35; color: var(--ak-ui-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ak-timeline-card__meta { font-size: 11px; line-height: 1.35; color: var(--ak-ui-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ak-timeline-card__chev { flex: 0 0 auto; margin-left: auto; opacity: .45; font-size: 10px; line-height: 1.8; }
+.ak-timeline-card__body { border-top: 1px solid var(--ak-ui-border); padding: 6px 9px 8px; }
+.ak-timeline-card__text-body { color: var(--ak-ui-muted); white-space: pre-wrap; word-break: break-word; font-size: 11px; line-height: 1.45; max-height: 220px; overflow: auto; }
+.ak-timeline-card__body .ak-terminal-card--embedded { margin: 0; border: 0; border-radius: 0; background: transparent; }
+.ak-timeline-card__body .ak-terminal-card__output { max-height: 180px; }
+.ak-timeline-card__body .ak-file-edit-card--embedded,
+.ak-timeline-card__body .ak-inline-edit-diff--embedded { margin: 0; border: 0; background: transparent; }
 .ak-work-item { display: flex; flex-direction: column; gap: 2px; min-height: 23px; padding: 2px 0; color: var(--vscode-foreground, #ccc); font-size: 12px; }
 .ak-work-item__row { display: flex; align-items: baseline; gap: 8px; width: 100%; min-height: 23px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; }
 button.ak-work-item__row { cursor: pointer; }
@@ -72,7 +90,7 @@ button.ak-work-item__row:hover .ak-work-item__label { color: var(--vscode-foregr
 .ak-work-item--error .ak-work-item__marker { color: var(--vscode-errorForeground, #f48771); }
 .ak-work-item__detail { overflow: hidden; color: var(--ak-ui-muted); text-overflow: ellipsis; white-space: nowrap; }
 .ak-work-subagent { display: flex; flex-direction: column; gap: 0; }
-.ak-work-subagent__children { margin: 0 0 4px 8px; padding: 2px 0 2px 14px; border-left: 1px solid var(--ak-ui-border-strong); }
+.ak-work-subagent__children { margin: 0; padding: 0 0 0 10px; border-left: 1px solid var(--ak-ui-border-strong); display: flex; flex-direction: column; gap: var(--ak-ui-space-2); }
 .ak-subagent-result { margin: 0 0 6px 8px; padding: 2px 0 2px 14px; border-left: 1px solid var(--ak-ui-border-strong); display: flex; flex-direction: column; gap: 2px; }
 .ak-subagent-result__row { display: flex; gap: 8px; min-height: 23px; align-items: baseline; color: var(--vscode-foreground, #ccc); font-size: 12px; }
 .ak-subagent-result__label { color: var(--ak-ui-muted); flex: 0 0 auto; }

@@ -18,6 +18,7 @@ import {
   type SubagentWorktreeReviewPreview
 } from '../conversation/subagentResult';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
+import { TimelineStepCard } from './TimelineStepCard';
 import { isPendingInlineEdit } from '../inlineEditReview';
 import { FileEditPreviewView } from './FileEditPreviewView';
 import { TerminalRunCard } from './TerminalRunCard';
@@ -542,12 +543,6 @@ function SubagentResultBlock({
   );
 }
 
-function marker(status: TimelineStepStatus = 'completed') {
-  if (status === 'running') return '●';
-  if (status === 'failed') return '×';
-  return '✓';
-}
-
 function stepsLabel(count: number): string {
   return count === 1 ? '1 step' : `${count} steps`;
 }
@@ -569,71 +564,27 @@ function WorkTimelineStepRow({
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
 }) {
-  const fileEdit = step.fileEdit;
-  const terminalRun = step.terminalRun;
-  const hasRichDetail = Boolean(fileEdit || terminalRun);
-  const hasTextDetail = Boolean(step.body);
-  const expandable = hasRichDetail || hasTextDetail;
-  const live = step.status === 'running' && (hasRichDetail || step.kind === 'reasoning');
-  const pendingInline = Boolean(fileEdit && isPendingInlineEdit(fileEdit));
-  const [open, setOpen] = useState(live || pendingInline);
-
-  useEffect(() => {
-    if (live || pendingInline) setOpen(true);
-  }, [live, pendingInline]);
+  const pendingInline = Boolean(step.fileEdit && isPendingInlineEdit(step.fileEdit));
+  const panel =
+    step.fileEdit ? (
+      <FileEditPreviewView
+        file={step.fileEdit}
+        embedded
+        expanded
+        onOpenFile={onOpenFile}
+        onAccept={onAcceptFile}
+        onReject={onRejectFile}
+      />
+    ) : step.terminalRun ? (
+      <TerminalRunCard {...step.terminalRun} embedded open />
+    ) : step.body ? (
+      <div className="ak-timeline-card__text-body">{step.body}</div>
+    ) : null;
 
   return (
-    <div
-      className={`ak-work-item ak-work-item--${stepStatusClass(step.status)}${
-        expandable ? ' ak-work-item--expandable' : ''
-      }${open ? ' ak-work-item--open' : ''}`}
-      data-work-type={step.kind}
-      data-step-active={step.status === 'running' ? 'true' : undefined}
-    >
-      {expandable ? (
-        <button
-          type="button"
-          className="ak-work-item__row"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-        >
-          <span className="ak-work-item__marker">{marker(step.status)}</span>
-          <span className="ak-work-item__label">{step.title}</span>
-          {step.subtitle ? (
-            <span className="ak-work-item__detail">{step.subtitle}</span>
-          ) : null}
-          <span className="ak-work-item__chev" aria-hidden>
-            {open ? '▾' : '▸'}
-          </span>
-        </button>
-      ) : (
-        <div className="ak-work-item__row">
-          <span className="ak-work-item__marker">{marker(step.status)}</span>
-          <span className="ak-work-item__label">{step.title}</span>
-          {step.subtitle ? (
-            <span className="ak-work-item__detail">{step.subtitle}</span>
-          ) : null}
-        </div>
-      )}
-      {open && expandable ? (
-        <div className="ak-work-item__panel">
-          {fileEdit ? (
-            <FileEditPreviewView
-              file={fileEdit}
-              onOpenFile={onOpenFile}
-              onAccept={onAcceptFile}
-              onReject={onRejectFile}
-            />
-          ) : null}
-          {terminalRun ? (
-            <TerminalRunCard {...terminalRun} embedded open />
-          ) : null}
-          {!fileEdit && !terminalRun && step.body ? (
-            <div className="ak-work-item__panel-text">{step.body}</div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+    <TimelineStepCard step={step} forceOpen={pendingInline || undefined}>
+      {panel}
+    </TimelineStepCard>
   );
 }
 
