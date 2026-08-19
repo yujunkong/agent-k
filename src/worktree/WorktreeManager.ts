@@ -196,4 +196,44 @@ export class WorktreeManager {
       /* ignore */
     }
   }
+
+  /**
+   * Reconcile agent-managed worktrees on startup.
+   * Removes stale worktrees whose directories no longer exist on disk,
+   * while preserving worktrees registered for user review.
+   */
+  reconcile(preserveIds?: Set<string>): { pruned: string[]; kept: string[] } {
+    this.prune();
+    const base = path.join(this.repoRoot, WORKTREE_BASE);
+    const pruned: string[] = [];
+    const kept: string[] = [];
+
+    if (!fs.existsSync(base)) return { pruned, kept };
+
+    let dirs: string[];
+    try {
+      dirs = fs.readdirSync(base);
+    } catch {
+      return { pruned, kept };
+    }
+
+    for (const dir of dirs) {
+      const fullPath = path.join(base, dir);
+      if (preserveIds?.has(dir)) {
+        kept.push(fullPath);
+        continue;
+      }
+      try {
+        execSync(`git worktree remove ${fullPath} --force 2>/dev/null`, {
+          cwd: this.repoRoot, stdio: 'pipe'
+        });
+      } catch { /* ignore */ }
+      if (fs.existsSync(fullPath)) {
+        try { fs.rmSync(fullPath, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
+      pruned.push(fullPath);
+    }
+
+    return { pruned, kept };
+  }
 }
