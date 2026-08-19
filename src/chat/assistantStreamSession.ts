@@ -431,23 +431,35 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       const id = `tl_thinking_${ctx.turnNumberRef.current || 1}`;
       const now = Date.now();
       if (!ctx.stepStartRef.current[id]) ctx.stepStartRef.current[id] = now;
-      const thinkingEvent = beginWorkEvent({
-        id,
-        timelineKind: 'thinking',
-        now: ctx.stepStartRef.current[id]
-      });
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
-        const msg = withWorkEvent(hit.msg, thinkingEvent ?? undefined);
-        const steps = [...(msg.steps || [])];
+        const msg = hit.msg;
+        const prevEvent = (msg.workItems || []).find((event) => event.id === id);
+        const prevDetail = prevEvent?.detail || '';
+        const thinkingEvent: ConversationWorkEvent = {
+          ...(prevEvent ||
+            beginWorkEvent({
+              id,
+              timelineKind: 'thinking',
+              now: ctx.stepStartRef.current[id]
+            })!),
+          id,
+          type: 'thinking',
+          status: 'running',
+          label: 'Thought',
+          detail: prevDetail + delta.reasoning,
+          startedAt: prevEvent?.startedAt ?? ctx.stepStartRef.current[id]
+        };
+        const msgWithWork = withWorkEvent(msg, thinkingEvent);
+        const steps = [...(msgWithWork.steps || [])];
         const idx = steps.findIndex((s) => s.id === id);
-        const prevDetail = idx >= 0 ? steps[idx].detail || '' : '';
+        const prevStepDetail = idx >= 0 ? steps[idx].detail || '' : '';
         const nextStep = {
           id,
           kind: 'thinking',
           label: 'Thought',
-          detail: prevDetail + delta.reasoning,
+          detail: prevStepDetail + delta.reasoning,
           turn: ctx.turnNumberRef.current || 1,
           thoughtRole: 'opening' as const,
           itemStatus: 'running' as const
@@ -455,7 +467,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
         else steps.push(nextStep);
         const copy = [...prev];
-        copy[hit.lastIdx] = { ...msg, steps };
+        copy[hit.lastIdx] = { ...msgWithWork, steps };
         return copy;
       });
       return;

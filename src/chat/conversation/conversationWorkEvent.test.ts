@@ -97,12 +97,12 @@ describe('work event lifecycle', () => {
     expect(events[1].status).toBe('running');
   });
 
-  it('creates a compact Thinking row from host timeline without dumping thought text', () => {
+  it('keeps reasoning text on Thinking rows from host timeline', () => {
     const event = workEventFromHostPayload(
       {
         id: 'tl_thinking_1',
         kind: 'thinking',
-        detail: 'a very long reasoning dump',
+        detail: 'Authentication uses JWT middleware',
         status: 'running'
       },
       'running'
@@ -112,16 +112,16 @@ describe('work event lifecycle', () => {
       type: 'thinking',
       status: 'running',
       label: 'Thinking',
-      detail: undefined
+      detail: 'Authentication uses JWT middleware'
     });
   });
 
-  it('keeps child thinking compact and stamps subagentId for grouping', () => {
+  it('keeps child thinking detail and stamps subagentId for grouping', () => {
     const event = workEventFromHostPayload(
       {
         id: 'tl_sub_a_thought',
         kind: 'thinking',
-        detail: 'child reasoning dump that must not leak',
+        detail: 'Inspecting auth dependencies',
         subagentId: 'a',
         parentTurnId: '1',
         status: 'running'
@@ -130,7 +130,7 @@ describe('work event lifecycle', () => {
     );
     expect(event).toMatchObject({
       type: 'thinking',
-      detail: undefined,
+      detail: 'Inspecting auth dependencies',
       subagentId: 'a',
       parentTurnId: '1'
     });
@@ -270,7 +270,7 @@ describe('legacy step lift', () => {
         type: 'thinking',
         status: 'complete',
         label: 'Thinking',
-        detail: undefined
+        detail: 'long thought dump'
       },
       {
         id: 's',

@@ -423,8 +423,7 @@ export function workEventFromHostPayload(
     type,
     status,
     label: WORK_TYPE_LABEL[type],
-    // Thinking stays a compact row — reasoning text lives on message.steps.
-    detail: type === 'thinking' ? undefined : rawDetail,
+    detail: rawDetail,
     startedAt: status === 'complete' || status === 'error' ? undefined : now,
     completedAt: status === 'complete' || status === 'error' ? now : undefined,
     subagentId,
@@ -466,7 +465,7 @@ export function workEventsFromLegacySteps(
       type,
       status,
       label: WORK_TYPE_LABEL[type],
-      detail: type === 'thinking' ? undefined : step.detail
+      detail: step.detail
     });
   }
   return out;

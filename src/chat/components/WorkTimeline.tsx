@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import type {
-  ConversationWorkEvent,
-  ConversationWorkStatus
-} from '../conversation/conversationWorkEvent';
 import {
-  resolveFileEditForEvent,
-  resolveTerminalRunForEvent
-} from '../conversation/workEventDetails';
-import { groupWorkTimelineItems } from '../conversation/groupWorkTimelineItems';
+  buildTimelinePresentation,
+  type TimelineNode,
+  type TimelineStep,
+  type TimelineStepStatus
+} from '../conversation/timelinePresentation';
 import {
   canApplySubagentWorktree,
   canRejectSubagentWorktree,
@@ -25,12 +22,13 @@ import { isPendingInlineEdit } from '../inlineEditReview';
 import { FileEditPreviewView } from './FileEditPreviewView';
 import { TerminalRunCard } from './TerminalRunCard';
 
-export type { ConversationWorkEvent };
+export type { ConversationWorkEvent } from '../conversation/conversationWorkEvent';
+import type { ConversationWorkEvent } from '../conversation/conversationWorkEvent';
 
-/** @deprecated Use ConversationWorkEvent — WorkTimeline renders the event model directly. */
+/** @deprecated Use ConversationWorkEvent — stored on message.workItems before presentation mapping. */
 export type WorkItem = ConversationWorkEvent;
 export type WorkItemKind = ConversationWorkEvent['type'];
-export type WorkItemStatus = ConversationWorkStatus;
+export type WorkItemStatus = ConversationWorkEvent['status'];
 
 export interface WorkTimelineProps {
   items: ConversationWorkEvent[];
@@ -44,21 +42,6 @@ export interface WorkTimelineProps {
   onWorktreeReview?: (subagentId: string) => void;
   onWorktreeApply?: (subagentId: string) => void;
   onWorktreeReject?: (subagentId: string) => void;
-}
-
-function fileEditsForSubagent(
-  fileEdits: FileEditPreview[],
-  subagentId: string,
-  children: ConversationWorkEvent[]
-): FileEditPreview[] {
-  const childIds = new Set(
-    children.filter((item) => item.type === 'edit').map((item) => item.id)
-  );
-  const prefix = `tl_sub_${subagentId}_`;
-  return fileEdits.filter((file) => {
-    const toolId = file.toolId || '';
-    return childIds.has(toolId) || toolId.startsWith(prefix);
-  });
 }
 
 function worktreeStatusLabel(result: SubagentResult): string | undefined {
@@ -559,10 +542,9 @@ function SubagentResultBlock({
   );
 }
 
-function marker(status: ConversationWorkStatus = 'complete') {
+function marker(status: TimelineStepStatus = 'completed') {
   if (status === 'running') return '●';
-  if (status === 'error') return '×';
-  if (status === 'pending') return '○';
+  if (status === 'failed') return '×';
   return '✓';
 }
 
@@ -570,28 +552,29 @@ function stepsLabel(count: number): string {
   return count === 1 ? '1 step' : `${count} steps`;
 }
 
-function WorkTimelineRow({
-  item,
-  fileEdits,
-  terminalRuns,
+function stepStatusClass(status: TimelineStepStatus): string {
+  if (status === 'failed') return 'error';
+  if (status === 'completed') return 'complete';
+  return 'running';
+}
+
+function WorkTimelineStepRow({
+  step,
   onOpenFile,
   onAcceptFile,
   onRejectFile
 }: {
-  item: ConversationWorkEvent;
-  fileEdits: FileEditPreview[];
-  terminalRuns: TerminalRunPreview[];
+  step: TimelineStep;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
 }) {
-  const status = item.status ?? 'complete';
-  const fileEdit = resolveFileEditForEvent(item, fileEdits);
-  const terminalRun = resolveTerminalRunForEvent(item, terminalRuns);
+  const fileEdit = step.fileEdit;
+  const terminalRun = step.terminalRun;
   const hasRichDetail = Boolean(fileEdit || terminalRun);
-  const hasTextDetail = Boolean(item.detail) && item.type !== 'thinking';
+  const hasTextDetail = Boolean(step.body);
   const expandable = hasRichDetail || hasTextDetail;
-  const live = status === 'running' && hasRichDetail;
+  const live = step.status === 'running' && (hasRichDetail || step.kind === 'reasoning');
   const pendingInline = Boolean(fileEdit && isPendingInlineEdit(fileEdit));
   const [open, setOpen] = useState(live || pendingInline);
 
@@ -601,10 +584,11 @@ function WorkTimelineRow({
 
   return (
     <div
-      className={`ak-work-item ak-work-item--${status}${
+      className={`ak-work-item ak-work-item--${stepStatusClass(step.status)}${
         expandable ? ' ak-work-item--expandable' : ''
       }${open ? ' ak-work-item--open' : ''}`}
-      data-work-type={item.type}
+      data-work-type={step.kind}
+      data-step-active={step.status === 'running' ? 'true' : undefined}
     >
       {expandable ? (
         <button
@@ -613,18 +597,22 @@ function WorkTimelineRow({
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
         >
-          <span className="ak-work-item__marker">{marker(status)}</span>
-          <span className="ak-work-item__label">{item.label}</span>
-          {item.detail ? <span className="ak-work-item__detail">{item.detail}</span> : null}
+          <span className="ak-work-item__marker">{marker(step.status)}</span>
+          <span className="ak-work-item__label">{step.title}</span>
+          {step.subtitle ? (
+            <span className="ak-work-item__detail">{step.subtitle}</span>
+          ) : null}
           <span className="ak-work-item__chev" aria-hidden>
             {open ? '▾' : '▸'}
           </span>
         </button>
       ) : (
         <div className="ak-work-item__row">
-          <span className="ak-work-item__marker">{marker(status)}</span>
-          <span className="ak-work-item__label">{item.label}</span>
-          {item.detail ? <span className="ak-work-item__detail">{item.detail}</span> : null}
+          <span className="ak-work-item__marker">{marker(step.status)}</span>
+          <span className="ak-work-item__label">{step.title}</span>
+          {step.subtitle ? (
+            <span className="ak-work-item__detail">{step.subtitle}</span>
+          ) : null}
         </div>
       )}
       {open && expandable ? (
@@ -640,8 +628,8 @@ function WorkTimelineRow({
           {terminalRun ? (
             <TerminalRunCard {...terminalRun} embedded open />
           ) : null}
-          {!fileEdit && !terminalRun && item.detail ? (
-            <div className="ak-work-item__panel-text">{item.detail}</div>
+          {!fileEdit && !terminalRun && step.body ? (
+            <div className="ak-work-item__panel-text">{step.body}</div>
           ) : null}
         </div>
       ) : null}
@@ -649,7 +637,86 @@ function WorkTimelineRow({
   );
 }
 
-/** Compact Cursor-style activity timeline. Renders ConversationWorkEvent rows as-is. */
+function fileEditsForSubagentSteps(
+  fileEdits: FileEditPreview[],
+  subagentId: string,
+  children: TimelineStep[]
+): FileEditPreview[] {
+  const childIds = new Set(
+    children.filter((item) => item.kind === 'file').map((item) => item.id)
+  );
+  const prefix = `tl_sub_${subagentId}_`;
+  return fileEdits.filter((file) => {
+    const toolId = file.toolId || '';
+    return childIds.has(toolId) || toolId.startsWith(prefix);
+  });
+}
+
+function renderTimelineNode(
+  node: TimelineNode,
+  fileEdits: FileEditPreview[],
+  onOpenFile?: (path: string) => void,
+  onAcceptFile?: (file: FileEditPreview) => void,
+  onRejectFile?: (file: FileEditPreview) => void,
+  onWorktreeReview?: (subagentId: string) => void,
+  onWorktreeApply?: (subagentId: string) => void,
+  onWorktreeReject?: (subagentId: string) => void
+): React.ReactNode {
+  if (node.kind === 'group') {
+    const subagentId = node.step.subagentId || node.step.id.replace(/^tl_subagent_/, '');
+    return (
+      <div
+        key={node.step.id}
+        className={`ak-work-subagent ak-work-subagent--${stepStatusClass(node.step.status)}`}
+        data-subagent-id={subagentId}
+      >
+        <WorkTimelineStepRow
+          step={node.step}
+          onOpenFile={onOpenFile}
+          onAcceptFile={onAcceptFile}
+          onRejectFile={onRejectFile}
+        />
+        {node.children.length > 0 ? (
+          <div className="ak-work-subagent__children">
+            {node.children.map((child) => (
+              <WorkTimelineStepRow
+                key={child.id}
+                step={child}
+                onOpenFile={onOpenFile}
+                onAcceptFile={onAcceptFile}
+                onRejectFile={onRejectFile}
+              />
+            ))}
+          </div>
+        ) : null}
+        {node.step.result ? (
+          <SubagentResultBlock
+            result={node.step.result}
+            fileEdits={fileEditsForSubagentSteps(fileEdits, subagentId, node.children)}
+            onOpenFile={onOpenFile}
+            onAcceptFile={onAcceptFile}
+            onRejectFile={onRejectFile}
+            onWorktreeReview={onWorktreeReview}
+            onWorktreeApply={onWorktreeApply}
+            onWorktreeReject={onWorktreeReject}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <WorkTimelineStepRow
+      key={node.step.id}
+      step={node.step}
+      onOpenFile={onOpenFile}
+      onAcceptFile={onAcceptFile}
+      onRejectFile={onRejectFile}
+    />
+  );
+}
+
+/** Compact Cursor-style activity timeline — event store → presentation model → UI. */
 export function WorkTimeline({
   items,
   fileEdits = [],
@@ -664,97 +731,52 @@ export function WorkTimeline({
   onWorktreeReject
 }: WorkTimelineProps) {
   if (!items.length) return null;
-  const active = items.some((item) => {
-    const status = item.status ?? 'complete';
-    return status === 'running' || status === 'pending';
-  });
-  const hasError = items.some((item) => item.status === 'error');
+  const presentation = buildTimelinePresentation(items, { fileEdits, terminalRuns });
+  const { summary: timelineSummary } = presentation;
   const pendingInline = fileEdits.some(isPendingInlineEdit);
-  const [open, setOpen] = useState(defaultOpen || active || pendingInline);
+  const [open, setOpen] = useState(
+    defaultOpen || timelineSummary.hasActive || pendingInline
+  );
 
   useEffect(() => {
-    setOpen(active || pendingInline);
-  }, [active, pendingInline]);
+    setOpen(timelineSummary.hasActive || pendingInline);
+  }, [timelineSummary.hasActive, pendingInline]);
 
   const summary = title
     ? title
-    : active
-      ? `Working · ${stepsLabel(items.length)}`
-      : `Worked · ${stepsLabel(items.length)}`;
+    : timelineSummary.hasActive
+      ? `Working · ${stepsLabel(timelineSummary.stepCount)}`
+      : `Worked · ${stepsLabel(timelineSummary.stepCount)}`;
 
   return (
     <details
       className="ak-work-timeline"
-      open={active || pendingInline || open}
+      open={timelineSummary.hasActive || pendingInline || open}
       onToggle={(event) => {
-        if (active) return;
+        if (timelineSummary.hasActive) return;
         setOpen((event.currentTarget as HTMLDetailsElement).open);
       }}
     >
       <summary className="ak-work-timeline__summary">
-        <span className="ak-work-timeline__marker" data-active={active ? 'true' : undefined}>
-          {active ? '●' : hasError ? '×' : '✓'}
+        <span
+          className="ak-work-timeline__marker"
+          data-active={timelineSummary.hasActive ? 'true' : undefined}
+        >
+          {timelineSummary.hasActive ? '●' : timelineSummary.hasError ? '×' : '✓'}
         </span>
         <span className="ak-work-timeline__title">{summary}</span>
       </summary>
       <div className="ak-work-timeline__items">
-        {groupWorkTimelineItems(items).map((node) =>
-          node.kind === 'group' ? (
-            <div
-              key={node.id}
-              className={`ak-work-subagent ak-work-subagent--${node.header.status ?? 'complete'}`}
-              data-subagent-id={node.id}
-            >
-              <WorkTimelineRow
-                item={node.header}
-                fileEdits={fileEdits}
-                terminalRuns={terminalRuns}
-                onOpenFile={onOpenFile}
-                onAcceptFile={onAcceptFile}
-                onRejectFile={onRejectFile}
-              />
-              {node.children.length > 0 ? (
-                <div className="ak-work-subagent__children">
-                  {node.children.map((item) => (
-                    <WorkTimelineRow
-                      key={item.id}
-                      item={item}
-                      fileEdits={fileEdits}
-                      terminalRuns={terminalRuns}
-                      onOpenFile={onOpenFile}
-                      onAcceptFile={onAcceptFile}
-                      onRejectFile={onRejectFile}
-                    />
-                  ))}
-                </div>
-              ) : null}
-              {node.header.result ? (
-                <SubagentResultBlock
-                  result={node.header.result}
-                  fileEdits={fileEditsForSubagent(
-                    fileEdits,
-                    node.id,
-                    node.children
-                  )}
-                  onOpenFile={onOpenFile}
-                  onAcceptFile={onAcceptFile}
-                  onRejectFile={onRejectFile}
-                  onWorktreeReview={onWorktreeReview}
-                  onWorktreeApply={onWorktreeApply}
-                  onWorktreeReject={onWorktreeReject}
-                />
-              ) : null}
-            </div>
-          ) : (
-            <WorkTimelineRow
-              key={node.item.id}
-              item={node.item}
-              fileEdits={fileEdits}
-              terminalRuns={terminalRuns}
-              onOpenFile={onOpenFile}
-              onAcceptFile={onAcceptFile}
-              onRejectFile={onRejectFile}
-            />
+        {presentation.nodes.map((node) =>
+          renderTimelineNode(
+            node,
+            fileEdits,
+            onOpenFile,
+            onAcceptFile,
+            onRejectFile,
+            onWorktreeReview,
+            onWorktreeApply,
+            onWorktreeReject
           )
         )}
       </div>
