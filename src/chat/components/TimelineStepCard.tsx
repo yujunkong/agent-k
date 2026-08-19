@@ -66,7 +66,10 @@ export function TimelineStepCard({
           {timelineStepMarker(step.status, live, view.marker)}
         </span>
         <span className="ak-timeline-card__text">
-          <span className="ak-timeline-card__title">{view.title}</span>
+          <span className={`ak-timeline-card__title${live ? ' ak-timeline-card__title--shimmer' : ''}`}>
+            <span className="ak-timeline-card__title-base">{view.title}</span>
+            {live ? <span className="ak-timeline-card__title-shine" aria-hidden>{view.title}</span> : null}
+          </span>
           {showSubtitle ? (
             <span className="ak-timeline-card__subtitle">{view.subtitle}</span>
           ) : null}
