@@ -15,7 +15,7 @@ import { PlanV2Generator, type PlanGenerationModel } from './PlanV2Generator';
 import type { FileExistenceChecker } from './validators/SemanticValidator';
 import { deriveTaskUpdates, type ObservedToolCall } from './EvidenceEngine';
 import type { FailureContext } from './FailureContext';
-import { buildExecutionPlan, type ExecutionPlan } from '../execution';
+import { buildExecutionPlan, type ExecutionPlan, runPlanExecution, type PlanExecutionDeps } from '../execution';
 type FailureLike = FailureContext;
 
 function toLegacyPlanDocument(
@@ -275,5 +275,11 @@ export class PlanModeControllerAdapter {
       approvedTaskIds: approvedTaskIds.length > 0 ? approvedTaskIds : undefined,
       approvedAt: options.approvedAt
     });
+  }
+
+  /** Sequential v1 executor — dispatches ready tasks via injected subagent/main runners. */
+  async runApprovedPlanExecution(deps: PlanExecutionDeps): Promise<ExecutionPlan> {
+    const executionPlan = this.toExecutionPlan({ approvedAt: Date.now() });
+    return runPlanExecution(executionPlan, deps);
   }
 }
