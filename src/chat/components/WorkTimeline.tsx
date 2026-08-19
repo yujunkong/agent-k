@@ -9,10 +9,16 @@ import {
 } from '../conversation/workEventDetails';
 import { groupWorkTimelineItems } from '../conversation/groupWorkTimelineItems';
 import {
+  canApplySubagentWorktree,
+  canRejectSubagentWorktree,
+  canReviewSubagentWorktree,
+  defaultSubagentWorktreeOutcome,
   formatSubagentDuration,
   formatSubagentFilesChanged,
   formatSubagentToolCount,
-  type SubagentResult
+  isSubagentWorktreeBusy,
+  type SubagentResult,
+  type SubagentWorktreeReviewPreview
 } from '../conversation/subagentResult';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 import { isPendingInlineEdit } from '../inlineEditReview';
@@ -35,7 +41,9 @@ export interface WorkTimelineProps {
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
-  onReviewChanges?: () => void;
+  onWorktreeReview?: (subagentId: string) => void;
+  onWorktreeApply?: (subagentId: string) => void;
+  onWorktreeReject?: (subagentId: string) => void;
 }
 
 function fileEditsForSubagent(
@@ -53,23 +61,108 @@ function fileEditsForSubagent(
   });
 }
 
+function worktreeStatusLabel(result: SubagentResult): string | undefined {
+  const outcome = defaultSubagentWorktreeOutcome(result);
+  const action = result.worktreeAction ?? 'idle';
+  if (action === 'reviewing') return 'Loading changes…';
+  if (action === 'applying') return 'Applying changes…';
+  if (action === 'rejecting') return 'Discarding worktree…';
+  if (outcome === 'applied') return 'Changes applied to workspace';
+  if (outcome === 'rejected') return 'Worktree discarded';
+  if (outcome === 'apply_failed') {
+    return result.worktreeError ? `Apply failed: ${result.worktreeError}` : 'Apply failed';
+  }
+  if (outcome === 'reject_failed') {
+    return result.worktreeError ? `Reject failed: ${result.worktreeError}` : 'Reject failed';
+  }
+  if (result.worktreeError && action === 'idle') {
+    return result.worktreeError;
+  }
+  return undefined;
+}
+
+function SubagentWorktreeChangesPreview({
+  preview,
+  onOpenFile
+}: {
+  preview: SubagentWorktreeReviewPreview;
+  onOpenFile?: (path: string) => void;
+}) {
+  const files = preview.files ?? [];
+  const untracked = preview.untrackedFiles ?? [];
+  const diff = String(preview.diff || '').trim();
+
+  return (
+    <div className="ak-worktree-preview">
+      <div className="ak-worktree-preview__title">Changes preview</div>
+      {preview.filesChanged != null ? (
+        <div className="ak-worktree-preview__meta">
+          {formatSubagentFilesChanged(preview.filesChanged)}
+        </div>
+      ) : null}
+      {files.length ? (
+        <ul className="ak-worktree-preview__files">
+          {files.map((path) => (
+            <li key={path}>
+              {onOpenFile ? (
+                <button type="button" className="ak-worktree-preview__file" onClick={() => onOpenFile(path)}>
+                  {path}
+                </button>
+              ) : (
+                <span>{path}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {untracked.length ? (
+        <div className="ak-worktree-preview__meta">
+          Untracked: {untracked.join(', ')}
+        </div>
+      ) : null}
+      {diff ? (
+        <pre className="ak-worktree-preview__diff">{diff.slice(0, 12_000)}</pre>
+      ) : !files.length ? (
+        <div className="ak-worktree-preview__meta">No diff returned.</div>
+      ) : null}
+    </div>
+  );
+}
+
 function SubagentResultBlock({
   result,
   fileEdits,
   onOpenFile,
   onAcceptFile,
   onRejectFile,
-  onReviewChanges
+  onWorktreeReview,
+  onWorktreeApply,
+  onWorktreeReject
 }: {
   result: SubagentResult;
   fileEdits: FileEditPreview[];
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
-  onReviewChanges?: () => void;
+  onWorktreeReview?: (subagentId: string) => void;
+  onWorktreeApply?: (subagentId: string) => void;
+  onWorktreeReject?: (subagentId: string) => void;
 }) {
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const canReview = (result.filesChanged ?? 0) > 0 || fileEdits.length > 0;
+  const subagentId = String(result.subagentId || '').trim();
+  const hasWorktreeActions = Boolean(subagentId);
+  const busy = isSubagentWorktreeBusy(result);
+  const canReview = hasWorktreeActions && canReviewSubagentWorktree(result);
+  const canApply = hasWorktreeActions && canApplySubagentWorktree(result);
+  const canReject = hasWorktreeActions && canRejectSubagentWorktree(result);
+  const statusLabel = worktreeStatusLabel(result);
+  const [reviewOpen, setReviewOpen] = useState(Boolean(result.worktreeReview));
+
+  useEffect(() => {
+    if (result.worktreeReview) setReviewOpen(true);
+  }, [result.worktreeReview]);
+
+  const fallbackEdits =
+    (result.filesChanged ?? 0) > 0 || fileEdits.length > 0;
 
   return (
     <div className="ak-subagent-result">
@@ -100,19 +193,64 @@ function SubagentResultBlock({
           </span>
         </div>
       ) : null}
-      {canReview ? (
-        <button
-          type="button"
-          className="ak-subagent-result__review"
-          onClick={() => {
-            setReviewOpen(true);
-            onReviewChanges?.();
-          }}
+      {statusLabel ? (
+        <div
+          className={`ak-subagent-result__status${
+            (() => {
+              const outcome = defaultSubagentWorktreeOutcome(result);
+              return outcome === 'apply_failed' || outcome === 'reject_failed';
+            })()
+              ? ' ak-subagent-result__status--error'
+              : ''
+          }`}
         >
-          Review changes
-        </button>
+          {statusLabel}
+        </div>
       ) : null}
-      {reviewOpen
+      {hasWorktreeActions ? (
+        <div className="ak-subagent-result__actions">
+          {canReview ? (
+            <button
+              type="button"
+              className="ak-subagent-result__action"
+              disabled={busy}
+              onClick={() => {
+                setReviewOpen(true);
+                onWorktreeReview?.(subagentId);
+              }}
+            >
+              {result.worktreeAction === 'reviewing' ? 'Reviewing…' : 'Review'}
+            </button>
+          ) : null}
+          {canApply ? (
+            <button
+              type="button"
+              className="ak-subagent-result__action ak-subagent-result__action--primary"
+              disabled={busy}
+              onClick={() => onWorktreeApply?.(subagentId)}
+            >
+              {result.worktreeAction === 'applying' ? 'Applying…' : 'Apply'}
+            </button>
+          ) : null}
+          {canReject ? (
+            <button
+              type="button"
+              className="ak-subagent-result__action"
+              disabled={busy}
+              onClick={() => onWorktreeReject?.(subagentId)}
+            >
+              {result.worktreeAction === 'rejecting' ? 'Rejecting…' : 'Reject'}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {reviewOpen && result.worktreeReview ? (
+        <SubagentWorktreeChangesPreview
+          preview={result.worktreeReview}
+          onOpenFile={onOpenFile}
+        />
+      ) : null}
+      {reviewOpen && !result.worktreeReview && fallbackEdits
         ? fileEdits.map((file) => (
             <FileEditPreviewView
               key={file.id}
@@ -227,7 +365,9 @@ export function WorkTimeline({
   onOpenFile,
   onAcceptFile,
   onRejectFile,
-  onReviewChanges
+  onWorktreeReview,
+  onWorktreeApply,
+  onWorktreeReject
 }: WorkTimelineProps) {
   if (!items.length) return null;
   const active = items.some((item) => {
@@ -305,7 +445,9 @@ export function WorkTimeline({
                   onOpenFile={onOpenFile}
                   onAcceptFile={onAcceptFile}
                   onRejectFile={onRejectFile}
-                  onReviewChanges={onReviewChanges}
+                  onWorktreeReview={onWorktreeReview}
+                  onWorktreeApply={onWorktreeApply}
+                  onWorktreeReject={onWorktreeReject}
                 />
               ) : null}
             </div>

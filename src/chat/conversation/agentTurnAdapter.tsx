@@ -9,10 +9,12 @@ export interface AgentTurnAdapterProps {
   workItems?: ConversationWorkEvent[];
   changes?: ChangeSummaryItem[];
   children?: React.ReactNode;
-  onReviewChanges?: () => void;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
+  onWorktreeReview?: (subagentId: string) => void;
+  onWorktreeApply?: (subagentId: string) => void;
+  onWorktreeReject?: (subagentId: string) => void;
 }
 
 /** Presentation adapter: owns no agent/message state. */
@@ -21,10 +23,12 @@ export function AgentTurnAdapter({
   workItems = [],
   changes = [],
   children,
-  onReviewChanges,
   onOpenFile,
   onAcceptFile,
-  onRejectFile
+  onRejectFile,
+  onWorktreeReview,
+  onWorktreeApply,
+  onWorktreeReject
 }: AgentTurnAdapterProps) {
   const candidate = message as {
     role?: string;
@@ -45,10 +49,12 @@ export function AgentTurnAdapter({
       fileEdits={fileEdits}
       terminalRuns={terminalRuns}
       changes={changes}
-      onReviewChanges={onReviewChanges}
       onOpenFile={onOpenFile}
       onAcceptFile={onAcceptFile}
       onRejectFile={onRejectFile}
+      onWorktreeReview={onWorktreeReview}
+      onWorktreeApply={onWorktreeApply}
+      onWorktreeReject={onWorktreeReject}
     >
       {children}
     </AgentTurn>

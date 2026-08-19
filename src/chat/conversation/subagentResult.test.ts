@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyHostWorktreeApplyResult,
+  applyHostWorktreeRejectResult,
+  applyHostWorktreeReviewResult,
+  beginSubagentWorktreeAction,
+  canApplySubagentWorktree,
+  canRejectSubagentWorktree,
   formatSubagentDuration,
   formatSubagentFilesChanged,
   formatSubagentToolCount,
@@ -45,5 +51,51 @@ describe('parseSubagentResult', () => {
     expect(formatSubagentFilesChanged(2)).toBe('2 files changed');
     expect(formatSubagentToolCount(14)).toBe('14 tools');
     expect(formatSubagentDuration(8400)).toBe('8.4s');
+  });
+
+  it('tracks worktree apply/reject lifecycle on host results', () => {
+    const base = {
+      subagentId: 'subagent-1',
+      summary: 'done',
+      filesChanged: 1
+    };
+    const applying = beginSubagentWorktreeAction(base, 'applying');
+    expect(applying.worktreeAction).toBe('applying');
+    expect(canApplySubagentWorktree(applying)).toBe(false);
+
+    const applied = applyHostWorktreeApplyResult(applying, {
+      success: true,
+      applied: true
+    });
+    expect(applied.worktreeOutcome).toBe('applied');
+    expect(canApplySubagentWorktree(applied)).toBe(false);
+    expect(canRejectSubagentWorktree(applied)).toBe(false);
+
+    const failed = applyHostWorktreeApplyResult(base, {
+      success: false,
+      error: 'parent dirty'
+    });
+    expect(failed.worktreeOutcome).toBe('apply_failed');
+    expect(canApplySubagentWorktree(failed)).toBe(true);
+
+    const rejecting = beginSubagentWorktreeAction(base, 'rejecting');
+    const rejected = applyHostWorktreeRejectResult(rejecting, { success: true });
+    expect(rejected.worktreeOutcome).toBe('rejected');
+
+    const rejectFailed = applyHostWorktreeRejectResult(base, {
+      success: false,
+      error: 'git error'
+    });
+    expect(rejectFailed.worktreeOutcome).toBe('reject_failed');
+    expect(canRejectSubagentWorktree(rejectFailed)).toBe(true);
+
+    const reviewed = applyHostWorktreeReviewResult(base, {
+      success: true,
+      files: ['src/a.ts'],
+      diff: '+++ diff',
+      filesChanged: 1
+    });
+    expect(reviewed.worktreeReview?.files).toEqual(['src/a.ts']);
+    expect(reviewed.worktreeAction).toBe('idle');
   });
 });

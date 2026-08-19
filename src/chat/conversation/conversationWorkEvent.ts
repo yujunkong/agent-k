@@ -226,6 +226,24 @@ export function completeWorkEvent(
   };
 }
 
+/** Patch subagent header result (worktree apply/reject/review UI state). */
+export function patchSubagentResultInEvents(
+  events: ConversationWorkEvent[] = [],
+  subagentId: string,
+  patch: (prev: SubagentResult) => SubagentResult
+): ConversationWorkEvent[] {
+  const id = `tl_subagent_${String(subagentId || '').trim()}`;
+  if (!id || id === 'tl_subagent_') return events;
+  const idx = events.findIndex((event) => event.id === id);
+  if (idx < 0) return events;
+  const prev = events[idx];
+  const base: SubagentResult = prev.result ?? { subagentId };
+  const nextResult = patch({ ...base, subagentId: base.subagentId ?? subagentId });
+  return events.map((event, i) =>
+    i === idx ? { ...event, result: nextResult } : event
+  );
+}
+
 /** Upsert by id so one Agent turn keeps appending / updating the same row. */
 export function upsertWorkEvents(
   events: ConversationWorkEvent[] = [],

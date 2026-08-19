@@ -6,6 +6,7 @@ import {
   completeWorkEvent,
   settleWorkEvents,
   upsertWorkEvents,
+  patchSubagentResultInEvents,
   workEventFromHostPayload,
   workEventFromSubagentHostEvent,
   workEventsFromLegacySteps,
@@ -177,6 +178,24 @@ describe('work event lifecycle', () => {
     });
     expect(completed?.result?.summary).not.toContain('line\n');
     expect(clipSubagentSummary(transcript)?.includes('line\n')).toBeFalsy();
+  });
+
+  it('patches subagent header worktree state by subagent id', () => {
+    const events: ConversationWorkEvent[] = [
+      {
+        id: 'tl_subagent_a',
+        type: 'subagent',
+        status: 'complete',
+        label: 'Research auth · completed',
+        result: { subagentId: 'a', summary: 'done', filesChanged: 1 }
+      }
+    ];
+    const next = patchSubagentResultInEvents(events, 'a', (prev) => ({
+      ...prev,
+      worktreeOutcome: 'applied',
+      worktreeAction: 'idle'
+    }));
+    expect(next[0].result?.worktreeOutcome).toBe('applied');
   });
 
   it('records error status from tool.end', () => {

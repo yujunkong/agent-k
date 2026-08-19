@@ -18,6 +18,14 @@ import { useChatStream } from './hooks/useChatStream';
 import { useChatSessions, sessionStore } from './hooks/useChatSessions';
 import { useHostMessages } from './hooks/useHostMessages';
 import { getVsCodeApi } from './host/vscodeApi';
+import { patchSubagentResultInEvents } from './conversation/conversationWorkEvent';
+import {
+  applyHostWorktreeApplyResult,
+  applyHostWorktreeRejectResult,
+  applyHostWorktreeReviewResult,
+  beginSubagentWorktreeAction,
+  type SubagentResult
+} from './conversation/subagentResult';
 import {
   formatInlineEditForPayload,
   parseInlineEditHostMessage,
@@ -294,13 +302,18 @@ export function ChatApp() {
     return () => unsubs.forEach((u) => u());
   }, []);
 
-  const { streaming, sendMessage, stop, regenerate } = useChatStream({
+  const handleWorktreeResultRef = useRef<
+    (payload: Record<string, unknown>) => void
+  >(() => {});
+
+  const { streaming, sendMessage, stop, regenerate, sendWorktreeReview, sendWorktreeApply, sendWorktreeReject } = useChatStream({
     baseUrl: providerBaseUrl || 'http://127.0.0.1:52415',
     model: providerModel,
     apiKey: providerApiKey || undefined,
     planStage,
     debugStage: mode === 'debug' ? debugController.getStage() : undefined,
-    thinkingEffort
+    thinkingEffort,
+    onWorktreeResult: (payload) => handleWorktreeResultRef.current(payload)
   });
 
   /** Plan Approve → Agent handoff calls handleSend after it is defined */
@@ -2570,6 +2583,76 @@ export function ChatApp() {
     setMessages((prev) => patchMessagesFileEditReview(prev, file.id, 'rejected'));
   }, []);
 
+  const patchSubagentWorktreeState = useCallback(
+    (subagentId: string, patch: (prev: SubagentResult) => SubagentResult) => {
+      const updater = (prev: ChatMessage[]) =>
+        prev.map((msg) => {
+          if (!Array.isArray(msg.workItems) || !msg.workItems.length) return msg;
+          const nextItems = patchSubagentResultInEvents(msg.workItems, subagentId, patch);
+          if (nextItems === msg.workItems) return msg;
+          return { ...msg, workItems: nextItems };
+        });
+      setMessages(updater);
+      updateSessionMessages(sessionIdRef.current, updater);
+    },
+    [setMessages, updateSessionMessages]
+  );
+
+  const handleWorktreeResult = useCallback(
+    (payload: Record<string, unknown>) => {
+      const subagentId = String(payload.subagentId || '').trim();
+      if (!subagentId) return;
+      const type = String(payload.type || '');
+      patchSubagentWorktreeState(subagentId, (prev) => {
+        if (type === 'worktree.review.result') {
+          return applyHostWorktreeReviewResult(prev, payload);
+        }
+        if (type === 'worktree.apply.result') {
+          return applyHostWorktreeApplyResult(prev, payload);
+        }
+        if (type === 'worktree.reject.result') {
+          return applyHostWorktreeRejectResult(prev, payload);
+        }
+        return prev;
+      });
+    },
+    [patchSubagentWorktreeState]
+  );
+
+  useEffect(() => {
+    handleWorktreeResultRef.current = handleWorktreeResult;
+  }, [handleWorktreeResult]);
+
+  const handleWorktreeReview = useCallback(
+    (subagentId: string) => {
+      patchSubagentWorktreeState(subagentId, (prev) =>
+        beginSubagentWorktreeAction(prev, 'reviewing')
+      );
+      sendWorktreeReview(subagentId);
+    },
+    [patchSubagentWorktreeState, sendWorktreeReview]
+  );
+
+  const handleWorktreeApply = useCallback(
+    (subagentId: string) => {
+      patchSubagentWorktreeState(subagentId, (prev) =>
+        beginSubagentWorktreeAction(prev, 'applying')
+      );
+      sendWorktreeApply(subagentId);
+    },
+    [patchSubagentWorktreeState, sendWorktreeApply]
+  );
+
+  const handleWorktreeReject = useCallback(
+    (subagentId: string) => {
+      patchSubagentWorktreeState(subagentId, (prev) =>
+        beginSubagentWorktreeAction(prev, 'rejecting')
+      );
+      sendWorktreeReject(subagentId);
+    },
+    [patchSubagentWorktreeState, sendWorktreeReject]
+  );
+
   /** ADDON-T07: Checkpoints dropdown — refresh from host */
   const handleListCheckpoints = useCallback(() => {
     try {
@@ -2790,6 +2873,9 @@ export function ChatApp() {
               onOpenFile={handleOpenFile}
               onAcceptFile={handleAcceptFileEdit}
               onRejectFile={handleRejectFileEdit}
+              onWorktreeReview={handleWorktreeReview}
+              onWorktreeApply={handleWorktreeApply}
+              onWorktreeReject={handleWorktreeReject}
               onContinueMission={() => {
                 void handleSendRef.current?.(
                   mode === 'plan'

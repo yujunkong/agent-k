@@ -30,6 +30,8 @@ interface UseChatStreamOptions {
   thinkingEffort?: 'off' | 'low' | 'medium' | 'high' | 'max';
   /** Active chat runtime key (usually current session id) for per-tab streaming state. */
   activeRuntimeKey?: string;
+  /** Host worktree.review/apply/reject results (not tied to chat.send). */
+  onWorktreeResult?: (payload: Record<string, unknown>) => void;
 }
 
 interface UseChatStreamReturn {
@@ -53,6 +55,9 @@ interface UseChatStreamReturn {
     onError: (err: string) => void,
     onRegenerateStart?: () => void
   ) => Promise<void>;
+  sendWorktreeReview: (subagentId: string) => string | undefined;
+  sendWorktreeApply: (subagentId: string) => string | undefined;
+  sendWorktreeReject: (subagentId: string) => string | undefined;
 }
 
 function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
@@ -80,9 +85,55 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
   const planStageRef = useRef(options.planStage);
   const debugStageRef = useRef(options.debugStage);
   const thinkingEffortRef = useRef(options.thinkingEffort);
+  const onWorktreeResultRef = useRef(options.onWorktreeResult);
   planStageRef.current = options.planStage;
   debugStageRef.current = options.debugStage;
   thinkingEffortRef.current = options.thinkingEffort;
+  onWorktreeResultRef.current = options.onWorktreeResult;
+
+  useEffect(() => {
+    const onMsg = (event: MessageEvent) => {
+      const data = event.data as Record<string, unknown> | null;
+      if (!data || typeof data !== 'object') return;
+      const type = String(data.type || '');
+      if (
+        type !== 'worktree.review.result' &&
+        type !== 'worktree.apply.result' &&
+        type !== 'worktree.reject.result'
+      ) {
+        return;
+      }
+      onWorktreeResultRef.current?.(data);
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const postWorktreeMessage = useCallback(
+    (type: 'worktree.review' | 'worktree.apply' | 'worktree.reject', subagentId: string) => {
+      const id = String(subagentId || '').trim();
+      if (!id) return undefined;
+      const api = getVsCodeApi();
+      if (!api?.postMessage) return undefined;
+      const requestId = `${type}_${id}_${Date.now()}`;
+      api.postMessage({ type, subagentId: id, requestId });
+      return requestId;
+    },
+    []
+  );
+
+  const sendWorktreeReview = useCallback(
+    (subagentId: string) => postWorktreeMessage('worktree.review', subagentId),
+    [postWorktreeMessage]
+  );
+  const sendWorktreeApply = useCallback(
+    (subagentId: string) => postWorktreeMessage('worktree.apply', subagentId),
+    [postWorktreeMessage]
+  );
+  const sendWorktreeReject = useCallback(
+    (subagentId: string) => postWorktreeMessage('worktree.reject', subagentId),
+    [postWorktreeMessage]
+  );
 
   const syncStreamingForActiveRuntime = useCallback(() => {
     const key = options.activeRuntimeKey;
@@ -621,6 +672,9 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
     streaming,
     sendMessage,
     stop,
-    regenerate
+    regenerate,
+    sendWorktreeReview,
+    sendWorktreeApply,
+    sendWorktreeReject
   };
 }

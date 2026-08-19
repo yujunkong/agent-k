@@ -7,6 +7,7 @@ export {
   type ConversationWorkStatus,
   type ConversationWorkType,
   upsertWorkEvents,
+  patchSubagentResultInEvents,
   workEventFromHostPayload,
   workEventFromSubagentHostEvent
 } from './conversationWorkEvent';
@@ -14,7 +15,14 @@ export { normalizeWorkItems } from './normalizeWorkItems';
 export { groupWorkTimelineItems } from './groupWorkTimelineItems';
 export {
   type SubagentResult,
-  parseSubagentResult
+  parseSubagentResult,
+  applyHostWorktreeApplyResult,
+  applyHostWorktreeRejectResult,
+  applyHostWorktreeReviewResult,
+  beginSubagentWorktreeAction,
+  canApplySubagentWorktree,
+  canRejectSubagentWorktree,
+  canReviewSubagentWorktree
 } from './subagentResult';
 export {
   linkPreviewToWorkEvents,

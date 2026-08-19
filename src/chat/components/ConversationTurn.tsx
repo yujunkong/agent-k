@@ -24,13 +24,16 @@ export interface ConversationTurnProps {
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
+  onWorktreeReview?: (subagentId: string) => void;
+  onWorktreeApply?: (subagentId: string) => void;
+  onWorktreeReject?: (subagentId: string) => void;
   onContinueMission?: () => void;
   onRegenerate?: () => void;
 }
 
 /** Conversation boundary + Cursor-style sibling assistant variants. */
 export function ConversationTurn(props: ConversationTurnProps) {
-  const { message, isStreaming, onOpenFile, onAcceptFile, onRejectFile } = props;
+  const { message, isStreaming, onOpenFile, onAcceptFile, onRejectFile, onWorktreeReview, onWorktreeApply, onWorktreeReject } = props;
   const streaming = !!isStreaming || message?.status === 'streaming';
   const isAssistant = message?.role === 'assistant';
   const variantMeta = isAssistant ? getVariantMeta(message) : null;
@@ -65,6 +68,9 @@ export function ConversationTurn(props: ConversationTurnProps) {
           onOpenFile={onOpenFile}
           onAcceptFile={onAcceptFile}
           onRejectFile={onRejectFile}
+          onWorktreeReview={onWorktreeReview}
+          onWorktreeApply={onWorktreeApply}
+          onWorktreeReject={onWorktreeReject}
         >
           {response}
         </AgentTurnAdapter>

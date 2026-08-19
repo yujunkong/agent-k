@@ -79,6 +79,21 @@ button.ak-work-item__row:hover .ak-work-item__label { color: var(--vscode-foregr
 .ak-subagent-result__value { min-width: 0; color: var(--ak-ui-muted); overflow: hidden; text-overflow: ellipsis; }
 .ak-subagent-result__review { align-self: flex-start; margin-top: 2px; border: 0; border-radius: 5px; background: transparent; color: var(--vscode-textLink-foreground, var(--vscode-foreground)); font-size: 11px; cursor: pointer; padding: 2px 0; }
 .ak-subagent-result__review:hover { text-decoration: underline; }
+.ak-subagent-result__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.ak-subagent-result__action { border: 1px solid var(--ak-ui-border-strong); border-radius: 5px; background: transparent; color: var(--vscode-foreground, #ccc); font-size: 11px; cursor: pointer; padding: 3px 8px; }
+.ak-subagent-result__action:hover:not(:disabled) { background: var(--vscode-toolbar-hoverBackground, rgba(255,255,255,0.06)); }
+.ak-subagent-result__action:disabled { opacity: 0.55; cursor: default; }
+.ak-subagent-result__action--primary { border-color: var(--vscode-button-border, transparent); background: var(--vscode-button-background, #0e639c); color: var(--vscode-button-foreground, #fff); }
+.ak-subagent-result__action--primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground, #1177bb); }
+.ak-subagent-result__status { font-size: 11px; color: var(--ak-ui-muted); margin-top: 2px; }
+.ak-subagent-result__status--error { color: var(--vscode-errorForeground, #f48771); }
+.ak-worktree-preview { margin-top: 6px; padding: 8px 10px; border: 1px solid var(--ak-ui-border-strong); border-radius: 6px; background: var(--vscode-editor-background, rgba(0,0,0,0.15)); }
+.ak-worktree-preview__title { font-size: 11px; font-weight: 600; margin-bottom: 4px; color: var(--vscode-foreground, #ccc); }
+.ak-worktree-preview__meta { font-size: 11px; color: var(--ak-ui-muted); margin-bottom: 4px; }
+.ak-worktree-preview__files { margin: 0 0 6px 16px; padding: 0; font-size: 11px; color: var(--vscode-foreground, #ccc); }
+.ak-worktree-preview__file { border: 0; background: transparent; color: var(--vscode-textLink-foreground, #3794ff); cursor: pointer; padding: 0; font: inherit; }
+.ak-worktree-preview__file:hover { text-decoration: underline; }
+.ak-worktree-preview__diff { margin: 0; max-height: 240px; overflow: auto; font-size: 10px; line-height: 1.35; white-space: pre-wrap; word-break: break-word; color: var(--vscode-foreground, #ccc); background: transparent; border: 0; padding: 0; }
 .ak-worked { margin: 6px 0 10px; }
 .ak-worked__toggle { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; border: 0; color: var(--ak-ui-muted); background: transparent; font-size: 11px; cursor: pointer; }
 .ak-worked__toggle:hover { color: var(--vscode-foreground, #ccc); }

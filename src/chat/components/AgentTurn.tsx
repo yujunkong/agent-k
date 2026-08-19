@@ -11,10 +11,12 @@ export interface AgentTurnProps {
   terminalRuns?: TerminalRunPreview[];
   changes?: ChangeSummaryItem[];
   children?: React.ReactNode;
-  onReviewChanges?: () => void;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
+  onWorktreeReview?: (subagentId: string) => void;
+  onWorktreeApply?: (subagentId: string) => void;
+  onWorktreeReject?: (subagentId: string) => void;
 }
 
 /** Presentation-only agent turn. Existing loop/message state remains the source of truth. */
@@ -25,10 +27,12 @@ export function AgentTurn({
   terminalRuns = [],
   changes = [],
   children,
-  onReviewChanges,
   onOpenFile,
   onAcceptFile,
-  onRejectFile
+  onRejectFile,
+  onWorktreeReview,
+  onWorktreeApply,
+  onWorktreeReject
 }: AgentTurnProps) {
   return (
     <article className="conversation-turn ak-agent-turn">
@@ -40,10 +44,12 @@ export function AgentTurn({
         onOpenFile={onOpenFile}
         onAcceptFile={onAcceptFile}
         onRejectFile={onRejectFile}
-        onReviewChanges={onReviewChanges}
+        onWorktreeReview={onWorktreeReview}
+        onWorktreeApply={onWorktreeApply}
+        onWorktreeReject={onWorktreeReject}
       />
       {children ? <div className="ak-agent-turn__response">{children}</div> : null}
-      <ChangeSummary files={changes} onReview={onReviewChanges} onOpenFile={onOpenFile} />
+      <ChangeSummary files={changes} onOpenFile={onOpenFile} />
     </article>
   );
 }
