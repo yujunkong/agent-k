@@ -66,7 +66,7 @@
 .ak-work-timeline__summary::-webkit-details-marker { display: none; }
 .ak-work-timeline__marker { width: 14px; color: var(--vscode-textLink-foreground, var(--ak-text-primary)); font-size: 9px; }
 .ak-work-timeline__title { min-width: 0; }
-.ak-work-timeline__marker[data-active='true'] { color: var(--vscode-textLink-foreground, var(--ak-text-primary)); }
+.ak-work-timeline__marker[data-active='true'] { color: var(--vscode-textLink-foreground, var(--ak-text-primary)); animation: ak-live-blink 1.6s ease-in-out infinite; }
 .ak-work-timeline__items { margin: 3px 0 3px var(--ak-space-2); padding: 2px 0 2px 14px; border-left: 1px solid var(--ak-border-strong); display: flex; flex-direction: column; gap: var(--ak-space-2); }
 .ak-timeline-card { border: 1px solid var(--ak-border-strong); border-radius: var(--ak-radius-sm); background: var(--ak-ui-surface); color: var(--ak-text-primary); font-size: 12px; overflow: hidden; transition: border-color .12s ease, opacity .12s ease; }
 .ak-timeline-card--compact { border-color: transparent; background: transparent; opacity: .78; }
@@ -76,8 +76,60 @@
 .ak-timeline-card--compact .ak-timeline-card__meta { font-size: 11px; }
 .ak-timeline-card--compact.ak-timeline-card--reasoning { opacity: .72; }
 .ak-timeline-card--active { border-color: var(--ak-ui-border-strong); background: var(--ak-ui-surface); opacity: 1; }
+.ak-timeline-card--active.ak-timeline-card--live { border-color: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 40%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 6%, var(--ak-ui-surface)) 0%, var(--ak-ui-surface) 100%); }
 .ak-timeline-card--active .ak-timeline-card__header { padding: var(--ak-space-2) 10px; }
 .ak-timeline-card--active .ak-timeline-card__title { font-size: 12px; color: var(--ak-text-primary); font-weight: 500; }
+.ak-timeline-card__title--shimmer {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto !important;
+  min-width: max-content !important;
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground, #8b8b8b) !important;
+  -webkit-text-fill-color: unset !important;
+  background: none !important;
+  background-image: none !important;
+  animation: none !important;
+}
+.ak-timeline-card__title-base {
+  position: relative;
+  z-index: 0;
+  color: color-mix(
+    in srgb,
+    var(--vscode-descriptionForeground, #8b8b8b) 72%,
+    var(--vscode-editor-background, #1e1e1e) 28%
+  );
+  -webkit-text-fill-color: unset;
+  background: none;
+}
+.ak-timeline-card__title-shine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0) 32%,
+    color-mix(in srgb, var(--vscode-foreground, #fff) 45%, transparent) 42%,
+    color-mix(in srgb, var(--vscode-foreground, #fff) 92%, transparent) 50%,
+    color-mix(in srgb, var(--vscode-foreground, #fff) 45%, transparent) 58%,
+    rgba(255, 255, 255, 0) 68%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 240% 100%;
+  background-repeat: no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ak-text-shimmer 1.8s linear infinite;
+}
 .ak-timeline-card--active .ak-timeline-card__subtitle { color: var(--ak-text-primary); opacity: .78; }
 .ak-timeline-card--failed { border-color: color-mix(in srgb, var(--vscode-errorForeground, #f48771) 45%, transparent); background: color-mix(in srgb, var(--vscode-errorForeground, #f48771) 8%, transparent); opacity: 1; }
 .ak-timeline-card--failed .ak-timeline-card__title { color: var(--vscode-errorForeground, #f48771); }
@@ -89,7 +141,7 @@ button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vsc
 .ak-timeline-card--compact button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vscode-list-hoverBackground, #fff) 22%, transparent); opacity: 1; }
 .ak-timeline-card__marker { flex: 0 0 12px; width: 12px; margin-top: 1px; text-align: center; color: var(--ak-text-muted); font-size: 10px; }
 .ak-timeline-card--running .ak-timeline-card__marker,
-.ak-timeline-card--live .ak-timeline-card__marker { color: var(--vscode-textLink-foreground, var(--vscode-foreground)); }
+.ak-timeline-card--live .ak-timeline-card__marker { color: var(--vscode-textLink-foreground, var(--vscode-foreground)); animation: ak-live-blink 1.6s ease-in-out infinite; }
 .ak-timeline-card--error .ak-timeline-card__marker,
 .ak-timeline-card--failed .ak-timeline-card__marker { color: var(--vscode-errorForeground, #f48771); }
 .ak-timeline-card__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
@@ -199,4 +251,8 @@ button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vsc
 
 @media (prefers-reduced-motion: reduce) {
   .message-bubble *,.composer * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+  .ak-timeline-card--live .ak-timeline-card__marker,
+  .ak-work-timeline__marker[data-active='true'] { animation: none !important; }
+  .ak-timeline-card__title-shine { display: none !important; animation: none !important; }
+  .ak-timeline-card__title-base { color: var(--vscode-foreground, #e8e8e8) !important; }
 }

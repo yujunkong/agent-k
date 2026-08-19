@@ -53,7 +53,7 @@ describe('buildTimelineStepCardView', () => {
       }
     };
     expect(buildTimelineStepCardView(step)).toMatchObject({
-      title: 'Edit',
+      title: 'Edited',
       subtitle: 'src/auth/login.ts',
       meta: '+82 −21',
       expandable: true,
@@ -78,7 +78,7 @@ describe('buildTimelineStepCardView', () => {
       }
     };
     expect(buildTimelineStepCardView(step)).toMatchObject({
-      title: 'Terminal',
+      title: 'Ran command',
       subtitle: 'npm test',
       meta: '31 tests passed',
       density: 'compact',
@@ -102,7 +102,7 @@ describe('buildTimelineStepCardView', () => {
     };
 
     expect(buildTimelineStepCardView(running)).toMatchObject({
-      title: 'Thinking',
+      title: 'Thinking…',
       density: 'active',
       defaultOpen: false,
       marker: '⌁',

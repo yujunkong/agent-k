@@ -55,7 +55,7 @@ describe('timelinePresentation', () => {
     const step = eventToTimelineStep(thinking);
     expect(step).toMatchObject({
       kind: 'reasoning',
-      title: 'Thought',
+      title: 'Thinking',
       body: 'Authentication uses JWT middleware',
       subtitle: undefined
     });
@@ -143,7 +143,7 @@ describe('timelinePresentation', () => {
     ]);
     expect(presentation.activeStepId).toBe('tl_sub_a_read');
     expect(presentation.summary.hasActive).toBe(true);
-    expect(presentation.progressLabel).toBe('Read session.ts');
+    expect(presentation.progressLabel).toBe('Exploring session.ts');
   });
 
   it('tracks the active running step', () => {
@@ -164,7 +164,7 @@ describe('timelinePresentation', () => {
       }
     ]);
     expect(presentation.activeStepId).toBe('tl_read_live');
-    expect(presentation.progressLabel).toBe('Read session.ts');
+    expect(presentation.progressLabel).toBe('Exploring session.ts');
     expect(presentation.summary.hasActive).toBe(true);
     expect(presentation.summary.stepCount).toBe(2);
   });

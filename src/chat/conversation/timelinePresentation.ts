@@ -124,7 +124,16 @@ export function mapWorkTypeToStepKind(
 function stepTitle(event: ConversationWorkEvent): string {
   if (event.type === 'thinking') {
     const label = String(event.label || '').trim();
-    return label === 'Thinking' ? 'Thought' : label || 'Thought';
+    return label === 'Thinking' ? 'Thinking' : label || 'Thinking';
+  }
+  if (event.type === 'read') {
+    return event.status === 'complete' ? 'Read' : 'Reading';
+  }
+  if (event.type === 'search') {
+    return event.status === 'complete' ? 'Searched' : 'Searching';
+  }
+  if (event.type === 'edit') {
+    return event.status === 'complete' ? 'Edited' : 'Editing';
   }
   return event.label;
 }
@@ -284,12 +293,14 @@ export function formatProgressLabel(step: TimelineStep | undefined): string | un
       .trim();
     return label || 'Working…';
   }
-  const action =
-    step.kind === 'file'
-      ? 'Editing'
-      : step.kind === 'terminal'
-        ? 'Running'
-        : step.title || 'Working';
+  const ACTION_MAP: Partial<Record<TimelineStepKind, string>> = {
+    file: 'Editing',
+    terminal: 'Running',
+    tool: 'Exploring',
+    verify: 'Verifying',
+    generic: 'Working'
+  };
+  const action = ACTION_MAP[step.kind] || step.title || 'Working';
   const target = step.subtitle || step.fileEdit?.path || step.terminalRun?.command;
   if (target) return `${action} ${target}`;
   return `${action}…`;
