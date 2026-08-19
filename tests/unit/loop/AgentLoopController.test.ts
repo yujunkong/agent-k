@@ -1,7 +1,38 @@
 /**
- * C3-T18: 단위 테스트 — AgentLoopController
+ * C3-T18 + Phase 1b/4 regression — AgentLoopController
+ *
+ * Two groups:
+ * 1. Original lightweight control-flow checks (maxTurns guard, stop signal,
+ *    error recovery, doom-loop detection, history reset, queue).
+ * 2. `looksLikeBrokenToolPayload` regression suite (7 cases). This is the
+ *    backtick-fence bug Kong caught in the classify log: the old regex was
+ *    `/```(?:json)?|.../` — "json" optional meant ANY ```lang fence (bash,
+ *    python, even bare ```) tripped it, so ordinary code-block answers got
+ *    counted as broken tool payloads (jsonParseFailures++) and could push
+ *    routing into the "3x json parse failures → suggest session abort"
+ *    branch on turns that were perfectly fine. Fixed regex requires
+ *    ```json specifically, or literal tool-call-shaped tokens
+ *    (tool_calls / <tool  / tool_code / function_call).
+ *
+ *    Cases 1-3 lock in the FIX (must NOT flag). Cases 4-7 lock in that real
+ *    broken payloads still DO get caught (must flag). Driven end-to-end
+ *    through the public API (mockResponse → start() → getJsonParseFailures())
+ *    rather than reaching into the private method, same pattern as
+ *    tests/acceptance/harness/ac4-json-recovery.spec.ts.
  */
 import * as assert from 'assert';
+import { AgentLoopController } from '../../../src/loop/AgentLoopController';
+
+async function jsonParseFailuresFor(content: string): Promise<number> {
+  const loop = new AgentLoopController({
+    mode: 'agent',
+    maxTurns: 1,
+    modelId: 'flash',
+    mockResponse: { content }
+  });
+  await loop.start('trigger mock');
+  return loop.getJsonParseFailures();
+}
 
 suite('AgentLoopController', () => {
   test('maxTurns 가드 — 설정된 턴 수 초과 방지', () => {
@@ -140,5 +171,56 @@ suite('C3-T20: MessageQueue', () => {
     q.enqueue('msg2');
     q.cancelQueued();
     assert.ok(q.queue.every(m => m.status === 'interrupted'));
+  });
+});
+
+suite('AgentLoopController — looksLikeBrokenToolPayload regression (backtick-fence fix)', () => {
+  test('1) plain ```bash fence answer → NOT a broken payload', async () => {
+    const failures = await jsonParseFailuresFor(
+      'Here is how to run it:\n```bash\nnpm run build\n```\nThat should do it.'
+    );
+    assert.strictEqual(failures, 0, 'bash-fenced code answer must not count as broken tool payload');
+  });
+
+  test('2) bare ``` fence (no language tag) → NOT a broken payload', async () => {
+    const failures = await jsonParseFailuresFor(
+      'Wrap it like this:\n```\nconsole.log(1)\n```'
+    );
+    assert.strictEqual(failures, 0, 'bare fence must not count as broken tool payload');
+  });
+
+  test('3) ```python fence answer → NOT a broken payload', async () => {
+    const failures = await jsonParseFailuresFor(
+      'Sure, here is the script:\n```python\nprint("hi")\n```'
+    );
+    assert.strictEqual(failures, 0, 'python-fenced code answer must not count as broken tool payload');
+  });
+
+  test('4) genuinely malformed ```json tool payload → IS a broken payload', async () => {
+    const failures = await jsonParseFailuresFor(
+      '```json\n{"name": "grep", "arguments": totally not valid json here\n```'
+    );
+    assert.ok(failures >= 1, 'malformed ```json tool call must be flagged');
+  });
+
+  test('5) raw "tool_calls" token dumped as prose → IS a broken payload', async () => {
+    const failures = await jsonParseFailuresFor(
+      'Let me use tool_calls to look this up for you.'
+    );
+    assert.ok(failures >= 1, 'literal tool_calls token in prose must be flagged');
+  });
+
+  test('6) bare "tool_code" token with no valid structure → IS a broken payload', async () => {
+    const failures = await jsonParseFailuresFor(
+      'I will emit tool_code output next but nothing else follows.'
+    );
+    assert.ok(failures >= 1, 'bare tool_code token with no valid call must be flagged');
+  });
+
+  test('7) "function_call" token with no valid structure → IS a broken payload', async () => {
+    const failures = await jsonParseFailuresFor(
+      'This looks like a function_call but is malformed and unusable.'
+    );
+    assert.ok(failures >= 1, 'bare function_call token with no valid call must be flagged');
   });
 });

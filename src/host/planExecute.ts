@@ -5,6 +5,7 @@
  * plan.execution.* events so the webview can persist executionPlan state.
  */
 import * as vscode from 'vscode';
+import { execSync } from 'child_process';
 import { configManager } from '../core/ConfigManager';
 import { RuntimeServices } from '../core/RuntimeServices';
 import { sessionUsageTracker, updateUsageStatusBar } from './runtimeSingletons';
@@ -65,6 +66,21 @@ export async function runHostPlanExecute(
     const expectedRepoRoot =
       message.repoRoot ?? message.executionPlan.repoRoot ?? actualRepoRoot ?? undefined;
     const repoRoot = expectedRepoRoot ?? actualRepoRoot ?? undefined;
+
+    if (repoRoot) {
+      try {
+        execSync('git rev-parse --is-inside-work-tree', {
+          cwd: repoRoot,
+          stdio: 'pipe',
+          timeout: 5000
+        });
+      } catch {
+        post('plan.execution.error', {
+          error: `워크스페이스 "${repoRoot}"가 git 저장소가 아닙니다. Plan 실행 전에 git init + 최초 커밋이 필요합니다.`
+        });
+        return;
+      }
+    }
 
     const contextIssue = validateExecutionPlanContext(
       { ...message.executionPlan, repoRoot: expectedRepoRoot },
