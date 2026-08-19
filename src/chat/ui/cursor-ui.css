@@ -113,14 +113,33 @@ button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vsc
 .ak-subagent-result__status { font-size: 11px; color: var(--ak-ui-muted); margin-top: 4px; }
 .ak-subagent-result__status--error { color: var(--vscode-errorForeground, #f48771); }
 .ak-subagent-result__status--done { color: var(--vscode-testing-iconPassed, #73c991); }
-.ak-worktree-changes { margin-top: 4px; display: flex; flex-direction: column; gap: 6px; }
+.ak-subagent-changes,
+.ak-worktree-changes { margin-top: 2px; display: flex; flex-direction: column; gap: 6px; }
+.ak-subagent-changes__summary,
 .ak-worktree-changes__summary { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--vscode-foreground, #ccc); }
+.ak-subagent-changes__totals,
 .ak-worktree-changes__totals { font-size: 11px; color: var(--ak-ui-muted); font-variant-numeric: tabular-nums; }
-.ak-worktree-changes__totals .add, .ak-worktree-file__stats .add { color: var(--vscode-gitDecoration-addedResourceForeground, #73c991); }
+.ak-subagent-changes__panel,
 .ak-worktree-changes__panel { border: 1px solid var(--ak-ui-border-strong); border-radius: 6px; background: var(--vscode-editor-background, rgba(0,0,0,0.12)); padding: 6px 8px; }
+.ak-subagent-changes__label,
 .ak-worktree-changes__label { font-size: 10px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ak-ui-muted); margin-bottom: 4px; }
+.ak-subagent-changes__files,
 .ak-worktree-changes__files { display: flex; flex-direction: column; gap: 1px; }
+.ak-subagent-changes__placeholder,
 .ak-worktree-changes__placeholder { font-size: 11px; color: var(--ak-ui-muted); padding: 4px 0; }
+.ak-subagent-changes__status { font-size: 11px; color: var(--ak-ui-muted); }
+.ak-subagent-changes__status--error { color: var(--vscode-errorForeground, #f48771); }
+.ak-subagent-changes__status--done { color: var(--vscode-testing-iconPassed, #73c991); }
+.ak-subagent-changes__actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--ak-ui-border); }
+.ak-subagent-changes__footer-spacer { flex: 1; }
+.ak-subagent-changes__review { border: 0; background: transparent; color: var(--vscode-textLink-foreground, var(--vscode-foreground)); font-size: 11px; cursor: pointer; padding: 2px 0; }
+.ak-subagent-changes__review:hover:not(:disabled) { text-decoration: underline; }
+.ak-subagent-changes__review:disabled { opacity: 0.55; cursor: default; }
+.ak-subagent-changes__action { border: 1px solid var(--ak-ui-border-strong); border-radius: 5px; background: transparent; color: var(--vscode-foreground, #ccc); font-size: 11px; cursor: pointer; padding: 4px 10px; min-width: 64px; }
+.ak-subagent-changes__action:hover:not(:disabled) { background: var(--vscode-toolbar-hoverBackground, rgba(255,255,255,0.06)); }
+.ak-subagent-changes__action:disabled { opacity: 0.55; cursor: default; }
+.ak-subagent-changes__action--primary { border-color: var(--vscode-button-border, transparent); background: var(--vscode-button-background, #0e639c); color: var(--vscode-button-foreground, #fff); }
+.ak-subagent-changes__action--primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground, #1177bb); }
 .ak-worktree-file__row { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: transparent; color: inherit; font: inherit; font-size: 11px; text-align: left; padding: 3px 2px; border-radius: 4px; cursor: default; }
 .ak-worktree-file--interactive .ak-worktree-file__row { cursor: pointer; }
 .ak-worktree-file__row:hover { background: rgba(255,255,255,0.04); }

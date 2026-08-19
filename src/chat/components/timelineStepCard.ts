@@ -1,5 +1,8 @@
 import type { TimelineStep, TimelineStepKind } from '../conversation/timelinePresentation';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
+import { worktreeDiffTotals } from '../conversation/worktreeDiff';
+import { subagentHasAggregatedChanges } from '../conversation/timelinePresentation';
+import { formatSubagentFilesChanged } from '../conversation/subagentResult';
 
 /** Visual density for Cursor-style progress hierarchy. */
 export type TimelineStepDensity = 'active' | 'compact' | 'failed';
@@ -116,15 +119,21 @@ export function buildTimelineStepCardView(
 
   if (step.kind === 'subagent') {
     subtitle = parseSubagentSubtitle(step.title);
-    if (step.result?.filesChanged != null && step.result.filesChanged > 0) {
-      meta =
-        step.result.filesChanged === 1
-          ? '1 file changed'
-          : `${step.result.filesChanged} files changed`;
+    if (step.result && subagentHasAggregatedChanges(step.result)) {
+      const totals = worktreeDiffTotals(
+        step.result.worktreeReview,
+        step.result.filesChanged
+      );
+      meta = formatSubagentFilesChanged(totals.fileCount);
+      const statParts: string[] = [];
+      if (totals.additions > 0) statParts.push(`+${totals.additions}`);
+      if (totals.deletions > 0) statParts.push(`−${totals.deletions}`);
+      if (statParts.length) meta = `${meta} ${statParts.join(' ')}`;
+      expandable = step.status === 'completed';
+      defaultOpen = false;
     } else if (step.result?.summary) {
       meta = reasoningPreview(step.result.summary, 80);
     }
-    expandable = Boolean(step.result?.summary);
     defaultOpen = live;
   } else if (step.kind === 'reasoning') {
     title = live ? 'Thinking' : 'Thought';
