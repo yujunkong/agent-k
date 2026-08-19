@@ -18,3 +18,17 @@ export function buildPlanTaskSubagentPrompt(
   }
   return lines.join('\n');
 }
+
+/** Prompt for main-agent plan tasks (workspace root, not worktree). */
+export function buildMainPlanTaskPrompt(
+  plan: ExecutionPlan,
+  task: ExecutionPlanTask
+): string {
+  return [
+    'Execute ONLY this approved plan task. Do not skip ahead to later tasks.',
+    '',
+    buildPlanTaskSubagentPrompt(plan, task),
+    '',
+    'When finished, summarize what you did. Run verification steps for this task when listed.'
+  ].join('\n');
+}
