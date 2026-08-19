@@ -25,6 +25,11 @@ import {
   executionIssueToTaskError,
   validateExecutionPlanContext
 } from '../plan/execution/validateExecutionContext';
+import { diagnosticToWorkEvent } from '../plan/execution/diagnosticToWorkEvent';
+import {
+  formatDiagnosticEventLog,
+  type AnyPlanDiagnosticEvent
+} from '../plan/execution/executionDiagnostics';
 import { toObservedToolCall } from '../plan/v2/toObservedToolCall';
 
 export type PlanExecuteHostMessage = {
@@ -210,6 +215,16 @@ export async function runHostPlanExecute(
           blocked: report.blocked,
           entries: report.entries
         });
+      },
+      onDiagnostic: (event: AnyPlanDiagnosticEvent) => {
+        post('plan.execution.diagnostic', { event });
+        const workEvent = diagnosticToWorkEvent(event);
+        if (workEvent) {
+          post('plan.execution.workEvent', { workEvent });
+        }
+        try {
+          console.log(`[plan-exec] ${formatDiagnosticEventLog(event)}`);
+        } catch { /* best-effort */ }
       }
     };
 

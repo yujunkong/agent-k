@@ -1,5 +1,6 @@
 import {
   getNextRunnableTask,
+  getReadyTasks,
   markTaskCompleted,
   markTaskFailed,
   markTaskRunning
@@ -17,6 +18,16 @@ import {
   type TaskPreflightReport
 } from './validateExecutionContext';
 import type { ExecutionPlan, ExecutionPlanTask } from './types';
+import {
+  categorizePlanError,
+  makeExecutionId,
+  taskCountSummary,
+  type AnyPlanDiagnosticEvent,
+  type PlanDiagnosticEmitter,
+  type PlanExecutionContext,
+  type PreflightTargetEntry,
+  type TaskFailureDetail
+} from './executionDiagnostics';
 
 export type MainTaskRunner = (input: {
   plan: ExecutionPlan;
@@ -28,6 +39,7 @@ export type PlanExecutionHooks = {
   onTaskCompleted?: (plan: ExecutionPlan, task: ExecutionPlanTask) => void;
   onTaskFailed?: (plan: ExecutionPlan, task: ExecutionPlanTask, error: string) => void;
   onTaskPreflight?: (report: TaskPreflightReport) => void;
+  onDiagnostic?: PlanDiagnosticEmitter;
 };
 
 export type PlanExecutionDeps = {
@@ -49,22 +61,88 @@ export type PlanExecutionStepResult = {
 /** Dispatch exactly one ready task (sequential v1). */
 export async function executeNextPlanTask(
   plan: ExecutionPlan,
-  deps: PlanExecutionDeps
+  deps: PlanExecutionDeps,
+  ctx?: PlanExecutionContext
 ): Promise<PlanExecutionStepResult> {
   const next = getNextRunnableTask(plan);
   if (!next) return { plan, executed: false };
 
+  const emitDiag = deps.hooks?.onDiagnostic;
+  const tIdx = taskIndex(plan, next.id);
+  const tCount = plan.tasks.length;
+  const baseCtx = ctx ?? {
+    turnId: deps.parentTurnId,
+    planId: plan.id,
+    executionId: ''
+  };
+
+  // task.started
   let current = markTaskRunning(plan, next.id);
   deps.hooks?.onTaskStarted?.(current, next);
+  emitDiag?.({
+    type: 'plan.task.started',
+    ...baseCtx,
+    taskId: next.id,
+    taskIndex: tIdx,
+    taskCount: tCount,
+    timestamp: Date.now(),
+    status: 'running',
+    metadata: {
+      execution: next.execution,
+      title: next.title
+    }
+  });
 
+  // preflight (only for tasks with file targets)
   if (next.files.length > 0) {
     const preflightReport = preflightTaskFiles(current, next, deps.repoRoot);
     deps.hooks?.onTaskPreflight?.(preflightReport);
 
+    const targets: PreflightTargetEntry[] = preflightReport.entries.map((e) => ({
+      path: e.path,
+      intent: e.intent,
+      planExists: e.planTimeExists,
+      executionExists: e.executionTimeExists,
+      verdict: e.verdict === 'ok'
+        ? 'passed'
+        : e.verdict === 'create_ok'
+          ? 'create'
+          : 'missing'
+    }));
+
+    emitDiag?.({
+      type: 'plan.task.preflight',
+      ...baseCtx,
+      taskId: next.id,
+      taskIndex: tIdx,
+      taskCount: tCount,
+      timestamp: Date.now(),
+      status: preflightReport.blocked ? 'error' : 'ok',
+      metadata: {
+        repoRoot: preflightReport.repoRoot,
+        worktreePath: preflightReport.worktreePath,
+        effectiveRoot: preflightReport.effectiveRoot,
+        targets,
+        blocked: preflightReport.blocked
+      }
+    });
+
     if (preflightReport.blocked) {
       current = markTaskFailed(current, next.id);
       const error = executionIssueToTaskError(preflightReport.issue!);
+      const failure = failureFromError(error, 'preflight');
+      emitDiag?.({
+        type: 'plan.task.failed',
+        ...baseCtx,
+        taskId: next.id,
+        taskIndex: tIdx,
+        taskCount: tCount,
+        timestamp: Date.now(),
+        status: 'error',
+        metadata: { failure }
+      });
       deps.hooks?.onTaskFailed?.(current, next, error);
+      emitBlockedDependents(current, next.id, emitDiag, baseCtx);
       return { plan: current, executed: true, taskId: next.id, error };
     }
   }
@@ -73,9 +151,38 @@ export async function executeNextPlanTask(
   if (contextIssue) {
     current = markTaskFailed(current, next.id);
     const error = executionIssueToTaskError(contextIssue);
+    const failure = failureFromError(error, 'validation');
+    emitDiag?.({
+      type: 'plan.task.failed',
+      ...baseCtx,
+      taskId: next.id,
+      taskIndex: tIdx,
+      taskCount: tCount,
+      timestamp: Date.now(),
+      status: 'error',
+      metadata: { failure }
+    });
     deps.hooks?.onTaskFailed?.(current, next, error);
+    emitBlockedDependents(current, next.id, emitDiag, baseCtx);
     return { plan: current, executed: true, taskId: next.id, error };
   }
+
+  // task.dispatched
+  const dispatchTs = Date.now();
+  emitDiag?.({
+    type: 'plan.task.dispatched',
+    ...baseCtx,
+    taskId: next.id,
+    taskIndex: tIdx,
+    taskCount: tCount,
+    timestamp: dispatchTs,
+    status: 'running',
+    metadata: {
+      execution: next.execution,
+      repoRoot: deps.repoRoot,
+      worktreePath: next.worktreePath
+    }
+  });
 
   if (next.execution === 'subagent') {
     const subagentResult = await runPlanTaskViaSubagent(current, next, {
@@ -92,28 +199,81 @@ export async function executeNextPlanTask(
       });
     }
 
+    const durationMs = Date.now() - dispatchTs;
+
     if (subagentResult.success) {
       current = markTaskCompleted(current, next.id);
+      emitDiag?.({
+        type: 'plan.task.completed',
+        ...baseCtx,
+        taskId: next.id,
+        taskIndex: tIdx,
+        taskCount: tCount,
+        timestamp: Date.now(),
+        status: 'ok',
+        durationMs,
+        metadata: {}
+      });
       deps.hooks?.onTaskCompleted?.(current, current.tasks.find((t) => t.id === next.id)!);
       return { plan: current, executed: true, taskId: next.id };
     }
 
     current = markTaskFailed(current, next.id);
     const error = subagentResult.error ?? 'Subagent task failed';
+    const failure = failureFromError(error, 'subagent');
+    emitDiag?.({
+      type: 'plan.task.failed',
+      ...baseCtx,
+      taskId: next.id,
+      taskIndex: tIdx,
+      taskCount: tCount,
+      timestamp: Date.now(),
+      status: 'error',
+      durationMs,
+      metadata: { failure }
+    });
     deps.hooks?.onTaskFailed?.(current, next, error);
+    emitBlockedDependents(current, next.id, emitDiag, baseCtx);
     return { plan: current, executed: true, taskId: next.id, error };
   }
 
+  // main task
   const mainResult = await deps.runMainTask({ plan: current, task: next });
+  const durationMs = Date.now() - dispatchTs;
+
   if (mainResult.success) {
     current = markTaskCompleted(current, next.id);
+    emitDiag?.({
+      type: 'plan.task.completed',
+      ...baseCtx,
+      taskId: next.id,
+      taskIndex: tIdx,
+      taskCount: tCount,
+      timestamp: Date.now(),
+      status: 'ok',
+      durationMs,
+      metadata: {}
+    });
     deps.hooks?.onTaskCompleted?.(current, current.tasks.find((t) => t.id === next.id)!);
     return { plan: current, executed: true, taskId: next.id };
   }
 
   current = markTaskFailed(current, next.id);
   const error = mainResult.error ?? 'Main agent task failed';
+  const failure = failureFromError(error, categorizePlanError(error));
+  emitDiag?.({
+    type: 'plan.task.failed',
+    ...baseCtx,
+    taskId: next.id,
+    taskIndex: tIdx,
+    taskCount: tCount,
+    timestamp: Date.now(),
+    status: 'error',
+    durationMs,
+    metadata: { failure }
+  });
   deps.hooks?.onTaskFailed?.(current, next, error);
+  emitBlockedDependents(current, next.id, emitDiag, baseCtx);
   return { plan: current, executed: true, taskId: next.id, error };
 }
 
@@ -130,14 +290,150 @@ export async function runPlanExecution(
     return plan;
   }
 
+  const emitDiag = deps.hooks?.onDiagnostic;
+  const executionId = makeExecutionId();
+  const ctx: PlanExecutionContext = {
+    turnId: deps.parentTurnId,
+    planId: plan.id,
+    executionId
+  };
+
+  const startTs = Date.now();
+  const rootTaskIds = getReadyTasks(plan).map((t) => t.id);
+  emitDiag?.({
+    type: 'plan.execution.started',
+    ...ctx,
+    timestamp: startTs,
+    taskCount: plan.tasks.length,
+    status: 'running',
+    metadata: {
+      taskCount: plan.tasks.length,
+      rootTaskIds,
+      repoRoot: plan.repoRoot
+    }
+  });
+
+  // Emit initial ready events
+  for (const readyTask of rootTaskIds) {
+    const t = plan.tasks.find((task) => task.id === readyTask);
+    if (t) {
+      emitDiag?.({
+        type: 'plan.task.ready',
+        ...ctx,
+        taskId: t.id,
+        taskIndex: taskIndex(plan, t.id),
+        taskCount: plan.tasks.length,
+        timestamp: Date.now(),
+        status: 'pending',
+        metadata: {
+          dependencies: t.dependencies,
+          execution: t.execution
+        }
+      });
+    }
+  }
+
   let current: ExecutionPlan =
     plan.status === 'executing' ? plan : { ...plan, status: 'executing' };
 
   for (;;) {
     if (current.status !== 'executing') break;
-    const step = await executeNextPlanTask(current, deps);
+
+    // Emit ready events for newly unlocked tasks
+    const ready = getReadyTasks(current);
+    for (const readyTask of ready) {
+      if (readyTask.status === 'ready') {
+        emitDiag?.({
+          type: 'plan.task.ready',
+          ...ctx,
+          taskId: readyTask.id,
+          taskIndex: taskIndex(current, readyTask.id),
+          taskCount: current.tasks.length,
+          timestamp: Date.now(),
+          status: 'pending',
+          metadata: {
+            dependencies: readyTask.dependencies,
+            execution: readyTask.execution
+          }
+        });
+      }
+    }
+
+    const step = await executeNextPlanTask(current, deps, ctx);
     current = step.plan;
     if (!step.executed) break;
   }
+
+  const durationMs = Date.now() - startTs;
+  const summary = taskCountSummary(current);
+
+  if (current.status === 'completed') {
+    emitDiag?.({
+      type: 'plan.execution.completed',
+      ...ctx,
+      timestamp: Date.now(),
+      status: 'ok',
+      durationMs,
+      metadata: summary
+    });
+  } else if (current.status === 'failed') {
+    const failedIds = current.tasks.filter((t) => t.status === 'failed').map((t) => t.id);
+    emitDiag?.({
+      type: 'plan.execution.failed',
+      ...ctx,
+      timestamp: Date.now(),
+      status: 'error',
+      durationMs,
+      metadata: {
+        failedTaskIds: failedIds,
+        ...summary,
+        reason: `${failedIds.length} task(s) failed: ${failedIds.join(', ')}`
+      }
+    });
+  }
+
   return current;
+}
+
+// ── Internal helpers ────────────────────────────────────────────────
+
+function failureFromError(
+  error: string,
+  category: import('./executionDiagnostics').PlanFailureCategory
+): TaskFailureDetail {
+  return {
+    category,
+    message: error,
+    retryable: false
+  };
+}
+
+function emitBlockedDependents(
+  plan: ExecutionPlan,
+  failedTaskId: string,
+  emitDiag: PlanDiagnosticEmitter | undefined,
+  ctx: PlanExecutionContext
+): void {
+  if (!emitDiag) return;
+  for (const task of plan.tasks) {
+    if (task.status === 'blocked' && task.dependencies.includes(failedTaskId)) {
+      emitDiag({
+        type: 'plan.task.blocked',
+        ...ctx,
+        taskId: task.id,
+        taskIndex: taskIndex(plan, task.id),
+        taskCount: plan.tasks.length,
+        timestamp: Date.now(),
+        status: 'blocked',
+        metadata: {
+          blockedBy: [failedTaskId],
+          reason: 'dependency_failed'
+        }
+      });
+    }
+  }
+}
+
+function taskIndex(plan: ExecutionPlan, taskId: string): number {
+  return plan.tasks.findIndex((t) => t.id === taskId);
 }
