@@ -12,6 +12,23 @@ import {
   resolveFileEditForEvent,
   resolveTerminalRunForEvent
 } from './workEventDetails';
+import { worktreeDiffTotals } from './worktreeDiff';
+
+export type SubagentChangesPhase = 'none' | 'progress' | 'final';
+
+export type SubagentGroupPresentation = {
+  /** Completed worktree result — hide per-file edit rows (shown in Changes). */
+  suppressFileEdits: boolean;
+  /** Running subagent — file rows stay compact (path only, no diff panel). */
+  compactFileEdits: boolean;
+  changesPhase: SubagentChangesPhase;
+  editPaths: string[];
+  changesTotals?: {
+    fileCount: number;
+    additions: number;
+    deletions: number;
+  };
+};
 
 export type TimelineStepKind =
   | 'reasoning'
@@ -45,11 +62,18 @@ export type TimelineStep = {
 
 export type TimelineNode =
   | { kind: 'step'; step: TimelineStep }
-  | { kind: 'group'; step: TimelineStep; children: TimelineStep[] };
+  | {
+      kind: 'group';
+      step: TimelineStep;
+      children: TimelineStep[];
+      subagent: SubagentGroupPresentation;
+    };
 
 export type TimelinePresentation = {
   nodes: TimelineNode[];
   activeStepId?: string;
+  /** Short live label for the timeline summary — e.g. "Reading session.ts". */
+  progressLabel?: string;
   summary: {
     stepCount: number;
     hasActive: boolean;
@@ -176,11 +200,13 @@ export function groupTimelineSteps(events: ConversationWorkEvent[] = []): Timeli
       header && isSubagentHeaderEvent(header)
         ? header
         : implicitSubagentHeader(subagentId);
+    const headerStep = eventToTimelineStep(headerEvent);
     const group = {
       kind: 'group' as const,
-      step: eventToTimelineStep(headerEvent),
+      step: headerStep,
       headerEvent,
-      children: [] as TimelineStep[]
+      children: [] as TimelineStep[],
+      subagent: buildSubagentGroupPresentation(headerStep, [])
     };
     groups.set(subagentId, group);
     nodes.push(group);
@@ -200,27 +226,128 @@ export function groupTimelineSteps(events: ConversationWorkEvent[] = []): Timeli
     ensureGroup(subagentId).children.push(eventToTimelineStep(event));
   }
 
-  return nodes;
+  return nodes.map((node) => {
+    if (node.kind !== 'group') return node;
+    return {
+      ...node,
+      subagent: buildSubagentGroupPresentation(node.step, node.children)
+    };
+  });
 }
 
 export function findActiveStepId(nodes: TimelineNode[]): string | undefined {
+  // Prefer the deepest running child so progress emphasizes live tool work,
+  // not just a long-running subagent header.
+  let fallback: string | undefined;
   for (const node of nodes) {
     if (node.kind === 'group') {
-      if (node.step.status === 'running') return node.step.id;
       for (const child of node.children) {
         if (child.status === 'running') return child.id;
       }
+      if (node.step.status === 'running' && !fallback) fallback = node.step.id;
       continue;
     }
     if (node.step.status === 'running') return node.step.id;
   }
+  return fallback;
+}
+
+function findStepById(
+  nodes: TimelineNode[],
+  id: string | undefined
+): TimelineStep | undefined {
+  if (!id) return undefined;
+  for (const node of nodes) {
+    if (node.step.id === id) return node.step;
+    if (node.kind === 'group') {
+      const child = node.children.find((entry) => entry.id === id);
+      if (child) return child;
+    }
+  }
   return undefined;
+}
+
+export function formatProgressLabel(step: TimelineStep | undefined): string | undefined {
+  if (!step || step.status !== 'running') return undefined;
+  if (step.kind === 'reasoning') {
+    const preview = String(step.body || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (preview) {
+      return preview.length > 64 ? `${preview.slice(0, 63)}…` : preview;
+    }
+    return 'Thinking…';
+  }
+  if (step.kind === 'subagent') {
+    const label = String(step.title || '')
+      .replace(/\s+·\s+(running|completed|failed|queued)$/i, '')
+      .trim();
+    return label || 'Working…';
+  }
+  const action =
+    step.kind === 'file'
+      ? 'Editing'
+      : step.kind === 'terminal'
+        ? 'Running'
+        : step.title || 'Working';
+  const target = step.subtitle || step.fileEdit?.path || step.terminalRun?.command;
+  if (target) return `${action} ${target}`;
+  return `${action}…`;
+}
+
+export function subagentHasAggregatedChanges(result?: SubagentResult): boolean {
+  if (!result) return false;
+  return (result.filesChanged ?? 0) > 0 || Boolean(result.worktreeReview);
+}
+
+function fileEditPath(step: TimelineStep): string | undefined {
+  return step.fileEdit?.path || step.subtitle || undefined;
+}
+
+/** Presentation rules for subagent groups — dedupe file edits vs worktree Changes. */
+export function buildSubagentGroupPresentation(
+  step: TimelineStep,
+  children: TimelineStep[]
+): SubagentGroupPresentation {
+  const result = step.result;
+  const fileChildren = children.filter((child) => child.kind === 'file');
+  const editPaths = fileChildren
+    .map(fileEditPath)
+    .filter((path): path is string => Boolean(path));
+  const hasAggregated = subagentHasAggregatedChanges(result);
+  const completed = step.status === 'completed';
+  const running = step.status === 'running';
+
+  let changesPhase: SubagentChangesPhase = 'none';
+  if (running && editPaths.length > 0) changesPhase = 'progress';
+  if (completed && hasAggregated) changesPhase = 'final';
+
+  const totals =
+    completed && hasAggregated
+      ? worktreeDiffTotals(result?.worktreeReview, result?.filesChanged)
+      : undefined;
+
+  return {
+    suppressFileEdits: completed && hasAggregated && fileChildren.length > 0,
+    compactFileEdits: running && fileChildren.length > 0,
+    changesPhase,
+    editPaths,
+    changesTotals: totals
+  };
+}
+
+export function visibleSubagentChildren(
+  children: TimelineStep[],
+  presentation: SubagentGroupPresentation
+): TimelineStep[] {
+  if (!presentation.suppressFileEdits) return children;
+  return children.filter((child) => child.kind !== 'file');
 }
 
 export function countTimelineSteps(nodes: TimelineNode[]): number {
   return nodes.reduce((total, node) => {
     if (node.kind === 'group') {
-      return total + 1 + node.children.length;
+      return total + 1 + visibleSubagentChildren(node.children, node.subagent).length;
     }
     return total + 1;
   }, 0);
@@ -261,11 +388,13 @@ export function buildTimelinePresentation(
       header && isSubagentHeaderEvent(header)
         ? header
         : implicitSubagentHeader(subagentId);
+    const headerStep = withPreviews(headerEvent);
     const group = {
       kind: 'group' as const,
-      step: withPreviews(headerEvent),
+      step: headerStep,
       headerEvent,
-      children: [] as TimelineStep[]
+      children: [] as TimelineStep[],
+      subagent: buildSubagentGroupPresentation(headerStep, [])
     };
     groups.set(subagentId, group);
     nodes.push(group);
@@ -285,8 +414,16 @@ export function buildTimelinePresentation(
     ensureGroup(subagentId).children.push(withPreviews(event));
   }
 
-  const stepCount = countTimelineSteps(nodes);
-  const hasActive = nodes.some((node) => {
+  const finalizedNodes: TimelineNode[] = nodes.map((node) => {
+    if (node.kind !== 'group') return node;
+    return {
+      ...node,
+      subagent: buildSubagentGroupPresentation(node.step, node.children)
+    };
+  });
+
+  const stepCount = countTimelineSteps(finalizedNodes);
+  const hasActive = finalizedNodes.some((node) => {
     if (node.kind === 'group') {
       return (
         node.step.status === 'running' ||
@@ -295,7 +432,7 @@ export function buildTimelinePresentation(
     }
     return node.step.status === 'running';
   });
-  const hasError = nodes.some((node) => {
+  const hasError = finalizedNodes.some((node) => {
     if (node.kind === 'group') {
       return (
         node.step.status === 'failed' ||
@@ -305,9 +442,12 @@ export function buildTimelinePresentation(
     return node.step.status === 'failed';
   });
 
+  const activeStepId = findActiveStepId(finalizedNodes);
+
   return {
-    nodes,
-    activeStepId: findActiveStepId(nodes),
+    nodes: finalizedNodes,
+    activeStepId,
+    progressLabel: formatProgressLabel(findStepById(finalizedNodes, activeStepId)),
     summary: { stepCount, hasActive, hasError }
   };
 }

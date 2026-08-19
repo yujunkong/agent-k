@@ -15,15 +15,21 @@ export { normalizeWorkItems } from './normalizeWorkItems';
 export { groupWorkTimelineItems } from './groupWorkTimelineItems';
 export {
   buildTimelinePresentation,
+  buildSubagentGroupPresentation,
   eventToTimelineStep,
+  formatProgressLabel,
+  subagentHasAggregatedChanges,
+  visibleSubagentChildren,
   mapWorkStatusToStepStatus,
   mapWorkTypeToStepKind,
+  type SubagentGroupPresentation,
   type TimelineNode,
   type TimelinePresentation,
   type TimelineStep,
   type TimelineStepKind,
   type TimelineStepStatus
 } from './timelinePresentation';
+export { buildWorktreeDiffFiles, worktreeDiffTotals } from './worktreeDiff';
 export {
   type SubagentResult,
   parseSubagentResult,
