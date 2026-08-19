@@ -65,8 +65,6 @@
 .ak-work-timeline__marker { width: 14px; color: var(--vscode-textLink-foreground, var(--ak-text-primary)); font-size: 9px; }
 .ak-work-timeline__title { min-width: 0; }
 .ak-work-timeline__marker[data-active='true'] { color: var(--vscode-textLink-foreground, var(--ak-text-primary)); }
-.ak-work-item--pending { color: var(--ak-ui-muted); }
-.ak-work-item--pending .ak-work-item__label { opacity: .8; }
 .ak-work-timeline__items { margin: 3px 0 3px var(--ak-space-2); padding: 2px 0 2px 14px; border-left: 1px solid var(--ak-border-strong); display: flex; flex-direction: column; gap: var(--ak-space-2); }
 .ak-timeline-card { border: 1px solid var(--ak-border-strong); border-radius: var(--ak-radius-sm); background: var(--ak-ui-surface); color: var(--ak-text-primary); font-size: 12px; overflow: hidden; transition: border-color .12s ease, opacity .12s ease; }
 .ak-timeline-card--compact { border-color: transparent; background: transparent; opacity: .78; }
@@ -107,23 +105,6 @@ button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vsc
 .ak-timeline-card__body .ak-inline-edit-diff--embedded { margin: 0; border: 0; background: transparent; }
 .ak-work-subagent { display: flex; flex-direction: column; gap: var(--ak-ui-space-2); }
 .ak-work-subagent__children { margin: 0; padding: 0 0 0 10px; border-left: 1px solid var(--ak-border-strong); display: flex; flex-direction: column; gap: var(--ak-space-1); }
-.ak-subagent-result { margin: 0 0 6px 8px; padding: 2px 0 2px 14px; border-left: 1px solid var(--ak-ui-border-strong); display: flex; flex-direction: column; gap: 2px; }
-.ak-subagent-result__row { display: flex; gap: 8px; min-height: 23px; align-items: baseline; color: var(--vscode-foreground, #ccc); font-size: 12px; }
-.ak-subagent-result__label { color: var(--ak-ui-muted); flex: 0 0 auto; }
-.ak-subagent-result__value { min-width: 0; color: var(--ak-ui-muted); overflow: hidden; text-overflow: ellipsis; }
-.ak-subagent-result__review { align-self: flex-start; margin-top: 2px; border: 0; border-radius: 5px; background: transparent; color: var(--vscode-textLink-foreground, var(--vscode-foreground)); font-size: 11px; cursor: pointer; padding: 2px 0; }
-.ak-subagent-result__review:hover:not(:disabled) { text-decoration: underline; }
-.ak-subagent-result__review:disabled { opacity: 0.55; cursor: default; }
-.ak-subagent-result__review-row { margin-top: 4px; }
-.ak-subagent-result__footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--ak-ui-border-strong); }
-.ak-subagent-result__action { border: 1px solid var(--ak-ui-border-strong); border-radius: 5px; background: transparent; color: var(--vscode-foreground, #ccc); font-size: 11px; cursor: pointer; padding: 4px 10px; min-width: 64px; }
-.ak-subagent-result__action:hover:not(:disabled) { background: var(--vscode-toolbar-hoverBackground, rgba(255,255,255,0.06)); }
-.ak-subagent-result__action:disabled { opacity: 0.55; cursor: default; }
-.ak-subagent-result__action--primary { border-color: var(--vscode-button-border, transparent); background: var(--vscode-button-background, #0e639c); color: var(--vscode-button-foreground, #fff); }
-.ak-subagent-result__action--primary:hover:not(:disabled) { background: var(--vscode-button-hoverBackground, #1177bb); }
-.ak-subagent-result__status { font-size: 11px; color: var(--ak-ui-muted); margin-top: 4px; }
-.ak-subagent-result__status--error { color: var(--vscode-errorForeground, #f48771); }
-.ak-subagent-result__status--done { color: var(--vscode-testing-iconPassed, #73c991); }
 .ak-subagent-changes,
 .ak-worktree-changes { margin-top: 2px; display: flex; flex-direction: column; gap: var(--ak-space-1); }
 .ak-subagent-changes__summary,
@@ -197,7 +178,6 @@ button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vsc
   .message-bubble.user { padding: 9px 10px; }
   .message-bubble.assistant { padding-top: 10px; padding-bottom: 14px; }
   .message-content { max-width: 100%; }
-  .ak-work-item { gap: 6px; font-size: 11px; }
   .ak-work-timeline__items { padding-left: 11px; }
   .ak-understanding-box { padding: 7px 8px; }
 }
@@ -206,7 +186,6 @@ button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vsc
   .message-bubble,.conversation-turn,.ak-agent-turn,.changed-files-bar,.composer,.composer-container { width: calc(100% - 12px); }
   .message-actions { gap: 2px; }
   .message-actions--user { flex-wrap: wrap; }
-  .ak-work-item__detail { max-width: 65vw; }
   .ak-turn-rail { margin-bottom: 5px; }
 }
 
