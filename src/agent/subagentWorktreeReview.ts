@@ -119,6 +119,9 @@ export async function applySubagentWorktree(
     }
   }
 
+  const createdFiles: string[] = [];
+  let patchApplied = false;
+
   try {
     if (trackedPatch.trim()) {
       execFileSync('git', ['apply', '--binary', '-'], {
@@ -126,6 +129,7 @@ export async function applySubagentWorktree(
         input: trackedPatch,
         stdio: ['pipe', 'pipe', 'pipe']
       });
+      patchApplied = true;
     }
 
     for (const relative of review.untrackedFiles) {
@@ -133,6 +137,7 @@ export async function applySubagentWorktree(
       const target = path.resolve(repoRoot, relative);
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.copyFileSync(source, target);
+      createdFiles.push(target);
     }
 
     const finalStatus = run(repoRoot, ['status', '--porcelain']).trim();
@@ -147,6 +152,21 @@ export async function applySubagentWorktree(
       filesChanged: review.snapshot.filesChanged + review.untrackedFiles.length
     };
   } catch (error) {
+    // Rollback: remove untracked files created during this operation
+    for (const filePath of createdFiles) {
+      try { fs.unlinkSync(filePath); } catch { /* best effort */ }
+    }
+    // Rollback: reverse the tracked patch if it was applied
+    if (patchApplied && trackedPatch.trim()) {
+      try {
+        execFileSync('git', ['apply', '--binary', '--reverse', '-'], {
+          cwd: repoRoot,
+          input: trackedPatch,
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+      } catch { /* best-effort rollback */ }
+    }
+
     return {
       applied: false,
       removed: false,
