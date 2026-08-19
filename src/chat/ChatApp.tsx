@@ -88,6 +88,8 @@ import { PlanModeControllerAdapter, toObservedToolCall } from '../plan/v2';
 import type { ExecutionPlan } from '../plan/execution';
 import {
   finalizePlanExecution,
+  recordTaskExecutionFailed,
+  recordTaskExecutionStarted,
   startPlanExecution,
   updatePlanExecutionSnapshot
 } from '../plan/execution/planExecutionPersistence';
@@ -1098,6 +1100,25 @@ export function ChatApp() {
     'plan.execution.updated': (data) => {
       const plan = data.executionPlan as ExecutionPlan | undefined;
       if (!plan) return;
+
+      // Record task-level execution events so PlanSession.executionError
+      // is populated before finalizePlanExecution reads it.
+      const taskId = data.taskId as string | undefined;
+      const taskEvent = data.taskEvent as string | undefined;
+      if (taskId && taskEvent) {
+        const execTask = plan.tasks.find((t) => t.id === taskId);
+        if (execTask) {
+          if (taskEvent === 'started') {
+            recordTaskExecutionStarted(
+              planV2Adapter.session, taskId, execTask.execution, execTask.subagentId
+            );
+          } else if (taskEvent === 'failed') {
+            const error = (data.error as string) || `Task "${execTask.title}" failed`;
+            recordTaskExecutionFailed(planV2Adapter.session, execTask, error);
+          }
+        }
+      }
+
       updatePlanExecutionSnapshot(planV2Adapter.session, plan);
     },
     'plan.execution.complete': (data) => {
