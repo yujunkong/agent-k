@@ -1,5 +1,5 @@
 /**
- * Inline Edit review (1-4f) — presentation + accept/reject over FileEditPreview.
+ * Inline Edit review (1-4f/1-4g) — presentation + lifecycle over FileEditPreview.
  * Does not invent a new diff engine; host file.edit already carries FileEditCard lines.
  */
 import type {
@@ -28,6 +28,13 @@ export function isPendingInlineEdit(
   file: Pick<FileEditPreview, 'source' | 'reviewStatus'>
 ): boolean {
   return isInlineEditPreview(file) && inlineEditReviewStatus(file) === 'pending';
+}
+
+/** Only pending inline edits may transition to a terminal review state. */
+export function canResolveInlineEdit(
+  file: Pick<FileEditPreview, 'source' | 'reviewStatus'>
+): boolean {
+  return isPendingInlineEdit(file);
 }
 
 /** Host file.edit payload → chat FileEditPreview (shared with useChatStream). */
@@ -76,9 +83,12 @@ export function applyInlineEditReview(
   id: string,
   status: FileEditReviewStatus
 ): FileEditPreview[] {
-  return files.map((file) =>
-    file.id === id ? { ...file, reviewStatus: status } : file
-  );
+  return files.map((file) => {
+    if (file.id !== id) return file;
+    if (!isInlineEditPreview(file)) return file;
+    if (!canResolveInlineEdit(file)) return file;
+    return { ...file, reviewStatus: status };
+  });
 }
 
 export function patchMessagesFileEditReview(
@@ -95,6 +105,11 @@ export function patchMessagesFileEditReview(
   });
 }
 
+/**
+ * Reject is only safe when the preview has a checkpoint. Callers should treat
+ * a missing checkpoint as a UI error instead of pretending the source was
+ * restored. The payload itself remains deterministic for host message tests.
+ */
 export function inlineEditRejectRestorePayload(checkpointId: string): {
   type: 'checkpoint.restore';
   id: string;
@@ -105,4 +120,10 @@ export function inlineEditRejectRestorePayload(checkpointId: string): {
     id: checkpointId,
     reason: 'inline-edit-reject'
   };
+}
+
+export function canRejectInlineEdit(
+  file: Pick<FileEditPreview, 'source' | 'reviewStatus' | 'checkpointId'>
+): boolean {
+  return isPendingInlineEdit(file) && Boolean(file.checkpointId);
 }
