@@ -18,6 +18,22 @@ export interface InlineEditRequest {
   instruction: string;
 }
 
+/** Payload consumed by the chat bridge. Keep this separate from VS Code Range. */
+export interface InlineEditChatPayload {
+  type: 'inline.edit.request';
+  requestId: string;
+  instruction: string;
+  selection: {
+    uri: string;
+    languageId: string;
+    startLine: number;
+    startCharacter: number;
+    endLine: number;
+    endCharacter: number;
+    selectedText: string;
+  };
+}
+
 export interface InlineEditSelection {
   uri: string;
   languageId: string;
@@ -59,6 +75,41 @@ export class InlineEditController {
       range: selection,
       selectedText: document.getText(selection)
     };
+  }
+
+  /** Convert a request to the stable host → webview chat payload. */
+  toChatPayload(request: InlineEditRequest, requestId = `inline_${Date.now().toString(36)}`): InlineEditChatPayload {
+    return {
+      type: 'inline.edit.request',
+      requestId,
+      instruction: request.instruction,
+      selection: {
+        uri: request.uri,
+        languageId: request.languageId,
+        startLine: request.startLine,
+        startCharacter: request.startCharacter,
+        endLine: request.endLine,
+        endCharacter: request.endCharacter,
+        selectedText: request.selectedText
+      }
+    };
+  }
+
+  /** Build a deterministic composer seed for the inline-edit bridge. */
+  toComposerSeed(request: InlineEditRequest): string {
+    const file = request.uri.replace(/^file:\/\//, '');
+    const range = `${request.startLine + 1}:${request.startCharacter + 1}-${request.endLine + 1}:${request.endCharacter + 1}`;
+    const language = request.languageId || 'text';
+    return [
+      `Edit ${file} (${range})`,
+      '',
+      `Instruction: ${request.instruction}`,
+      '',
+      'Selected code:',
+      `\`\`\`${language}`,
+      request.selectedText,
+      '\`\`\`'
+    ].join('\n');
   }
 
   /** Run inline edit from the current selection and request an instruction. */
