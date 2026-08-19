@@ -18,7 +18,7 @@ import { useChatStream } from './hooks/useChatStream';
 import { useChatSessions, sessionStore } from './hooks/useChatSessions';
 import { useHostMessages } from './hooks/useHostMessages';
 import { getVsCodeApi } from './host/vscodeApi';
-import { patchSubagentResultInEvents } from './conversation/conversationWorkEvent';
+import { patchSubagentResultInEvents, upsertWorkEvents } from './conversation/conversationWorkEvent';
 import {
   applyHostWorktreeApplyResult,
   applyHostWorktreeRejectResult,
@@ -1110,6 +1110,21 @@ export function ChatApp() {
     },
     'plan.execution.error': (data) => {
       setError(String(data.error || 'Plan execution failed.'));
+    },
+    'plan.execution.diagnostic': (_data) => {
+      // Diagnostic events are logged host-side; webview receives them for
+      // future structured trace UI. No-op for now — workEvent variant below
+      // handles the timeline row.
+    },
+    'plan.execution.workEvent': (data) => {
+      const workEvent = data.workEvent as import('./conversation/conversationWorkEvent').ConversationWorkEvent | undefined;
+      if (!workEvent?.id) return;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (!last || last.role !== 'assistant') return prev;
+        const updated = upsertWorkEvents(last.workItems, workEvent);
+        return [...prev.slice(0, -1), { ...last, workItems: updated }];
+      });
     },
     'plan.buildFromEditor': (data) => {
       const content = String(data.content || '').trim();

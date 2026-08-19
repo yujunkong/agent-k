@@ -10,3 +10,4 @@ export * from './planExecutionEngine';
 export * from './planExecutionPersistence';
 export * from './planExecutionPresentation';
 export * from './validateExecutionContext';
+export * from './executionDiagnostics';

@@ -21,7 +21,8 @@ export type ConversationWorkType =
   | 'terminal'
   | 'verify'
   | 'generic'
-  | 'subagent';
+  | 'subagent'
+  | 'plan';
 
 export type ConversationWorkStatus = 'pending' | 'running' | 'complete' | 'error';
 
@@ -40,6 +41,9 @@ export type ConversationWorkEvent = {
   parentTurnId?: string;
   /** Completion stats from subagent.event — not a child transcript. */
   result?: SubagentResult;
+  /** Plan execution correlation — connects this event to the DAG run. */
+  executionId?: string;
+  taskId?: string;
 };
 
 export const WORK_TYPE_LABEL: Record<ConversationWorkType, string> = {
@@ -50,7 +54,8 @@ export const WORK_TYPE_LABEL: Record<ConversationWorkType, string> = {
   terminal: 'Terminal',
   verify: 'Verify',
   generic: 'Work',
-  subagent: 'Subagent'
+  subagent: 'Subagent',
+  plan: 'Plan'
 };
 
 const CANONICAL_TYPES = new Set<string>([
@@ -61,7 +66,8 @@ const CANONICAL_TYPES = new Set<string>([
   'terminal',
   'verify',
   'generic',
-  'subagent'
+  'subagent',
+  'plan'
 ]);
 
 /** Chrome that must not become a timeline row. Thinking is a first-class row. */
