@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   beginWorkEvent,
   classifyWorkType,
+  clipSubagentSummary,
   completeWorkEvent,
   settleWorkEvents,
   upsertWorkEvents,
   workEventFromHostPayload,
+  workEventFromSubagentHostEvent,
   workEventsFromLegacySteps,
   type ConversationWorkEvent
 } from './conversationWorkEvent';
@@ -24,6 +26,12 @@ describe('classifyWorkType', () => {
     expect(classifyWorkType(undefined, 'planning')).toBeNull();
     expect(classifyWorkType('ask_question', 'asking')).toBeNull();
     expect(classifyWorkType('todo_write', 'session')).toBeNull();
+  });
+
+  it('maps task_run onto a subagent header without treating skill_run as one', () => {
+    expect(classifyWorkType('task_run', 'task')).toBe('subagent');
+    expect(classifyWorkType('task', 'task')).toBe('subagent');
+    expect(classifyWorkType('skill_run', 'task')).toBe('generic');
   });
 
   it('falls back to timeline kind when the tool name is unknown', () => {
@@ -105,6 +113,60 @@ describe('work event lifecycle', () => {
       label: 'Thinking',
       detail: undefined
     });
+  });
+
+  it('keeps child thinking compact and stamps subagentId for grouping', () => {
+    const event = workEventFromHostPayload(
+      {
+        id: 'tl_sub_a_thought',
+        kind: 'thinking',
+        detail: 'child reasoning dump that must not leak',
+        subagentId: 'a',
+        parentTurnId: '1',
+        status: 'running'
+      },
+      'running'
+    );
+    expect(event).toMatchObject({
+      type: 'thinking',
+      detail: undefined,
+      subagentId: 'a',
+      parentTurnId: '1'
+    });
+  });
+
+  it('builds a subagent header from lifecycle events using summary only', () => {
+    const running = workEventFromSubagentHostEvent({
+      type: 'subagent.started',
+      taskId: 'a',
+      parentTurnId: '3',
+      role: 'research',
+      status: 'running',
+      prompt: 'authentication'
+    });
+    expect(running).toMatchObject({
+      id: 'tl_subagent_a',
+      type: 'subagent',
+      status: 'running',
+      label: 'Research authentication · running',
+      detail: undefined,
+      subagentId: 'a',
+      parentTurnId: '3'
+    });
+
+    const transcript = 'line\n'.repeat(80) + 'Authentication flow is handled in session.ts.';
+    const completed = workEventFromSubagentHostEvent({
+      type: 'subagent.completed',
+      taskId: 'a',
+      role: 'research',
+      status: 'completed',
+      prompt: 'authentication',
+      summary: 'Authentication flow is handled in session.ts.'
+    });
+    expect(completed?.label).toBe('Research authentication · completed');
+    expect(completed?.detail).toBe('Authentication flow is handled in session.ts.');
+    expect(completed?.detail).not.toContain('line\n');
+    expect(clipSubagentSummary(transcript)?.includes('line\n')).toBeFalsy();
   });
 
   it('records error status from tool.end', () => {

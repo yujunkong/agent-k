@@ -71,6 +71,8 @@ button.ak-work-item__row:hover .ak-work-item__label { color: var(--vscode-foregr
 .ak-work-item--running .ak-work-item__marker { color: var(--vscode-textLink-foreground, var(--vscode-foreground)); }
 .ak-work-item--error .ak-work-item__marker { color: var(--vscode-errorForeground, #f48771); }
 .ak-work-item__detail { overflow: hidden; color: var(--ak-ui-muted); text-overflow: ellipsis; white-space: nowrap; }
+.ak-work-subagent { display: flex; flex-direction: column; gap: 0; }
+.ak-work-subagent__children { margin: 0 0 4px 8px; padding: 2px 0 2px 14px; border-left: 1px solid var(--ak-ui-border-strong); }
 .ak-worked { margin: 6px 0 10px; }
 .ak-worked__toggle { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; border: 0; color: var(--ak-ui-muted); background: transparent; font-size: 11px; cursor: pointer; }
 .ak-worked__toggle:hover { color: var(--vscode-foreground, #ccc); }

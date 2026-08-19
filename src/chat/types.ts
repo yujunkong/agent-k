@@ -123,7 +123,8 @@ export interface TimelineDelta {
     | 'browsing'
     | 'asking'
     | 'done'
-    | 'error';
+    | 'error'
+    | 'task';
   turn: number;
   label: string;
   detail?: string;
@@ -131,6 +132,8 @@ export interface TimelineDelta {
   thoughtRole?: 'opening' | 'mid';
   itemStatus: 'running' | 'done' | 'error';
   id?: string;
+  subagentId?: string;
+  parentTurnId?: string;
 }
 
 export interface StreamDelta {

@@ -381,10 +381,15 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         let msg = hit.msg;
-        if (STREAM_TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running') {
+        if (STREAM_TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running' && !tl.subagentId) {
           msg = sealLeadFromMessage(msg, tl.turn);
         }
         msg = withWorkEvent(msg, delta.workEvent);
+        if (tl.subagentId) {
+          const copy = [...prev];
+          copy[hit.lastIdx] = msg;
+          return copy;
+        }
         const steps = [...(msg.steps || [])];
         const idx = steps.findIndex((s) => s.id === id);
         const nextStep = {

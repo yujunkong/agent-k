@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatMessage, Mode, Attachment, StreamDelta } from '../types';
 import { apiHistoryForRegenerate } from '../regenerateTurn';
-import { workEventFromHostPayload } from '../conversation/conversationWorkEvent';
+import { workEventFromHostPayload, workEventFromSubagentHostEvent } from '../conversation/conversationWorkEvent';
 import { fileEditPreviewFromHost } from '../inlineEditReview';
 import type { InlineEditAgentRequest } from '../inlineEdit';
 
@@ -320,7 +320,13 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                     ? data.thoughtRole
                     : undefined,
                 itemStatus,
-                id: data.id != null ? String(data.id) : undefined
+                id: data.id != null ? String(data.id) : undefined,
+                subagentId:
+                  data.subagentId != null ? String(data.subagentId) : undefined,
+                parentTurnId:
+                  data.parentTurnId != null
+                    ? String(data.parentTurnId)
+                    : undefined
               },
               workEvent:
                 workEventFromHostPayload(
@@ -333,11 +339,26 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                     error:
                       itemStatus === 'error' && data.error
                         ? String(data.error)
+                        : undefined,
+                    subagentId:
+                      data.subagentId != null
+                        ? String(data.subagentId)
+                        : undefined,
+                    parentTurnId:
+                      data.parentTurnId != null
+                        ? String(data.parentTurnId)
                         : undefined
                   },
                   itemStatus === 'done' ? 'complete' : itemStatus
                 ) || undefined
             });
+            break;
+          }
+          case 'subagent.event': {
+            const workEvent = workEventFromSubagentHostEvent(
+              data as Record<string, unknown>
+            );
+            if (workEvent) onDelta({ workEvent });
             break;
           }
           case 'ask_question':

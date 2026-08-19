@@ -7,6 +7,7 @@ import {
   resolveFileEditForEvent,
   resolveTerminalRunForEvent
 } from '../conversation/workEventDetails';
+import { groupWorkTimelineItems } from '../conversation/groupWorkTimelineItems';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 import { isPendingInlineEdit } from '../inlineEditReview';
 import { FileEditPreviewView } from './FileEditPreviewView';
@@ -166,17 +167,49 @@ export function WorkTimeline({
         <span className="ak-work-timeline__title">{summary}</span>
       </summary>
       <div className="ak-work-timeline__items">
-        {items.map((item) => (
-          <WorkTimelineRow
-            key={item.id}
-            item={item}
-            fileEdits={fileEdits}
-            terminalRuns={terminalRuns}
-            onOpenFile={onOpenFile}
-            onAcceptFile={onAcceptFile}
-            onRejectFile={onRejectFile}
-          />
-        ))}
+        {groupWorkTimelineItems(items).map((node) =>
+          node.kind === 'group' ? (
+            <div
+              key={node.id}
+              className={`ak-work-subagent ak-work-subagent--${node.header.status ?? 'complete'}`}
+              data-subagent-id={node.id}
+            >
+              <WorkTimelineRow
+                item={node.header}
+                fileEdits={fileEdits}
+                terminalRuns={terminalRuns}
+                onOpenFile={onOpenFile}
+                onAcceptFile={onAcceptFile}
+                onRejectFile={onRejectFile}
+              />
+              {node.children.length > 0 ? (
+                <div className="ak-work-subagent__children">
+                  {node.children.map((item) => (
+                    <WorkTimelineRow
+                      key={item.id}
+                      item={item}
+                      fileEdits={fileEdits}
+                      terminalRuns={terminalRuns}
+                      onOpenFile={onOpenFile}
+                      onAcceptFile={onAcceptFile}
+                      onRejectFile={onRejectFile}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <WorkTimelineRow
+              key={node.item.id}
+              item={node.item}
+              fileEdits={fileEdits}
+              terminalRuns={terminalRuns}
+              onOpenFile={onOpenFile}
+              onAcceptFile={onAcceptFile}
+              onRejectFile={onRejectFile}
+            />
+          )
+        )}
       </div>
     </details>
   );

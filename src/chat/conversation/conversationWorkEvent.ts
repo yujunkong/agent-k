@@ -12,7 +12,8 @@ export type ConversationWorkType =
   | 'edit'
   | 'terminal'
   | 'verify'
-  | 'generic';
+  | 'generic'
+  | 'subagent';
 
 export type ConversationWorkStatus = 'pending' | 'running' | 'complete' | 'error';
 
@@ -26,6 +27,9 @@ export type ConversationWorkEvent = {
   completedAt?: number;
   /** Child preview: FileEditCard or TerminalRunCard under this row. */
   ref?: { kind: 'fileEdit' | 'terminal'; id: string };
+  /** Host subagent id — WorkTimeline groups child rows under this parent. */
+  subagentId?: string;
+  parentTurnId?: string;
 };
 
 export const WORK_TYPE_LABEL: Record<ConversationWorkType, string> = {
@@ -35,7 +39,8 @@ export const WORK_TYPE_LABEL: Record<ConversationWorkType, string> = {
   edit: 'Edit',
   terminal: 'Terminal',
   verify: 'Verify',
-  generic: 'Work'
+  generic: 'Work',
+  subagent: 'Subagent'
 };
 
 const CANONICAL_TYPES = new Set<string>([
@@ -45,7 +50,8 @@ const CANONICAL_TYPES = new Set<string>([
   'edit',
   'terminal',
   'verify',
-  'generic'
+  'generic',
+  'subagent'
 ]);
 
 /** Chrome that must not become a timeline row. Thinking is a first-class row. */
@@ -101,15 +107,17 @@ export function classifyWorkType(
   }
   if (EDIT_TOOLS.has(name)) return 'edit';
   if (TERMINAL_TOOLS.has(name)) return 'terminal';
+  if (name === 'task_run' || name === 'task') return 'subagent';
 
   if (kind === 'searching') return 'search';
   if (kind === 'reading') return 'read';
   if (kind === 'editing') return 'edit';
   if (kind === 'running') return 'terminal';
-  if (kind === 'browsing' || kind === 'task') return 'generic';
+  if (kind === 'browsing') return 'generic';
+  if (kind === 'task' && name !== 'skill_run') return 'subagent';
   if (name.startsWith('browser_')) return 'generic';
   if (name.startsWith('mcp_')) return 'search';
-  if (name === 'task_run' || name === 'skill_run') return 'generic';
+  if (name === 'skill_run') return 'generic';
 
   if (!name && !kind) return null;
   return 'generic';
@@ -123,8 +131,12 @@ export function workStatusFromHost(
   const value = String(status || '').toLowerCase();
   if (value === 'pending' || value === 'queued') return 'pending';
   if (value === 'running' || value === 'in_progress' || value === 'active') return 'running';
-  if (value === 'error' || value === 'fail' || value === 'failed') return 'error';
-  if (value === 'complete' || value === 'done' || value === 'success') return 'complete';
+  if (value === 'error' || value === 'fail' || value === 'failed' || value === 'cancelled' || value === 'canceled') {
+    return 'error';
+  }
+  if (value === 'complete' || value === 'completed' || value === 'done' || value === 'success') {
+    return 'complete';
+  }
   return 'running';
 }
 
@@ -220,7 +232,9 @@ export function upsertWorkEvents(
     detail: incoming.detail ?? prev.detail,
     startedAt: prev.startedAt ?? incoming.startedAt,
     completedAt: incoming.completedAt ?? prev.completedAt,
-    ref: incoming.ref ?? prev.ref
+    ref: incoming.ref ?? prev.ref,
+    subagentId: incoming.subagentId ?? prev.subagentId,
+    parentTurnId: incoming.parentTurnId ?? prev.parentTurnId
   };
   return events.map((event, i) => (i === idx ? merged : event));
 }
@@ -245,7 +259,89 @@ export type HostWorkPayload = {
   status?: string;
   error?: string;
   turn?: number;
+  subagentId?: string;
+  parentTurnId?: string;
+  role?: string;
+  prompt?: string;
+  summary?: string;
 };
+
+const MAX_SUBAGENT_SUMMARY = 280;
+
+export function clipSubagentSummary(text: string | undefined): string | undefined {
+  const clipped = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!clipped) return undefined;
+  return clipped.length > MAX_SUBAGENT_SUMMARY
+    ? `${clipped.slice(0, MAX_SUBAGENT_SUMMARY - 1)}…`
+    : clipped;
+}
+
+export function subagentRoleTitle(role?: string): string {
+  const value = String(role || '').trim().toLowerCase();
+  if (value === 'research') return 'Research';
+  if (value === 'coding') return 'Coding';
+  if (value === 'review') return 'Review';
+  if (value === 'debug') return 'Debug';
+  return 'Subagent';
+}
+
+export function formatSubagentGroupLabel(
+  role?: string,
+  prompt?: string,
+  status?: ConversationWorkStatus
+): string {
+  const promptPart = String(prompt || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 40);
+  const statusPart =
+    status === 'complete'
+      ? 'completed'
+      : status === 'error'
+        ? 'failed'
+        : status === 'pending'
+          ? 'queued'
+          : 'running';
+  const head = [subagentRoleTitle(role), promptPart].filter(Boolean).join(' ');
+  return `${head} · ${statusPart}`;
+}
+
+export function isSubagentHeaderEvent(item: ConversationWorkEvent): boolean {
+  if (item.type === 'subagent') return true;
+  return Boolean(item.subagentId && item.id === `tl_subagent_${item.subagentId}`);
+}
+
+/** Host chat.stream subagent.event → group header (summary only, never child transcript). */
+export function workEventFromSubagentHostEvent(
+  data: Record<string, unknown>
+): ConversationWorkEvent | null {
+  const taskId = String(data.taskId ?? data.subagentId ?? '').trim();
+  if (!taskId) return null;
+  const status = workStatusFromHost(String(data.status || ''));
+  const prompt = String(data.prompt || '').trim();
+  const summary = clipSubagentSummary(
+    data.summary != null ? String(data.summary) : undefined
+  );
+  return {
+    id: `tl_subagent_${taskId}`,
+    type: 'subagent',
+    status,
+    label: formatSubagentGroupLabel(
+      data.role != null ? String(data.role) : undefined,
+      prompt,
+      status
+    ),
+    detail:
+      status === 'complete' || status === 'error' ? summary : undefined,
+    subagentId: taskId,
+    parentTurnId:
+      data.parentTurnId != null ? String(data.parentTurnId) : undefined,
+    startedAt: status === 'complete' || status === 'error' ? undefined : Date.now(),
+    completedAt: status === 'complete' || status === 'error' ? Date.now() : undefined
+  };
+}
 
 /** Host chat.stream tool.start / tool.end / timeline → work event (or null if chrome). */
 export function workEventFromHostPayload(
@@ -274,6 +370,34 @@ export function workEventFromHostPayload(
       : data.error
         ? String(data.error)
         : undefined;
+  const subagentId =
+    data.subagentId != null && String(data.subagentId).trim()
+      ? String(data.subagentId)
+      : undefined;
+  const parentTurnId =
+    data.parentTurnId != null ? String(data.parentTurnId) : undefined;
+
+  if (type === 'subagent') {
+    return {
+      id,
+      type,
+      status,
+      label: formatSubagentGroupLabel(
+        data.role,
+        data.prompt || rawDetail,
+        status
+      ),
+      detail:
+        status === 'complete' || status === 'error'
+          ? clipSubagentSummary(data.summary || data.error)
+          : undefined,
+      startedAt: status === 'complete' || status === 'error' ? undefined : now,
+      completedAt: status === 'complete' || status === 'error' ? now : undefined,
+      subagentId: subagentId || (id.startsWith('tl_subagent_') ? id.slice('tl_subagent_'.length) : undefined),
+      parentTurnId
+    };
+  }
+
   return {
     id,
     type,
@@ -282,7 +406,9 @@ export function workEventFromHostPayload(
     // Thinking stays a compact row — reasoning text lives on message.steps.
     detail: type === 'thinking' ? undefined : rawDetail,
     startedAt: status === 'complete' || status === 'error' ? undefined : now,
-    completedAt: status === 'complete' || status === 'error' ? now : undefined
+    completedAt: status === 'complete' || status === 'error' ? now : undefined,
+    subagentId,
+    parentTurnId
   };
 }
 

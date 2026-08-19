@@ -4,7 +4,7 @@ import { configManager } from '../core/ConfigManager';
 import { sessionUsageTracker, updateUsageStatusBar } from './runtimeSingletons';
 import { toolKind, kindVerb, shortDetail, resultDetail } from './timelineLabels';
 import { parseInlineEditAgentRequest } from '../chat/inlineEdit';
-import { createSubagentHost, modeForSubagentRole } from './subagentHost';
+import { createSubagentHost, modeForSubagentRole, parentResultFromTask } from './subagentHost';
 import { withInlineEditSource } from '../chat/inlineEditReview';
 
 export type HostLoopRuntime = {
@@ -314,13 +314,30 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
       onLifecycle: (event) => {
         const task = event.task;
         const turn = currentTurn || 1;
+        const finished =
+          event.type === 'subagent.completed' ||
+          event.type === 'subagent.failed' ||
+          event.type === 'subagent.cancelled';
+        const summary = finished
+          ? String(
+              parentResultFromTask(task).data?.summary ||
+                task.result ||
+                task.error ||
+                ''
+            )
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 280)
+          : undefined;
         post('subagent.event', {
           type: event.type,
           taskId: task.id,
           parentTurnId: task.parentTurnId,
           role: task.role,
           status: task.status,
-          turn
+          turn,
+          prompt: task.prompt.slice(0, 80),
+          summary
         });
         const status =
           event.type === 'subagent.completed'

@@ -194,7 +194,7 @@ export type WebviewMessage =
 export interface ChatStreamEvent {
   type: 'chat.stream';
   requestId: string;
-  event: 'delta' | 'status' | 'tool.start' | 'tool.end' | 'timeline' | 'file.edit' | 'complete' | 'error';
+  event: 'delta' | 'status' | 'tool.start' | 'tool.end' | 'timeline' | 'file.edit' | 'complete' | 'error' | 'subagent.event';
   content?: string;
   status?: string;
   toolName?: string;
@@ -207,6 +207,12 @@ export interface ChatStreamEvent {
   label?: string;
   detail?: string;
   id?: string;
+  subagentId?: string;
+  parentTurnId?: string;
+  taskId?: string;
+  role?: string;
+  prompt?: string;
+  summary?: string;
 }
 
 export type ExtensionMessage =
