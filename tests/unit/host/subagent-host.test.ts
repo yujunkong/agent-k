@@ -118,11 +118,15 @@ suite('subagentHost', () => {
       createdAt: 1,
       startedAt: 1,
       completedAt: 5,
-      result: 'found x in src/foo.ts'
+      result: 'found x in src/foo.ts',
+      worktree: { path: '/tmp/wt', branch: 'subagent/x', base: 'abc' },
+      worktreeSnapshot: { filesChanged: 2, files: ['src/foo.ts', 'src/bar.ts'] }
     });
     assert.strictEqual(out.success, true);
     assert.strictEqual(out.data.taskId, 'subagent-x');
     assert.strictEqual(out.data.parentTurnId, 'turn-9');
+    assert.strictEqual(out.data.filesChanged, 2);
+    assert.strictEqual(out.data.worktreePath, '/tmp/wt');
   });
 
   test('rejects empty prompt', async () => {

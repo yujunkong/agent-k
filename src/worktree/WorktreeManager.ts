@@ -115,4 +115,49 @@ export class WorktreeManager {
     const list = this.list();
     return list.some(w => w.path === worktreePath);
   }
+
+  /**
+   * Porcelain status of a worktree checkout (changed files only).
+   */
+  status(worktreePath: string): { dirty: boolean; files: string[] } {
+    try {
+      const output = execSync('git status --porcelain', {
+        cwd: worktreePath,
+        stdio: 'pipe'
+      }).toString();
+      const files = output
+        .split('\n')
+        .map((line) => line.slice(3).trim().replace(/ -> .*$/, ''))
+        .filter(Boolean);
+      return { dirty: files.length > 0, files };
+    } catch {
+      return { dirty: false, files: [] };
+    }
+  }
+
+  /**
+   * Diff against HEAD for a worktree checkout.
+   */
+  diff(worktreePath: string): string {
+    try {
+      return execSync('git diff HEAD', {
+        cwd: worktreePath,
+        stdio: 'pipe',
+        maxBuffer: 2 * 1024 * 1024
+      }).toString();
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * Drop stale worktree registrations.
+   */
+  prune(): void {
+    try {
+      execSync('git worktree prune', { cwd: this.repoRoot, stdio: 'pipe' });
+    } catch {
+      /* ignore */
+    }
+  }
 }

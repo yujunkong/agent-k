@@ -5,6 +5,11 @@
  * runner later without coupling UI state to a specific model provider.
  */
 
+import type {
+  SubagentWorktree,
+  SubagentWorktreeSnapshot
+} from './subagentWorktree';
+
 export type SubagentStatus =
   | 'queued'
   | 'running'
@@ -30,6 +35,8 @@ export interface SubagentTask {
   completedAt?: number;
   result?: string;
   error?: string;
+  worktree?: SubagentWorktree;
+  worktreeSnapshot?: SubagentWorktreeSnapshot;
 }
 
 export interface SubagentTaskPatch {
@@ -38,6 +45,8 @@ export interface SubagentTaskPatch {
   completedAt?: number;
   result?: string;
   error?: string;
+  worktree?: SubagentWorktree;
+  worktreeSnapshot?: SubagentWorktreeSnapshot;
 }
 
 export function createSubagentTask(

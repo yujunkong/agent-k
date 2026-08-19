@@ -235,6 +235,12 @@ export interface LoopConfig {
    * AgentLoop/timeline pipeline instead of TaskTool's disconnected child loop.
    */
   runSubagent?: (args: ToolInput) => Promise<ToolOutput>;
+  /**
+   * Isolated checkout for subagent runs. edit_file / write_file /
+   * delete_file / run_terminal_cmd resolve against this root instead of
+   * the parent workspace.
+   */
+  workspaceRoot?: string;
 }
 
 export type LoopStatus = 'idle' | 'streaming' | 'tool_executing' | 'stopped' | 'completed' | 'error' | 'doom_loop' | 'timeout';
@@ -2122,6 +2128,15 @@ export class AgentLoopController {
   }
 
   private async executeTool(name: string, args: ToolInput): Promise<ToolOutput> {
+    const isolated = this.config.workspaceRoot;
+    if (isolated) {
+      const { runWithWorkspaceRoot, workspaceRootMatches } = await import(
+        '../tools/writeExecutors'
+      );
+      if (!workspaceRootMatches(isolated)) {
+        return runWithWorkspaceRoot(isolated, () => this.executeTool(name, args));
+      }
+    }
     const isDynamicMcp = name.startsWith('mcp_') && name !== 'mcp_call_tool' && name !== 'mcp_list_tools';
     const tool = toolRegistry.getTool(name);
     if (!tool && !isDynamicMcp) {

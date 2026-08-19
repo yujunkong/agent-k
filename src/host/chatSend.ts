@@ -14,6 +14,7 @@ import {
   snapshotSubagentResultStats
 } from './subagentHost';
 import { withInlineEditSource } from '../chat/inlineEditReview';
+import { getWorkspaceRoot } from '../tools/writeExecutors';
 
 export type HostLoopRuntime = {
   loop: import('../loop/AgentLoopController').AgentLoopController;
@@ -265,7 +266,12 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
     };
     const subagentHost = createSubagentHost({
       systemPrompt,
+      repoRoot: getWorkspaceRoot(),
       createLoop: (context, hooks) => {
+        const cwd = context.worktree?.path;
+        if (!cwd) {
+          throw new Error('Subagent refused: isolated worktree path is required');
+        }
         const childMode = modeForSubagentRole(context.task.role);
         return new AgentLoopController({
           mode: childMode,
@@ -277,6 +283,7 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           systemPrompt: modeRegistry.getSystemPrompt(childMode),
           provider,
           thinkingEffort,
+          workspaceRoot: cwd,
           onAssistantDelta: hooks.onAssistantDelta,
           onReasoning: hooks.onReasoning,
           onToolCall: async (name, args, callId) => {
@@ -362,7 +369,8 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           turn,
           prompt: task.prompt.slice(0, 80),
           summary,
-          filesChanged: stats?.filesChanged,
+          filesChanged:
+            task.worktreeSnapshot?.filesChanged ?? stats?.filesChanged,
           toolCount: stats?.toolCount,
           duration: stats?.duration
         });

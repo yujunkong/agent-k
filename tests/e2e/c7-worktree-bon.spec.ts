@@ -15,6 +15,9 @@ suite('E2E: WorktreeManager API (C7-T38)', () => {
     assert.strictEqual(typeof mgr.create, 'function');
     assert.strictEqual(typeof mgr.list, 'function');
     assert.strictEqual(typeof mgr.remove, 'function');
+    assert.strictEqual(typeof mgr.status, 'function');
+    assert.strictEqual(typeof mgr.diff, 'function');
+    assert.strictEqual(typeof mgr.prune, 'function');
   });
 
   test('list() — 존재하지 않는 경로에서 빈 배열/예외 없이 동작', () => {

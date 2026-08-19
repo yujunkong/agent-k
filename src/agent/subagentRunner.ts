@@ -13,10 +13,16 @@ import {
   type SubagentRole,
   type SubagentTask
 } from './subagents';
+import type {
+  SubagentWorktree,
+  SubagentWorktreeBindings,
+  SubagentWorktreeSnapshot
+} from './subagentWorktree';
 
 export interface SubagentExecutionContext {
   task: SubagentTask;
   signal: AbortSignal;
+  worktree?: SubagentWorktree;
 }
 
 export type SubagentExecutor = (
@@ -34,6 +40,7 @@ export interface SubagentRunnerOptions {
   execute: SubagentExecutor;
   onEvent?: (event: SubagentEvent) => void;
   now?: () => number;
+  worktrees?: SubagentWorktreeBindings;
 }
 
 /**
@@ -45,12 +52,14 @@ export class SubagentRunner {
   private readonly execute: SubagentExecutor;
   private readonly onEvent?: (event: SubagentEvent) => void;
   private readonly now: () => number;
+  private readonly worktrees?: SubagentWorktreeBindings;
   private readonly controllers = new Map<string, AbortController>();
 
   constructor(options: SubagentRunnerOptions) {
     this.execute = options.execute;
     this.onEvent = options.onEvent;
     this.now = options.now ?? Date.now;
+    this.worktrees = options.worktrees;
   }
 
   create(parentTurnId: string, prompt: string, role: SubagentRole = 'general'): SubagentTask {
@@ -71,21 +80,45 @@ export class SubagentRunner {
     });
     this.onEvent?.({ type: 'subagent.started', task: current });
 
+    let worktree: SubagentWorktree | undefined;
     try {
-      const result = await this.execute({ task: current, signal: controller.signal });
+      if (this.worktrees) {
+        worktree = await this.worktrees.create(task.id);
+        if (!worktree?.path) {
+          throw new Error('Subagent refused: isolated worktree path is required');
+        }
+      }
+
+      const result = await this.execute({
+        task: current,
+        signal: controller.signal,
+        worktree
+      });
       if (controller.signal.aborted) {
         current = applySubagentPatch(current, {
           status: 'cancelled',
-          completedAt: this.now()
+          completedAt: this.now(),
+          worktree
         });
         this.onEvent?.({ type: 'subagent.cancelled', task: current });
         return current;
       }
 
+      let worktreeSnapshot: SubagentWorktreeSnapshot | undefined;
+      if (worktree && this.worktrees) {
+        try {
+          worktreeSnapshot = await this.worktrees.capture(worktree);
+        } catch {
+          worktreeSnapshot = { filesChanged: 0, files: [] };
+        }
+      }
+
       current = applySubagentPatch(current, {
         status: 'completed',
         completedAt: this.now(),
-        result
+        result,
+        worktree,
+        worktreeSnapshot
       });
       this.onEvent?.({ type: 'subagent.completed', task: current });
       return current;
@@ -93,7 +126,8 @@ export class SubagentRunner {
       if (controller.signal.aborted) {
         current = applySubagentPatch(current, {
           status: 'cancelled',
-          completedAt: this.now()
+          completedAt: this.now(),
+          worktree
         });
         this.onEvent?.({ type: 'subagent.cancelled', task: current });
         return current;
@@ -102,7 +136,8 @@ export class SubagentRunner {
       current = applySubagentPatch(current, {
         status: 'failed',
         completedAt: this.now(),
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        worktree
       });
       this.onEvent?.({ type: 'subagent.failed', task: current });
       return current;

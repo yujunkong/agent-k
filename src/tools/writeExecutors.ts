@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawn } from 'child_process';
+import { AsyncLocalStorage } from 'async_hooks';
 import type { ToolInput, ToolOutput } from './types';
 import type { SearchReplaceHunk } from './patchDocument';
 import { PatchApplier } from '../patches/applier';
@@ -19,6 +20,18 @@ import {
 } from '../chat/editDiffPreview';
 
 /** VS Code 없는 단위/E2E 환경에서는 process.cwd() 사용 */
+const workspaceRootOverride = new AsyncLocalStorage<string>();
+
+/** Run tool I/O against an isolated checkout (subagent worktree). */
+export function runWithWorkspaceRoot<T>(root: string, fn: () => T): T {
+  return workspaceRootOverride.run(path.resolve(root), fn);
+}
+
+export function workspaceRootMatches(root: string): boolean {
+  const current = workspaceRootOverride.getStore();
+  return Boolean(current && current === path.resolve(root));
+}
+
 export function getWorkspaceRoot(): string {
   const roots = getWorkspaceRoots();
   return roots[0] || process.cwd();
@@ -26,6 +39,8 @@ export function getWorkspaceRoot(): string {
 
 /** Multi-root workspace folders (first = primary) */
 export function getWorkspaceRoots(): string[] {
+  const override = workspaceRootOverride.getStore();
+  if (override) return [override];
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const vscode = require('vscode') as typeof import('vscode');

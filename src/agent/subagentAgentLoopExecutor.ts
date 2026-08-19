@@ -70,6 +70,10 @@ export function createSubagentAgentLoopExecutor(
       }
     };
 
+    if (!context.worktree?.path) {
+      throw new Error('Subagent refused: isolated worktree path is required');
+    }
+    const cwd = context.worktree.path;
     const loop = options.createLoop(context, hooks);
     const messages = options.buildMessages?.(context) ?? [
       { role: 'system', content: options.systemPrompt },
@@ -81,7 +85,8 @@ export function createSubagentAgentLoopExecutor(
     context.signal.addEventListener('abort', onAbort, { once: true });
 
     try {
-      await loop.continue(messages);
+      const { runWithWorkspaceRoot } = await import('../tools/writeExecutors');
+      await runWithWorkspaceRoot(cwd, () => loop.continue(messages));
 
       if (!answer.trim()) {
         const last = [...loop.getMessages()].reverse().find(

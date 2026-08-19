@@ -18,6 +18,11 @@ import {
   type SubagentAgentLoopOptions
 } from '../agent/subagentAgentLoopExecutor';
 import type { SubagentRole, SubagentTask } from '../agent/subagents';
+import {
+  bindWorktreeManager,
+  type SubagentWorktreeBindings
+} from '../agent/subagentWorktree';
+import { WorktreeManager } from '../worktree/WorktreeManager';
 
 const MAX_CONCURRENT = 4;
 const summarizer = new SubAgentResult();
@@ -44,6 +49,8 @@ export type CreateSubagentHostOptions = {
   onToolCall?: SubagentAgentLoopOptions['onToolCall'];
   onToolResult?: SubagentAgentLoopOptions['onToolResult'];
   maxConcurrent?: number;
+  repoRoot?: string;
+  worktrees?: SubagentWorktreeBindings;
 };
 
 export function promptFromTaskArgs(args: Record<string, unknown>): string {
@@ -116,7 +123,10 @@ export function parentResultFromTask(task: SubagentTask): ToolOutput {
       status: task.status,
       summary: summary.summary,
       result: task.result,
-      duration
+      duration,
+      filesChanged: task.worktreeSnapshot?.filesChanged,
+      worktreePath: task.worktree?.path,
+      worktreeBranch: task.worktree?.branch
     },
     error:
       task.status === 'completed'
@@ -173,7 +183,12 @@ export function createSubagentHost(options: CreateSubagentHostOptions): Subagent
 
   const runner = new SubagentRunner({
     execute,
-    onEvent: options.onLifecycle
+    onEvent: options.onLifecycle,
+    worktrees:
+      options.worktrees ??
+      (options.repoRoot
+        ? bindWorktreeManager(new WorktreeManager(options.repoRoot), options.repoRoot)
+        : undefined)
   });
 
   const created = new Map<string, SubagentTask>();
