@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import * as os from 'os';
 import { buildExecutionPlan } from '../../../../src/plan/execution/buildExecutionPlan.ts';
 import {
   executeNextPlanTask,
@@ -21,7 +22,7 @@ function mixedPlan(): PlanDocument {
         id: 'analyze',
         title: 'Analyze auth',
         description: 'Read current auth',
-        files: [{ path: 'src/auth.ts', intent: 'read' }],
+        files: [],
         dependencies: [],
         verification: []
       },
@@ -158,7 +159,7 @@ suite('Plan execution — planExecutionEngine', () => {
     );
   });
 
-  test('unresolved file targets fail before subagent dispatch', async () => {
+  test('unresolved file targets fail before subagent dispatch with preflight', async () => {
     const doc = mixedPlan();
     doc.tasks[1]!.files = [
       {
@@ -169,19 +170,23 @@ suite('Plan execution — planExecutionEngine', () => {
       }
     ];
     const plan = buildExecutionPlan(
-      { ...doc, repoRoot: '/workspace/agent-k' },
+      { ...doc, repoRoot: os.tmpdir() },
       { status: 'executing' }
     );
     const mainRuns: string[] = [];
+    const preflightReports: any[] = [];
     const subagentHost = mockSubagentHost();
 
     const finalPlan = await runPlanExecution(plan, {
       parentTurnId: 'turn-4',
-      repoRoot: '/workspace/agent-k',
+      repoRoot: os.tmpdir(),
       subagentHost,
       runMainTask: async ({ task }) => {
         mainRuns.push(task.id);
         return { success: true };
+      },
+      hooks: {
+        onTaskPreflight: (report) => preflightReports.push(report)
       }
     });
 
@@ -191,5 +196,12 @@ suite('Plan execution — planExecutionEngine', () => {
       finalPlan.tasks.find((task) => task.id === 'implement')?.status,
       'failed'
     );
+
+    assert.strictEqual(preflightReports.length, 1);
+    const report = preflightReports[0];
+    assert.strictEqual(report.taskId, 'implement');
+    assert.strictEqual(report.blocked, true);
+    assert.strictEqual(report.entries[0]?.verdict, 'missing_target');
+    assert.strictEqual(report.entries[0]?.path, 'src/main.rs');
   });
 });

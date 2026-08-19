@@ -199,6 +199,17 @@ export async function runHostPlanExecute(
           taskEvent: 'failed',
           error
         });
+      },
+      onTaskPreflight: (report) => {
+        post('plan.execution.preflight', {
+          taskId: report.taskId,
+          execution: report.execution,
+          repoRoot: report.repoRoot,
+          worktreePath: report.worktreePath,
+          effectiveRoot: report.effectiveRoot,
+          blocked: report.blocked,
+          entries: report.entries
+        });
       }
     };
 
