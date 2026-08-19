@@ -23,6 +23,13 @@ import {
   type SubagentWorktreeBindings
 } from '../agent/subagentWorktree';
 import { WorktreeManager } from '../worktree/WorktreeManager';
+import {
+  applySubagentWorktree,
+  rejectSubagentWorktree,
+  reviewSubagentWorktree,
+  type WorktreeApplyResult,
+  type WorktreeReview
+} from '../agent/subagentWorktreeReview';
 
 const MAX_CONCURRENT = 4;
 const summarizer = new SubAgentResult();
@@ -36,6 +43,9 @@ export type SubagentHost = {
     args: Record<string, unknown>,
     parentTurnId: string
   ) => Promise<ToolOutput>;
+  reviewWorktree: (taskId: string) => WorktreeReview;
+  applyWorktree: (taskId: string) => Promise<WorktreeApplyResult>;
+  rejectWorktree: (taskId: string) => Promise<void>;
 };
 
 export type CreateSubagentHostOptions = {
@@ -181,14 +191,17 @@ export function createSubagentHost(options: CreateSubagentHostOptions): Subagent
       onToolResult: options.onToolResult
     });
 
+  const repoRoot = options.repoRoot;
+  const worktrees =
+    options.worktrees ??
+    (repoRoot
+      ? bindWorktreeManager(new WorktreeManager(repoRoot), repoRoot)
+      : undefined);
+
   const runner = new SubagentRunner({
     execute,
     onEvent: options.onLifecycle,
-    worktrees:
-      options.worktrees ??
-      (options.repoRoot
-        ? bindWorktreeManager(new WorktreeManager(options.repoRoot), options.repoRoot)
-        : undefined)
+    worktrees
   });
 
   const created = new Map<string, SubagentTask>();
@@ -221,6 +234,13 @@ export function createSubagentHost(options: CreateSubagentHostOptions): Subagent
     for (const id of created.keys()) runner.cancel(id);
   };
 
+  const taskForWorktreeAction = (taskId: string): SubagentTask => {
+    const task = created.get(taskId);
+    if (!task) throw new Error(`Unknown subagent task: ${taskId}`);
+    if (!task.worktree) throw new Error(`Subagent ${taskId} has no isolated worktree`);
+    return task;
+  };
+
   return {
     create,
     run,
@@ -240,6 +260,22 @@ export function createSubagentHost(options: CreateSubagentHostOptions): Subagent
       const task = create(parentTurnId, prompt, roleFromTaskArgs(args));
       const finished = await run(task);
       return parentResultFromTask(finished);
+    },
+    reviewWorktree: (taskId) => {
+      if (!repoRoot) throw new Error('Subagent worktree review requires a repository root');
+      const task = taskForWorktreeAction(taskId);
+      return reviewSubagentWorktree(repoRoot, task.worktree!);
+    },
+    applyWorktree: async (taskId) => {
+      if (!repoRoot) throw new Error('Subagent worktree apply requires a repository root');
+      const task = taskForWorktreeAction(taskId);
+      return applySubagentWorktree(repoRoot, task.worktree!);
+    },
+    rejectWorktree: async (taskId) => {
+      if (!repoRoot) throw new Error('Subagent worktree reject requires a repository root');
+      const task = taskForWorktreeAction(taskId);
+      await rejectSubagentWorktree(repoRoot, task.worktree!);
+      created.set(task.id, { ...task, worktree: undefined });
     }
   };
 }
