@@ -59,8 +59,8 @@ suite('Plan V2 — file intent regression', () => {
     );
   });
 
-  test('feeds missing-file intent guidance into a retry', async () => {
-    const model = new ScriptedModel([invalidModifyPlan, newRustProjectPlan]);
+  test('keeps invalid modify targets as unresolved instead of failing generation', async () => {
+    const model = new ScriptedModel([invalidModifyPlan]);
     const generator = new PlanV2Generator(model, () => false);
     const result = await generator.generate({
       goal: 'Create a Rust project',
@@ -68,9 +68,11 @@ suite('Plan V2 — file intent regression', () => {
     });
 
     assert.strictEqual(result.ok, true);
-    assert.strictEqual(result.attempts, 2);
-    const retryPrompt = model.receivedMessages[1].map((message) => message.content).join('\n');
-    assert.ok(retryPrompt.includes('FILE_NOT_FOUND'));
-    assert.ok(retryPrompt.includes('intent "create"'));
+    assert.strictEqual(result.attempts, 1);
+    const file = result.plan?.tasks[0].files[0];
+    assert.strictEqual(file?.path, 'src/main.rs');
+    assert.strictEqual(file?.intent, 'modify');
+    assert.strictEqual(file?.resolution, 'unresolved');
+    assert.strictEqual(file?.exists, false);
   });
 });

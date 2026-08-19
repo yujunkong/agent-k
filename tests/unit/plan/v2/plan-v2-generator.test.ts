@@ -48,7 +48,6 @@ class ScriptedModel implements PlanGenerationModel {
 
 const alwaysTrue = () => true;
 const alwaysFalse = () => false;
-const missingRetryFixtureFile = (path: string) => path !== 'src/does/not/exist.ts';
 
 suite('Plan V2 — PlanV2Generator', () => {
   test('succeeds on the first attempt when the plan is valid', async () => {
@@ -60,24 +59,63 @@ suite('Plan V2 — PlanV2Generator', () => {
     assert.strictEqual(model.callCount, 1);
   });
 
-  test('retries once on semantic failure, then succeeds, and feeds FailureContext back into the prompt', async () => {
-    const model = new ScriptedModel([planWithMissingFile, goodPlan]);
-    const generator = new PlanV2Generator(model, missingRetryFixtureFile);
+  test('accepts missing modify targets on first attempt and marks them unresolved', async () => {
+    const model = new ScriptedModel([planWithMissingFile]);
+    const generator = new PlanV2Generator(model, alwaysFalse);
+    const result = await generator.generate({ goal: 'Add JWT auth', researchContext: '' });
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.attempts, 1);
+    assert.strictEqual(model.callCount, 1);
+    const file = result.plan?.tasks[0]?.files[0];
+    assert.strictEqual(file?.path, 'src/does/not/exist.ts');
+    assert.strictEqual(file?.intent, 'modify');
+    assert.strictEqual(file?.resolution, 'unresolved');
+    assert.strictEqual(file?.exists, false);
+  });
+
+  test('retries on semantic errors such as DEPENDENCY_MISSING, then succeeds', async () => {
+    const badDeps = JSON.stringify({
+      summary: 'Add JWT auth',
+      tasks: [
+        {
+          id: 'task-1',
+          title: 'AuthService',
+          description: 'd',
+          files: [],
+          dependencies: ['task-99'],
+          verification: []
+        }
+      ],
+      risks: []
+    });
+    const model = new ScriptedModel([badDeps, goodPlan]);
+    const generator = new PlanV2Generator(model, alwaysTrue);
     const result = await generator.generate({ goal: 'Add JWT auth', researchContext: '' });
     assert.strictEqual(result.ok, true);
     assert.strictEqual(result.attempts, 2);
     assert.strictEqual(result.failures.length, 1);
-
-    // second call's messages should include the failure context text
-    const secondCallMessages = model.receivedMessages[1];
-    const joined = secondCallMessages.map((m) => m.content).join('\n');
-    assert.ok(joined.includes('FILE_NOT_FOUND'));
+    const joined = model.receivedMessages[1].map((m) => m.content).join('\n');
+    assert.ok(joined.includes('DEPENDENCY_MISSING'));
     assert.ok(joined.includes('ONLY these issues'));
   });
 
-  test('stops after maxAttempts and reports every failure', async () => {
-    const model = new ScriptedModel([planWithMissingFile]);
-    const generator = new PlanV2Generator(model, alwaysFalse); // every file "missing"
+  test('stops after maxAttempts when semantic errors persist', async () => {
+    const badDeps = JSON.stringify({
+      summary: 'Add JWT auth',
+      tasks: [
+        {
+          id: 'task-1',
+          title: 'AuthService',
+          description: 'd',
+          files: [],
+          dependencies: ['task-99'],
+          verification: []
+        }
+      ],
+      risks: []
+    });
+    const model = new ScriptedModel([badDeps]);
+    const generator = new PlanV2Generator(model, alwaysFalse);
     const result = await generator.generate({ goal: 'x', researchContext: '', maxAttempts: 3 });
     assert.strictEqual(result.ok, false);
     assert.strictEqual(result.attempts, 3);

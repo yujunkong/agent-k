@@ -41,7 +41,14 @@ export function renderPlanMarkdown(
     lines.push(`- [${badge}] **${task.id}**: ${task.title}${status === 'verified' ? ' ✓ verified' : ''}`);
     lines.push(`  ${task.description}`);
     if (task.files.length > 0) {
-      lines.push(`  - files: ${task.files.map((f) => `${f.path} (${f.intent})`).join(', ')}`);
+      lines.push(
+        `  - files: ${task.files
+          .map((f) => {
+            const flag = f.resolution === 'unresolved' ? ', unresolved' : '';
+            return `${f.path} (${f.intent}${flag})`;
+          })
+          .join(', ')}`
+      );
     }
     if (task.dependencies.length > 0) {
       lines.push(`  - depends on: ${task.dependencies.join(', ')}`);
