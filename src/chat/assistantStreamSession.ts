@@ -18,6 +18,7 @@ import {
 import {
   settleWorkEvents,
   upsertWorkEvents,
+  beginWorkEvent,
   type ConversationWorkEvent
 } from './conversation/conversationWorkEvent';
 
@@ -411,10 +412,15 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       const id = `tl_thinking_${ctx.turnNumberRef.current || 1}`;
       const now = Date.now();
       if (!ctx.stepStartRef.current[id]) ctx.stepStartRef.current[id] = now;
+      const thinkingEvent = beginWorkEvent({
+        id,
+        timelineKind: 'thinking',
+        now: ctx.stepStartRef.current[id]
+      });
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
-        const msg = hit.msg;
+        const msg = withWorkEvent(hit.msg, thinkingEvent ?? undefined);
         const steps = [...(msg.steps || [])];
         const idx = steps.findIndex((s) => s.id === id);
         const prevDetail = idx >= 0 ? steps[idx].detail || '' : '';

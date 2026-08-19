@@ -4,6 +4,7 @@ import { stripFakeToolMarkup } from '../displaySanitize';
 import { attachmentDisplayLabel } from '../attachmentFormat';
 import { MessageSteps } from './MessageSteps';
 import { FileEditCard } from './FileEditCard';
+import { TerminalRunCard } from './TerminalRunCard';
 import { IconCopy, IconEdit, IconFork } from './Icons';
 import { FileTypeIcon } from './FileTypeIcon';
 import { visiblePlanProseFromMessage } from '../planPromote';
@@ -14,6 +15,19 @@ import {
   type TurnStatus
 } from '../turnState';
 import { extractUnderstandingLead } from '../understandingLead';
+
+const UNIFIED_TIMELINE_STEP_KINDS = new Set([
+  'thinking',
+  'planning',
+  'searching',
+  'reading',
+  'editing',
+  'running',
+  'browsing',
+  'task',
+  'asking',
+  'session'
+]);
 
 /** Phase 5 — index of active status on the linear progress rail (excludes error). */
 function turnStatusRailIndex(status: TurnStatus | null): number {
@@ -129,11 +143,13 @@ export function MessageBubble({
   const rawSteps = Array.isArray(message.steps) ? message.steps : [];
   const hasWorkTimeline =
     Array.isArray(message.workItems) && message.workItems.length > 0;
-  /** Work rows live in WorkTimeline — keep Thought / planning only here. */
-  const bubbleSteps = hasWorkTimeline
+  /** Unified WorkTimeline owns thinking + tools — MessageSteps keeps leftover chrome only. */
+  const hideUnifiedSteps = hasWorkTimeline || rawSteps.some(
+    (s: { kind?: string }) => UNIFIED_TIMELINE_STEP_KINDS.has(String(s.kind || ''))
+  );
+  const bubbleSteps = hideUnifiedSteps
     ? rawSteps.filter(
-        (s: { kind?: string }) =>
-          s.kind === 'thinking' || s.kind === 'planning' || s.kind === 'asking'
+        (s: { kind?: string }) => !UNIFIED_TIMELINE_STEP_KINDS.has(String(s.kind || ''))
       )
     : rawSteps;
   const hasSteps = bubbleSteps.length > 0;
@@ -208,13 +224,22 @@ export function MessageBubble({
   const stepsBlock = hasSteps ? (
     <MessageSteps
       steps={bubbleSteps}
-      fileEdits={fileEdits}
-      terminalRuns={terminalRuns}
+      fileEdits={hasSteps ? fileEdits : []}
+      terminalRuns={hasSteps ? terminalRuns : []}
       turnProse={turnProse}
       isStreaming={streamBody}
       onOpenFile={onOpenFile}
     />
   ) : null;
+
+  const terminalCards =
+    isAssistant && hideUnifiedSteps && terminalRuns.length > 0 ? (
+      <div className="ak-terminal-runs" style={{ margin: '4px 0 10px' }}>
+        {terminalRuns.map((run: any) => (
+          <TerminalRunCard key={run.id} {...run} />
+        ))}
+      </div>
+    ) : null;
 
   /**
    * Final answer under the timeline. Mid-dig self-talk is in Thought;
@@ -380,6 +405,8 @@ export function MessageBubble({
           ))}
         </div>
       ) : null}
+
+      {terminalCards}
 
       {!hasTimelineChrome && message.toolStatus ? (
         <div className="message-tool-status">{message.toolStatus}</div>

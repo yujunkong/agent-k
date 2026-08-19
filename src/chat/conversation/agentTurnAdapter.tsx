@@ -1,11 +1,11 @@
 import React from 'react';
 import { AgentTurn } from '../components/AgentTurn';
-import type { WorkItem } from '../components/WorkTimeline';
+import type { ConversationWorkEvent } from './conversationWorkEvent';
 import type { ChangeSummaryItem } from '../components/ChangeSummary';
 
 export interface AgentTurnAdapterProps {
   message: unknown;
-  workItems?: WorkItem[];
+  workItems?: ConversationWorkEvent[];
   changes?: ChangeSummaryItem[];
   children?: React.ReactNode;
   onReviewChanges?: () => void;

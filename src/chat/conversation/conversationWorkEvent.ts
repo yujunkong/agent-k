@@ -6,6 +6,7 @@
  */
 
 export type ConversationWorkType =
+  | 'thinking'
   | 'read'
   | 'search'
   | 'edit'
@@ -26,6 +27,7 @@ export type ConversationWorkEvent = {
 };
 
 export const WORK_TYPE_LABEL: Record<ConversationWorkType, string> = {
+  thinking: 'Thinking',
   read: 'Read',
   search: 'Search',
   edit: 'Edit',
@@ -35,6 +37,7 @@ export const WORK_TYPE_LABEL: Record<ConversationWorkType, string> = {
 };
 
 const CANONICAL_TYPES = new Set<string>([
+  'thinking',
   'read',
   'search',
   'edit',
@@ -43,8 +46,8 @@ const CANONICAL_TYPES = new Set<string>([
   'generic'
 ]);
 
+/** Chrome that must not become a timeline row. Thinking is a first-class row. */
 const NON_WORK_KINDS = new Set([
-  'thinking',
   'planning',
   'asking',
   'done',
@@ -84,6 +87,7 @@ export function classifyWorkType(
 ): ConversationWorkType | null {
   const kind = String(timelineKind || '').toLowerCase();
   if (NON_WORK_KINDS.has(kind)) return null;
+  if (kind === 'thinking') return 'thinking';
 
   const name = String(toolName || '').toLowerCase();
   if (NON_WORK_TOOLS.has(name)) return null;
@@ -261,18 +265,26 @@ export function workEventFromHostPayload(
     data.error
   );
   const now = Date.now();
+  const rawDetail =
+    data.detail != null
+      ? String(data.detail)
+      : data.error
+        ? String(data.error)
+        : undefined;
   return {
     id,
     type,
     status,
     label: WORK_TYPE_LABEL[type],
-    detail: data.detail != null ? String(data.detail) : data.error ? String(data.error) : undefined,
+    // Thinking stays a compact row — reasoning text lives on message.steps.
+    detail: type === 'thinking' ? undefined : rawDetail,
     startedAt: status === 'complete' || status === 'error' ? undefined : now,
     completedAt: status === 'complete' || status === 'error' ? now : undefined
   };
 }
 
 const LEGACY_WORK_KINDS = new Set([
+  'thinking',
   'searching',
   'reading',
   'editing',
@@ -305,7 +317,7 @@ export function workEventsFromLegacySteps(
       type,
       status,
       label: WORK_TYPE_LABEL[type],
-      detail: step.detail
+      detail: type === 'thinking' ? undefined : step.detail
     });
   }
   return out;

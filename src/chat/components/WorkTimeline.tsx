@@ -1,23 +1,23 @@
 import React, { useEffect, useState } from 'react';
+import type {
+  ConversationWorkEvent,
+  ConversationWorkStatus
+} from '../conversation/conversationWorkEvent';
 
-export type WorkItemKind = 'read' | 'search' | 'edit' | 'terminal' | 'verify' | 'generic';
-export type WorkItemStatus = 'pending' | 'running' | 'complete' | 'error';
+export type { ConversationWorkEvent };
 
-export interface WorkItem {
-  id: string;
-  label: string;
-  kind?: WorkItemKind;
-  status?: WorkItemStatus;
-  detail?: string;
-}
+/** @deprecated Use ConversationWorkEvent — WorkTimeline renders the event model directly. */
+export type WorkItem = ConversationWorkEvent;
+export type WorkItemKind = ConversationWorkEvent['type'];
+export type WorkItemStatus = ConversationWorkStatus;
 
 export interface WorkTimelineProps {
-  items: WorkItem[];
+  items: ConversationWorkEvent[];
   defaultOpen?: boolean;
   title?: string;
 }
 
-function marker(status: WorkItemStatus = 'complete') {
+function marker(status: ConversationWorkStatus = 'complete') {
   if (status === 'running') return '●';
   if (status === 'error') return '×';
   if (status === 'pending') return '○';
@@ -28,7 +28,7 @@ function stepsLabel(count: number): string {
   return count === 1 ? '1 step' : `${count} steps`;
 }
 
-/** Compact Cursor-style activity timeline. It deliberately has no card per event. */
+/** Compact Cursor-style activity timeline. Renders ConversationWorkEvent rows as-is. */
 export function WorkTimeline({ items, defaultOpen = false, title }: WorkTimelineProps) {
   if (!items.length) return null;
   const active = items.some((item) => {
@@ -67,7 +67,11 @@ export function WorkTimeline({ items, defaultOpen = false, title }: WorkTimeline
         {items.map((item) => {
           const status = item.status ?? 'complete';
           return (
-            <div key={item.id} className={`ak-work-item ak-work-item--${status}`}>
+            <div
+              key={item.id}
+              className={`ak-work-item ak-work-item--${status}`}
+              data-work-type={item.type}
+            >
               <span className="ak-work-item__marker">{marker(status)}</span>
               <span className="ak-work-item__label">{item.label}</span>
               {item.detail ? <span className="ak-work-item__detail">{item.detail}</span> : null}

@@ -1,21 +1,16 @@
-import type { WorkItem } from '../components/WorkTimeline';
-import {
-  isCanonicalWorkType,
-  type ConversationWorkEvent,
-  WORK_TYPE_LABEL
-} from './conversationWorkEvent';
+import type { ConversationWorkEvent } from './conversationWorkEvent';
+import { isCanonicalWorkType } from './conversationWorkEvent';
 
 export type { ConversationWorkEvent } from './conversationWorkEvent';
 
-/** Presentation mapper — canonical events pass through; no substring guessing. */
-export function normalizeWorkItems(events: ConversationWorkEvent[] = []): WorkItem[] {
-  return events
-    .filter((event) => event && event.id && isCanonicalWorkType(event.type))
-    .map((event) => ({
-      id: event.id,
-      label: event.label || WORK_TYPE_LABEL[event.type],
-      detail: event.detail,
-      kind: event.type,
-      status: event.status
-    }));
+/**
+ * Validity filter only — canonical events pass through unchanged.
+ * Does not infer type/status from free-form labels.
+ */
+export function normalizeWorkItems(
+  events: ConversationWorkEvent[] = []
+): ConversationWorkEvent[] {
+  return events.filter(
+    (event) => event && event.id && isCanonicalWorkType(event.type) && event.status
+  );
 }

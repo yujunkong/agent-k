@@ -19,8 +19,8 @@ describe('classifyWorkType', () => {
     expect(classifyWorkType('read_lints')).toBe('verify');
   });
 
-  it('ignores thought / plan / ask chrome', () => {
-    expect(classifyWorkType(undefined, 'thinking')).toBeNull();
+  it('maps thinking onto the unified timeline and ignores plan/ask chrome', () => {
+    expect(classifyWorkType(undefined, 'thinking')).toBe('thinking');
     expect(classifyWorkType(undefined, 'planning')).toBeNull();
     expect(classifyWorkType('ask_question', 'asking')).toBeNull();
     expect(classifyWorkType('todo_write', 'session')).toBeNull();
@@ -64,27 +64,47 @@ describe('work event lifecycle', () => {
     });
   });
 
-  it('appends distinct tools onto one agent turn', () => {
+  it('appends thinking then tools in first-seen order', () => {
     let events: ConversationWorkEvent[] = [];
-    for (const [id, toolName] of [
-      ['a', 'grep'],
-      ['b', 'read_file'],
-      ['c', 'edit_file']
-    ] as const) {
-      const started = beginWorkEvent({ id, toolName, now: 1 });
-      events = upsertWorkEvents(events, started!);
-    }
-
-    expect(events.map((e) => e.type)).toEqual(['search', 'read', 'edit']);
-    expect(events.every((e) => e.status === 'running')).toBe(true);
-
     events = upsertWorkEvents(
       events,
-      completeWorkEvent(events[0], { now: 2 })
+      beginWorkEvent({ id: 't', timelineKind: 'thinking', now: 1 })!
     );
+    events = upsertWorkEvents(
+      events,
+      beginWorkEvent({ id: 's', toolName: 'grep', now: 2 })!
+    );
+    events = upsertWorkEvents(
+      events,
+      beginWorkEvent({ id: 'r', toolName: 'read_file', now: 3 })!
+    );
+
+    expect(events.map((e) => e.type)).toEqual(['thinking', 'search', 'read']);
+    expect(events[0].label).toBe('Thinking');
+
+    events = upsertWorkEvents(events, completeWorkEvent(events[0], { now: 4 }));
+    expect(events.map((e) => e.type)).toEqual(['thinking', 'search', 'read']);
     expect(events[0].status).toBe('complete');
     expect(events[1].status).toBe('running');
-    expect(events[2].status).toBe('running');
+  });
+
+  it('creates a compact Thinking row from host timeline without dumping thought text', () => {
+    const event = workEventFromHostPayload(
+      {
+        id: 'tl_thinking_1',
+        kind: 'thinking',
+        detail: 'a very long reasoning dump',
+        status: 'running'
+      },
+      'running'
+    );
+    expect(event).toMatchObject({
+      id: 'tl_thinking_1',
+      type: 'thinking',
+      status: 'running',
+      label: 'Thinking',
+      detail: undefined
+    });
   });
 
   it('records error status from tool.end', () => {
@@ -128,13 +148,20 @@ describe('work event lifecycle', () => {
 });
 
 describe('legacy step lift', () => {
-  it('keeps only work kinds and drops Thought', () => {
+  it('lifts Thinking + tools and drops Planning', () => {
     const events = workEventsFromLegacySteps([
-      { id: 't', kind: 'thinking', label: 'Thought', itemStatus: 'done' },
+      { id: 't', kind: 'thinking', label: 'Thought', detail: 'long thought dump', itemStatus: 'done' },
       { id: 's', kind: 'searching', toolName: 'grep', detail: 'foo', itemStatus: 'done' },
       { id: 'p', kind: 'planning', label: 'Planning', itemStatus: 'done' }
     ]);
     expect(events).toEqual([
+      {
+        id: 't',
+        type: 'thinking',
+        status: 'complete',
+        label: 'Thinking',
+        detail: undefined
+      },
       {
         id: 's',
         type: 'search',
