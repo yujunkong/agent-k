@@ -27,7 +27,7 @@ suite('Plan V2 — SemanticValidator', () => {
     assert.strictEqual(issues.filter((i) => i.severity === 'error').length, 0);
   });
 
-  test('flags FILE_NOT_FOUND for modify/read intent on a missing file', async () => {
+  test('warns FILE_TARGET_UNRESOLVED for modify/read intent on a missing file', async () => {
     const issues = await validateSemantics(
       plan([
         {
@@ -41,7 +41,10 @@ suite('Plan V2 — SemanticValidator', () => {
       ]),
       { fileExists }
     );
-    assert.ok(issues.some((i) => i.code === 'FILE_NOT_FOUND'));
+    const unresolved = issues.find((i) => i.code === 'FILE_TARGET_UNRESOLVED');
+    assert.ok(unresolved);
+    assert.strictEqual(unresolved?.severity, 'warning');
+    assert.strictEqual(issues.filter((i) => i.severity === 'error').length, 0);
   });
 
   test('does NOT flag a missing file when intent is "create"', async () => {

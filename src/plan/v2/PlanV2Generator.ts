@@ -18,6 +18,7 @@ import type { PlanDocument } from './schema';
 import { PLAN_JSON_SCHEMA } from './schema';
 import { validateSchema } from './validators/SchemaValidator';
 import { validateSemantics, type FileExistenceChecker } from './validators/SemanticValidator';
+import { resolvePlanFileTargets } from './resolvePlanFileTargets';
 import { buildFailureContext, failureContextToPrompt, type FailureContext, type ValidationIssue } from './FailureContext';
 
 export interface PlanGenerationMessage {
@@ -118,11 +119,13 @@ export class PlanV2Generator {
         continue;
       }
 
+      const resolvedTasks = await resolvePlanFileTargets(schemaResult.data, this.fileExists);
+
       const plan: PlanDocument = {
         id: `plan_${Date.now().toString(36)}`,
         goal: params.goal,
         summary: schemaResult.data.summary,
-        tasks: schemaResult.data.tasks.map((t) => ({ ...t })),
+        tasks: resolvedTasks,
         risks: schemaResult.data.risks,
         createdAt: Date.now()
       };

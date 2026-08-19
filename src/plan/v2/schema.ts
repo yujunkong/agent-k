@@ -31,6 +31,14 @@ export const PlanFileRefSchema = z.object({
 });
 export type PlanFileRef = z.infer<typeof PlanFileRefSchema>;
 
+export type FileTargetResolution = 'resolved' | 'unresolved';
+
+/** Runtime file target after workspace existence resolution (not LLM output). */
+export type PlanFileTarget = PlanFileRef & {
+  exists?: boolean;
+  resolution?: FileTargetResolution;
+};
+
 /** Task id format kept loose (free string) but must be non-empty and unique
  *  within a plan — uniqueness is checked in SchemaValidator, not here,
  *  because zod object-level refinement is easier to unit test standalone. */
@@ -73,7 +81,9 @@ export const TaskStatusValues = [
 ] as const;
 export type TaskStatus = (typeof TaskStatusValues)[number];
 
-export type PlanTask = PlanTaskLLM;
+export type PlanTask = Omit<PlanTaskLLM, 'files'> & {
+  files: PlanFileTarget[];
+};
 
 export interface PlanRisk extends PlanRiskLLM {}
 

@@ -8,7 +8,8 @@
  *
  * Design: deterministic checks only. All of these are answerable without
  * asking another LLM call:
- *  - files with intent 'read' | 'modify' must exist on disk
+ *  - files with intent 'read' | 'modify' should exist on disk when resolvable;
+ *    missing targets become warnings (FILE_TARGET_UNRESOLVED), not hard errors
  *    (intent 'create' is exempt — the task is expected to create it)
  *  - dependencies must reference real task ids in the same plan
  *  - the dependency graph must not contain cycles
@@ -49,9 +50,9 @@ export async function validateSemantics(
       if (file.intent === 'create') continue;
       if (!(await options.fileExists(file.path))) {
         issues.push({
-          code: 'FILE_NOT_FOUND',
-          message: `${file.path} does not exist (task expects intent "${file.intent}").`,
-          severity: 'error',
+          code: 'FILE_TARGET_UNRESOLVED',
+          message: `${file.path} was not found in the workspace (planner intent "${file.intent}"). The target is marked unresolved — confirm the path or use intent "create" if this is a new file.`,
+          severity: 'warning',
           taskId: task.id,
           path: file.path
         });
