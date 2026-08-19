@@ -157,4 +157,39 @@ suite('Plan execution — planExecutionEngine', () => {
       'blocked'
     );
   });
+
+  test('unresolved file targets fail before subagent dispatch', async () => {
+    const doc = mixedPlan();
+    doc.tasks[1]!.files = [
+      {
+        path: 'src/main.rs',
+        intent: 'modify',
+        resolution: 'unresolved',
+        exists: false
+      }
+    ];
+    const plan = buildExecutionPlan(
+      { ...doc, repoRoot: '/workspace/agent-k' },
+      { status: 'executing' }
+    );
+    const mainRuns: string[] = [];
+    const subagentHost = mockSubagentHost();
+
+    const finalPlan = await runPlanExecution(plan, {
+      parentTurnId: 'turn-4',
+      repoRoot: '/workspace/agent-k',
+      subagentHost,
+      runMainTask: async ({ task }) => {
+        mainRuns.push(task.id);
+        return { success: true };
+      }
+    });
+
+    assert.strictEqual(finalPlan.status, 'failed');
+    assert.deepStrictEqual(mainRuns, ['analyze']);
+    assert.strictEqual(
+      finalPlan.tasks.find((task) => task.id === 'implement')?.status,
+      'failed'
+    );
+  });
 });

@@ -10,6 +10,10 @@ import {
   type SubagentHostLike,
   type SubagentWorktreeRegistrar
 } from './subagentTaskBridge';
+import {
+  executionIssueToTaskError,
+  validateTaskExecutionLaunch
+} from './validateExecutionContext';
 import type { ExecutionPlan, ExecutionPlanTask } from './types';
 
 export type MainTaskRunner = (input: {
@@ -49,6 +53,14 @@ export async function executeNextPlanTask(
 
   let current = markTaskRunning(plan, next.id);
   deps.hooks?.onTaskStarted?.(current, next);
+
+  const contextIssue = validateTaskExecutionLaunch(current, next, deps.repoRoot);
+  if (contextIssue) {
+    current = markTaskFailed(current, next.id);
+    const error = executionIssueToTaskError(contextIssue);
+    deps.hooks?.onTaskFailed?.(current, next, error);
+    return { plan: current, executed: true, taskId: next.id, error };
+  }
 
   if (next.execution === 'subagent') {
     const subagentResult = await runPlanTaskViaSubagent(current, next, {

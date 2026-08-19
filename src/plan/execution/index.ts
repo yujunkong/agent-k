@@ -9,3 +9,4 @@ export * from './subagentTaskBridge';
 export * from './planExecutionEngine';
 export * from './planExecutionPersistence';
 export * from './planExecutionPresentation';
+export * from './validateExecutionContext';

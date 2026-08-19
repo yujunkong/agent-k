@@ -64,6 +64,18 @@ suite('Plan execution — buildExecutionPlan', () => {
     assert.strictEqual(byId['task-2'].status, 'pending');
     assert.strictEqual(byId['task-3'].status, 'pending');
     assert.strictEqual(byId['task-4'].status, 'pending');
+    assert.deepStrictEqual(byId['task-1'].files, [
+      { path: 'src/auth.ts', intent: 'read' }
+    ]);
+    assert.deepStrictEqual(byId['task-2'].verification, []);
+  });
+
+  test('copies repoRoot from PlanDocument', () => {
+    const plan = buildExecutionPlan({
+      ...samplePlan(),
+      repoRoot: '/workspace/agent-k'
+    });
+    assert.strictEqual(plan.repoRoot, '/workspace/agent-k');
   });
 
   test('infers subagent for write tasks and main for analysis/verification', () => {

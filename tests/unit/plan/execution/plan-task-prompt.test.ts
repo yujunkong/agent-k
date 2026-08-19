@@ -11,12 +11,15 @@ const plan: ExecutionPlan = {
   status: 'executing',
   approvedTaskIds: ['t1'],
   createdAt: 1,
+  repoRoot: '/workspace/agent-k',
   tasks: [
     {
       id: 't1',
       title: 'Analyze auth',
       description: 'Review src/auth.ts',
       dependencies: [],
+      files: [{ path: 'src/auth.ts', intent: 'read', resolution: 'resolved', exists: true }],
+      verification: ['npm test -- auth'],
       execution: 'main',
       status: 'ready'
     }
@@ -35,5 +38,8 @@ suite('planTaskPrompt', () => {
     const prompt = buildPlanTaskSubagentPrompt(plan, plan.tasks[0]);
     assert.ok(prompt.includes('# Plan task: t1'));
     assert.ok(prompt.includes('JWT auth'));
+    assert.ok(prompt.includes('Workspace root: /workspace/agent-k'));
+    assert.ok(prompt.includes('src/auth.ts (read, exists)'));
+    assert.ok(prompt.includes('Verification: npm test -- auth'));
   });
 });

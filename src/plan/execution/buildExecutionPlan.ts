@@ -52,6 +52,8 @@ function toExecutionTask(
     title: task.title,
     description: task.description,
     dependencies: [...task.dependencies],
+    files: task.files.map((file) => ({ ...file })),
+    verification: [...task.verification],
     execution: overrides?.[task.id] ?? inferTaskExecution(task),
     status: initialTaskStatus(task, scopedIds)
   };
@@ -82,7 +84,8 @@ export function buildExecutionPlan(
     tasks,
     approvedTaskIds: approvedIds,
     createdAt: plan.createdAt,
-    approvedAt: options.approvedAt
+    approvedAt: options.approvedAt,
+    repoRoot: plan.repoRoot
   };
 
   assertValidExecutionPlan(executionPlan);
