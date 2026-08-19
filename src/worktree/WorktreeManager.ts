@@ -70,13 +70,63 @@ export class WorktreeManager {
   }
 
   /**
+   * Ensure repoRoot is a usable git repository with at least one commit.
+   * Auto-initializes when missing so scratch/first-run workspaces don't
+   * block plan execution on a manual `git init`. Idempotent — safe to call
+   * before every subagent dispatch.
+   */
+  ensureRepo(): { initialized: boolean; reason?: 'no_git' | 'no_commits' } {
+    const isRepo = () => {
+      try {
+        execSync('git rev-parse --is-inside-work-tree', {
+          cwd: this.repoRoot, stdio: 'pipe'
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const hasCommit = () => {
+      try {
+        execSync('git rev-parse HEAD', { cwd: this.repoRoot, stdio: 'pipe' });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    if (!isRepo()) {
+      execSync('git init', { cwd: this.repoRoot, stdio: 'pipe' });
+      try {
+        execSync('git add -A', { cwd: this.repoRoot, stdio: 'pipe' });
+      } catch { /* nothing to stage */ }
+      execSync('git commit --allow-empty -m "agent-k: auto-initialized repository"', {
+        cwd: this.repoRoot, stdio: 'pipe'
+      });
+      return { initialized: true, reason: 'no_git' };
+    }
+
+    if (!hasCommit()) {
+      try {
+        execSync('git add -A', { cwd: this.repoRoot, stdio: 'pipe' });
+      } catch { /* nothing to stage */ }
+      execSync('git commit --allow-empty -m "agent-k: auto-initialized repository"', {
+        cwd: this.repoRoot, stdio: 'pipe'
+      });
+      return { initialized: true, reason: 'no_commits' };
+    }
+
+    return { initialized: false };
+  }
+
+  /**
    * Create a new worktree at the given branch
    */
   async create(branchName: string, baseCommit?: string): Promise<WorktreeInfo> {
     const sanitized = branchName.replace(/[^a-zA-Z0-9_\-/]/g, '_');
     const worktreePath = path.join(this.repoRoot, WORKTREE_BASE, sanitized);
 
-    // Ensure parent directory exists
+    // Ensure directory exists
     fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
 
     // Create branch if needed
@@ -86,49 +136,15 @@ export class WorktreeManager {
       });
     } catch { /* branch may exist */ }
 
-    // Attempt worktree add; on failure, prune stale entries and retry once.
-    // Stale worktree registrations (e.g. from a previous session that didn't
-    // clean up) cause `git worktree add` to fail with "already checked out"
-    // or "already registered" errors.
-    try {
-      execSync(`git worktree add ${worktreePath} ${sanitized} 2>/dev/null`, {
-        cwd: this.repoRoot, stdio: 'pipe'
-      });
-    } catch (firstErr: unknown) {
-      // Prune stale registrations and remove leftover directory
-      this.prune();
-      if (fs.existsSync(worktreePath)) {
-        fs.rmSync(worktreePath, { recursive: true, force: true });
-      }
-
-      // Delete the branch and recreate so git doesn't complain it's
-      // "already checked out in another worktree"
-      try {
-        execSync(`git branch -D ${sanitized} 2>/dev/null`, {
-          cwd: this.repoRoot, stdio: 'pipe'
-        });
-        execSync(`git branch -f ${sanitized} ${baseCommit || 'HEAD'} 2>/dev/null`, {
-          cwd: this.repoRoot, stdio: 'pipe'
-        });
-      } catch { /* best-effort */ }
-
-      try {
-        execSync(`git worktree add ${worktreePath} ${sanitized}`, {
-          cwd: this.repoRoot, stdio: 'pipe'
-        });
-      } catch (retryErr: unknown) {
-        const msg = retryErr instanceof Error ? retryErr.message : String(retryErr);
-        throw new Error(
-          `Failed to create worktree "${sanitized}" after prune+retry: ${msg}`
-        );
-      }
-    }
+    // Create worktree
+    execSync(`git worktree add ${worktreePath} ${sanitized} 2>/dev/null`, {
+      cwd: this.repoRoot, stdio: 'pipe'
+    });
 
     const info: WorktreeInfo = {
       path: worktreePath,
       branch: sanitized,
       hash: execSync(`git rev-parse HEAD`, { cwd: worktreePath, stdio: 'pipe' }).toString().trim(),
-      detached: false,
       createdAt: Date.now(),
       active: true
     };
