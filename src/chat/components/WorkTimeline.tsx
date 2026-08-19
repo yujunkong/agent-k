@@ -3,6 +3,13 @@ import type {
   ConversationWorkEvent,
   ConversationWorkStatus
 } from '../conversation/conversationWorkEvent';
+import {
+  resolveFileEditForEvent,
+  resolveTerminalRunForEvent
+} from '../conversation/workEventDetails';
+import type { FileEditPreview, TerminalRunPreview } from '../types';
+import { FileEditCard } from './FileEditCard';
+import { TerminalRunCard } from './TerminalRunCard';
 
 export type { ConversationWorkEvent };
 
@@ -13,8 +20,11 @@ export type WorkItemStatus = ConversationWorkStatus;
 
 export interface WorkTimelineProps {
   items: ConversationWorkEvent[];
+  fileEdits?: FileEditPreview[];
+  terminalRuns?: TerminalRunPreview[];
   defaultOpen?: boolean;
   title?: string;
+  onOpenFile?: (path: string) => void;
 }
 
 function marker(status: ConversationWorkStatus = 'complete') {
@@ -28,8 +38,91 @@ function stepsLabel(count: number): string {
   return count === 1 ? '1 step' : `${count} steps`;
 }
 
+function WorkTimelineRow({
+  item,
+  fileEdits,
+  terminalRuns,
+  onOpenFile
+}: {
+  item: ConversationWorkEvent;
+  fileEdits: FileEditPreview[];
+  terminalRuns: TerminalRunPreview[];
+  onOpenFile?: (path: string) => void;
+}) {
+  const status = item.status ?? 'complete';
+  const fileEdit = resolveFileEditForEvent(item, fileEdits);
+  const terminalRun = resolveTerminalRunForEvent(item, terminalRuns);
+  const hasRichDetail = Boolean(fileEdit || terminalRun);
+  const hasTextDetail = Boolean(item.detail) && item.type !== 'thinking';
+  const expandable = hasRichDetail || hasTextDetail;
+  const live = status === 'running' && hasRichDetail;
+  const [open, setOpen] = useState(live);
+
+  useEffect(() => {
+    if (live) setOpen(true);
+  }, [live]);
+
+  return (
+    <div
+      className={`ak-work-item ak-work-item--${status}${
+        expandable ? ' ak-work-item--expandable' : ''
+      }${open ? ' ak-work-item--open' : ''}`}
+      data-work-type={item.type}
+    >
+      {expandable ? (
+        <button
+          type="button"
+          className="ak-work-item__row"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
+          <span className="ak-work-item__marker">{marker(status)}</span>
+          <span className="ak-work-item__label">{item.label}</span>
+          {item.detail ? <span className="ak-work-item__detail">{item.detail}</span> : null}
+          <span className="ak-work-item__chev" aria-hidden>
+            {open ? '▾' : '▸'}
+          </span>
+        </button>
+      ) : (
+        <div className="ak-work-item__row">
+          <span className="ak-work-item__marker">{marker(status)}</span>
+          <span className="ak-work-item__label">{item.label}</span>
+          {item.detail ? <span className="ak-work-item__detail">{item.detail}</span> : null}
+        </div>
+      )}
+      {open && expandable ? (
+        <div className="ak-work-item__panel">
+          {fileEdit ? (
+            <FileEditCard
+              path={fileEdit.path}
+              absPath={fileEdit.absPath}
+              additions={fileEdit.additions}
+              deletions={fileEdit.deletions}
+              lines={fileEdit.lines || []}
+              onOpenFile={onOpenFile}
+            />
+          ) : null}
+          {terminalRun ? (
+            <TerminalRunCard {...terminalRun} embedded open />
+          ) : null}
+          {!fileEdit && !terminalRun && item.detail ? (
+            <div className="ak-work-item__panel-text">{item.detail}</div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** Compact Cursor-style activity timeline. Renders ConversationWorkEvent rows as-is. */
-export function WorkTimeline({ items, defaultOpen = false, title }: WorkTimelineProps) {
+export function WorkTimeline({
+  items,
+  fileEdits = [],
+  terminalRuns = [],
+  defaultOpen = false,
+  title,
+  onOpenFile
+}: WorkTimelineProps) {
   if (!items.length) return null;
   const active = items.some((item) => {
     const status = item.status ?? 'complete';
@@ -64,20 +157,15 @@ export function WorkTimeline({ items, defaultOpen = false, title }: WorkTimeline
         <span className="ak-work-timeline__title">{summary}</span>
       </summary>
       <div className="ak-work-timeline__items">
-        {items.map((item) => {
-          const status = item.status ?? 'complete';
-          return (
-            <div
-              key={item.id}
-              className={`ak-work-item ak-work-item--${status}`}
-              data-work-type={item.type}
-            >
-              <span className="ak-work-item__marker">{marker(status)}</span>
-              <span className="ak-work-item__label">{item.label}</span>
-              {item.detail ? <span className="ak-work-item__detail">{item.detail}</span> : null}
-            </div>
-          );
-        })}
+        {items.map((item) => (
+          <WorkTimelineRow
+            key={item.id}
+            item={item}
+            fileEdits={fileEdits}
+            terminalRuns={terminalRuns}
+            onOpenFile={onOpenFile}
+          />
+        ))}
       </div>
     </details>
   );

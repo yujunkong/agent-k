@@ -250,14 +250,16 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
           }
           case 'file.edit': {
             const lines = Array.isArray(data.lines) ? data.lines : [];
+            const toolId = data.toolId != null ? String(data.toolId) : undefined;
             onDelta({
               fileEdit: {
-                id: `fe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                id: toolId ? `fe_${toolId}` : `fe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
                 path: String(data.path || ''),
                 absPath: data.absPath != null ? String(data.absPath) : undefined,
                 checkpointId:
                   data.checkpointId != null ? String(data.checkpointId) : undefined,
                 turn: data.turn != null ? Number(data.turn) : undefined,
+                toolId,
                 additions: Number(data.additions) || 0,
                 deletions: Number(data.deletions) || 0,
                 lines: lines.map((l: any) => ({
@@ -304,7 +306,8 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                   data.status === 'error' ||
                   data.status === 'running'
                     ? data.status
-                    : undefined
+                    : undefined,
+                toolId: data.toolId != null ? String(data.toolId) : undefined
               }
             });
             break;

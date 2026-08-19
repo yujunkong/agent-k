@@ -1804,6 +1804,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     let timelineSeq = 0;
     /** Active tool timeline item id keyed by tool name (last call wins per name) */
     const activeToolItems = new Map<string, string>();
+    /** Timeline id of the in-flight terminal tool — attached to terminal.run cards */
+    let lastTerminalTimelineId: string | undefined;
     /** Cursor-style row text from tool args — keep on result so Grepped/Read don't become "N matches" */
     const toolStartDetails = new Map<string, string>();
     /**
@@ -2263,6 +2265,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               ? `tl_${String(callId)}`
               : `tl_tool_${turn}_${name}_${++timelineSeq}`;
           activeToolItems.set(callId || name, id);
+          if (name === 'run_terminal_cmd' || name === 'terminal_output') {
+            lastTerminalTimelineId = id;
+          }
           toolArgsByCallId.set(callId || name, (args || {}) as Record<string, unknown>);
           // Keep Cursor-style start detail across tool result (don't replace with "N matches")
           if (detail) {
@@ -2317,7 +2322,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             error: ev.error,
             durationMs: ev.durationMs,
             turn: ev.turn != null ? Number(ev.turn) : currentTurn || 1,
-            status: ev.status
+            status: ev.status,
+            toolId: lastTerminalTimelineId
           });
         },
         onUsage: (usage) => {
@@ -2415,6 +2421,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 checkpointId:
                   data.checkpointId != null ? String(data.checkpointId) : undefined,
                 turn: currentTurn || 1,
+                toolId: id,
                 additions: Number(diff.additions) || 0,
                 deletions: Number(diff.deletions) || 0,
                 lines: diff.lines.slice(0, 80).map((l) => ({

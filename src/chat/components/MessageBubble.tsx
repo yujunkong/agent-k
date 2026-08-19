@@ -4,7 +4,6 @@ import { stripFakeToolMarkup } from '../displaySanitize';
 import { attachmentDisplayLabel } from '../attachmentFormat';
 import { MessageSteps } from './MessageSteps';
 import { FileEditCard } from './FileEditCard';
-import { TerminalRunCard } from './TerminalRunCard';
 import { IconCopy, IconEdit, IconFork } from './Icons';
 import { FileTypeIcon } from './FileTypeIcon';
 import { visiblePlanProseFromMessage } from '../planPromote';
@@ -232,15 +231,6 @@ export function MessageBubble({
     />
   ) : null;
 
-  const terminalCards =
-    isAssistant && hideUnifiedSteps && terminalRuns.length > 0 ? (
-      <div className="ak-terminal-runs" style={{ margin: '4px 0 10px' }}>
-        {terminalRuns.map((run: any) => (
-          <TerminalRunCard key={run.id} {...run} />
-        ))}
-      </div>
-    ) : null;
-
   /**
    * Final answer under the timeline. Mid-dig self-talk is in Thought;
    * opening leads render inside MessageSteps — do not dump turnProse here
@@ -405,8 +395,6 @@ export function MessageBubble({
           ))}
         </div>
       ) : null}
-
-      {terminalCards}
 
       {!hasTimelineChrome && message.toolStatus ? (
         <div className="message-tool-status">{message.toolStatus}</div>

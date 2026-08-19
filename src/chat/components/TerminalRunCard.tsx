@@ -4,7 +4,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { TerminalRunPreview } from '../types';
 
-export type TerminalRunCardProps = TerminalRunPreview;
+export type TerminalRunCardProps = TerminalRunPreview & {
+  /** Nested under a WorkTimeline row — hide the duplicate header. */
+  embedded?: boolean;
+  /** Controlled expand; omit to use internal state. */
+  open?: boolean;
+};
 
 function statusLabel(run: TerminalRunPreview): string {
   if (run.status === 'running') return 'Running';
@@ -20,21 +25,28 @@ function formatDuration(ms?: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-export function TerminalRunCard(run: TerminalRunCardProps) {
+export function TerminalRunCard({
+  embedded = false,
+  open,
+  ...run
+}: TerminalRunCardProps) {
   const live = run.status === 'running';
   const [expanded, setExpanded] = useState(live);
   const bodyRef = useRef<HTMLPreElement>(null);
-  const output = [run.stdout, run.stderr].filter(Boolean).join('') ||
+  const output =
+    [run.stdout, run.stderr].filter(Boolean).join('') ||
     (run.error ? String(run.error) : '');
+  const showBody = open ?? expanded;
 
   useEffect(() => {
+    if (open != null) return;
     if (live) setExpanded(true);
-  }, [live]);
+  }, [live, open]);
 
   useEffect(() => {
-    if (!expanded || !bodyRef.current) return;
+    if (!showBody || !bodyRef.current) return;
     bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
-  }, [output, expanded, live]);
+  }, [output, showBody, live]);
 
   const title = run.description?.trim() || run.command;
   const statusColor =
@@ -44,58 +56,60 @@ export function TerminalRunCard(run: TerminalRunCardProps) {
         ? 'var(--vscode-charts-blue, #4fc1ff)'
         : 'var(--vscode-descriptionForeground, #9d9d9d)';
 
+  const body = showBody ? (
+    <div className="ak-terminal-card__body">
+      {embedded || (run.command && run.description) ? (
+        <div className="ak-terminal-card__cmd" title={run.command}>
+          {run.command}
+        </div>
+      ) : null}
+      <pre ref={bodyRef} className="ak-terminal-card__output">
+        {output.trim() ? output : live ? '…' : '(no output)'}
+        {live ? <span className="ak-terminal-card__caret" aria-hidden /> : null}
+      </pre>
+    </div>
+  ) : null;
+
   return (
     <div
       className={`ak-terminal-card${live ? ' ak-terminal-card--live' : ''}${
         run.status === 'error' ? ' ak-terminal-card--error' : ''
-      }`}
+      }${embedded ? ' ak-terminal-card--embedded' : ''}`}
     >
-      <button
-        type="button"
-        className="ak-terminal-card__header"
-        onClick={() => setExpanded((v) => !v)}
-        title={expanded ? 'Collapse output' : 'Show output'}
-        aria-expanded={expanded}
-      >
-        <span className="ak-terminal-card__badge" aria-hidden>
-          sh
-        </span>
-        <span className="ak-terminal-card__title" title={run.command}>
-          <span className="ak-terminal-card__prompt">$</span> {title}
-        </span>
-        <span className="ak-terminal-card__meta" style={{ color: statusColor }}>
-          {live ? (
-            <span className="ak-live-blink ak-live-blink--sm" aria-hidden>
-              <span className="ak-live-blink__dot" />
-            </span>
-          ) : null}
-          {statusLabel(run)}
-          {run.durationMs != null && !live ? (
-            <span className="ak-terminal-card__dur"> · {formatDuration(run.durationMs)}</span>
-          ) : null}
-        </span>
-        <span className="ak-terminal-card__chev" aria-hidden>
-          {expanded ? '▾' : '▸'}
-        </span>
-      </button>
-
-      {expanded ? (
-        <div className="ak-terminal-card__body">
-          {run.command && run.description ? (
-            <div className="ak-terminal-card__cmd" title={run.command}>
-              {run.command}
-            </div>
-          ) : null}
-          <pre ref={bodyRef} className="ak-terminal-card__output">
-            {output.trim()
-              ? output
-              : live
-                ? '…'
-                : '(no output)'}
-            {live ? <span className="ak-terminal-card__caret" aria-hidden /> : null}
-          </pre>
-        </div>
-      ) : null}
+      {embedded ? null : (
+        <button
+          type="button"
+          className="ak-terminal-card__header"
+          onClick={() => setExpanded((v) => !v)}
+          title={showBody ? 'Collapse output' : 'Show output'}
+          aria-expanded={showBody}
+        >
+          <span className="ak-terminal-card__badge" aria-hidden>
+            sh
+          </span>
+          <span className="ak-terminal-card__title" title={run.command}>
+            <span className="ak-terminal-card__prompt">$</span> {title}
+          </span>
+          <span className="ak-terminal-card__meta" style={{ color: statusColor }}>
+            {live ? (
+              <span className="ak-live-blink ak-live-blink--sm" aria-hidden>
+                <span className="ak-live-blink__dot" />
+              </span>
+            ) : null}
+            {statusLabel(run)}
+            {run.durationMs != null && !live ? (
+              <span className="ak-terminal-card__dur">
+                {' '}
+                · {formatDuration(run.durationMs)}
+              </span>
+            ) : null}
+          </span>
+          <span className="ak-terminal-card__chev" aria-hidden>
+            {showBody ? '▾' : '▸'}
+          </span>
+        </button>
+      )}
+      {body}
     </div>
   );
 }

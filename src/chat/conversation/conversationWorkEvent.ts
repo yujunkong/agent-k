@@ -24,6 +24,8 @@ export type ConversationWorkEvent = {
   detail?: string;
   startedAt?: number;
   completedAt?: number;
+  /** Child preview: FileEditCard or TerminalRunCard under this row. */
+  ref?: { kind: 'fileEdit' | 'terminal'; id: string };
 };
 
 export const WORK_TYPE_LABEL: Record<ConversationWorkType, string> = {
@@ -217,7 +219,8 @@ export function upsertWorkEvents(
     label: incoming.label || prev.label,
     detail: incoming.detail ?? prev.detail,
     startedAt: prev.startedAt ?? incoming.startedAt,
-    completedAt: incoming.completedAt ?? prev.completedAt
+    completedAt: incoming.completedAt ?? prev.completedAt,
+    ref: incoming.ref ?? prev.ref
   };
   return events.map((event, i) => (i === idx ? merged : event));
 }

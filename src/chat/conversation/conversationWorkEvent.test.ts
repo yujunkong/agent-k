@@ -121,6 +121,25 @@ describe('work event lifecycle', () => {
     });
   });
 
+  it('preserves a child preview ref across status updates', () => {
+    const started = beginWorkEvent({
+      id: 'tl_term',
+      toolName: 'run_terminal_cmd',
+      detail: 'npm test',
+      now: 1
+    })!;
+    const withRef: ConversationWorkEvent = {
+      ...started,
+      ref: { kind: 'terminal', id: 'term_1' }
+    };
+    const next = upsertWorkEvents(
+      upsertWorkEvents([], withRef),
+      completeWorkEvent(started, { now: 2 })
+    );
+    expect(next[0].ref).toEqual({ kind: 'terminal', id: 'term_1' });
+    expect(next[0].status).toBe('complete');
+  });
+
   it('settles leftover running rows when the stream ends', () => {
     const events = settleWorkEvents(
       [

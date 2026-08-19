@@ -21,6 +21,7 @@ import {
   beginWorkEvent,
   type ConversationWorkEvent
 } from './conversation/conversationWorkEvent';
+import { linkPreviewToWorkEvents } from './conversation/workEventDetails';
 
 export const STREAM_TOOL_KINDS = new Set([
   'searching',
@@ -279,8 +280,12 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
           idx >= 0
             ? prevEdits.map((x, i) => (i === idx ? { ...fe, id: x.id || fe.id } : x))
             : [...prevEdits, fe];
+        const workItems = linkPreviewToWorkEvents(msg.workItems || [], {
+          kind: 'fileEdit',
+          fileEdit: fe
+        });
         const copy = [...prev];
-        copy[hit.lastIdx] = { ...msg, fileEdits };
+        copy[hit.lastIdx] = { ...msg, fileEdits, workItems };
         return copy;
       });
       return;
@@ -304,7 +309,8 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
             status: (ev.status || 'running') as 'running' | 'done' | 'error',
             stdout: '',
             stderr: '',
-            turn
+            turn,
+            toolId: ev.toolId
           };
           if (idx >= 0) runs[idx] = { ...runs[idx], ...next };
           else runs.push(next);
@@ -330,11 +336,19 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
             durationMs: ev.durationMs,
             stdout,
             stderr,
-            turn: ev.turn || cur.turn
+            turn: ev.turn || cur.turn,
+            toolId: ev.toolId || cur.toolId
           };
         }
+        const linked = runs[idx] || runs[runs.length - 1];
+        const workItems = linked
+          ? linkPreviewToWorkEvents(msg.workItems || [], {
+              kind: 'terminal',
+              terminalRun: linked
+            })
+          : msg.workItems;
         const copy = [...prev];
-        copy[hit.lastIdx] = { ...msg, terminalRuns: runs };
+        copy[hit.lastIdx] = { ...msg, terminalRuns: runs, workItems };
         return copy;
       });
       return;

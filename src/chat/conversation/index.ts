@@ -10,3 +10,8 @@ export {
   workEventFromHostPayload
 } from './conversationWorkEvent';
 export { normalizeWorkItems } from './normalizeWorkItems';
+export {
+  linkPreviewToWorkEvents,
+  resolveFileEditForEvent,
+  resolveTerminalRunForEvent
+} from './workEventDetails';

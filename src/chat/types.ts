@@ -59,6 +59,8 @@ export interface FileEditPreview {
   deletions: number;
   checkpointId?: string;
   turn?: number;
+  /** Timeline work-event id this preview belongs to. */
+  toolId?: string;
   lines: Array<{
     type: 'add' | 'delete' | 'context';
     lineNumber: number;
@@ -78,6 +80,8 @@ export interface TerminalRunPreview {
   durationMs?: number;
   turn?: number;
   error?: string;
+  /** Timeline work-event id this preview belongs to. */
+  toolId?: string;
 }
 
 export interface Attachment {
@@ -143,6 +147,7 @@ export interface StreamDelta {
     durationMs?: number;
     turn?: number;
     status?: 'running' | 'done' | 'error';
+    toolId?: string;
   };
   timeline?: TimelineDelta;
   workEvent?: ConversationWorkEvent;

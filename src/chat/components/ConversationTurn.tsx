@@ -38,9 +38,6 @@ export function ConversationTurn(props: ConversationTurnProps) {
     Array.isArray(message?.workItems) && message.workItems.length
       ? (message.workItems as ConversationWorkEvent[])
       : workEventsFromLegacySteps(message?.steps);
-  const fileEdits = Array.isArray(message?.fileEdits)
-    ? message.fileEdits
-    : [];
   const workItems = normalizeWorkItems(workEvents);
   // UI policy: show changed files only in the pinned bottom ChangedFilesBar.
   // (Avoid duplicate per-turn ChangeSummary chips that confuse users.)
