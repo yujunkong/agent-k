@@ -27,6 +27,8 @@ export interface ChangedFilesBarProps {
   checkpoints?: CheckpointSummary[];
   onListCheckpoints?: () => void;
   onRestoreCheckpoint?: (id: string) => void;
+  onAcceptFile?: (file: FileEditPreview) => void;
+  onRejectFile?: (file: FileEditPreview) => void;
 }
 
 function formatCheckpointTime(ts: number): string {
@@ -58,7 +60,9 @@ export function ChangedFilesBar({
   onStop,
   checkpoints,
   onListCheckpoints,
-  onRestoreCheckpoint
+  onRestoreCheckpoint,
+  onAcceptFile,
+  onRejectFile
 }: ChangedFilesBarProps) {
   const [expanded, setExpanded] = useState(false);
   const [hoverPath, setHoverPath] = useState<string | null>(null);
@@ -126,6 +130,8 @@ export function ChangedFilesBar({
           onOpenFile={onOpenFile}
           onUndoAll={onUndoAll}
           onClose={() => setShowReview(false)}
+          onAcceptFile={onAcceptFile}
+          onRejectFile={onRejectFile}
         />
       ) : null}
 

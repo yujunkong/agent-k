@@ -65,7 +65,8 @@ button.ak-work-item__row:hover .ak-work-item__label { color: var(--vscode-foregr
 .ak-work-item__panel { margin: 4px 0 8px 0; padding-left: 2px; }
 .ak-work-item__panel-text { padding: 4px 0 2px; color: var(--ak-ui-muted); white-space: pre-wrap; word-break: break-word; }
 .ak-work-item__panel .ak-terminal-card--embedded { margin: 2px 0 4px; border: 1px solid var(--ak-ui-border); border-radius: 6px; }
-.ak-work-item__panel .ak-file-edit-card { margin: 2px 0 4px; }
+.ak-work-item__panel .ak-file-edit-card,
+.ak-work-item__panel .ak-inline-edit-diff { margin: 2px 0 4px; }
 .ak-work-item__marker { width: 12px; margin-left: -21px; text-align: center; color: var(--ak-ui-muted); background: var(--vscode-editor-background, #1e1e1e); }
 .ak-work-item--running .ak-work-item__marker { color: var(--vscode-textLink-foreground, var(--vscode-foreground)); }
 .ak-work-item--error .ak-work-item__marker { color: var(--vscode-errorForeground, #f48771); }

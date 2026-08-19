@@ -8,7 +8,8 @@ import {
   resolveTerminalRunForEvent
 } from '../conversation/workEventDetails';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
-import { FileEditCard } from './FileEditCard';
+import { isPendingInlineEdit } from '../inlineEditReview';
+import { FileEditPreviewView } from './FileEditPreviewView';
 import { TerminalRunCard } from './TerminalRunCard';
 
 export type { ConversationWorkEvent };
@@ -25,6 +26,8 @@ export interface WorkTimelineProps {
   defaultOpen?: boolean;
   title?: string;
   onOpenFile?: (path: string) => void;
+  onAcceptFile?: (file: FileEditPreview) => void;
+  onRejectFile?: (file: FileEditPreview) => void;
 }
 
 function marker(status: ConversationWorkStatus = 'complete') {
@@ -42,12 +45,16 @@ function WorkTimelineRow({
   item,
   fileEdits,
   terminalRuns,
-  onOpenFile
+  onOpenFile,
+  onAcceptFile,
+  onRejectFile
 }: {
   item: ConversationWorkEvent;
   fileEdits: FileEditPreview[];
   terminalRuns: TerminalRunPreview[];
   onOpenFile?: (path: string) => void;
+  onAcceptFile?: (file: FileEditPreview) => void;
+  onRejectFile?: (file: FileEditPreview) => void;
 }) {
   const status = item.status ?? 'complete';
   const fileEdit = resolveFileEditForEvent(item, fileEdits);
@@ -56,11 +63,12 @@ function WorkTimelineRow({
   const hasTextDetail = Boolean(item.detail) && item.type !== 'thinking';
   const expandable = hasRichDetail || hasTextDetail;
   const live = status === 'running' && hasRichDetail;
-  const [open, setOpen] = useState(live);
+  const pendingInline = Boolean(fileEdit && isPendingInlineEdit(fileEdit));
+  const [open, setOpen] = useState(live || pendingInline);
 
   useEffect(() => {
-    if (live) setOpen(true);
-  }, [live]);
+    if (live || pendingInline) setOpen(true);
+  }, [live, pendingInline]);
 
   return (
     <div
@@ -93,13 +101,11 @@ function WorkTimelineRow({
       {open && expandable ? (
         <div className="ak-work-item__panel">
           {fileEdit ? (
-            <FileEditCard
-              path={fileEdit.path}
-              absPath={fileEdit.absPath}
-              additions={fileEdit.additions}
-              deletions={fileEdit.deletions}
-              lines={fileEdit.lines || []}
+            <FileEditPreviewView
+              file={fileEdit}
               onOpenFile={onOpenFile}
+              onAccept={onAcceptFile}
+              onReject={onRejectFile}
             />
           ) : null}
           {terminalRun ? (
@@ -121,7 +127,9 @@ export function WorkTimeline({
   terminalRuns = [],
   defaultOpen = false,
   title,
-  onOpenFile
+  onOpenFile,
+  onAcceptFile,
+  onRejectFile
 }: WorkTimelineProps) {
   if (!items.length) return null;
   const active = items.some((item) => {
@@ -129,11 +137,12 @@ export function WorkTimeline({
     return status === 'running' || status === 'pending';
   });
   const hasError = items.some((item) => item.status === 'error');
-  const [open, setOpen] = useState(defaultOpen || active);
+  const pendingInline = fileEdits.some(isPendingInlineEdit);
+  const [open, setOpen] = useState(defaultOpen || active || pendingInline);
 
   useEffect(() => {
-    setOpen(active);
-  }, [active]);
+    setOpen(active || pendingInline);
+  }, [active, pendingInline]);
 
   const summary = title
     ? title
@@ -144,7 +153,7 @@ export function WorkTimeline({
   return (
     <details
       className="ak-work-timeline"
-      open={active || open}
+      open={active || pendingInline || open}
       onToggle={(event) => {
         if (active) return;
         setOpen((event.currentTarget as HTMLDetailsElement).open);
@@ -164,6 +173,8 @@ export function WorkTimeline({
             fileEdits={fileEdits}
             terminalRuns={terminalRuns}
             onOpenFile={onOpenFile}
+            onAcceptFile={onAcceptFile}
+            onRejectFile={onRejectFile}
           />
         ))}
       </div>

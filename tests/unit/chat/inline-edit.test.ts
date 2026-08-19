@@ -4,6 +4,7 @@
 import * as assert from 'assert';
 import {
   formatInlineEditForPayload,
+  formatInlineEditStickyContext,
   formatInlineEditSystemContext,
   inlineEditFileLabel,
   inlineEditFsPath,
@@ -120,25 +121,38 @@ suite('inlineEdit', () => {
     assert.strictEqual(inlineEditFsPath(req!.uri), 'd:/workspace/agent-k/src/foo.ts');
   });
 
-  test('formatInlineEditSystemContext injects instruction + range + source', () => {
+  test('formatInlineEditSystemContext is rules/target/range only', () => {
     const parsed = parseInlineEditHostMessage(hostMsg);
     assert.ok(parsed);
     const req = toInlineEditAgentRequest(parsed!.instruction, parsed!.context);
     const block = formatInlineEditSystemContext(req);
     assert.ok(block.includes('## Inline Edit'));
-    assert.ok(block.includes('async/await로 리팩터링해'));
     assert.ok(block.includes(req.uri));
     assert.ok(block.includes('startLine: 41'));
     assert.ok(block.includes('startColumn: 0'));
     assert.ok(block.includes('endLine: 57'));
     assert.ok(block.includes('endColumn: 2'));
     assert.ok(block.includes('L42-L58'));
-    assert.ok(block.includes('line 1'));
     assert.ok(block.includes('edit_file'));
     assert.ok(block.includes('oldText'));
+    assert.ok(!block.includes(req.instruction));
+    assert.ok(!block.includes('```'));
+    assert.ok(!block.includes('line 1'));
   });
 
-  test('ContextAssembler system+sticky consume inlineEdit for AgentLoop', () => {
+  test('formatInlineEditStickyContext holds instruction + selected source', () => {
+    const parsed = parseInlineEditHostMessage(hostMsg);
+    assert.ok(parsed);
+    const req = toInlineEditAgentRequest(parsed!.instruction, parsed!.context);
+    const block = formatInlineEditStickyContext(req);
+    assert.ok(block.includes('## Inline Edit selection'));
+    assert.ok(block.includes(req.instruction));
+    assert.ok(block.includes('```typescript'));
+    assert.ok(block.includes('line 1'));
+    assert.ok(!block.includes('startLine: 41'));
+  });
+
+  test('ContextAssembler splits rules into system and source into sticky', () => {
     const parsed = parseInlineEditHostMessage(hostMsg);
     assert.ok(parsed);
     const req = toInlineEditAgentRequest(parsed!.instruction, parsed!.context);
@@ -150,11 +164,15 @@ suite('inlineEdit', () => {
     );
     const system = assembly.slots.find((s) => s.name === 'system')?.content || '';
     const sticky = assembly.slots.find((s) => s.name === 'sticky')?.content || '';
+    const firstLine = req.selectedText.split('\n')[0];
     assert.ok(system.includes('## Inline Edit'));
     assert.ok(system.includes(req.uri));
-    assert.ok(system.includes(req.selectedText.split('\n')[0]));
-    assert.ok(system.includes(req.instruction));
-    assert.ok(sticky.includes('## Inline Edit'));
-    assert.ok(sticky.includes('startLine: 41'));
+    assert.ok(system.includes('edit_file'));
+    assert.ok(!system.includes(firstLine));
+    assert.ok(!system.includes(req.instruction));
+    assert.ok(sticky.includes('## Inline Edit selection'));
+    assert.ok(sticky.includes(firstLine));
+    assert.ok(sticky.includes(req.instruction));
+    assert.ok(!sticky.includes('startLine: 41'));
   });
 });

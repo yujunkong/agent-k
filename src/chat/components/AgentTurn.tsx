@@ -13,6 +13,8 @@ export interface AgentTurnProps {
   children?: React.ReactNode;
   onReviewChanges?: () => void;
   onOpenFile?: (path: string) => void;
+  onAcceptFile?: (file: FileEditPreview) => void;
+  onRejectFile?: (file: FileEditPreview) => void;
 }
 
 /** Presentation-only agent turn. Existing loop/message state remains the source of truth. */
@@ -25,6 +27,8 @@ export function AgentTurn({
   children,
   onReviewChanges,
   onOpenFile,
+  onAcceptFile,
+  onRejectFile
 }: AgentTurnProps) {
   return (
     <article className="conversation-turn ak-agent-turn">
@@ -34,6 +38,8 @@ export function AgentTurn({
         fileEdits={fileEdits}
         terminalRuns={terminalRuns}
         onOpenFile={onOpenFile}
+        onAcceptFile={onAcceptFile}
+        onRejectFile={onRejectFile}
       />
       {children ? <div className="ak-agent-turn__response">{children}</div> : null}
       <ChangeSummary files={changes} onReview={onReviewChanges} onOpenFile={onOpenFile} />

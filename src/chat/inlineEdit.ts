@@ -144,8 +144,8 @@ export function inlineEditFsPath(uri: string): string {
 }
 
 /**
- * Protected system/sticky context for AgentLoop.
- * Instruction + exact range + selected source — not a composer dump.
+ * Protected system context for AgentLoop.
+ * Target + range + editing constraints only — selected source lives in sticky.
  */
 export function formatInlineEditSystemContext(
   request: InlineEditAgentRequest
@@ -154,11 +154,8 @@ export function formatInlineEditSystemContext(
   const path = inlineEditFsPath(request.uri);
   const range = inlineEditRangeLabel(request);
   const lang = request.languageId || 'text';
-  const body = request.selectedText.replace(/\s+$/, '');
   const readOffset = request.startLine + 1;
   const lineCount = inlineEditLineCount(request);
-  const instruction =
-    request.instruction.trim() || '(see the latest user message)';
   return [
     '## Inline Edit (mandatory this turn)',
     'You are applying a scoped editor selection edit. This is not a whole-file rewrite.',
@@ -174,20 +171,39 @@ export function formatInlineEditSystemContext(
     `- endColumn: ${request.endColumn} (0-based)`,
     `- displayRange: ${range}`,
     '',
+    'Rules:',
+    `1. Call edit_file on path \`${path}\` only. Do not write_file or delete_file.`,
+    '2. hunks[0].oldText MUST be the selected source in sticky context (or the smallest unique substring of it).',
+    '3. hunks[0].newText is that region after applying the sticky Instruction. Change nothing else in the file.',
+    `4. Optional: read_file with offset=${readOffset} and limit=${lineCount} before editing.`,
+    '5. After the patch, briefly confirm the range you changed.'
+  ].join('\n');
+}
+
+/**
+ * Sticky context: instruction + selected source only.
+ * Keep this out of system so long selections are not paid twice.
+ */
+export function formatInlineEditStickyContext(
+  request: InlineEditAgentRequest
+): string {
+  const file = inlineEditFileLabel(request.uri);
+  const range = inlineEditRangeLabel(request);
+  const lang = request.languageId || 'text';
+  const body = request.selectedText.replace(/\s+$/, '');
+  const instruction =
+    request.instruction.trim() || '(see the latest user message)';
+  return [
+    '## Inline Edit selection',
+    `File: ${file} (${range})`,
+    '',
     'Instruction:',
     instruction,
     '',
     'Selected source (this MUST be edit_file hunks[].oldText — unique match):',
     `\`\`\`${lang}`,
     body,
-    '```',
-    '',
-    'Rules:',
-    `1. Call edit_file on path \`${path}\` only. Do not write_file or delete_file.`,
-    '2. hunks[0].oldText MUST be the selected source above (or the smallest unique substring of it).',
-    '3. hunks[0].newText is that region after applying the instruction. Change nothing else in the file.',
-    `4. Optional: read_file with offset=${readOffset} and limit=${lineCount} before editing.`,
-    '5. After the patch, briefly confirm the range you changed.'
+    '```'
   ].join('\n');
 }
 

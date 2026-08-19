@@ -71,7 +71,7 @@ export function persistSessionsToHost(sessions: unknown[], currentId?: unknown):
   if (snapshot.currentId) mgr.setCurrentSession(snapshot.currentId);
 }
 
-export async function restoreCheckpoint(id: string): Promise<void> {
+export async function restoreCheckpoint(id: string, reason?: string): Promise<void> {
   try {
     const mgr = RuntimeServices.getCheckpointManager();
     if (!mgr) {
@@ -81,7 +81,11 @@ export async function restoreCheckpoint(id: string): Promise<void> {
       return;
     }
     await mgr.restore(id);
-    void vscode.window.showInformationMessage('Agent K: edits undone (checkpoint restored).');
+    const ok =
+      reason === 'inline-edit-reject'
+        ? 'Agent K: Inline Edit rejected (checkpoint restored).'
+        : 'Agent K: edits undone (checkpoint restored).';
+    void vscode.window.showInformationMessage(ok);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     void vscode.window.showErrorMessage(`Agent K: undo failed — ${msg}`);

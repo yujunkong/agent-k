@@ -2,6 +2,7 @@ import React from 'react';
 import { MessageBubble } from './MessageBubble';
 import { AgentTurnAdapter } from '../conversation/agentTurnAdapter';
 import type { ChangeSummaryItem } from './ChangeSummary';
+import type { FileEditPreview } from '../types';
 import { getVariantMeta, setActiveVariant, useActiveVariant } from '../conversation/conversationVariants';
 import { normalizeWorkItems } from '../conversation/normalizeWorkItems';
 import {
@@ -21,13 +22,15 @@ export interface ConversationTurnProps {
   onCopy?: (content: string) => void;
   onStopAndPrefill?: (content: string) => void;
   onOpenFile?: (path: string) => void;
+  onAcceptFile?: (file: FileEditPreview) => void;
+  onRejectFile?: (file: FileEditPreview) => void;
   onContinueMission?: () => void;
   onRegenerate?: () => void;
 }
 
 /** Conversation boundary + Cursor-style sibling assistant variants. */
 export function ConversationTurn(props: ConversationTurnProps) {
-  const { message, isStreaming, onOpenFile } = props;
+  const { message, isStreaming, onOpenFile, onAcceptFile, onRejectFile } = props;
   const streaming = !!isStreaming || message?.status === 'streaming';
   const isAssistant = message?.role === 'assistant';
   const variantMeta = isAssistant ? getVariantMeta(message) : null;
@@ -60,6 +63,8 @@ export function ConversationTurn(props: ConversationTurnProps) {
           workItems={workItems}
           changes={changes}
           onOpenFile={onOpenFile}
+          onAcceptFile={onAcceptFile}
+          onRejectFile={onRejectFile}
         >
           {response}
         </AgentTurnAdapter>

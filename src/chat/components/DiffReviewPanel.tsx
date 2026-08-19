@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import type { FileEditPreview } from '../types';
 import { languageBadge } from '../editDiffPreview';
-import { FileEditCard } from './FileEditCard';
+import { FileEditPreviewView } from './FileEditPreviewView';
 
 export interface DiffReviewPanelProps {
   files: FileEditPreview[];
   onOpenFile?: (path: string) => void;
   onUndoAll?: () => void;
   onClose?: () => void;
+  onAcceptFile?: (file: FileEditPreview) => void;
+  onRejectFile?: (file: FileEditPreview) => void;
 }
 
 function basename(p: string): string {
@@ -17,14 +19,16 @@ function basename(p: string): string {
 
 /**
  * Cursor-style multi-file diff review surface.
- * This is deliberately review-only: actual accept/reject semantics stay with
- * the host/checkpoint layer instead of pretending a UI action reverted files.
+ * Undo uses the host checkpoint layer. Inline Edit Accept/Reject reuse the
+ * same FileEditPreview cards instead of a second diff engine.
  */
 export function DiffReviewPanel({
   files,
   onOpenFile,
   onUndoAll,
-  onClose
+  onClose,
+  onAcceptFile,
+  onRejectFile
 }: DiffReviewPanelProps) {
   const [selectedId, setSelectedId] = useState(files[0]?.id || '');
   const selected = useMemo(
@@ -98,13 +102,11 @@ export function DiffReviewPanel({
         </nav>
 
         <div className="ak-diff-review__diff">
-          <FileEditCard
-            path={selected.path}
-            absPath={selected.absPath}
-            additions={selected.additions}
-            deletions={selected.deletions}
-            lines={selected.lines || []}
+          <FileEditPreviewView
+            file={selected}
             onOpenFile={onOpenFile}
+            onAccept={onAcceptFile}
+            onReject={onRejectFile}
             expanded
           />
         </div>

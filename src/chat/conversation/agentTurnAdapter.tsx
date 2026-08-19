@@ -11,6 +11,8 @@ export interface AgentTurnAdapterProps {
   children?: React.ReactNode;
   onReviewChanges?: () => void;
   onOpenFile?: (path: string) => void;
+  onAcceptFile?: (file: FileEditPreview) => void;
+  onRejectFile?: (file: FileEditPreview) => void;
 }
 
 /** Presentation adapter: owns no agent/message state. */
@@ -21,6 +23,8 @@ export function AgentTurnAdapter({
   children,
   onReviewChanges,
   onOpenFile,
+  onAcceptFile,
+  onRejectFile
 }: AgentTurnAdapterProps) {
   const candidate = message as {
     role?: string;
@@ -43,6 +47,8 @@ export function AgentTurnAdapter({
       changes={changes}
       onReviewChanges={onReviewChanges}
       onOpenFile={onOpenFile}
+      onAcceptFile={onAcceptFile}
+      onRejectFile={onRejectFile}
     >
       {children}
     </AgentTurn>

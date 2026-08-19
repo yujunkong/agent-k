@@ -3,10 +3,11 @@ import { StreamingMarkdown } from '../StreamingMarkdown';
 import { stripFakeToolMarkup } from '../displaySanitize';
 import { attachmentDisplayLabel } from '../attachmentFormat';
 import { MessageSteps } from './MessageSteps';
-import { FileEditCard } from './FileEditCard';
+import { FileEditPreviewView } from './FileEditPreviewView';
 import { IconCopy, IconEdit, IconFork } from './Icons';
 import { FileTypeIcon } from './FileTypeIcon';
 import { visiblePlanProseFromMessage } from '../planPromote';
+import type { FileEditPreview } from '../types';
 import {
   deriveTurnStatus,
   TURN_STATUS_LABEL,
@@ -50,6 +51,8 @@ interface MessageBubbleProps {
   /** Stop run and prefill composer with this user message */
   onStopAndPrefill?: (content: string) => void;
   onOpenFile?: (path: string) => void;
+  onAcceptFile?: (file: FileEditPreview) => void;
+  onRejectFile?: (file: FileEditPreview) => void;
   /** Resume after mid-mission abort (send continue) */
   onContinueMission?: () => void;
   /** Regenerate last assistant turn (same as Composer 다시 실행) */
@@ -120,6 +123,8 @@ export function MessageBubble({
   onCopy,
   onStopAndPrefill,
   onOpenFile,
+  onAcceptFile,
+  onRejectFile,
   onContinueMission,
   onRegenerate
 }: MessageBubbleProps) {
@@ -228,6 +233,8 @@ export function MessageBubble({
       turnProse={turnProse}
       isStreaming={streamBody}
       onOpenFile={onOpenFile}
+      onAcceptFile={onAcceptFile}
+      onRejectFile={onRejectFile}
     />
   ) : null;
 
@@ -382,15 +389,13 @@ export function MessageBubble({
         stepsBlock
       ) : fileEdits.length > 0 ? (
         <div className="ak-file-edits" style={{ margin: '4px 0 8px' }}>
-          {fileEdits.map((fe: any) => (
-            <FileEditCard
+          {fileEdits.map((fe: FileEditPreview) => (
+            <FileEditPreviewView
               key={fe.id}
-              path={fe.path}
-              absPath={fe.absPath}
-              additions={fe.additions}
-              deletions={fe.deletions}
-              lines={fe.lines || []}
+              file={fe}
               onOpenFile={onOpenFile}
+              onAccept={onAcceptFile}
+              onReject={onRejectFile}
             />
           ))}
         </div>
