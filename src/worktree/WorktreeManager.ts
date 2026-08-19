@@ -9,11 +9,58 @@ export interface WorktreeInfo {
   path: string;
   branch: string;
   hash: string;
+  detached: boolean;
   createdAt: number;
   active: boolean;
 }
 
 const WORKTREE_BASE = '.agentk/worktrees';
+
+/**
+ * Parse `git worktree list --porcelain` output into structured entries.
+ * Records are separated by blank lines. Each record has:
+ *   worktree <path>
+ *   HEAD <sha>
+ *   branch refs/heads/<name>  OR  detached
+ */
+export function parseWorktreePorcelain(output: string): WorktreeInfo[] {
+  const results: WorktreeInfo[] = [];
+  const blocks = output.split(/\n\n+/).filter((b) => b.trim());
+
+  for (const block of blocks) {
+    const lines = block.split(/\r?\n/).filter(Boolean);
+    let wtPath = '';
+    let hash = '';
+    let branch = '';
+    let detached = false;
+
+    for (const line of lines) {
+      if (line.startsWith('worktree ')) {
+        wtPath = line.slice('worktree '.length);
+      } else if (line.startsWith('HEAD ')) {
+        hash = line.slice('HEAD '.length);
+      } else if (line.startsWith('branch ')) {
+        const ref = line.slice('branch '.length);
+        branch = ref.startsWith('refs/heads/') ? ref.slice('refs/heads/'.length) : ref;
+      } else if (line === 'detached') {
+        detached = true;
+      }
+    }
+
+    if (wtPath) {
+      results.push({
+        path: wtPath,
+        branch: branch || (detached ? `(detached at ${hash.slice(0, 7)})` : ''),
+        hash,
+        detached,
+        createdAt: Date.now(),
+        active: true
+      });
+    }
+  }
+
+  return results;
+}
 
 export class WorktreeManager {
   private repoRoot: string;
@@ -56,23 +103,12 @@ export class WorktreeManager {
   }
 
   /**
-   * List all worktrees
+   * List all worktrees via --porcelain for reliable parsing.
    */
   list(): WorktreeInfo[] {
     try {
-      const output = execSync('git worktree list', { cwd: this.repoRoot, stdio: 'pipe' }).toString();
-      const lines = output.trim().split('\n').filter(Boolean);
-
-      return lines.map(line => {
-        const parts = line.split(/\s+/);
-        return {
-          path: parts[0],
-          branch: (parts[1] || '').replace(/^\(|\)$/g, ''),
-          hash: parts[2] || '',
-          createdAt: Date.now(),
-          active: true
-        };
-      });
+      const output = execSync('git worktree list --porcelain', { cwd: this.repoRoot, stdio: 'pipe' }).toString();
+      return parseWorktreePorcelain(output);
     } catch {
       return [];
     }
@@ -159,5 +195,45 @@ export class WorktreeManager {
     } catch {
       /* ignore */
     }
+  }
+
+  /**
+   * Reconcile agent-managed worktrees on startup.
+   * Removes stale worktrees whose directories no longer exist on disk,
+   * while preserving worktrees registered for user review.
+   */
+  reconcile(preserveIds?: Set<string>): { pruned: string[]; kept: string[] } {
+    this.prune();
+    const base = path.join(this.repoRoot, WORKTREE_BASE);
+    const pruned: string[] = [];
+    const kept: string[] = [];
+
+    if (!fs.existsSync(base)) return { pruned, kept };
+
+    let dirs: string[];
+    try {
+      dirs = fs.readdirSync(base);
+    } catch {
+      return { pruned, kept };
+    }
+
+    for (const dir of dirs) {
+      const fullPath = path.join(base, dir);
+      if (preserveIds?.has(dir)) {
+        kept.push(fullPath);
+        continue;
+      }
+      try {
+        execSync(`git worktree remove ${fullPath} --force 2>/dev/null`, {
+          cwd: this.repoRoot, stdio: 'pipe'
+        });
+      } catch { /* ignore */ }
+      if (fs.existsSync(fullPath)) {
+        try { fs.rmSync(fullPath, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
+      pruned.push(fullPath);
+    }
+
+    return { pruned, kept };
   }
 }
