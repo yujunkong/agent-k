@@ -1,6 +1,6 @@
 /**
  * ConfigManager - VS Code 설정 관리
- * 
+ *
  * ConfigManager: get/update/onChange.
  * package.json contributes.configuration에 등록된 설정값과 연동
  */
@@ -16,6 +16,8 @@ export const AGENT_K_VSCODE_CONFIG_KEYS = [
   'agent-k.provider.availableModels',
   'agent-k.provider.apiKey',
   'agent-k.provider.apiKeys',
+  'agent-k.provider.profiles',
+  'agent-k.provider.activeProfileId',
   'agent-k.github.token',
   'agent-k.mode.default',
   'agent-k.permission.level',
@@ -30,8 +32,6 @@ export const AGENT_K_VSCODE_CONFIG_KEYS = [
   'agent-k.verification.testEnabled',
   'agent-k.turnTimeoutMs',
   'agent-k.plan.forceOnComplex',
-  // Phase 1a: must be in this list or readAgentKFromVSCode() never hydrates it
-  // and configManager.get('agent-k.debugClassifiers') stays undefined → no logs.
   'agent-k.debugClassifiers',
   'agent-k.telemetry.enabled',
   'agent-k.telemetry.statusBarEnabled',
@@ -62,7 +62,6 @@ export const AGENT_K_VSCODE_CONFIG_KEYS = [
   'agent-k.features.codebase-index',
 ] as const;
 
-/** Webview FeaturesTab keys — in-memory until contributed to package.json */
 export const AGENT_K_FEATURES_CONFIG_KEYS = [
   'agent-k.features.browser',
   'agent-k.features.design-mode',
@@ -83,7 +82,6 @@ export class ConfigManager {
   private config: Record<string, any> = {};
   private listeners: Map<string, Set<ConfigListener>> = new Map();
   private storage: { get: (key: string) => any; set: (key: string, value: any) => void } | null = null;
-  /** When true, set/update came from VS Code — do not write back to workspace config */
   private syncingFromVscode = false;
   private vscodeUpdater: VSCodeConfigUpdater | null = null;
 
@@ -96,42 +94,25 @@ export class ConfigManager {
     this.loadAll();
   }
 
-  /**
-   * Extension host only: persist ConfigManager changes into VS Code settings.
-   * Webview-only singleton leaves this unbound (RW-P0-03).
-   */
   bindVSCodeUpdater(updater: VSCodeConfigUpdater): void {
     this.vscodeUpdater = updater;
   }
 
-  /**
-   * Pull workspace/user settings into the in-memory singleton (no VS Code write-back).
-   */
   syncFromVSCode(values: Record<string, unknown>): void {
     this.syncingFromVscode = true;
     try {
       const changed: Array<[string, unknown]> = [];
       for (const [key, value] of Object.entries(values)) {
         if (value === undefined) continue;
-        // Never wipe a populated model catalog with an empty hydrate payload
         if (
-          (key === 'agent-k.provider.availableModels' ||
-            key === 'agent-k.provider.models') &&
-          Array.isArray(value) &&
-          value.length === 0 &&
-          Array.isArray(this.config[key]) &&
-          this.config[key].length > 0
-        ) {
-          continue;
-        }
-        // Don't clobber the active model with blank
+          (key === 'agent-k.provider.availableModels' || key === 'agent-k.provider.models') &&
+          Array.isArray(value) && value.length === 0 &&
+          Array.isArray(this.config[key]) && this.config[key].length > 0
+        ) continue;
         if (
           key === 'agent-k.provider.model' &&
-          (value === '' || value == null) &&
-          this.config[key]
-        ) {
-          continue;
-        }
+          (value === '' || value == null) && this.config[key]
+        ) continue;
         if (this.config[key] !== value) {
           this.config[key] = value;
           changed.push([key, value]);
@@ -139,9 +120,7 @@ export class ConfigManager {
       }
       if (changed.length > 0) {
         this.saveAll();
-        for (const [key, value] of changed) {
-          this.notifyListeners(key, value);
-        }
+        for (const [key, value] of changed) this.notifyListeners(key, value);
       }
     } finally {
       this.syncingFromVscode = false;
@@ -150,39 +129,28 @@ export class ConfigManager {
 
   private pushToVSCodeIfBound(key: string, value: unknown): void {
     if (this.syncingFromVscode || !this.vscodeUpdater) return;
-    if (!(AGENT_K_VSCODE_CONFIG_KEYS as readonly string[]).includes(key)) {
-      return;
-    }
-    void Promise.resolve(this.vscodeUpdater(key, value)).catch(() => {
-      /* extension host update failures are non-fatal for webview UX */
-    });
+    if (!(AGENT_K_VSCODE_CONFIG_KEYS as readonly string[]).includes(key)) return;
+    void Promise.resolve(this.vscodeUpdater(key, value)).catch(() => {});
   }
 
   private loadDefaults() {
     this.config = {
       'agent-k.provider.type': 'litellm',
-      // Default: direct MLX/exo OpenAI-compatible API (no master key).
-      // Optional LiteLLM: scripts/start-litellm.sh → :4000 + alias qwen3.6-35b-a3b + key sk-agent-k-local
-      // Note: other Docker LiteLLM on :4000 may use a different DB token — prefer :52415 locally.
       'agent-k.provider.baseUrl': 'http://127.0.0.1:52415',
       'agent-k.provider.model': 'mlx-community/Qwen3.6-35B-A3B-4bit',
-      // Empty until user connects / picks — never ship a fake one-item catalog
       'agent-k.provider.models': [],
       'agent-k.provider.availableModels': [],
       'agent-k.provider.apiKey': '',
       'agent-k.provider.apiKeys': {},
+      'agent-k.provider.profiles': [],
+      'agent-k.provider.activeProfileId': '',
       'agent-k.github.token': '',
       'agent-k.mode.default': 'agent',
       'agent-k.maxTurns': 25,
       'agent-k.debugClassifiers': false,
       'agent-k.permission.level': 'accept_edits',
       'agent-k.permission.denyGlobs': [
-        '**/.env*',
-        '**/secrets/**',
-        '**/id_rsa*',
-        '**/*.pem',
-        '**/.git/**',
-        '**/node_modules/**',
+        '**/.env*', '**/secrets/**', '**/id_rsa*', '**/*.pem', '**/.git/**', '**/node_modules/**'
       ],
       'agent-k.queue.onEnterWhileRunning': 'resynthesize',
       'agent-k.queue.onStop': 'keep',
@@ -203,7 +171,6 @@ export class ConfigManager {
       'agent-k.context.readMaxLines': 5000,
       'agent-k.context.maxTurnsA': 25,
       'agent-k.context.maxTurnsB': 15,
-      // RW-C7-08: FeaturesTab 토글 키 기본값
       'agent-k.features.browser': true,
       'agent-k.features.design-mode': true,
       'agent-k.features.worktree': true,
@@ -215,7 +182,6 @@ export class ConfigManager {
       'agent-k.features.inline-completion': false,
       'agent-k.features.github': true,
       'agent-k.features.codebase-index': true,
-      // Continue-style MCP map (mirrors package.json default; host reads VS Code settings)
       'agent-k.mcp.servers': {
         searxng: {
           type: 'local',
@@ -233,37 +199,21 @@ export class ConfigManager {
 
   private loadAll() {
     if (!this.storage) return;
-    
-    // Try to import from vscode module (will be available in extension context)
     try {
-      // This will be injected by the extension host
       const stored = this.storage.get('agent-k.config');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        this.config = { ...this.config, ...parsed };
-      }
-    } catch {
-      // Use defaults
-    }
+      if (stored) this.config = { ...this.config, ...JSON.parse(stored) };
+    } catch {}
   }
 
   private saveAll() {
     if (!this.storage) return;
-    try {
-      this.storage.set('agent-k.config', JSON.stringify(this.config));
-    } catch {
-      // Ignore storage errors
-    }
+    try { this.storage.set('agent-k.config', JSON.stringify(this.config)); } catch {}
   }
 
-  get(key: string): any {
-    return this.config[key];
-  }
+  get(key: string): any { return this.config[key]; }
 
   set(key: string, value: any): void {
-    const oldValue = this.config[key];
-    if (oldValue === value) return;
-    
+    if (this.config[key] === value) return;
     this.config[key] = value;
     this.saveAll();
     this.notifyListeners(key, value);
@@ -271,9 +221,7 @@ export class ConfigManager {
   }
 
   update(values: Record<string, any>): void {
-    for (const [key, value] of Object.entries(values)) {
-      this.config[key] = value;
-    }
+    for (const [key, value] of Object.entries(values)) this.config[key] = value;
     this.saveAll();
     for (const key of Object.keys(values)) {
       this.notifyListeners(key, this.config[key]);
@@ -281,36 +229,21 @@ export class ConfigManager {
     }
   }
 
-  getAll(): Record<string, any> {
-    return { ...this.config };
-  }
+  getAll(): Record<string, any> { return { ...this.config }; }
 
-  reset(key: string): void {
-    this.loadDefaults();
-    this.saveAll();
-  }
-
-  resetAll(): void {
-    this.loadDefaults();
-    this.saveAll();
-  }
+  reset(key: string): void { void key; this.loadDefaults(); this.saveAll(); }
+  resetAll(): void { this.loadDefaults(); this.saveAll(); }
 
   on(key: string, listener: ConfigListener): () => void {
-    if (!this.listeners.has(key)) {
-      this.listeners.set(key, new Set());
-    }
+    if (!this.listeners.has(key)) this.listeners.set(key, new Set());
     this.listeners.get(key)!.add(listener);
     return () => this.listeners.get(key)?.delete(listener);
   }
 
   private notifyListeners(key: string, value: any) {
-    const listeners = this.listeners.get(key);
-    if (listeners) {
-      listeners.forEach(l => l(key, value));
-    }
+    this.listeners.get(key)?.forEach((l) => l(key, value));
   }
 
-  // Settings schema validation
   validate(key: string, value: any): string | null {
     switch (key) {
       case 'agent-k.provider.baseUrl':
