@@ -8,3 +8,4 @@ export * from './planTaskPrompt';
 export * from './subagentTaskBridge';
 export * from './planExecutionEngine';
 export * from './planExecutionPersistence';
+export * from './planExecutionPresentation';

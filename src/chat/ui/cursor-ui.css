@@ -42,6 +42,8 @@
 .mode-chrome,.mode-chrome--debug,.mode-chrome--questions { border-bottom: 1px solid var(--ak-ui-border); background: transparent; }
 .debug-mode-ui { border: 0; border-radius: 0; margin: 0 auto; max-width: 860px; background: transparent; }
 .plan-mode-header { max-width: 860px; margin: 0 auto; border-bottom: 0; }
+.ak-plan-execution-bar { max-width: 860px; margin: 0 auto 6px; padding: 0 0 4px; border-bottom: 1px solid var(--ak-ui-border); }
+.ak-plan-execution-bar .planning-status { margin: 0; border-radius: 0; background: transparent; }
 .message-bubble .message-footer { opacity: .55; }
 .message-bubble:hover .message-footer,.message-bubble:focus-within .message-footer { opacity: 1; }
 .conversation-turn,.ak-agent-turn { width: min(860px, calc(100% - 32px)); margin-inline: auto; }

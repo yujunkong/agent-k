@@ -67,6 +67,7 @@ import './chat.css';
 
 // C5-C7 UI 컴포넌트 (RW-C57-02: ChatApp 마운트)
 import { PlanModeHeader } from './components/PlanModeHeader';
+import { PlanExecutionStatus } from './components/PlanExecutionStatus';
 import type { PlanStage } from '../plan/PlanModeController';
 import { PlanModeController } from '../plan/PlanModeController';
 import { ClarifyingQuestions } from '../plan/ClarifyingQuestions';
@@ -90,6 +91,7 @@ import {
   startPlanExecution,
   updatePlanExecutionSnapshot
 } from '../plan/execution/planExecutionPersistence';
+import { shouldShowPlanExecutionBar } from '../plan/execution/planExecutionPresentation';
 import type { PlanV2GenerationResult } from '../plan/v2/PlanV2Generator';
 import {
   PLAN_V2_GENERATE_TIMEOUT_MESSAGE,
@@ -496,6 +498,14 @@ export function ChatApp() {
       .filter((t) => planV2Adapter.session.getTaskStatus(t.id) === 'awaiting_verification')
       .map((t) => ({ id: t.id, title: t.title }));
   }, [planV2Adapter, planV2Tick]);
+  const activeExecutionPlan = useMemo(() => {
+    void planV2Tick;
+    return planV2Adapter.session.getExecutionPlan();
+  }, [planV2Adapter, planV2Tick]);
+  const showPlanExecutionBar = useMemo(
+    () => shouldShowPlanExecutionBar(activeExecutionPlan),
+    [activeExecutionPlan]
+  );
   const handleVerifyTaskManually = useCallback(
     (taskId: string) => {
       try {
@@ -2822,6 +2832,10 @@ export function ChatApp() {
           onDiscardPlan={handleDiscardPlan}
         />
       )}
+
+      {showPlanExecutionBar && activeExecutionPlan ? (
+        <PlanExecutionStatus plan={activeExecutionPlan} />
+      ) : null}
 
       {mode === 'debug' && (
         <DebugModeUI
