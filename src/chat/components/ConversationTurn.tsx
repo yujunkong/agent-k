@@ -3,7 +3,11 @@ import { MessageBubble } from './MessageBubble';
 import { AgentTurnAdapter } from '../conversation/agentTurnAdapter';
 import type { ChangeSummaryItem } from './ChangeSummary';
 import { getVariantMeta, setActiveVariant, useActiveVariant } from '../conversation/conversationVariants';
-import { normalizeWorkItems, type ConversationWorkEvent } from '../conversation/normalizeWorkItems';
+import { normalizeWorkItems } from '../conversation/normalizeWorkItems';
+import {
+  workEventsFromLegacySteps,
+  type ConversationWorkEvent
+} from '../conversation/conversationWorkEvent';
 import './conversation-variants.css';
 
 export interface ConversationTurnProps {
@@ -30,11 +34,10 @@ export function ConversationTurn(props: ConversationTurnProps) {
   const activeVariant = useActiveVariant(variantMeta?.groupId ?? '');
   const isActiveVariant = !variantMeta || variantMeta.index === activeVariant;
 
-  const workEvents = Array.isArray(message?.workItems)
-    ? message.workItems as ConversationWorkEvent[]
-    : Array.isArray(message?.steps)
-      ? message.steps as ConversationWorkEvent[]
-      : [];
+  const workEvents: ConversationWorkEvent[] =
+    Array.isArray(message?.workItems) && message.workItems.length
+      ? (message.workItems as ConversationWorkEvent[])
+      : workEventsFromLegacySteps(message?.steps);
   const fileEdits = Array.isArray(message?.fileEdits)
     ? message.fileEdits
     : [];

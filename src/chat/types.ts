@@ -1,4 +1,5 @@
 import type { ModeDecision } from '../mode/types';
+import type { ConversationWorkEvent } from './conversation/conversationWorkEvent';
 
 export type Role = 'user' | 'assistant' | 'tool' | 'system';
 export type Mode = 'ask' | 'agent' | 'plan' | 'debug';
@@ -27,6 +28,8 @@ export interface ChatMessage {
     itemStatus: 'running' | 'done' | 'error';
     durationMs?: number;
   }>;
+  /** Explicit tool work rows for WorkTimeline — not guessed from `steps`. */
+  workItems?: ConversationWorkEvent[];
   fileEdits?: FileEditPreview[];
   terminalRuns?: TerminalRunPreview[];
   openingLead?: string;
@@ -142,6 +145,7 @@ export interface StreamDelta {
     status?: 'running' | 'done' | 'error';
   };
   timeline?: TimelineDelta;
+  workEvent?: ConversationWorkEvent;
   askQuestion?: {
     id: string;
     question: string;

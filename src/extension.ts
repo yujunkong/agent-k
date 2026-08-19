@@ -2292,7 +2292,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           // markdown is folded into collapsed Thought.
           if (sealedContentTurn !== turn) {
             sealedContentTurn = turn;
-            post('tool.start', { toolName: name, turn });
+            post('tool.start', { toolName: name, turn, id, kind, detail });
           }
           postTimeline({
             kind,
@@ -2369,6 +2369,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           });
           post('tool.end', {
             toolName: name,
+            id,
+            kind,
+            detail,
             toolResult: result.success
               ? JSON.stringify(result.data ?? {}).slice(0, 4000)
               : undefined,

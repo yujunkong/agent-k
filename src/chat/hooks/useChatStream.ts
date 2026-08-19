@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatMessage, Mode, Attachment, StreamDelta } from '../types';
 import { apiHistoryForRegenerate } from '../regenerateTurn';
+import { workEventFromHostPayload } from '../conversation/conversationWorkEvent';
 
 /** No-token idle timeout — Ask path default */
 const IDLE_TIMEOUT_MS = 30_000;
@@ -218,9 +219,35 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
               sealTurn:
                 data.turn != null && Number.isFinite(Number(data.turn))
                   ? Number(data.turn)
-                  : undefined
+                  : undefined,
+              workEvent:
+                workEventFromHostPayload(
+                  {
+                    id: data.id,
+                    toolName: data.toolName,
+                    kind: data.kind,
+                    detail: data.detail,
+                    status: 'running'
+                  },
+                  'running'
+                ) || undefined
             });
             break;
+          case 'tool.end': {
+            const workEvent = workEventFromHostPayload(
+              {
+                id: data.id,
+                toolName: data.toolName,
+                kind: data.kind,
+                detail: data.detail,
+                error: data.error,
+                status: data.error ? 'error' : 'complete'
+              },
+              data.error ? 'error' : 'complete'
+            );
+            if (workEvent) onDelta({ workEvent });
+            break;
+          }
           case 'file.edit': {
             const lines = Array.isArray(data.lines) ? data.lines : [];
             onDelta({
@@ -303,7 +330,22 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                     : undefined,
                 itemStatus,
                 id: data.id != null ? String(data.id) : undefined
-              }
+              },
+              workEvent:
+                workEventFromHostPayload(
+                  {
+                    id: data.id,
+                    toolName: data.toolName,
+                    kind: data.kind,
+                    detail: data.detail,
+                    status: itemStatus === 'done' ? 'complete' : itemStatus,
+                    error:
+                      itemStatus === 'error' && data.error
+                        ? String(data.error)
+                        : undefined
+                  },
+                  itemStatus === 'done' ? 'complete' : itemStatus
+                ) || undefined
             });
             break;
           }

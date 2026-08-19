@@ -126,7 +126,18 @@ export function MessageBubble({
   const streamBody =
     streaming && isAssistant && message.status === 'streaming';
 
-  const hasSteps = Array.isArray(message.steps) && message.steps.length > 0;
+  const rawSteps = Array.isArray(message.steps) ? message.steps : [];
+  const hasWorkTimeline =
+    Array.isArray(message.workItems) && message.workItems.length > 0;
+  /** Work rows live in WorkTimeline — keep Thought / planning only here. */
+  const bubbleSteps = hasWorkTimeline
+    ? rawSteps.filter(
+        (s: { kind?: string }) =>
+          s.kind === 'thinking' || s.kind === 'planning' || s.kind === 'asking'
+      )
+    : rawSteps;
+  const hasSteps = bubbleSteps.length > 0;
+  const hasTimelineChrome = rawSteps.length > 0 || hasWorkTimeline;
   const fileEdits = Array.isArray(message.fileEdits) ? message.fileEdits : [];
   const terminalRuns = Array.isArray(message.terminalRuns) ? message.terminalRuns : [];
   const turnProse = Array.isArray(message.turnProse) ? message.turnProse : [];
@@ -137,7 +148,7 @@ export function MessageBubble({
    * lead is not duplicated, and the box disappears the instant hasSteps.
    */
   const understanding =
-    isAssistant && streamBody && !hasSteps
+    isAssistant && streamBody && !hasTimelineChrome
       ? extractUnderstandingLead(stripped)
       : { lead: '', rest: '' };
   const showUnderstandingBox = Boolean(understanding.lead);
@@ -151,7 +162,7 @@ export function MessageBubble({
 
   const stepsHaveError =
     hasSteps &&
-    (message.steps as Array<{ itemStatus?: string }>).some(
+    (bubbleSteps as Array<{ itemStatus?: string }>).some(
       (s) => s.itemStatus === 'error'
     );
 
@@ -196,7 +207,7 @@ export function MessageBubble({
    */
   const stepsBlock = hasSteps ? (
     <MessageSteps
-      steps={message.steps}
+      steps={bubbleSteps}
       fileEdits={fileEdits}
       terminalRuns={terminalRuns}
       turnProse={turnProse}
@@ -370,7 +381,7 @@ export function MessageBubble({
         </div>
       ) : null}
 
-      {!hasSteps && message.toolStatus ? (
+      {!hasTimelineChrome && message.toolStatus ? (
         <div className="message-tool-status">{message.toolStatus}</div>
       ) : null}
 
@@ -463,7 +474,7 @@ export function MessageBubble({
                 content={assistantBodyText}
                 isStreaming={streamBody}
               />
-            ) : streamBody && !hasSteps && !showUnderstandingBox ? (
+            ) : streamBody && !hasTimelineChrome && !showUnderstandingBox ? (
               <span className="message-streaming-ellipsis">…</span>
             ) : null}
           </div>

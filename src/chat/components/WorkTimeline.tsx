@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 export type WorkItemKind = 'read' | 'search' | 'edit' | 'terminal' | 'verify' | 'generic';
 export type WorkItemStatus = 'pending' | 'running' | 'complete' | 'error';
@@ -24,17 +24,44 @@ function marker(status: WorkItemStatus = 'complete') {
   return '✓';
 }
 
+function stepsLabel(count: number): string {
+  return count === 1 ? '1 step' : `${count} steps`;
+}
+
 /** Compact Cursor-style activity timeline. It deliberately has no card per event. */
-export function WorkTimeline({ items, defaultOpen = false, title = 'Working' }: WorkTimelineProps) {
+export function WorkTimeline({ items, defaultOpen = false, title }: WorkTimelineProps) {
   if (!items.length) return null;
-  const active = items.some((item) => (item.status ?? 'complete') === 'running');
+  const active = items.some((item) => {
+    const status = item.status ?? 'complete';
+    return status === 'running' || status === 'pending';
+  });
+  const hasError = items.some((item) => item.status === 'error');
+  const [open, setOpen] = useState(defaultOpen || active);
+
+  useEffect(() => {
+    setOpen(active);
+  }, [active]);
+
+  const summary = title
+    ? title
+    : active
+      ? `Working · ${stepsLabel(items.length)}`
+      : `Worked · ${stepsLabel(items.length)}`;
 
   return (
-    <details className="ak-work-timeline" open={defaultOpen || active}>
+    <details
+      className="ak-work-timeline"
+      open={active || open}
+      onToggle={(event) => {
+        if (active) return;
+        setOpen((event.currentTarget as HTMLDetailsElement).open);
+      }}
+    >
       <summary className="ak-work-timeline__summary">
-        <span className="ak-work-timeline__marker">{active ? '●' : '✓'}</span>
-        <span>{title}</span>
-        <span className="ak-work-timeline__count">{items.length}</span>
+        <span className="ak-work-timeline__marker" data-active={active ? 'true' : undefined}>
+          {active ? '●' : hasError ? '×' : '✓'}
+        </span>
+        <span className="ak-work-timeline__title">{summary}</span>
       </summary>
       <div className="ak-work-timeline__items">
         {items.map((item) => {

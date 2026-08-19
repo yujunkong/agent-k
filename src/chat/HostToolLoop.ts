@@ -15,6 +15,12 @@ import { modeRegistry } from '../agent/modeRegistry';
 import { getWorkspaceRoot, resolveWorkspacePath } from '../tools/writeExecutors';
 import type { ToolInput, ToolOutput } from '../tools/types';
 import type { Mode } from '../agent/types';
+import {
+  beginWorkEvent,
+  completeWorkEvent,
+  detailFromToolArgs,
+  type ConversationWorkEvent
+} from './conversation/conversationWorkEvent';
 
 export interface HostLoopMessage {
   role: string;
@@ -35,6 +41,8 @@ export interface HostToolLoopConfig {
   onStatus: (status: string) => void;
   onToolStart?: (name: string, args: Record<string, unknown>) => void;
   onToolEnd?: (name: string, result: string, error?: string) => void;
+  /** Structured work-event lifecycle for Conversation Event Store / WorkTimeline. */
+  onWorkEvent?: (event: ConversationWorkEvent) => void;
   onComplete: () => void;
   onError: (err: string) => void;
 }
@@ -65,6 +73,32 @@ export async function runHostToolLoop(config: HostToolLoopConfig): Promise<void>
   const maxTurns = config.maxTurns ?? 4;
   const root = getWorkspaceRoot();
   const baseUrl = (config.baseUrl || 'http://127.0.0.1:4000').replace(/\/$/, '');
+  let workSeq = 0;
+  const liveWork = new Map<string, ConversationWorkEvent>();
+
+  const emitWorkStart = (
+    name: string,
+    args: Record<string, unknown>,
+    turn: number
+  ): string | undefined => {
+    const event = beginWorkEvent({
+      id: `ht_${turn}_${++workSeq}_${name}`,
+      toolName: name,
+      detail: detailFromToolArgs(name, args)
+    });
+    if (!event) return undefined;
+    liveWork.set(event.id, event);
+    config.onWorkEvent?.(event);
+    return event.id;
+  };
+
+  const emitWorkEnd = (id: string | undefined, error?: string) => {
+    if (!id) return;
+    const prev = liveWork.get(id);
+    if (!prev) return;
+    liveWork.delete(id);
+    config.onWorkEvent?.(completeWorkEvent(prev, { error }));
+  };
 
   const messages: HostLoopMessage[] = [
     {
@@ -133,9 +167,14 @@ export async function runHostToolLoop(config: HostToolLoopConfig): Promise<void>
           ) {
             batch.push(capped[idx++]);
           }
+          const startIds = new Map<object, string | undefined>();
           for (const tc of batch) {
             config.onStatus(`🔧 Running ${tc.name}…`);
             config.onToolStart?.(tc.name, tc.arguments as Record<string, unknown>);
+            startIds.set(
+              tc,
+              emitWorkStart(tc.name, tc.arguments as Record<string, unknown>, turn)
+            );
           }
           const outcomes = await mapPool(batch, 8, async (tc) => {
             const result = await executeHostTool(
@@ -173,6 +212,7 @@ export async function runHostToolLoop(config: HostToolLoopConfig): Promise<void>
               serialized,
               result.success ? undefined : result.error
             );
+            emitWorkEnd(startIds.get(tc), result.success ? undefined : result.error);
             resultBlocks.push(`Tool ${tc.name} result:\n${serialized}`);
           }
           continue;
@@ -182,6 +222,11 @@ export async function runHostToolLoop(config: HostToolLoopConfig): Promise<void>
         const name = tc.name;
         config.onStatus(`🔧 Running ${name}…`);
         config.onToolStart?.(name, tc.arguments as Record<string, unknown>);
+        const workId = emitWorkStart(
+          name,
+          tc.arguments as Record<string, unknown>,
+          turn
+        );
 
         const result = await executeHostTool(name, tc.arguments as ToolInput, config.mode);
         let data = result.data;
@@ -207,6 +252,7 @@ export async function runHostToolLoop(config: HostToolLoopConfig): Promise<void>
           : JSON.stringify({ error: result.error || 'tool failed' });
 
         config.onToolEnd?.(name, serialized, result.success ? undefined : result.error);
+        emitWorkEnd(workId, result.success ? undefined : result.error);
         resultBlocks.push(`Tool ${name} result:\n${serialized}`);
       }
 

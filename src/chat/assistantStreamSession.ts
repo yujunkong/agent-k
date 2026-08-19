@@ -15,6 +15,11 @@ import {
   looksLikePlanDocument,
   looksLikePlanDraft
 } from './planPromote';
+import {
+  settleWorkEvents,
+  upsertWorkEvents,
+  type ConversationWorkEvent
+} from './conversation/conversationWorkEvent';
 
 export const STREAM_TOOL_KINDS = new Set([
   'searching',
@@ -33,6 +38,14 @@ function normalizeProse(text: string): string {
     .replace(/^---+\s*$/gm, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function withWorkEvent(
+  msg: ChatMessage,
+  event: ConversationWorkEvent | undefined
+): ChatMessage {
+  if (!event) return msg;
+  return { ...msg, workItems: upsertWorkEvents(msg.workItems || [], event) };
 }
 
 function looksLikeDuplicateProse(aRaw: string, bRaw: string): boolean {
@@ -232,7 +245,10 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         const newMsgs = [...prev];
-        newMsgs[hit.lastIdx] = sealLeadFromMessage(hit.msg, delta.sealTurn);
+        newMsgs[hit.lastIdx] = withWorkEvent(
+          sealLeadFromMessage(hit.msg, delta.sealTurn),
+          delta.workEvent
+        );
         return newMsgs;
       });
       return;
@@ -325,7 +341,18 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
 
     if (delta.timeline) {
       const tl = delta.timeline;
-      if (tl.kind === 'done') return;
+      if (tl.kind === 'done') {
+        if (delta.workEvent) {
+          applyOwnerMessages((prev) => {
+            const hit = lastStreaming(prev);
+            if (!hit) return prev;
+            const copy = [...prev];
+            copy[hit.lastIdx] = withWorkEvent(hit.msg, delta.workEvent);
+            return copy;
+          });
+        }
+        return;
+      }
       const id =
         tl.id ||
         `step_${tl.kind}_${tl.turn}_${tl.toolName || 'x'}_${Date.now()}`;
@@ -342,6 +369,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         if (STREAM_TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running') {
           msg = sealLeadFromMessage(msg, tl.turn);
         }
+        msg = withWorkEvent(msg, delta.workEvent);
         const steps = [...(msg.steps || [])];
         const idx = steps.findIndex((s) => s.id === id);
         const nextStep = {
@@ -363,6 +391,17 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         else steps.push(nextStep);
         const copy = [...prev];
         copy[hit.lastIdx] = { ...msg, steps };
+        return copy;
+      });
+      return;
+    }
+
+    if (delta.workEvent) {
+      applyOwnerMessages((prev) => {
+        const hit = lastStreaming(prev);
+        if (!hit) return prev;
+        const copy = [...prev];
+        copy[hit.lastIdx] = withWorkEvent(hit.msg, delta.workEvent);
         return copy;
       });
       return;
@@ -457,6 +496,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       const steps = prevSteps.map((s) =>
         s.itemStatus === 'running' ? { ...s, itemStatus: 'done' as const } : s
       );
+      const workItems = settleWorkEvents(newMsgs[lastIdx].workItems);
       const leadLeft = (newMsgs[lastIdx].openingLead || '').trim();
       const body = content.trim();
       const finalContent =
@@ -469,6 +509,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         openingLead: undefined,
         content: finalContent,
         steps,
+        workItems,
         workedDurationMs: Math.max(
           0,
           Date.now() - (newMsgs[lastIdx].timestamp || Date.now())
@@ -478,6 +519,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       const hasOther =
         (draft.turnProse?.length ?? 0) > 0 ||
         (draft.steps?.length ?? 0) > 0 ||
+        (draft.workItems?.length ?? 0) > 0 ||
         (draft.fileEdits?.length ?? 0) > 0 ||
         (draft.terminalRuns?.length ?? 0) > 0;
       newMsgs[lastIdx] = {
@@ -546,6 +588,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         status: 'error',
         toolStatus: undefined,
         steps,
+        workItems: settleWorkEvents(hit.msg.workItems, 'error'),
         content: hit.msg.content?.trim()
           ? `${hit.msg.content}\n\n⚠ ${err}`
           : err,
