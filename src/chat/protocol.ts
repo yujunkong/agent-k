@@ -85,6 +85,7 @@ export interface CheckpointListPayload {}
 
 export interface CheckpointRestorePayload {
   id: string;
+  reason?: string;
 }
 
 // ─── Extension → Webview ──────────────────────────────

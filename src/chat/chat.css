@@ -1990,6 +1990,186 @@ body {
   opacity: 0;
 }
 
+/* 1-4f: Inline Edit presentation over FileEditCard */
+.ak-inline-edit-diff {
+  margin: 6px 0;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 40%, var(--ak-card-border, #444));
+  background: var(--ak-card-bg, transparent);
+  overflow: hidden;
+}
+
+.ak-inline-edit-diff--rejected {
+  opacity: 0.72;
+}
+
+.ak-inline-edit-diff__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px 6px;
+  border-bottom: 1px solid var(--ak-card-border, rgba(255, 255, 255, 0.08));
+  background: color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 10%, transparent);
+}
+
+.ak-inline-edit-diff__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--vscode-focusBorder, #67e8f9);
+}
+
+.ak-inline-edit-diff__status {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.ak-inline-edit-diff .ak-file-edit-card {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.ak-inline-edit-diff__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--ak-card-border, rgba(255, 255, 255, 0.08));
+}
+
+.ak-inline-edit-diff__reject,
+.ak-inline-edit-diff__accept {
+  border: none;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.ak-inline-edit-diff__reject {
+  background: transparent;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.ak-inline-edit-diff__reject:hover {
+  color: var(--vscode-foreground, #ccc);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ak-inline-edit-diff__accept {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+}
+
+.ak-inline-edit-diff__accept:hover {
+  background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.ak-diff-review {
+  margin: 6px 8px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ak-diff-review__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 4px 6px;
+}
+
+.ak-diff-review__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ak-diff-review__summary {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.ak-diff-review__actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.ak-diff-review__secondary {
+  border: none;
+  background: transparent;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ak-diff-review__secondary:hover {
+  color: var(--vscode-foreground, #ccc);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ak-diff-review__body {
+  display: grid;
+  grid-template-columns: minmax(120px, 34%) 1fr;
+  gap: 8px;
+  min-height: 160px;
+}
+
+.ak-diff-review__files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.ak-diff-review__file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ak-diff-review__file:hover,
+.ak-diff-review__file--active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ak-diff-review__file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ak-diff-review__file-stats {
+  display: inline-flex;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.ak-diff-review__diff {
+  min-width: 0;
+}
+
 /* Clarifying questions stick above composer so ask_question never hides off-screen.
    Use a fixed px height — vh/% collapses the dock in a short sidebar. */
 .clarifying-dock {

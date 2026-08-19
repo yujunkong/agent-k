@@ -1,5 +1,5 @@
 import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { FileEditCard } from './FileEditCard';
+import { FileEditPreviewView } from './FileEditPreviewView';
 import { TerminalRunCard } from './TerminalRunCard';
 import { StreamingMarkdown } from '../StreamingMarkdown';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
@@ -55,6 +55,8 @@ interface MessageStepsProps {
   /** Host still running this assistant message */
   isStreaming?: boolean;
   onOpenFile?: (path: string) => void;
+  onAcceptFile?: (file: FileEditPreview) => void;
+  onRejectFile?: (file: FileEditPreview) => void;
 }
 
 type TurnGroup = {
@@ -1028,7 +1030,9 @@ export function MessageSteps({
   liveProse,
   liveProseStreaming,
   isStreaming = false,
-  onOpenFile
+  onOpenFile,
+  onAcceptFile,
+  onRejectFile
 }: MessageStepsProps) {
   const groups = useMemo(() => {
     const map = new Map<number, MessageStep[]>();
@@ -1717,14 +1721,12 @@ export function MessageSteps({
               {turnEdits.length > 0 ? (
                 <div className="ak-file-edits-inline ak-cards-under-action">
                   {turnEdits.map((fe) => (
-                    <FileEditCard
+                    <FileEditPreviewView
                       key={fe.id}
-                      path={fe.path}
-                      absPath={fe.absPath}
-                      additions={fe.additions}
-                      deletions={fe.deletions}
-                      lines={fe.lines || []}
+                      file={fe}
                       onOpenFile={onOpenFile}
+                      onAccept={onAcceptFile}
+                      onReject={onRejectFile}
                     />
                   ))}
                 </div>

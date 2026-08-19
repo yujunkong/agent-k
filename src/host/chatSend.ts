@@ -4,6 +4,7 @@ import { configManager } from '../core/ConfigManager';
 import { sessionUsageTracker, updateUsageStatusBar } from './runtimeSingletons';
 import { toolKind, kindVerb, shortDetail, resultDetail } from './timelineLabels';
 import { parseInlineEditAgentRequest } from '../chat/inlineEdit';
+import { withInlineEditSource } from '../chat/inlineEditReview';
 
 export type HostLoopRuntime = {
   loop: import('../loop/AgentLoopController').AgentLoopController;
@@ -716,7 +717,7 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
               }
             | undefined;
           if (diff && Array.isArray(diff.lines)) {
-            post('file.edit', {
+            post('file.edit', withInlineEditSource({
               path: String(data.relPath || data.path || name),
               absPath: data.path != null ? String(data.path) : undefined,
               checkpointId:
@@ -730,7 +731,7 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
                 lineNumber: Number(l.lineNumber) || 0,
                 text: String(l.text ?? '').slice(0, 400)
               }))
-            });
+            }, inlineEdit));
           }
         }
       },

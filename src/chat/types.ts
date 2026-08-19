@@ -51,6 +51,9 @@ export interface ChatMessage {
   };
 }
 
+export type FileEditSource = 'inlineEdit';
+export type FileEditReviewStatus = 'pending' | 'accepted' | 'rejected';
+
 export interface FileEditPreview {
   id: string;
   path: string;
@@ -61,6 +64,9 @@ export interface FileEditPreview {
   turn?: number;
   /** Timeline work-event id this preview belongs to. */
   toolId?: string;
+  /** 1-4f: Cmd/Ctrl+K scoped edit — reuses this preview, not a new diff engine. */
+  source?: FileEditSource;
+  reviewStatus?: FileEditReviewStatus;
   lines: Array<{
     type: 'add' | 'delete' | 'context';
     lineNumber: number;

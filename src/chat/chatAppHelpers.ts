@@ -55,6 +55,7 @@ export function collectSessionFileEdits(messages: ChatMessage[]): FileEditPrevie
   for (const m of messages) {
     if (!Array.isArray(m.fileEdits)) continue;
     for (const fe of m.fileEdits) {
+      if (fe.reviewStatus === 'rejected') continue;
       const key = (fe.absPath || fe.path || '').replace(/\\/g, '/');
       if (!key) continue;
       map.set(key, fe);

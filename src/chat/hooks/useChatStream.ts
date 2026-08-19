@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatMessage, Mode, Attachment, StreamDelta } from '../types';
 import { apiHistoryForRegenerate } from '../regenerateTurn';
 import { workEventFromHostPayload } from '../conversation/conversationWorkEvent';
+import { fileEditPreviewFromHost } from '../inlineEditReview';
 import type { InlineEditAgentRequest } from '../inlineEdit';
 
 type SendMessageOpts = {
@@ -256,28 +257,8 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             break;
           }
           case 'file.edit': {
-            const lines = Array.isArray(data.lines) ? data.lines : [];
-            const toolId = data.toolId != null ? String(data.toolId) : undefined;
             onDelta({
-              fileEdit: {
-                id: toolId ? `fe_${toolId}` : `fe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                path: String(data.path || ''),
-                absPath: data.absPath != null ? String(data.absPath) : undefined,
-                checkpointId:
-                  data.checkpointId != null ? String(data.checkpointId) : undefined,
-                turn: data.turn != null ? Number(data.turn) : undefined,
-                toolId,
-                additions: Number(data.additions) || 0,
-                deletions: Number(data.deletions) || 0,
-                lines: lines.map((l: any) => ({
-                  type:
-                    l?.type === 'add' || l?.type === 'delete'
-                      ? l.type
-                      : ('context' as const),
-                  lineNumber: Number(l?.lineNumber) || 0,
-                  text: String(l?.text ?? '')
-                }))
-              }
+              fileEdit: fileEditPreviewFromHost(data as Record<string, unknown>)
             });
             break;
           }

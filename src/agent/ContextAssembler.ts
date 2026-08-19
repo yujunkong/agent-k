@@ -20,7 +20,10 @@ import { injectTurnStructure } from '../harness/PromptTurnStructure';
 import { injectDontDoMedium } from '../harness/DontDoMedium';
 import { getProjectRulesCached, formatProjectRulesBlock } from '../harness/ProjectRulesLoader';
 import type { InlineEditAgentRequest } from '../chat/inlineEdit';
-import { formatInlineEditSystemContext } from '../chat/inlineEdit';
+import {
+  formatInlineEditStickyContext,
+  formatInlineEditSystemContext
+} from '../chat/inlineEdit';
 
 export interface ContextSlot {
   name: string;
@@ -85,7 +88,7 @@ export class ContextAssembler {
       tier?: 'A' | 'B' | 'C'; // HARB: 티어 정보
       /** ADDON-T08: pre-loaded rules content (skips fs/vscode lookup when set) */
       projectRules?: string;
-      /** 1-4e: scoped editor selection — injected into system + sticky */
+      /** 1-4e: scoped editor selection — rules in system, source in sticky */
       inlineEdit?: InlineEditAgentRequest;
     }
   ): ContextAssembly {
@@ -126,11 +129,14 @@ Use only read/search tools (and ask_question / todo_write when appropriate).`;
       systemPrompt = injectDontDoMedium(systemPrompt);
     }
 
-    const inlineEditBlock = options?.inlineEdit
+    const inlineEditRules = options?.inlineEdit
       ? formatInlineEditSystemContext(options.inlineEdit)
       : '';
-    if (inlineEditBlock) {
-      systemPrompt = `${systemPrompt}\n\n${inlineEditBlock}`;
+    const inlineEditSticky = options?.inlineEdit
+      ? formatInlineEditStickyContext(options.inlineEdit)
+      : '';
+    if (inlineEditRules) {
+      systemPrompt = `${systemPrompt}\n\n${inlineEditRules}`;
     }
 
     const memoryStore = this.resolveMemoryStore();
@@ -176,7 +182,7 @@ Use only read/search tools (and ask_question / todo_write when appropriate).`;
       {
         name: 'sticky',
         budgetPercent: 12,
-        content: [options?.stickyContext || '', inlineEditBlock]
+        content: [options?.stickyContext || '', inlineEditSticky]
           .filter(Boolean)
           .join('\n\n'),
         priority: 60,

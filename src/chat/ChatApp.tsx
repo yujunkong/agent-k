@@ -25,6 +25,11 @@ import {
   type InlineEditContext
 } from './inlineEdit';
 import {
+  inlineEditRejectRestorePayload,
+  isInlineEditPreview,
+  patchMessagesFileEditReview
+} from './inlineEditReview';
+import {
   MODE_LABELS,
   MODE_TOOLTIPS,
   PLAN_STICKY_PHASES,
@@ -40,7 +45,7 @@ import {
   createStreamingAssistantTurn
 } from './regenerateTurn';
 import { configManager } from '../core/ConfigManager';
-import type { ChatMessage, Mode, ModePicker, Attachment } from './types';
+import type { ChatMessage, FileEditPreview, Mode, ModePicker, Attachment } from './types';
 import { formatAttachmentsForPayload } from './attachmentFormat';
 import {
   extractPlanMarkdownFromMessage,
@@ -2548,6 +2553,23 @@ export function ChatApp() {
     handleOpenFile(first.absPath || first.path);
   }, [sessionFileEdits, handleOpenFile]);
 
+  const handleAcceptFileEdit = useCallback((file: FileEditPreview) => {
+    if (!isInlineEditPreview(file)) return;
+    setMessages((prev) => patchMessagesFileEditReview(prev, file.id, 'accepted'));
+  }, []);
+
+  const handleRejectFileEdit = useCallback((file: FileEditPreview) => {
+    if (!isInlineEditPreview(file)) return;
+    if (file.checkpointId) {
+      try {
+        getVsCodeApi()?.postMessage?.(inlineEditRejectRestorePayload(file.checkpointId));
+      } catch {
+        setError('Inline Edit reject failed.');
+      }
+    }
+    setMessages((prev) => patchMessagesFileEditReview(prev, file.id, 'rejected'));
+  }, []);
+
   /** ADDON-T07: Checkpoints dropdown — refresh from host */
   const handleListCheckpoints = useCallback(() => {
     try {
@@ -2766,6 +2788,8 @@ export function ChatApp() {
               onStopAndPrefill={handleStopAndPrefill}
               onCopy={(content) => navigator.clipboard.writeText(content)}
               onOpenFile={handleOpenFile}
+              onAcceptFile={handleAcceptFileEdit}
+              onRejectFile={handleRejectFileEdit}
               onContinueMission={() => {
                 void handleSendRef.current?.(
                   mode === 'plan'
@@ -2826,6 +2850,8 @@ export function ChatApp() {
           checkpoints={checkpoints}
           onListCheckpoints={handleListCheckpoints}
           onRestoreCheckpoint={handleRestoreCheckpoint}
+          onAcceptFile={handleAcceptFileEdit}
+          onRejectFile={handleRejectFileEdit}
         />
         <Composer
           onSend={handleSend}

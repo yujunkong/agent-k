@@ -440,7 +440,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     // Undo All — restore earliest checkpoint from session edits
     if (message.type === 'checkpoint.restore' && message.id) {
-      void this.restoreCheckpoint(String(message.id));
+      void this.restoreCheckpoint(
+        String(message.id),
+        message.reason != null ? String(message.reason) : undefined
+      );
       return;
     }
     // ADDON-T07: Checkpoints dropdown — summaries only (no file contents)
@@ -559,8 +562,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     persistHostSessions(sessions, currentId);
   }
 
-  private async restoreCheckpoint(id: string): Promise<void> {
-    await restoreHostCheckpoint(id);
+  private async restoreCheckpoint(id: string, reason?: string): Promise<void> {
+    await restoreHostCheckpoint(id, reason);
   }
 
   private async openWorkspaceFile(filePath: string): Promise<void> {
