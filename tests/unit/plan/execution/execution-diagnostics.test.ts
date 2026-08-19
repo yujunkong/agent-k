@@ -173,6 +173,23 @@ suite('Plan execution — diagnostics', () => {
 
     const execFailed = events.find((e) => e.type === 'plan.execution.failed') as any;
     assert.ok(execFailed?.metadata.failedTaskIds.includes('t1'));
+
+    // rootCause should be present and point to T1
+    assert.ok(execFailed?.metadata.rootCause, 'rootCause should be present');
+    assert.strictEqual(execFailed.metadata.rootCause.taskId, 't1');
+    assert.strictEqual(execFailed.metadata.rootCause.message, 'main task error');
+
+    // summary counts should include total and pending
+    assert.strictEqual(execFailed.metadata.total, 2);
+    assert.strictEqual(execFailed.metadata.failed, 1);
+    assert.strictEqual(execFailed.metadata.blocked, 1);
+    assert.strictEqual(execFailed.metadata.pending, 0);
+
+    // blocked event should include blockedByDetails
+    const blockedEvt = events.find((e) => e.type === 'plan.task.blocked') as any;
+    assert.ok(blockedEvt?.metadata.blockedByDetails, 'blockedByDetails should be present');
+    assert.strictEqual(blockedEvt.metadata.blockedByDetails[0].taskId, 't1');
+    assert.strictEqual(blockedEvt.metadata.blockedByDetails[0].status, 'failed');
   });
 
   test('formatDiagnosticEventLog produces readable single-line output', () => {
@@ -223,6 +240,87 @@ suite('Plan execution — diagnostics', () => {
     assert.ok(workEvent.label.includes('Implement auth'));
     assert.strictEqual(workEvent.executionId, 'exec-1');
     assert.strictEqual(workEvent.taskId, 't1');
+  });
+
+  test('task.failed event carries cause chain with code', async () => {
+    const doc = simplePlan();
+    const plan = buildExecutionPlan(doc, { status: 'executing' });
+    const events: AnyPlanDiagnosticEvent[] = [];
+
+    await runPlanExecution(plan, {
+      parentTurnId: 'turn-cause',
+      subagentHost: mockSubagentHost(),
+      repoRoot: os.tmpdir(),
+      runMainTask: async () => ({ success: false, error: 'worktree allocation failed' }),
+      hooks: {
+        onDiagnostic: (event) => events.push(event)
+      }
+    });
+
+    const failed = events.find((e) => e.type === 'plan.task.failed') as any;
+    assert.ok(failed?.metadata.failure.code, 'failure should have a code');
+    assert.strictEqual(failed.metadata.failure.code, 'WORKTREE_CREATE_FAILED');
+    assert.strictEqual(failed.metadata.failure.category, 'worktree');
+  });
+
+  test('plan.execution.failed rootCause includes category and code', async () => {
+    const doc = simplePlan();
+    const plan = buildExecutionPlan(doc, { status: 'executing' });
+    const events: AnyPlanDiagnosticEvent[] = [];
+
+    await runPlanExecution(plan, {
+      parentTurnId: 'turn-rc',
+      subagentHost: mockSubagentHost(),
+      repoRoot: os.tmpdir(),
+      runMainTask: async () => ({ success: false, error: 'git merge conflict detected' }),
+      hooks: {
+        onDiagnostic: (event) => events.push(event)
+      }
+    });
+
+    const execFailed = events.find((e) => e.type === 'plan.execution.failed') as any;
+    const rc = execFailed?.metadata.rootCause;
+    assert.ok(rc, 'rootCause should exist');
+    assert.strictEqual(rc.taskId, 't1');
+    assert.strictEqual(rc.category, 'git');
+    assert.strictEqual(rc.code, 'GIT_MERGE_FAILED');
+  });
+
+  test('formatDiagnosticEventLog includes cause chain info', () => {
+    const event: AnyPlanDiagnosticEvent = {
+      type: 'plan.task.failed',
+      turnId: 'turn-1',
+      planId: 'plan-1',
+      executionId: 'exec-1',
+      taskId: 't1',
+      taskIndex: 0,
+      taskCount: 3,
+      timestamp: Date.now(),
+      status: 'error',
+      metadata: {
+        failure: {
+          category: 'subagent' as const,
+          code: 'WORKTREE_CREATE_FAILED',
+          message: 'Command failed: git worktree add ...',
+          retryable: false,
+          cause: {
+            category: 'git' as const,
+            code: 'GIT_WORKTREE_ADD_FAILED',
+            command: {
+              command: 'git worktree add /tmp/wt branch',
+              cwd: '/workspace',
+              exitCode: 1,
+              stderr: 'fatal: not a git repository'
+            }
+          }
+        }
+      }
+    };
+    const line = formatDiagnosticEventLog(event);
+    assert.ok(line.includes('WORKTREE_CREATE_FAILED'), `should contain failure code, got: ${line}`);
+    assert.ok(line.includes('GIT_WORKTREE_ADD_FAILED'), `should contain cause code, got: ${line}`);
+    assert.ok(line.includes('exit=1'), `should contain exit code, got: ${line}`);
+    assert.ok(line.includes('cwd=/workspace'), `should contain cwd, got: ${line}`);
   });
 
   test('diagnosticToWorkEvent returns null for task.ready', () => {

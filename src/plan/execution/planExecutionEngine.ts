@@ -23,10 +23,14 @@ import {
   makeExecutionId,
   taskCountSummary,
   type AnyPlanDiagnosticEvent,
+  type BlockedByEntry,
   type PlanDiagnosticEmitter,
   type PlanExecutionContext,
+  type PlanRootCause,
   type PreflightTargetEntry,
-  type TaskFailureDetail
+  type TaskFailureDetail,
+  type TaskFailureCause,
+  type CommandFailureContext
 } from './executionDiagnostics';
 
 export type MainTaskRunner = (input: {
@@ -56,6 +60,7 @@ export type PlanExecutionStepResult = {
   executed: boolean;
   taskId?: string;
   error?: string;
+  failure?: TaskFailureDetail;
 };
 
 /** Dispatch exactly one ready task (sequential v1). */
@@ -142,8 +147,8 @@ export async function executeNextPlanTask(
         metadata: { failure }
       });
       deps.hooks?.onTaskFailed?.(current, next, error);
-      emitBlockedDependents(current, next.id, emitDiag, baseCtx);
-      return { plan: current, executed: true, taskId: next.id, error };
+      emitBlockedDependents(current, next.id, emitDiag, baseCtx, failure.code);
+      return { plan: current, executed: true, taskId: next.id, error, failure };
     }
   }
 
@@ -163,8 +168,8 @@ export async function executeNextPlanTask(
       metadata: { failure }
     });
     deps.hooks?.onTaskFailed?.(current, next, error);
-    emitBlockedDependents(current, next.id, emitDiag, baseCtx);
-    return { plan: current, executed: true, taskId: next.id, error };
+    emitBlockedDependents(current, next.id, emitDiag, baseCtx, failure.code);
+    return { plan: current, executed: true, taskId: next.id, error, failure };
   }
 
   // task.dispatched
@@ -220,7 +225,8 @@ export async function executeNextPlanTask(
 
     current = markTaskFailed(current, next.id);
     const error = subagentResult.error ?? 'Subagent task failed';
-    const failure = failureFromError(error, 'subagent');
+    const subagentCause = buildSubagentCause(subagentResult);
+    const failure = failureFromError(error, 'subagent', subagentCause);
     emitDiag?.({
       type: 'plan.task.failed',
       ...baseCtx,
@@ -233,8 +239,8 @@ export async function executeNextPlanTask(
       metadata: { failure }
     });
     deps.hooks?.onTaskFailed?.(current, next, error);
-    emitBlockedDependents(current, next.id, emitDiag, baseCtx);
-    return { plan: current, executed: true, taskId: next.id, error };
+    emitBlockedDependents(current, next.id, emitDiag, baseCtx, failure.code);
+    return { plan: current, executed: true, taskId: next.id, error, failure };
   }
 
   // main task
@@ -273,8 +279,8 @@ export async function executeNextPlanTask(
     metadata: { failure }
   });
   deps.hooks?.onTaskFailed?.(current, next, error);
-  emitBlockedDependents(current, next.id, emitDiag, baseCtx);
-  return { plan: current, executed: true, taskId: next.id, error };
+  emitBlockedDependents(current, next.id, emitDiag, baseCtx, failure.code);
+  return { plan: current, executed: true, taskId: next.id, error, failure };
 }
 
 /** Run tasks sequentially until the graph completes, fails, or stalls. */
@@ -336,6 +342,8 @@ export async function runPlanExecution(
   let current: ExecutionPlan =
     plan.status === 'executing' ? plan : { ...plan, status: 'executing' };
 
+  const taskFailures = new Map<string, TaskFailureDetail>();
+
   for (;;) {
     if (current.status !== 'executing') break;
 
@@ -361,6 +369,9 @@ export async function runPlanExecution(
 
     const step = await executeNextPlanTask(current, deps, ctx);
     current = step.plan;
+    if (step.failure && step.taskId) {
+      taskFailures.set(step.taskId, step.failure);
+    }
     if (!step.executed) break;
   }
 
@@ -378,6 +389,17 @@ export async function runPlanExecution(
     });
   } else if (current.status === 'failed') {
     const failedIds = current.tasks.filter((t) => t.status === 'failed').map((t) => t.id);
+    const primaryTaskId = failedIds[0];
+    const primaryFailure = primaryTaskId ? taskFailures.get(primaryTaskId) : undefined;
+    const rootCause: PlanRootCause | undefined = primaryTaskId && primaryFailure
+      ? {
+          taskId: primaryTaskId,
+          category: primaryFailure.category,
+          code: primaryFailure.code,
+          message: primaryFailure.message,
+          cause: primaryFailure.cause
+        }
+      : undefined;
     emitDiag?.({
       type: 'plan.execution.failed',
       ...ctx,
@@ -387,7 +409,8 @@ export async function runPlanExecution(
       metadata: {
         failedTaskIds: failedIds,
         ...summary,
-        reason: `${failedIds.length} task(s) failed: ${failedIds.join(', ')}`
+        reason: `${failedIds.length} task(s) failed: ${failedIds.join(', ')}`,
+        rootCause
       }
     });
   }
@@ -398,25 +421,104 @@ export async function runPlanExecution(
 // ── Internal helpers ────────────────────────────────────────────────
 
 function failureFromError(
-  error: string,
-  category: import('./executionDiagnostics').PlanFailureCategory
+  error: string | Error,
+  category: import('./executionDiagnostics').PlanFailureCategory,
+  causeOverride?: TaskFailureCause
 ): TaskFailureDetail {
+  const message = typeof error === 'string' ? error : error.message;
+  const code = inferFailureCode(message, category);
+
+  let cause = causeOverride;
+  if (!cause && typeof error !== 'string' && error.cause) {
+    cause = extractCauseFromError(error.cause);
+  }
+
   return {
     category,
-    message: error,
-    retryable: false
+    code,
+    name: typeof error !== 'string' ? error.name : undefined,
+    message,
+    retryable: false,
+    cause
   };
+}
+
+function inferFailureCode(message: string, category: import('./executionDiagnostics').PlanFailureCategory): string | undefined {
+  const lower = message.toLowerCase();
+  if (category === 'subagent' || category === 'worktree') {
+    if (lower.includes('worktree')) return 'WORKTREE_CREATE_FAILED';
+    if (lower.includes('spawn')) return 'SUBAGENT_SPAWN_FAILED';
+  }
+  if (category === 'git') {
+    if (lower.includes('worktree add')) return 'GIT_WORKTREE_ADD_FAILED';
+    if (lower.includes('merge')) return 'GIT_MERGE_FAILED';
+    if (lower.includes('checkout')) return 'GIT_CHECKOUT_FAILED';
+  }
+  if (category === 'filesystem') return 'FILE_NOT_FOUND';
+  if (category === 'timeout') return 'EXECUTION_TIMEOUT';
+  if (category === 'preflight') return 'PREFLIGHT_BLOCKED';
+  if (category === 'validation') return 'VALIDATION_FAILED';
+  return undefined;
+}
+
+function extractCauseFromError(cause: unknown): TaskFailureCause | undefined {
+  if (!cause) return undefined;
+  if (cause instanceof Error) {
+    const cat = categorizePlanError(cause);
+    const result: TaskFailureCause = {
+      category: cat,
+      code: inferFailureCode(cause.message, cat),
+      message: cause.message
+    };
+    if (cause.cause) {
+      result.cause = extractCauseFromError(cause.cause);
+    }
+    return result;
+  }
+  if (typeof cause === 'object' && cause !== null) {
+    const obj = cause as Record<string, unknown>;
+    if (typeof obj.message === 'string' || typeof obj.command === 'string') {
+      return buildCauseFromCommandResult(obj);
+    }
+  }
+  return undefined;
+}
+
+function buildCauseFromCommandResult(obj: Record<string, unknown>): TaskFailureCause {
+  const cat = typeof obj.command === 'string' && (obj.command as string).toLowerCase().includes('git') ? 'git' : 'internal';
+  const cause: TaskFailureCause = {
+    category: cat,
+    code: inferFailureCode(String(obj.message ?? obj.command ?? ''), cat),
+    message: typeof obj.message === 'string' ? obj.message : undefined
+  };
+  if (typeof obj.command === 'string') {
+    cause.command = {
+      command: obj.command as string,
+      cwd: typeof obj.cwd === 'string' ? obj.cwd : undefined,
+      exitCode: typeof obj.exitCode === 'number' ? obj.exitCode : (obj.exitCode === null ? null : undefined),
+      signal: typeof obj.signal === 'string' ? obj.signal : (obj.signal === null ? null : undefined),
+      stdout: typeof obj.stdout === 'string' ? (obj.stdout as string).slice(0, 2000) : undefined,
+      stderr: typeof obj.stderr === 'string' ? (obj.stderr as string).slice(0, 2000) : undefined
+    };
+  }
+  return cause;
 }
 
 function emitBlockedDependents(
   plan: ExecutionPlan,
   failedTaskId: string,
   emitDiag: PlanDiagnosticEmitter | undefined,
-  ctx: PlanExecutionContext
+  ctx: PlanExecutionContext,
+  failureCode?: string
 ): void {
   if (!emitDiag) return;
   for (const task of plan.tasks) {
     if (task.status === 'blocked' && task.dependencies.includes(failedTaskId)) {
+      const blockedByDetails: BlockedByEntry[] = [{
+        taskId: failedTaskId,
+        status: 'failed',
+        failureCode
+      }];
       emitDiag({
         type: 'plan.task.blocked',
         ...ctx,
@@ -427,11 +529,35 @@ function emitBlockedDependents(
         status: 'blocked',
         metadata: {
           blockedBy: [failedTaskId],
+          blockedByDetails,
           reason: 'dependency_failed'
         }
       });
     }
   }
+}
+
+function buildSubagentCause(result: import('./subagentTaskBridge').PlanSubagentRunResult): TaskFailureCause | undefined {
+  if (!result.errorDetail && !result.error) return undefined;
+  const detail = result.errorDetail;
+  if (detail?.command) {
+    return {
+      category: detail.command.toLowerCase().includes('git') ? 'git' : 'internal',
+      code: inferFailureCode(detail.command, detail.command.toLowerCase().includes('git') ? 'git' : 'internal'),
+      message: result.error,
+      command: {
+        command: detail.command,
+        cwd: detail.cwd,
+        exitCode: detail.exitCode,
+        signal: detail.signal,
+        stdout: detail.stdout?.slice(0, 2000),
+        stderr: detail.stderr?.slice(0, 2000),
+        worktreePath: detail.worktreePath,
+        branch: detail.branch
+      }
+    };
+  }
+  return undefined;
 }
 
 function taskIndex(plan: ExecutionPlan, taskId: string): number {
