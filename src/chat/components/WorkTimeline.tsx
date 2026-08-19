@@ -67,8 +67,8 @@ function worktreeStatusLabel(result: SubagentResult): string | undefined {
   if (action === 'reviewing') return 'Loading changes…';
   if (action === 'applying') return 'Applying changes…';
   if (action === 'rejecting') return 'Discarding worktree…';
-  if (outcome === 'applied') return 'Changes applied to workspace';
-  if (outcome === 'rejected') return 'Worktree discarded';
+  if (outcome === 'applied') return 'Changes applied to workspace ✓';
+  if (outcome === 'rejected') return 'Worktree discarded ✓';
   if (outcome === 'apply_failed') {
     return result.worktreeError ? `Apply failed: ${result.worktreeError}` : 'Apply failed';
   }
@@ -81,50 +81,329 @@ function worktreeStatusLabel(result: SubagentResult): string | undefined {
   return undefined;
 }
 
-function SubagentWorktreeChangesPreview({
-  preview,
+type WorktreeDiffLine = {
+  type: 'add' | 'delete' | 'context';
+  text: string;
+};
+
+type WorktreeDiffFile = {
+  path: string;
+  status: 'M' | 'A' | 'D' | 'R' | '?';
+  additions: number;
+  deletions: number;
+  lines: WorktreeDiffLine[];
+};
+
+function normalizeRepoPath(raw: string): string {
+  return raw.replace(/\\/g, '/').replace(/^\.\/+/, '').trim();
+}
+
+function countDiffLineStats(body: string): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  for (const line of body.split(/\r?\n/)) {
+    if (line.startsWith('+++') || line.startsWith('---')) continue;
+    if (line.startsWith('+')) additions += 1;
+    else if (line.startsWith('-')) deletions += 1;
+  }
+  return { additions, deletions };
+}
+
+function diffBodyToLines(body: string): WorktreeDiffLine[] {
+  const out: WorktreeDiffLine[] = [];
+  for (const raw of body.split(/\r?\n/)) {
+    if (!raw || raw.startsWith('+++') || raw.startsWith('---') || raw.startsWith('@@')) {
+      continue;
+    }
+    if (raw.startsWith('+')) {
+      out.push({ type: 'add', text: raw.slice(1) });
+    } else if (raw.startsWith('-')) {
+      out.push({ type: 'delete', text: raw.slice(1) });
+    } else if (raw.startsWith(' ') || raw.startsWith('\t')) {
+      out.push({ type: 'context', text: raw.slice(1) });
+    }
+  }
+  return out;
+}
+
+/** Split a unified git diff into per-file rows for the worktree review panel. */
+function parseWorktreeUnifiedDiff(diff: string): WorktreeDiffFile[] {
+  const text = String(diff || '').trim();
+  if (!text) return [];
+
+  const parts = text.split(/^diff --git /m).filter(Boolean);
+  const files: WorktreeDiffFile[] = [];
+
+  for (const part of parts) {
+    const chunk = `diff --git ${part}`;
+    const header = chunk.match(/^diff --git a\/(.+?) b\/(.+?)(?:\r?\n|$)/);
+    if (!header) continue;
+
+    const oldPath = normalizeRepoPath(header[1]);
+    const newPath = normalizeRepoPath(header[2]);
+    const bodyStart = chunk.indexOf('\n');
+    const body = bodyStart >= 0 ? chunk.slice(bodyStart + 1) : '';
+
+    let status: WorktreeDiffFile['status'] = 'M';
+    if (/^deleted file mode/m.test(chunk) || newPath === 'dev/null') {
+      status = 'D';
+    } else if (/^new file mode/m.test(chunk) || oldPath === 'dev/null') {
+      status = 'A';
+    } else if (/^rename from /m.test(chunk)) {
+      status = 'R';
+    }
+
+    const path =
+      status === 'D'
+        ? oldPath !== 'dev/null'
+          ? oldPath
+          : newPath
+        : newPath !== 'dev/null'
+          ? newPath
+          : oldPath;
+
+    const stats = countDiffLineStats(body);
+    files.push({
+      path,
+      status,
+      additions: stats.additions,
+      deletions: stats.deletions,
+      lines: diffBodyToLines(body)
+    });
+  }
+
+  return files;
+}
+
+function buildWorktreeDiffFiles(
+  preview?: SubagentWorktreeReviewPreview
+): WorktreeDiffFile[] {
+  if (!preview) return [];
+  const parsed = parseWorktreeUnifiedDiff(String(preview.diff || ''));
+  const byPath = new Map(parsed.map((file) => [file.path, file]));
+
+  for (const raw of preview.files ?? []) {
+    const path = normalizeRepoPath(raw);
+    if (!path || byPath.has(path)) continue;
+    byPath.set(path, {
+      path,
+      status: 'M',
+      additions: 0,
+      deletions: 0,
+      lines: []
+    });
+  }
+
+  for (const raw of preview.untrackedFiles ?? []) {
+    const path = normalizeRepoPath(raw);
+    if (!path || byPath.has(path)) continue;
+    byPath.set(path, {
+      path,
+      status: '?',
+      additions: 0,
+      deletions: 0,
+      lines: []
+    });
+  }
+
+  const ordered = [...(preview.files ?? []).map(normalizeRepoPath), ...parsed.map((f) => f.path)];
+  const seen = new Set<string>();
+  const result: WorktreeDiffFile[] = [];
+  for (const path of ordered) {
+    if (!path || seen.has(path)) continue;
+    const file = byPath.get(path);
+    if (file) {
+      seen.add(path);
+      result.push(file);
+    }
+  }
+  for (const file of parsed) {
+    if (seen.has(file.path)) continue;
+    seen.add(file.path);
+    result.push(file);
+  }
+  for (const file of byPath.values()) {
+    if (seen.has(file.path)) continue;
+    result.push(file);
+  }
+  return result;
+}
+
+function formatWorktreeStatParts(
+  additions: number,
+  deletions: number
+): { additions: number; deletions: number } {
+  return { additions, deletions };
+}
+
+function WorktreeDiffLines({ lines }: { lines: WorktreeDiffLine[] }) {
+  if (!lines.length) {
+    return <div className="ak-worktree-file__empty">No diff lines for this file.</div>;
+  }
+  return (
+    <div className="ak-worktree-file__diff">
+      {lines.map((line, index) => {
+        const kind = line.type === 'add' ? 'add' : line.type === 'delete' ? 'delete' : 'context';
+        const mark = line.type === 'add' ? '+' : line.type === 'delete' ? '−' : ' ';
+        return (
+          <div
+            key={`${kind}-${index}`}
+            className={`ak-file-edit-diff__line ak-file-edit-diff__line--${kind}`}
+          >
+            <span className="ak-file-edit-diff__mark">{mark}</span>
+            <span className="ak-file-edit-diff__text">{line.text || ' '}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function WorktreeFileRow({
+  file,
+  reviewOpen,
+  expanded,
+  onToggle,
   onOpenFile
 }: {
-  preview: SubagentWorktreeReviewPreview;
+  file: WorktreeDiffFile;
+  reviewOpen: boolean;
+  expanded: boolean;
+  onToggle: () => void;
   onOpenFile?: (path: string) => void;
 }) {
-  const files = preview.files ?? [];
-  const untracked = preview.untrackedFiles ?? [];
-  const diff = String(preview.diff || '').trim();
+  const stats = formatWorktreeStatParts(file.additions, file.deletions);
+  const hasDiff = file.lines.length > 0;
+  const showChev = reviewOpen && hasDiff;
 
   return (
-    <div className="ak-worktree-preview">
-      <div className="ak-worktree-preview__title">Changes preview</div>
-      {preview.filesChanged != null ? (
-        <div className="ak-worktree-preview__meta">
-          {formatSubagentFilesChanged(preview.filesChanged)}
+    <div
+      className={`ak-worktree-file${expanded ? ' ak-worktree-file--open' : ''}${
+        reviewOpen && hasDiff ? ' ak-worktree-file--interactive' : ''
+      }`}
+    >
+      <button
+        type="button"
+        className="ak-worktree-file__row"
+        onClick={() => {
+          if (reviewOpen && hasDiff) onToggle();
+        }}
+        aria-expanded={expanded}
+      >
+        <span className="ak-worktree-file__chev" aria-hidden>
+          {showChev ? (expanded ? '▾' : '▸') : ' '}
+        </span>
+        <span className={`ak-worktree-file__status ak-worktree-file__status--${file.status}`}>
+          {file.status}
+        </span>
+        <span
+          className="ak-worktree-file__path"
+          onClick={(event) => {
+            if (!onOpenFile) return;
+            event.stopPropagation();
+            onOpenFile(file.path);
+          }}
+          role={onOpenFile ? 'link' : undefined}
+        >
+          {file.path}
+        </span>
+        {stats.additions > 0 || stats.deletions > 0 ? (
+          <span className="ak-worktree-file__stats">
+            {stats.additions > 0 ? <span className="add">+{stats.additions}</span> : null}
+            {stats.deletions > 0 ? <span className="del">−{stats.deletions}</span> : null}
+          </span>
+        ) : null}
+      </button>
+      {reviewOpen && expanded && hasDiff ? (
+        <div className="ak-worktree-file__panel">
+          <WorktreeDiffLines lines={file.lines} />
         </div>
       ) : null}
-      {files.length ? (
-        <ul className="ak-worktree-preview__files">
-          {files.map((path) => (
-            <li key={path}>
-              {onOpenFile ? (
-                <button type="button" className="ak-worktree-preview__file" onClick={() => onOpenFile(path)}>
-                  {path}
-                </button>
-              ) : (
-                <span>{path}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {untracked.length ? (
-        <div className="ak-worktree-preview__meta">
-          Untracked: {untracked.join(', ')}
-        </div>
-      ) : null}
-      {diff ? (
-        <pre className="ak-worktree-preview__diff">{diff.slice(0, 12_000)}</pre>
-      ) : !files.length ? (
-        <div className="ak-worktree-preview__meta">No diff returned.</div>
-      ) : null}
+    </div>
+  );
+}
+
+function SubagentWorktreeChangesPanel({
+  preview,
+  filesChanged,
+  reviewOpen,
+  onOpenFile
+}: {
+  preview?: SubagentWorktreeReviewPreview;
+  filesChanged?: number;
+  reviewOpen: boolean;
+  onOpenFile?: (path: string) => void;
+}) {
+  const files = buildWorktreeDiffFiles(preview);
+  const fileCount = files.length || filesChanged || 0;
+  const totals = files.reduce(
+    (acc, file) => {
+      acc.additions += file.additions;
+      acc.deletions += file.deletions;
+      return acc;
+    },
+    { additions: 0, deletions: 0 }
+  );
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set());
+  const firstPath = files[0]?.path;
+
+  useEffect(() => {
+    if (!reviewOpen) {
+      setExpandedPaths(new Set());
+      return;
+    }
+    if (firstPath) {
+      setExpandedPaths(new Set([firstPath]));
+    }
+  }, [reviewOpen, firstPath]);
+
+  if (!fileCount) return null;
+
+  const totalsLabel = formatWorktreeStatParts(totals.additions, totals.deletions);
+
+  return (
+    <div className="ak-worktree-changes">
+      <div className="ak-worktree-changes__summary">
+        <span>{formatSubagentFilesChanged(fileCount)}</span>
+        {totalsLabel.additions > 0 || totalsLabel.deletions > 0 ? (
+          <span className="ak-worktree-changes__totals">
+            {totalsLabel.additions > 0 ? (
+              <span className="add">+{totalsLabel.additions}</span>
+            ) : null}
+            {totalsLabel.deletions > 0 ? (
+              <span className="del">−{totalsLabel.deletions}</span>
+            ) : null}
+          </span>
+        ) : null}
+      </div>
+      <div className="ak-worktree-changes__panel">
+        <div className="ak-worktree-changes__label">Changes</div>
+        {files.length ? (
+          <div className="ak-worktree-changes__files">
+            {files.map((file) => (
+                <WorktreeFileRow
+                  key={file.path}
+                  file={file}
+                  reviewOpen={reviewOpen}
+                  expanded={reviewOpen && expandedPaths.has(file.path)}
+                  onToggle={() => {
+                    setExpandedPaths((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(file.path)) next.delete(file.path);
+                      else next.add(file.path);
+                      return next;
+                    });
+                  }}
+                  onOpenFile={onOpenFile}
+                />
+              ))}
+          </div>
+        ) : (
+          <div className="ak-worktree-changes__placeholder">
+            Review changes to load the file list.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -155,11 +434,23 @@ function SubagentResultBlock({
   const canApply = hasWorktreeActions && canApplySubagentWorktree(result);
   const canReject = hasWorktreeActions && canRejectSubagentWorktree(result);
   const statusLabel = worktreeStatusLabel(result);
-  const [reviewOpen, setReviewOpen] = useState(Boolean(result.worktreeReview));
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const outcome = defaultSubagentWorktreeOutcome(result);
+  const showChangesPanel =
+    hasWorktreeActions &&
+    (Boolean(result.worktreeReview) || (result.filesChanged ?? 0) > 0);
+  const showReviewButton =
+    hasWorktreeActions &&
+    (canReview || Boolean(result.worktreeReview));
+  const showFooterActions = canApply || canReject;
 
-  useEffect(() => {
-    if (result.worktreeReview) setReviewOpen(true);
-  }, [result.worktreeReview]);
+  const handleReviewToggle = () => {
+    const next = !reviewOpen;
+    setReviewOpen(next);
+    if (next && !result.worktreeReview) {
+      onWorktreeReview?.(subagentId);
+    }
+  };
 
   const fallbackEdits =
     (result.filesChanged ?? 0) > 0 || fileEdits.length > 0;
@@ -170,13 +461,6 @@ function SubagentResultBlock({
         <div className="ak-subagent-result__row">
           <span className="ak-subagent-result__label">Summary</span>
           <span className="ak-subagent-result__value">{result.summary}</span>
-        </div>
-      ) : null}
-      {result.filesChanged != null ? (
-        <div className="ak-subagent-result__row">
-          <span className="ak-subagent-result__value">
-            {formatSubagentFilesChanged(result.filesChanged)}
-          </span>
         </div>
       ) : null}
       {result.toolCount != null ? (
@@ -193,33 +477,59 @@ function SubagentResultBlock({
           </span>
         </div>
       ) : null}
+      {showChangesPanel ? (
+        <SubagentWorktreeChangesPanel
+          preview={result.worktreeReview}
+          filesChanged={result.filesChanged}
+          reviewOpen={reviewOpen}
+          onOpenFile={onOpenFile}
+        />
+      ) : result.filesChanged != null ? (
+        <div className="ak-subagent-result__row">
+          <span className="ak-subagent-result__value">
+            {formatSubagentFilesChanged(result.filesChanged)}
+          </span>
+        </div>
+      ) : null}
       {statusLabel ? (
         <div
           className={`ak-subagent-result__status${
-            (() => {
-              const outcome = defaultSubagentWorktreeOutcome(result);
-              return outcome === 'apply_failed' || outcome === 'reject_failed';
-            })()
+            outcome === 'apply_failed' || outcome === 'reject_failed'
               ? ' ak-subagent-result__status--error'
-              : ''
+              : outcome === 'applied' || outcome === 'rejected'
+                ? ' ak-subagent-result__status--done'
+                : ''
           }`}
         >
           {statusLabel}
         </div>
       ) : null}
-      {hasWorktreeActions ? (
-        <div className="ak-subagent-result__actions">
-          {canReview ? (
+      {showReviewButton ? (
+        <div className="ak-subagent-result__review-row">
+          <button
+            type="button"
+            className="ak-subagent-result__review"
+            disabled={busy}
+            onClick={handleReviewToggle}
+          >
+            {result.worktreeAction === 'reviewing'
+              ? 'Loading changes…'
+              : reviewOpen
+                ? 'Hide changes'
+                : 'Review changes'}
+          </button>
+        </div>
+      ) : null}
+      {showFooterActions ? (
+        <div className="ak-subagent-result__footer">
+          {canReject ? (
             <button
               type="button"
               className="ak-subagent-result__action"
               disabled={busy}
-              onClick={() => {
-                setReviewOpen(true);
-                onWorktreeReview?.(subagentId);
-              }}
+              onClick={() => onWorktreeReject?.(subagentId)}
             >
-              {result.worktreeAction === 'reviewing' ? 'Reviewing…' : 'Review'}
+              {result.worktreeAction === 'rejecting' ? 'Rejecting…' : 'Reject'}
             </button>
           ) : null}
           {canApply ? (
@@ -232,25 +542,9 @@ function SubagentResultBlock({
               {result.worktreeAction === 'applying' ? 'Applying…' : 'Apply'}
             </button>
           ) : null}
-          {canReject ? (
-            <button
-              type="button"
-              className="ak-subagent-result__action"
-              disabled={busy}
-              onClick={() => onWorktreeReject?.(subagentId)}
-            >
-              {result.worktreeAction === 'rejecting' ? 'Rejecting…' : 'Reject'}
-            </button>
-          ) : null}
         </div>
       ) : null}
-      {reviewOpen && result.worktreeReview ? (
-        <SubagentWorktreeChangesPreview
-          preview={result.worktreeReview}
-          onOpenFile={onOpenFile}
-        />
-      ) : null}
-      {reviewOpen && !result.worktreeReview && fallbackEdits
+      {!hasWorktreeActions && reviewOpen && fallbackEdits
         ? fileEdits.map((file) => (
             <FileEditPreviewView
               key={file.id}
