@@ -40,6 +40,7 @@ export interface PlanV2GenerationParams {
   researchContext: string;
   rejectionFeedback?: string;
   maxAttempts?: number;
+  repoRoot?: string;
 }
 
 export interface PlanV2GenerationResult {
@@ -127,7 +128,8 @@ export class PlanV2Generator {
         summary: schemaResult.data.summary,
         tasks: resolvedTasks,
         risks: schemaResult.data.risks,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        repoRoot: params.repoRoot
       };
 
       return { ok: true, plan, attempts: attempt, failures };

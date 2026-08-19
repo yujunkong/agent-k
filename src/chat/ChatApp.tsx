@@ -1555,11 +1555,14 @@ export function ChatApp() {
                 return;
               }
               const requestId = `plan-exec-${Date.now().toString(36)}`;
+              const executionSnapshot =
+                planV2Adapter.session.getExecutionPlan() ?? executionPlan;
               api.postMessage({
                 type: 'plan.execute',
                 requestId,
                 parentTurnId: `turn-${turnNumberRef.current}`,
-                executionPlan: planV2Adapter.session.getExecutionPlan() ?? executionPlan
+                executionPlan: executionSnapshot,
+                repoRoot: structuredPlan.repoRoot ?? executionSnapshot.repoRoot
               });
             } catch (e) {
               setError(e instanceof Error ? e.message : 'Failed to start plan execution.');

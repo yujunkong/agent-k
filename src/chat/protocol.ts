@@ -33,6 +33,8 @@ export interface PlanExecutePayload {
   requestId: string;
   parentTurnId: string;
   executionPlan: import('../plan/execution/types').ExecutionPlan;
+  /** Workspace root from plan generation — validated against host folder at execution. */
+  repoRoot?: string;
   model?: string;
   baseUrl?: string;
   apiKey?: string;

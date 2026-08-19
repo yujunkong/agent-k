@@ -96,6 +96,8 @@ export interface PlanDocument {
   tasks: PlanTask[];
   risks: PlanRisk[];
   createdAt: number;
+  /** Absolute workspace root when the plan was generated (host-side). */
+  repoRoot?: string;
 }
 
 /**

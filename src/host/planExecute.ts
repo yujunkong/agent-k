@@ -21,12 +21,17 @@ import {
   type PlanExecutionHooks
 } from '../plan/execution';
 import { buildMainPlanTaskPrompt } from '../plan/execution/planTaskPrompt';
+import {
+  executionIssueToTaskError,
+  validateExecutionPlanContext
+} from '../plan/execution/validateExecutionContext';
 import { toObservedToolCall } from '../plan/v2/toObservedToolCall';
 
 export type PlanExecuteHostMessage = {
   requestId: string;
   parentTurnId: string;
   executionPlan: ExecutionPlan;
+  repoRoot?: string;
   model?: string;
   baseUrl?: string;
   apiKey?: string;
@@ -51,7 +56,20 @@ export async function runHostPlanExecute(
 
   try {
     const runtime = await resolvePlanExecuteRuntime(message);
-    const repoRoot = getWorkspaceRoot();
+    const actualRepoRoot = getWorkspaceRoot();
+    const expectedRepoRoot =
+      message.repoRoot ?? message.executionPlan.repoRoot ?? actualRepoRoot ?? undefined;
+    const repoRoot = expectedRepoRoot ?? actualRepoRoot ?? undefined;
+
+    const contextIssue = validateExecutionPlanContext(
+      { ...message.executionPlan, repoRoot: expectedRepoRoot },
+      actualRepoRoot ?? undefined
+    );
+    if (contextIssue) {
+      post('plan.execution.error', { error: executionIssueToTaskError(contextIssue) });
+      return;
+    }
+
     const toolArgsByCallId = new Map<string, Record<string, unknown>>();
 
     const postToolEvidence = (name: string, args: Record<string, unknown>, success: boolean) => {

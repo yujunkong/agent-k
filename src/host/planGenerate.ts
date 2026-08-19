@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { resolveWorkspaceRelativeSegments } from './workspacePaths';
+import { listWorkspaceFilePaths, primaryWorkspaceRepoRoot } from './planWorkspaceIndex';
+import { appendWorkspaceContextToResearch } from '../plan/v2/workspaceContext';
 
 export type PlanGenerateContext = {
   webview: vscode.Webview | undefined;
@@ -76,6 +78,12 @@ export async function runPlanV2Generate(ctx: PlanGenerateContext, message: any):
     });
     const planModel = new LiteLLMPlanModel(provider, { model, signal: abort.signal });
     const folder = vscode.workspace.workspaceFolders?.[0];
+    const repoRoot = folder?.uri.fsPath ?? primaryWorkspaceRepoRoot();
+    const fileIndex = folder ? await listWorkspaceFilePaths(folder) : undefined;
+    const researchContext = appendWorkspaceContextToResearch(String(message.researchContext || ''), {
+      repoRoot: repoRoot ?? '(no workspace folder open)',
+      fileIndex
+    });
     const generator = new PlanV2Generator(planModel, async (relativePath: string) => {
       if (!folder) return false;
       const segments = resolveWorkspaceRelativeSegments(relativePath, folder);
@@ -94,8 +102,9 @@ export async function runPlanV2Generate(ctx: PlanGenerateContext, message: any):
 
     const result = await generator.generate({
       goal: String(message.goal || ''),
-      researchContext: String(message.researchContext || ''),
-      rejectionFeedback: message.rejectionFeedback != null ? String(message.rejectionFeedback) : undefined
+      researchContext,
+      rejectionFeedback: message.rejectionFeedback != null ? String(message.rejectionFeedback) : undefined,
+      repoRoot
     });
     if (abort.signal.aborted) {
       post({ error: 'Plan generation cancelled.', aborted: true });

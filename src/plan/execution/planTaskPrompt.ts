@@ -1,4 +1,5 @@
 import type { ExecutionPlan, ExecutionPlanTask } from './types';
+import { formatTaskFileTargets } from '../v2/workspaceContext';
 
 /** Prompt passed to the existing SubagentHost.create() path. */
 export function buildPlanTaskSubagentPrompt(
@@ -8,11 +9,18 @@ export function buildPlanTaskSubagentPrompt(
   const lines = [
     `# Plan task: ${task.id}`,
     '',
-    `Goal: ${plan.goal}`,
-    '',
-    `## ${task.title}`,
-    task.description
+    `Goal: ${plan.goal}`
   ];
+  if (plan.repoRoot) {
+    lines.push('', `Workspace root: ${plan.repoRoot}`);
+  }
+  lines.push('', `## ${task.title}`, task.description);
+  if (task.files.length > 0) {
+    lines.push('', `File targets: ${formatTaskFileTargets(task.files)}`);
+  }
+  if (task.verification.length > 0) {
+    lines.push('', `Verification: ${task.verification.join('; ')}`);
+  }
   if (task.dependencies.length > 0) {
     lines.push('', `Dependencies completed: ${task.dependencies.join(', ')}`);
   }

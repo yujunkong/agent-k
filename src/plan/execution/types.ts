@@ -33,12 +33,16 @@ export type ExecutionTaskStatus =
   | 'failed'
   | 'blocked';
 
+import type { PlanFileTarget } from '../v2/schema';
+
 /** One runnable unit derived from an approved PlanTask. */
 export interface ExecutionPlanTask {
   id: string;
   title: string;
   description: string;
   dependencies: string[];
+  files: PlanFileTarget[];
+  verification: string[];
   execution: TaskExecutionDelegate;
   status: ExecutionTaskStatus;
   /** Populated when execution starts (commit 3+). */
@@ -57,4 +61,6 @@ export interface ExecutionPlan {
   approvedTaskIds: string[];
   createdAt: number;
   approvedAt?: number;
+  /** Workspace root captured at plan generation — validated at execution. */
+  repoRoot?: string;
 }

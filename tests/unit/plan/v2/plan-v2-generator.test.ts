@@ -62,10 +62,15 @@ suite('Plan V2 — PlanV2Generator', () => {
   test('accepts missing modify targets on first attempt and marks them unresolved', async () => {
     const model = new ScriptedModel([planWithMissingFile]);
     const generator = new PlanV2Generator(model, alwaysFalse);
-    const result = await generator.generate({ goal: 'Add JWT auth', researchContext: '' });
+    const result = await generator.generate({
+      goal: 'Add JWT auth',
+      researchContext: '',
+      repoRoot: '/workspace/agent-k'
+    });
     assert.strictEqual(result.ok, true);
     assert.strictEqual(result.attempts, 1);
     assert.strictEqual(model.callCount, 1);
+    assert.strictEqual(result.plan?.repoRoot, '/workspace/agent-k');
     const file = result.plan?.tasks[0]?.files[0];
     assert.strictEqual(file?.path, 'src/does/not/exist.ts');
     assert.strictEqual(file?.intent, 'modify');
