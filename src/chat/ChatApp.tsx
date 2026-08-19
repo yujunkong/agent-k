@@ -67,6 +67,7 @@ import './chat.css';
 
 // C5-C7 UI 컴포넌트 (RW-C57-02: ChatApp 마운트)
 import { PlanModeHeader } from './components/PlanModeHeader';
+import { PlanExecutionStatus } from './components/PlanExecutionStatus';
 import type { PlanStage } from '../plan/PlanModeController';
 import { PlanModeController } from '../plan/PlanModeController';
 import { ClarifyingQuestions } from '../plan/ClarifyingQuestions';
@@ -84,6 +85,13 @@ import type { PendingQuestion } from '../tools/session/AskQuestionTool';
 import { PlanToAgent } from '../plan/PlanToAgent';
 import type { ProviderType } from '../providers/types';
 import { PlanModeControllerAdapter, toObservedToolCall } from '../plan/v2';
+import type { ExecutionPlan } from '../plan/execution';
+import {
+  finalizePlanExecution,
+  startPlanExecution,
+  updatePlanExecutionSnapshot
+} from '../plan/execution/planExecutionPersistence';
+import { shouldShowPlanExecutionBar } from '../plan/execution/planExecutionPresentation';
 import type { PlanV2GenerationResult } from '../plan/v2/PlanV2Generator';
 import {
   PLAN_V2_GENERATE_TIMEOUT_MESSAGE,
@@ -490,6 +498,14 @@ export function ChatApp() {
       .filter((t) => planV2Adapter.session.getTaskStatus(t.id) === 'awaiting_verification')
       .map((t) => ({ id: t.id, title: t.title }));
   }, [planV2Adapter, planV2Tick]);
+  const activeExecutionPlan = useMemo(() => {
+    void planV2Tick;
+    return planV2Adapter.session.getExecutionPlan();
+  }, [planV2Adapter, planV2Tick]);
+  const showPlanExecutionBar = useMemo(
+    () => shouldShowPlanExecutionBar(activeExecutionPlan),
+    [activeExecutionPlan]
+  );
   const handleVerifyTaskManually = useCallback(
     (taskId: string) => {
       try {
@@ -1059,6 +1075,8 @@ export function ChatApp() {
     },
     'plan.toolEvidence': (data) => {
       try {
+        const phase = planV2Adapter.session.getPhase();
+        if (phase !== 'executing' && phase !== 'completed') return;
         planV2Adapter.recordToolEvent(
           toObservedToolCall(
             String(data.name || ''),
@@ -1069,6 +1087,29 @@ export function ChatApp() {
       } catch {
         /* evidence correlation must never break the chat loop */
       }
+    },
+    'plan.execution.started': (data) => {
+      const plan = data.executionPlan as ExecutionPlan | undefined;
+      if (!plan) return;
+      if (!planV2Adapter.session.getExecutionPlan()) {
+        startPlanExecution(planV2Adapter.session, plan);
+      }
+    },
+    'plan.execution.updated': (data) => {
+      const plan = data.executionPlan as ExecutionPlan | undefined;
+      if (!plan) return;
+      updatePlanExecutionSnapshot(planV2Adapter.session, plan);
+    },
+    'plan.execution.complete': (data) => {
+      const plan = data.executionPlan as ExecutionPlan | undefined;
+      if (!plan) return;
+      finalizePlanExecution(planV2Adapter.session, plan);
+      if (plan.status === 'failed') {
+        setError(planV2Adapter.session.getExecutionError() ?? 'Plan execution failed.');
+      }
+    },
+    'plan.execution.error': (data) => {
+      setError(String(data.error || 'Plan execution failed.'));
     },
     'plan.buildFromEditor': (data) => {
       const content = String(data.content || '').trim();
@@ -1487,7 +1528,7 @@ export function ChatApp() {
     scrollMessagesToBottom
   ]);
 
-  // Build-ready: Agent handoff without wiping the chat (RW-C5-04)
+  // Build-ready: structured plan → host DAG executor; legacy markdown → agent handoff
   useEffect(() => {
     planController.onBuildReadyCallback((_context: string) => {
       const planState = planController.getState();
@@ -1500,22 +1541,41 @@ export function ChatApp() {
       setModeAuto(false);
 
       const structuredPlan = planV2Adapter.session.getPlan();
-      const apiContent = structuredPlan
-        ? [
-            'Execute the approved Agent K plan using the current task as the execution focus.',
-            '',
-            planV2Adapter.getCurrentTaskContext(),
-            '',
-            'Use tool evidence to make progress. Do not claim a task is verified unless its verification evidence succeeds.',
-            'When the current task is verified, continue with the next unblocked task.'
-          ].join('\n')
-        : [
-            'I have approved the plan. Here is the context:',
-            '',
-            _context,
-            '',
-            'Please execute the plan step by step.'
-          ].join('\n');
+      if (structuredPlan) {
+        queueMicrotask(() => {
+          void (async () => {
+            try {
+              const executionPlan = planV2Adapter.toExecutionPlan({ approvedAt: Date.now() });
+              if (!planV2Adapter.session.getExecutionPlan()) {
+                startPlanExecution(planV2Adapter.session, executionPlan);
+              }
+              const api = getVsCodeApi();
+              if (!api?.postMessage) {
+                setError('Plan execution requires the VS Code extension host.');
+                return;
+              }
+              const requestId = `plan-exec-${Date.now().toString(36)}`;
+              api.postMessage({
+                type: 'plan.execute',
+                requestId,
+                parentTurnId: `turn-${turnNumberRef.current}`,
+                executionPlan: planV2Adapter.session.getExecutionPlan() ?? executionPlan
+              });
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Failed to start plan execution.');
+            }
+          })();
+        });
+        return;
+      }
+
+      const apiContent = [
+        'I have approved the plan. Here is the context:',
+        '',
+        _context,
+        '',
+        'Please execute the plan step by step.'
+      ].join('\n');
 
       queueMicrotask(() => {
         void handleSendRef.current?.('Please execute the approved plan. Finish the current work and run verification.', [], {
@@ -2772,6 +2832,10 @@ export function ChatApp() {
           onDiscardPlan={handleDiscardPlan}
         />
       )}
+
+      {showPlanExecutionBar && activeExecutionPlan ? (
+        <PlanExecutionStatus plan={activeExecutionPlan} />
+      ) : null}
 
       {mode === 'debug' && (
         <DebugModeUI

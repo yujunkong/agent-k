@@ -28,6 +28,17 @@ export interface ChatSendPayload {
   model?: string;
 }
 
+/** Webview → Host: run approved structured plan through DAG executor */
+export interface PlanExecutePayload {
+  requestId: string;
+  parentTurnId: string;
+  executionPlan: import('../plan/execution/types').ExecutionPlan;
+  model?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  thinkingEffort?: 'off' | 'low' | 'medium' | 'high' | 'max';
+}
+
 export interface ChatStopPayload {
   requestId?: string;
 }

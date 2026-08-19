@@ -41,6 +41,7 @@ import {
   resolveAttachmentUris as resolveHostAttachmentUris,
 } from './composerHost';
 import { runPlanV2Generate as executePlanV2Generate } from './planGenerate';
+import { runHostPlanExecute as executeHostPlanExecute } from './planExecute';
 import { runHostChatSend as executeHostChatSend, type HostLoopRuntime } from './chatSend';
 import type { InlineEditChatPayload } from '../inline/InlineEditController';
 import {
@@ -261,6 +262,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       // Stop any research AgentLoop first, then generate — never overlap.
       this.abortHostChatLoop();
       void this.runPlanV2Generate(message);
+      return;
+    }
+    if (message.type === 'plan.execute' && message.requestId != null) {
+      this.abortHostChatLoop();
+      void executeHostPlanExecute({ webview: this._view?.webview }, message);
       return;
     }
     // Persist plan draft → <workspace>/.agentk/plans/tmp/plan_<hash>.md
