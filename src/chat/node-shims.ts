@@ -27,6 +27,11 @@ export const dirname = (p: string) => {
   return i >= 0 ? p.slice(0, i) : '.';
 };
 export const basename = (p: string) => p.replace(/\\/g, '/').split('/').pop() || '';
+export const extname = (p: string) => {
+  const b = p.replace(/\\/g, '/').split('/').pop() || '';
+  const i = b.lastIndexOf('.');
+  return i > 0 ? b.slice(i) : '';
+};
 
 export default {
   execFileSync,
@@ -45,4 +50,5 @@ export default {
   resolve,
   dirname,
   basename,
+  extname,
 };

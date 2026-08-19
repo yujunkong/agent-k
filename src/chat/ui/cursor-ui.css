@@ -141,7 +141,7 @@ button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vsc
 .ak-worktree-file__status { flex: 0 0 auto; width: 14px; font-size: 10px; font-weight: 600; color: var(--ak-text-muted); }
 .ak-worktree-file__status--A { color: var(--vscode-gitDecoration-addedResourceForeground, #73c991); }
 .ak-worktree-file__status--D { color: var(--vscode-gitDecoration-deletedResourceForeground, #f48771); }
-.ak-worktree-file__status--? { color: var(--vscode-gitDecoration.untrackedResourceForeground, #73c991); }
+.ak-worktree-file__status--untracked { color: var(--vscode-gitDecoration-untrackedResourceForeground, #73c991); }
 .ak-worktree-file__path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ak-text-primary); }
 .ak-worktree-file__path[role="link"] { color: var(--vscode-textLink-foreground, #3794ff); cursor: pointer; }
 .ak-worktree-file__stats { flex: 0 0 auto; font-size: 10px; font-variant-numeric: tabular-nums; color: var(--ak-text-muted); }

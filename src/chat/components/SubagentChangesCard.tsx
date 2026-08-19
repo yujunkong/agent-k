@@ -88,7 +88,7 @@ function WorktreeFileRow({
         <span className="ak-worktree-file__chev" aria-hidden>
           {showChev ? (expanded ? '▾' : '▸') : ' '}
         </span>
-        <span className={`ak-worktree-file__status ak-worktree-file__status--${file.status}`}>
+        <span className={`ak-worktree-file__status ak-worktree-file__status--${file.status === '?' ? 'untracked' : file.status}`}>
           {file.status}
         </span>
         <span
