@@ -5,6 +5,9 @@ import {
   clipSubagentSummary,
   completeWorkEvent,
   settleWorkEvents,
+  settleSubagentWorkEvents,
+  applyWorkEvent,
+  flattenSubagentWorkItems,
   upsertWorkEvents,
   patchSubagentResultInEvents,
   workEventFromHostPayload,
@@ -267,6 +270,84 @@ describe('work event lifecycle', () => {
     );
     expect(events[0]).toMatchObject({ status: 'complete', completedAt: 9 });
     expect(events[1].completedAt).toBe(2);
+  });
+
+  it('does not resurrect a completed subagent header with a late running ping', () => {
+    const done: ConversationWorkEvent = {
+      id: 'tl_subagent_a',
+      type: 'subagent',
+      status: 'complete',
+      label: 'Research auth · completed',
+      subagentId: 'a',
+      completedAt: 2
+    };
+    const next = upsertWorkEvents(done ? [done] : [], {
+      ...done,
+      status: 'running',
+      label: 'Research auth · running',
+      completedAt: undefined
+    });
+    expect(next[0]).toMatchObject({ status: 'complete', completedAt: 2 });
+  });
+
+  it('settles leftover Thought when the subagent header completes', () => {
+    const thought: ConversationWorkEvent = {
+      id: 'tl_sub_a_thought',
+      type: 'thinking',
+      status: 'running',
+      label: 'Thought',
+      subagentId: 'a',
+      startedAt: 1
+    };
+    const header = workEventFromSubagentHostEvent({
+      type: 'subagent.completed',
+      taskId: 'a',
+      role: 'research',
+      status: 'completed',
+      prompt: 'authentication'
+    })!;
+    const next = applyWorkEvent([thought], header);
+    expect(next.find((e) => e.id === 'tl_sub_a_thought')).toMatchObject({
+      status: 'complete'
+    });
+    expect(next.find((e) => e.id === 'tl_subagent_a')).toMatchObject({
+      status: 'complete'
+    });
+    expect(
+      settleSubagentWorkEvents([thought], 'a', 'complete', 9)[0]
+    ).toMatchObject({ status: 'complete', completedAt: 9 });
+  });
+
+  it('flattens subagent children into a main-turn sequence', () => {
+    const { header, steps } = flattenSubagentWorkItems(
+      [
+        {
+          id: 'tl_subagent_a',
+          type: 'subagent',
+          status: 'complete',
+          label: 'Agent',
+          subagentId: 'a'
+        },
+        {
+          id: 'tl_sub_a_thought',
+          type: 'thinking',
+          status: 'complete',
+          label: 'Thought',
+          subagentId: 'a'
+        },
+        {
+          id: 'tl_sub_a_read',
+          type: 'read',
+          status: 'complete',
+          label: 'Read',
+          subagentId: 'a'
+        }
+      ],
+      'a'
+    );
+    expect(header?.id).toBe('tl_subagent_a');
+    expect(steps.map((s) => s.id)).toEqual(['tl_sub_a_thought', 'tl_sub_a_read']);
+    expect(steps.every((s) => s.subagentId == null)).toBe(true);
   });
 });
 

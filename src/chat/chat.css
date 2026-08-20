@@ -1946,14 +1946,7 @@ body {
   display: none;
 }
 
-.ak-work-subagent__children {
-  margin: 4px 0 8px var(--ak-thread-inset, 12px);
-  padding: 2px 0 4px 10px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
+/* Detail tab reuses main WorkTimeline — no nested rail. */
 
 /* Subagent detail pane (tab without composer) */
 .ak-subagent-detail {

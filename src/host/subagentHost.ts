@@ -35,6 +35,9 @@ import { getRegisteredSubagentWorktree } from './subagentWorktreeRegistry';
 const MAX_CONCURRENT = 4;
 const summarizer = new SubAgentResult();
 
+/** Child loops share the parent AgentLoop; cap turns so they cannot auto-continue forever. */
+export const SUBAGENT_MAX_TURNS = 8;
+
 export type SubagentHost = {
   create: (parentTurnId: string, prompt: string, role?: SubagentRole) => SubagentTask;
   run: (task: SubagentTask) => Promise<SubagentTask>;

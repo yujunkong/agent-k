@@ -4,7 +4,10 @@
  */
 import React, { useMemo } from 'react';
 import { WorkTimeline } from './WorkTimeline';
-import type { ConversationWorkEvent } from '../conversation/conversationWorkEvent';
+import {
+  flattenSubagentWorkItems,
+  type ConversationWorkEvent
+} from '../conversation/conversationWorkEvent';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 
 export type SubagentDetailTab = {
@@ -13,6 +16,20 @@ export type SubagentDetailTab = {
   title: string;
   parentSessionId: string;
 };
+
+function previewBelongsToSubagent(
+  previewId: string,
+  toolId: string | undefined,
+  subagentId: string,
+  refIds: Set<string>,
+  eventIds: Set<string>
+): boolean {
+  if (refIds.has(previewId) || (toolId && refIds.has(toolId))) return true;
+  if (toolId && eventIds.has(toolId)) return true;
+  const prefix = `tl_sub_${subagentId}_`;
+  if (toolId && toolId.startsWith(prefix)) return true;
+  return false;
+}
 
 /** Collect work events for one subagent across assistant messages. */
 export function collectSubagentTimeline(
@@ -29,10 +46,12 @@ export function collectSubagentTimeline(
   fileEdits: FileEditPreview[];
   terminalRuns: TerminalRunPreview[];
   isStreaming: boolean;
+  workedDurationMs?: number;
 } {
-  const items: ConversationWorkEvent[] = [];
+  const raw: ConversationWorkEvent[] = [];
   const editIds = new Set<string>();
   const termIds = new Set<string>();
+  const eventIds = new Set<string>();
   let isStreaming = false;
 
   for (const m of messages) {
@@ -40,7 +59,8 @@ export function collectSubagentTimeline(
     const workItems = Array.isArray(m.workItems) ? m.workItems : [];
     for (const w of workItems) {
       if (w.subagentId === subagentId || w.id === `tl_subagent_${subagentId}`) {
-        items.push(w);
+        raw.push(w);
+        eventIds.add(w.id);
         if (w.status === 'running' || w.status === 'pending') isStreaming = true;
         if (w.ref?.kind === 'fileEdit') editIds.add(w.ref.id);
         if (w.ref?.kind === 'terminal') termIds.add(w.ref.id);
@@ -48,10 +68,16 @@ export function collectSubagentTimeline(
     }
     if (m.status === 'streaming') {
       // Parent still streaming — keep detail live if this subagent has running rows.
-      if (items.some((w) => w.status === 'running' || w.status === 'pending')) {
+      if (raw.some((w) => w.status === 'running' || w.status === 'pending')) {
         isStreaming = true;
       }
     }
+  }
+
+  const { header, steps } = flattenSubagentWorkItems(raw, subagentId);
+  // Header complete/error wins — leftover Thought rows must not keep "Running…".
+  if (header && (header.status === 'complete' || header.status === 'error')) {
+    isStreaming = false;
   }
 
   const fileEdits: FileEditPreview[] = [];
@@ -59,14 +85,30 @@ export function collectSubagentTimeline(
   for (const m of messages) {
     if (m.role !== 'assistant') continue;
     for (const f of m.fileEdits || []) {
-      if (editIds.has(f.id) || editIds.has(f.toolId || '')) fileEdits.push(f);
+      if (
+        previewBelongsToSubagent(f.id, f.toolId, subagentId, editIds, eventIds)
+      ) {
+        fileEdits.push(f);
+      }
     }
     for (const t of m.terminalRuns || []) {
-      if (termIds.has(t.id) || termIds.has(t.toolId || '')) terminalRuns.push(t);
+      if (
+        previewBelongsToSubagent(t.id, t.toolId, subagentId, termIds, eventIds)
+      ) {
+        terminalRuns.push(t);
+      }
     }
   }
 
-  return { items, fileEdits, terminalRuns, isStreaming };
+  const fromSteps = steps.reduce((sum, event) => {
+    if (event.startedAt != null && event.completedAt != null) {
+      return sum + Math.max(0, event.completedAt - event.startedAt);
+    }
+    return sum;
+  }, 0);
+  const workedDurationMs = header?.result?.durationMs ?? (fromSteps > 0 ? fromSteps : undefined);
+
+  return { items: steps, fileEdits, terminalRuns, isStreaming, workedDurationMs };
 }
 
 export function SubagentDetailView({
@@ -75,6 +117,7 @@ export function SubagentDetailView({
   fileEdits = [],
   terminalRuns = [],
   isStreaming = false,
+  workedDurationMs,
   onBack,
   onOpenFile,
   onAcceptFile,
@@ -88,6 +131,7 @@ export function SubagentDetailView({
   fileEdits?: FileEditPreview[];
   terminalRuns?: TerminalRunPreview[];
   isStreaming?: boolean;
+  workedDurationMs?: number;
   onBack: () => void;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
@@ -124,8 +168,8 @@ export function SubagentDetailView({
             fileEdits={fileEdits}
             terminalRuns={terminalRuns}
             isStreaming={isStreaming}
-            defaultOpen
-            subagentDetail
+            workedDurationMs={workedDurationMs}
+            defaultOpen={isStreaming}
             onOpenFile={onOpenFile}
             onAcceptFile={onAcceptFile}
             onRejectFile={onRejectFile}

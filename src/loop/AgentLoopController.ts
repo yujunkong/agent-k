@@ -88,6 +88,16 @@ export interface LoopConfig {
    * Timer resets on LLM/tool activity (idle semantics).
    */
   turnTimeoutMs?: number;
+  /**
+   * HARB-T27 auto-continue past maxTurns. Default true for the parent chat.
+   * Subagent children set this false so they stop instead of living forever.
+   */
+  autoContinue?: boolean;
+  /**
+   * Force extra tool rounds after empty/weak stops (mission continue).
+   * Default true for parent Agent. Subagents set false.
+   */
+  missionContinue?: boolean;
   /** Provider 없을 때 단위/AC 테스트용 고정 응답 */
   mockResponse?: {
     content?: string;
@@ -997,7 +1007,10 @@ export class AgentLoopController {
       // always `return`s early with a real final answer). That means the
       // model was still working, not stuck empty — so extend the budget and
       // keep going instead of stopping and making the user type "계속".
-      if (this.autoContinueRounds < AgentLoopController.MAX_AUTO_CONTINUE_ROUNDS) {
+      if (
+        this.config.autoContinue !== false &&
+        this.autoContinueRounds < AgentLoopController.MAX_AUTO_CONTINUE_ROUNDS
+      ) {
         this.autoContinueRounds++;
         const modeConfig = modeRegistry.getModeConfig(this.config.mode);
         const extension = Math.max(modeConfig.maxTurns, 10);
@@ -1708,6 +1721,8 @@ export class AgentLoopController {
 
   /** Whether the run should keep tool-calling instead of ending */
   private missionStillOpen(): boolean {
+    // Subagents must stop when the model stops — otherwise the child looks immortal.
+    if (this.config.missionContinue === false) return false;
     // Plan (pre-build): never force more tools/questions — stop when the model stops.
     // Forcing ask_question / write caused solo infinite research↔question loops.
     if (this.config.mode === 'plan' && this.config.planStage !== 'build') {

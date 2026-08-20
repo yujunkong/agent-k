@@ -94,7 +94,7 @@ describe('timelinePresentation', () => {
     });
     expect(presentation.nodes[1].kind).toBe('group');
     if (presentation.nodes[1].kind !== 'group') return;
-    expect(presentation.nodes[1].step.title).toBe('Research authentication · completed');
+    expect(presentation.nodes[1].step.title).toBe('Research authentication');
     expect(presentation.nodes[1].children.map((c) => c.id)).toEqual(['tl_sub_a_read']);
     expect(presentation.nodes[1].step.result).toEqual({
       subagentId: 'a',
@@ -219,6 +219,51 @@ describe('timelinePresentation', () => {
     expect(presentation.nodes[2]).toMatchObject({
       kind: 'step',
       step: { id: 'tl_edit_1', kind: 'file' }
+    });
+  });
+
+  it('treats flattened subagent children as a main-turn Thought / Exploring / Edit sequence', () => {
+    const presentation = buildTimelinePresentation([
+      {
+        id: 'tl_sub_a_thought',
+        type: 'thinking',
+        status: 'complete',
+        label: 'Thought',
+        detail: 'Look at auth next'
+      },
+      {
+        id: 'tl_sub_a_read',
+        type: 'read',
+        status: 'complete',
+        label: 'Read',
+        detail: 'login.ts'
+      },
+      {
+        id: 'tl_sub_a_grep',
+        type: 'search',
+        status: 'complete',
+        label: 'Grepped',
+        toolName: 'grep',
+        detail: 'auth'
+      },
+      {
+        id: 'tl_sub_a_edit',
+        type: 'edit',
+        status: 'complete',
+        label: 'Edit',
+        detail: 'login.ts'
+      }
+    ]);
+    expect(presentation.nodes.map((n) => n.kind)).toEqual(['step', 'explore', 'step']);
+    expect(presentation.nodes[0]).toMatchObject({
+      kind: 'step',
+      step: { id: 'tl_sub_a_thought', kind: 'reasoning' }
+    });
+    if (presentation.nodes[1].kind !== 'explore') return;
+    expect(presentation.nodes[1].step.title).toBe('Explored 1 file, 1 search');
+    expect(presentation.nodes[2]).toMatchObject({
+      kind: 'step',
+      step: { id: 'tl_sub_a_edit', kind: 'file' }
     });
   });
 });

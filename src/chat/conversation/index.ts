@@ -7,9 +7,11 @@ export {
   type ConversationWorkStatus,
   type ConversationWorkType,
   upsertWorkEvents,
+  applyWorkEvent,
   patchSubagentResultInEvents,
   workEventFromHostPayload,
-  workEventFromSubagentHostEvent
+  workEventFromSubagentHostEvent,
+  flattenSubagentWorkItems
 } from './conversationWorkEvent';
 export { normalizeWorkItems } from './normalizeWorkItems';
 export { groupWorkTimelineItems } from './groupWorkTimelineItems';

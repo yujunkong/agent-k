@@ -222,6 +222,19 @@ export function patchSubagentResultInEvents(
   );
 }
 
+export function isTerminalWorkStatus(status: ConversationWorkStatus): boolean {
+  return status === 'complete' || status === 'error';
+}
+
+export function belongsToSubagent(
+  event: ConversationWorkEvent,
+  subagentId: string
+): boolean {
+  const id = String(subagentId || '').trim();
+  if (!id) return false;
+  return event.subagentId === id || event.id === `tl_subagent_${id}`;
+}
+
 /** Upsert by id so one Agent turn keeps appending / updating the same row. */
 export function upsertWorkEvents(
   events: ConversationWorkEvent[] = [],
@@ -230,16 +243,24 @@ export function upsertWorkEvents(
   const idx = events.findIndex((event) => event.id === incoming.id);
   if (idx < 0) return [...events, incoming];
   const prev = events[idx];
+  const prevTerminal = isTerminalWorkStatus(prev.status);
+  const incomingLive = incoming.status === 'running' || incoming.status === 'pending';
+  // A late "running" ping must not resurrect a finished header/Thought.
+  const status = prevTerminal && incomingLive ? prev.status : incoming.status;
   const merged: ConversationWorkEvent = {
     ...prev,
     ...incoming,
+    status,
     type: incoming.type || prev.type,
     label: incoming.label || prev.label,
     toolName: incoming.toolName ?? prev.toolName,
     detail: incoming.detail ?? prev.detail,
     description: incoming.description ?? prev.description,
     startedAt: prev.startedAt ?? incoming.startedAt,
-    completedAt: incoming.completedAt ?? prev.completedAt,
+    completedAt:
+      prevTerminal && incomingLive
+        ? prev.completedAt ?? incoming.completedAt
+        : incoming.completedAt ?? prev.completedAt,
     ref: incoming.ref ?? prev.ref,
     subagentId: incoming.subagentId ?? prev.subagentId,
     parentTurnId: incoming.parentTurnId ?? prev.parentTurnId,
@@ -258,6 +279,42 @@ export function settleWorkEvents(
       ? { ...event, status, completedAt: event.completedAt ?? now }
       : event
   );
+}
+
+/** Flip leftover running children when the subagent header finishes. */
+export function settleSubagentWorkEvents(
+  events: ConversationWorkEvent[] = [],
+  subagentId: string,
+  status: 'complete' | 'error' = 'complete',
+  now = Date.now()
+): ConversationWorkEvent[] {
+  const id = String(subagentId || '').trim();
+  if (!id) return events;
+  return events.map((event) => {
+    if (!belongsToSubagent(event, id)) return event;
+    if (event.status !== 'running' && event.status !== 'pending') return event;
+    return { ...event, status, completedAt: event.completedAt ?? now };
+  });
+}
+
+/** Upsert, then settle that subagent's children if the header just finished. */
+export function applyWorkEvent(
+  events: ConversationWorkEvent[] = [],
+  incoming: ConversationWorkEvent
+): ConversationWorkEvent[] {
+  const merged = upsertWorkEvents(events, incoming);
+  if (
+    incoming.subagentId &&
+    isSubagentHeaderEvent(incoming) &&
+    isTerminalWorkStatus(incoming.status)
+  ) {
+    return settleSubagentWorkEvents(
+      merged,
+      incoming.subagentId,
+      incoming.status === 'error' ? 'error' : 'complete'
+    );
+  }
+  return merged;
 }
 
 export type HostWorkPayload = {
@@ -330,6 +387,30 @@ export function formatSubagentGroupLabel(
 export function isSubagentHeaderEvent(item: ConversationWorkEvent): boolean {
   if (item.type === 'subagent') return true;
   return Boolean(item.subagentId && item.id === `tl_subagent_${item.subagentId}`);
+}
+
+/**
+ * Detail-tab shape: drop the group header and clear subagentId so WorkTimeline
+ * uses the same top-level Thought / Exploring / Edit chrome as the main turn.
+ */
+export function flattenSubagentWorkItems(
+  items: ConversationWorkEvent[],
+  subagentId: string
+): { header?: ConversationWorkEvent; steps: ConversationWorkEvent[] } {
+  const id = String(subagentId || '').trim();
+  let header: ConversationWorkEvent | undefined;
+  const steps: ConversationWorkEvent[] = [];
+  for (const event of items) {
+    if (
+      event.id === `tl_subagent_${id}` ||
+      (event.type === 'subagent' && event.subagentId === id)
+    ) {
+      header = event;
+      continue;
+    }
+    steps.push({ ...event, subagentId: undefined });
+  }
+  return { header, steps };
 }
 
 /** Host chat.stream subagent.event → group header (summary only, never child transcript). */
