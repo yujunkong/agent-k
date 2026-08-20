@@ -334,7 +334,11 @@ export function WorkTimeline({
   onWorktreeReject
 }: WorkTimelineProps) {
   if (!items.length) return null;
-  const presentation = buildTimelinePresentation(items, { fileEdits, terminalRuns });
+  const presentation = buildTimelinePresentation(
+    items,
+    { fileEdits, terminalRuns },
+    { sequential: subagentDetail }
+  );
   const { summary: timelineSummary } = presentation;
   const pendingInline = fileEdits.some(isPendingInlineEdit);
   const live = timelineSummary.hasActive || isStreaming;
