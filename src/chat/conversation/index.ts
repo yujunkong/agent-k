@@ -7,6 +7,7 @@ export {
   type ConversationWorkStatus,
   type ConversationWorkType,
   upsertWorkEvents,
+  applyWorkEvent,
   patchSubagentResultInEvents,
   workEventFromHostPayload,
   workEventFromSubagentHostEvent

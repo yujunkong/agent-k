@@ -54,6 +54,14 @@ export function collectSubagentTimeline(
     }
   }
 
+  const header = items.find(
+    (w) => w.id === `tl_subagent_${subagentId}` || (w.type === 'subagent' && w.subagentId === subagentId)
+  );
+  // Header complete/error wins — leftover Thought rows must not keep "Running…".
+  if (header && (header.status === 'complete' || header.status === 'error')) {
+    isStreaming = false;
+  }
+
   const fileEdits: FileEditPreview[] = [];
   const terminalRuns: TerminalRunPreview[] = [];
   for (const m of messages) {
