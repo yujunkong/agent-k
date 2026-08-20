@@ -10,7 +10,8 @@ import { RuntimeServices } from '../core/RuntimeServices';
 import { sessionUsageTracker, updateUsageStatusBar } from './runtimeSingletons';
 import {
   createSubagentHost,
-  modeForSubagentRole
+  modeForSubagentRole,
+  SUBAGENT_MAX_TURNS
 } from './subagentHost';
 import { registerSubagentWorktree } from './subagentWorktreeRegistry';
 import { WorktreeManager } from '../worktree/WorktreeManager';
@@ -237,7 +238,7 @@ export async function runHostPlanExecute(
         const childMode = modeForSubagentRole(context.task.role);
         return new runtime.AgentLoopController({
           mode: childMode,
-          maxTurns: runtime.maxTurns,
+          maxTurns: SUBAGENT_MAX_TURNS,
           turnTimeoutMs: runtime.turnTimeoutMs,
           modelId: runtime.model,
           tier: 'A',
@@ -246,6 +247,8 @@ export async function runHostPlanExecute(
           provider: runtime.provider,
           thinkingEffort: runtime.thinkingEffort,
           workspaceRoot: cwd,
+          autoContinue: false,
+          missionContinue: false,
           onAssistantDelta: hooks.onAssistantDelta,
           onReasoning: async (text) => {
             emitReasoning(text, {
@@ -319,6 +322,10 @@ export async function runHostPlanExecute(
       ],
       onLifecycle: (event) => {
         const task = event.task;
+        const finished =
+          event.type === 'subagent.completed' ||
+          event.type === 'subagent.failed' ||
+          event.type === 'subagent.cancelled';
         post('subagent.event', {
           type: event.type,
           taskId: task.id,
@@ -329,13 +336,20 @@ export async function runHostPlanExecute(
           worktreePath: task.worktree?.path,
           worktreeBranch: task.worktree?.branch
         });
-        if (
-          (event.type === 'subagent.completed' ||
-            event.type === 'subagent.failed' ||
-            event.type === 'subagent.cancelled') &&
-          task.worktree &&
-          repoRoot
-        ) {
+        if (finished) {
+          emitPlanWork(
+            post,
+            {
+              id: `tl_sub_${task.id}_thought`,
+              kind: 'thinking',
+              status: event.type === 'subagent.completed' ? 'complete' : 'error',
+              subagentId: task.id,
+              parentTurnId: task.parentTurnId
+            },
+            event.type === 'subagent.completed' ? 'complete' : 'error'
+          );
+        }
+        if (finished && task.worktree && repoRoot) {
           registerSubagentWorktree(task.id, repoRoot, task.worktree);
         }
       }

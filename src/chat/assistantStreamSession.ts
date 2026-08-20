@@ -17,7 +17,7 @@ import {
 } from './planPromote';
 import {
   settleWorkEvents,
-  upsertWorkEvents,
+  applyWorkEvent,
   beginWorkEvent,
   type ConversationWorkEvent
 } from './conversation/conversationWorkEvent';
@@ -47,7 +47,7 @@ function withWorkEvent(
   event: ConversationWorkEvent | undefined
 ): ChatMessage {
   if (!event) return msg;
-  return { ...msg, workItems: upsertWorkEvents(msg.workItems || [], event) };
+  return { ...msg, workItems: applyWorkEvent(msg.workItems || [], event) };
 }
 
 function looksLikeDuplicateProse(aRaw: string, bRaw: string): boolean {

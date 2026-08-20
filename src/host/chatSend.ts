@@ -11,7 +11,8 @@ import {
   parentResultFromTask,
   recordSubagentFileChange,
   recordSubagentTool,
-  snapshotSubagentResultStats
+  snapshotSubagentResultStats,
+  SUBAGENT_MAX_TURNS
 } from './subagentHost';
 import { registerSubagentWorktree } from './subagentWorktreeRegistry';
 import { withInlineEditSource } from '../chat/inlineEditReview';
@@ -283,7 +284,7 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
         const childMode = modeForSubagentRole(context.task.role);
         return new AgentLoopController({
           mode: childMode,
-          maxTurns,
+          maxTurns: SUBAGENT_MAX_TURNS,
           turnTimeoutMs,
           modelId: model,
           tier: 'A',
@@ -292,6 +293,8 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           provider,
           thinkingEffort,
           workspaceRoot: cwd,
+          autoContinue: false,
+          missionContinue: false,
           onAssistantDelta: hooks.onAssistantDelta,
           onReasoning: hooks.onReasoning,
           onToolCall: async (name, args, callId) => {
@@ -416,6 +419,19 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           role: task.role,
           prompt: task.prompt.slice(0, 80)
         });
+        // Thought is posted as running and never closed — close it with the header.
+        if (finished) {
+          postTimeline({
+            kind: 'thinking',
+            label: 'Thought',
+            status: status === 'error' ? 'error' : 'done',
+            id: `tl_sub_${task.id}_thought`,
+            turn,
+            thoughtRole: 'mid',
+            subagentId: task.id,
+            parentTurnId: task.parentTurnId
+          });
+        }
       },
       onReasoning: (context) => {
         postTimeline({

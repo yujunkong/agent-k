@@ -26,6 +26,7 @@ import { getVsCodeApi } from './host/vscodeApi';
 import {
   patchSubagentResultInEvents,
   settleWorkEvents,
+  applyWorkEvent,
   upsertWorkEvents,
   workEventFromSubagentHostEvent
 } from './conversation/conversationWorkEvent';
@@ -1352,7 +1353,7 @@ export function ChatApp() {
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (!last || last.role !== 'assistant') return prev;
-        const updated = upsertWorkEvents(last.workItems, workEvent);
+        const updated = applyWorkEvent(last.workItems, workEvent);
         return [...prev.slice(0, -1), { ...last, workItems: updated }];
       });
     },
@@ -1363,7 +1364,7 @@ export function ChatApp() {
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (!last || last.role !== 'assistant') return prev;
-        const updated = upsertWorkEvents(last.workItems, workEvent);
+        const updated = applyWorkEvent(last.workItems, workEvent);
         return [...prev.slice(0, -1), { ...last, workItems: updated }];
       });
     },
@@ -3249,7 +3250,7 @@ export function ChatApp() {
             items={subagentDetailData.items}
             fileEdits={subagentDetailData.fileEdits}
             terminalRuns={subagentDetailData.terminalRuns}
-            isStreaming={subagentDetailData.isStreaming || streaming}
+            isStreaming={subagentDetailData.isStreaming}
             onBack={() => setActiveSubagentId(null)}
             onOpenFile={handleOpenFile}
             onAcceptFile={handleAcceptFileEdit}
