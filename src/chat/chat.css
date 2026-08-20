@@ -1920,6 +1920,114 @@ body {
   max-width: calc(100% - var(--ak-thread-inset, 12px));
 }
 
+/* Parent subagent progress row already has thread inset via chevron btn */
+.ak-work-timeline__items > .ak-work-subagent {
+  margin-left: 0;
+  max-width: 100%;
+}
+
+.ak-subagent-run__btn {
+  position: relative;
+}
+
+.ak-subagent-run__hint {
+  margin-left: auto;
+  padding-right: 4px;
+  font-size: 10px;
+  opacity: 0.45;
+  flex-shrink: 0;
+}
+
+.ak-subagent-run__btn:hover .ak-subagent-run__hint {
+  opacity: 0.85;
+}
+
+.ak-work-subagent--detail .ak-subagent-run__hint {
+  display: none;
+}
+
+.ak-work-subagent__children {
+  margin: 4px 0 8px var(--ak-thread-inset, 12px);
+  padding: 2px 0 4px 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Subagent detail pane (tab without composer) */
+.ak-subagent-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 8px 0 16px;
+}
+
+.ak-subagent-detail__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px var(--ak-thread-inset, 12px) 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 10%, transparent);
+  margin-bottom: 8px;
+}
+
+.ak-subagent-detail__back {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-textLink-foreground, #3794ff);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ak-subagent-detail__back:hover {
+  text-decoration: underline;
+}
+
+.ak-subagent-detail__titles {
+  min-width: 0;
+  flex: 1;
+}
+
+.ak-subagent-detail__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #ccc);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ak-subagent-detail__status {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.ak-subagent-detail__body {
+  flex: 1;
+  min-height: 0;
+}
+
+.ak-subagent-detail__empty {
+  padding: 12px var(--ak-thread-inset, 12px);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font-size: 12px;
+}
+
+.ak-subagent-detail__composer-placeholder {
+  padding: 10px 14px 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  opacity: 0.75;
+  border-top: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 8%, transparent);
+}
+
 /* Diff / terminal cards stick under Edited / Ran (not after wrap-up prose) */
 .ak-cards-under-action {
   margin: 2px 0 8px;

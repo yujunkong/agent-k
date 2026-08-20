@@ -10,6 +10,7 @@ export interface AgentTurnAdapterProps {
   changes?: ChangeSummaryItem[];
   isStreaming?: boolean;
   children?: React.ReactNode;
+  onOpenSubagent?: (subagentId: string, title: string) => void;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
@@ -25,6 +26,7 @@ export function AgentTurnAdapter({
   changes = [],
   isStreaming = false,
   children,
+  onOpenSubagent,
   onOpenFile,
   onAcceptFile,
   onRejectFile,
@@ -54,6 +56,7 @@ export function AgentTurnAdapter({
       changes={changes}
       isStreaming={isStreaming}
       workedDurationMs={candidate?.workedDurationMs}
+      onOpenSubagent={onOpenSubagent}
       onOpenFile={onOpenFile}
       onAcceptFile={onAcceptFile}
       onRejectFile={onRejectFile}

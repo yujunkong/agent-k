@@ -12,6 +12,7 @@ import type { FileEditPreview, TerminalRunPreview } from '../types';
 import { TimelineStepCard } from './TimelineStepCard';
 import { SubagentChangesCard } from './SubagentChangesCard';
 import { ExploreRunRow, PlanningTailRow, ThoughtRow } from './ExploreChrome';
+import { SubagentRunRow } from './SubagentRunRow';
 import { isPlanGenerateStep, PLAN_V2_GENERATE_STEP_ID } from '../planGenerateStep';
 import { isPendingInlineEdit } from '../inlineEditReview';
 import { FileEditPreviewView } from './FileEditPreviewView';
@@ -35,6 +36,13 @@ export interface WorkTimelineProps {
   isStreaming?: boolean;
   /** Elapsed work ms for settled "Worked for Xs" label */
   workedDurationMs?: number;
+  /**
+   * Subagent detail tab: expand group children inline (full progress),
+   * do not offer "open in tab" on the progress row.
+   */
+  subagentDetail?: boolean;
+  /** Parent timeline: open a Cursor-style subagent progress tab (no composer). */
+  onOpenSubagent?: (subagentId: string, title: string) => void;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
@@ -128,6 +136,8 @@ function WorkTimelineStepRow({
 function SubagentTimelineGroup({
   node,
   activeStepId,
+  expandInline = false,
+  onOpenSubagent,
   onOpenFile,
   onAcceptFile,
   onRejectFile,
@@ -137,6 +147,9 @@ function SubagentTimelineGroup({
 }: {
   node: Extract<TimelineNode, { kind: 'group' }>;
   activeStepId?: string;
+  /** Detail tab: show full child timeline; parent: progress row → open tab */
+  expandInline?: boolean;
+  onOpenSubagent?: (subagentId: string, title: string) => void;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
@@ -153,6 +166,34 @@ function SubagentTimelineGroup({
     node.step.status === 'completed' &&
     subagentHasAggregatedChanges(result);
   const visibleChildren = visibleSubagentChildren(node.children, node.subagent);
+  const live = node.step.status === 'running';
+  const hasError = node.step.status === 'failed';
+  // Prefer short task_run description for Cursor-style progress title.
+  const progressTitle =
+    String(node.step.description || '').trim() ||
+    String(node.step.title || '')
+      .replace(/\s*·\s*(running|completed|failed|queued)$/i, '')
+      .trim() ||
+    'Agent';
+
+  // Parent conversation: one progress row; click opens detail tab (no nested noise).
+  if (!expandInline) {
+    return (
+      <div
+        className={`ak-work-subagent ak-work-subagent--${stepStatusClass(node.step.status)}`}
+        data-subagent-id={subagentId}
+      >
+        <SubagentRunRow
+          title={progressTitle}
+          live={live}
+          hasError={hasError}
+          childrenSteps={visibleChildren}
+          onOpen={() => onOpenSubagent?.(subagentId, progressTitle)}
+        />
+        {/* Completed changes stay one click away in the detail tab */}
+      </div>
+    );
+  }
 
   const agentBody =
     showChanges && result ? (
@@ -170,18 +211,23 @@ function SubagentTimelineGroup({
       />
     ) : null;
 
+  // Detail tab: same progress surface as main chat — header + child steps.
   return (
     <div
-      className={`ak-work-subagent ak-work-subagent--${stepStatusClass(node.step.status)}`}
+      className={`ak-work-subagent ak-work-subagent--detail ak-work-subagent--${stepStatusClass(node.step.status)}`}
       data-subagent-id={subagentId}
     >
-      <TimelineStepCard
-        step={node.step}
-        activeStepId={activeStepId}
-        forceOpen={reviewOpen || undefined}
-      >
-        {agentBody}
-      </TimelineStepCard>
+      <SubagentRunRow
+        title={progressTitle}
+        live={live}
+        hasError={hasError}
+        childrenSteps={visibleChildren}
+        interactive={false}
+        onOpen={() => {
+          /* Already in detail — row is informational */
+        }}
+      />
+      {agentBody}
       {visibleChildren.length > 0 ? (
         <div className="ak-work-subagent__children">
           {collapseExploreSteps(visibleChildren).map((child) =>
@@ -194,7 +240,9 @@ function SubagentTimelineGroup({
               undefined,
               undefined,
               undefined,
-              node.subagent.compactFileEdits
+              node.subagent.compactFileEdits,
+              true,
+              onOpenSubagent
             )
           )}
         </div>
@@ -212,7 +260,9 @@ function renderTimelineNode(
   onWorktreeReview?: (subagentId: string) => void,
   onWorktreeApply?: (subagentId: string) => void,
   onWorktreeReject?: (subagentId: string) => void,
-  compactFileEdit?: boolean
+  compactFileEdit?: boolean,
+  expandSubagentInline?: boolean,
+  onOpenSubagent?: (subagentId: string, title: string) => void
 ): React.ReactNode {
   if (node.kind === 'group') {
     return (
@@ -220,6 +270,8 @@ function renderTimelineNode(
         key={node.step.id}
         node={node}
         activeStepId={activeStepId}
+        expandInline={expandSubagentInline}
+        onOpenSubagent={onOpenSubagent}
         onOpenFile={onOpenFile}
         onAcceptFile={onAcceptFile}
         onRejectFile={onRejectFile}
@@ -272,6 +324,8 @@ export function WorkTimeline({
   title,
   isStreaming = false,
   workedDurationMs,
+  subagentDetail = false,
+  onOpenSubagent,
   onOpenFile,
   onAcceptFile,
   onRejectFile,
@@ -290,10 +344,10 @@ export function WorkTimeline({
   useEffect(() => {
     if (isStreaming || timelineSummary.hasActive || pendingInline) {
       setWorkedOpen(true);
-    } else if (settled) {
+    } else if (settled && !subagentDetail) {
       setWorkedOpen(false);
     }
-  }, [isStreaming, timelineSummary.hasActive, pendingInline, settled]);
+  }, [isStreaming, timelineSummary.hasActive, pendingInline, settled, subagentDetail]);
 
   // Idle between tool rounds — same tail as legacy MessageSteps
   const showPlanningTail = isStreaming && !timelineSummary.hasActive;
@@ -305,7 +359,8 @@ export function WorkTimeline({
   const workedLabel = title || formatWorkedLabel(resolveWorkedMs(items, workedDurationMs));
 
   // Live + settled share one item column; settled only adds the "Worked for Xs" header.
-  const showItems = !settled || workedOpen;
+  // Subagent detail stays open — no Worked collapse (tab title is the chrome).
+  const showItems = subagentDetail || !settled || workedOpen;
 
   const itemNodes = (
     <>
@@ -318,7 +373,10 @@ export function WorkTimeline({
           onRejectFile,
           onWorktreeReview,
           onWorktreeApply,
-          onWorktreeReject
+          onWorktreeReject,
+          undefined,
+          subagentDetail,
+          onOpenSubagent
         )
       )}
       {showPlanningTail ? <PlanningTailRow title={planningTailTitle} /> : null}
@@ -330,12 +388,13 @@ export function WorkTimeline({
       className={[
         'ak-work-timeline',
         settled ? 'ak-work-timeline--settled' : live ? 'ak-work-timeline--live' : '',
-        timelineSummary.hasError ? 'ak-work-timeline--error' : ''
+        timelineSummary.hasError ? 'ak-work-timeline--error' : '',
+        subagentDetail ? 'ak-work-timeline--subagent-detail' : ''
       ]
         .filter(Boolean)
         .join(' ')}
     >
-      {settled ? (
+      {settled && !subagentDetail ? (
         <button
           type="button"
           className="ak-worked__toggle"

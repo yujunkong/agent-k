@@ -14,6 +14,11 @@ import { PLAN_V2_GENERATE_STEP_ID, planGenerateWorkEvent } from './planGenerateS
 import { Composer } from './components/Composer';
 import { ChangedFilesBar } from './components/ChangedFilesBar';
 import type { CheckpointSummary } from './components/ChangedFilesBar';
+import {
+  SubagentDetailView,
+  collectSubagentTimeline,
+  type SubagentDetailTab
+} from './components/SubagentDetailView';
 import { useChatStream } from './hooks/useChatStream';
 import { useChatSessions, sessionStore } from './hooks/useChatSessions';
 import { useHostMessages } from './hooks/useHostMessages';
@@ -481,6 +486,75 @@ export function ChatApp() {
     }
   });
   sessionIdRef.current = sessionId;
+
+  // Cursor-style subagent progress tabs (no composer — detail pane only).
+  const [subagentTabs, setSubagentTabs] = useState<SubagentDetailTab[]>([]);
+  const [activeSubagentId, setActiveSubagentId] = useState<string | null>(null);
+
+  const handleOpenSubagent = useCallback(
+    (subagentId: string, title: string) => {
+      const id = String(subagentId || '').trim();
+      if (!id) return;
+      const tabTitle = String(title || '').trim() || 'Agent';
+      setSubagentTabs((prev) => {
+        if (prev.some((t) => t.id === id)) {
+          return prev.map((t) =>
+            t.id === id ? { ...t, title: tabTitle, parentSessionId: sessionId } : t
+          );
+        }
+        return [
+          ...prev,
+          { id, title: tabTitle, parentSessionId: sessionId }
+        ];
+      });
+      setActiveSubagentId(id);
+    },
+    [sessionId]
+  );
+
+  const handleSelectSubagentTab = useCallback((id: string) => {
+    setActiveSubagentId(id);
+  }, []);
+
+  const handleCloseSubagentTab = useCallback((id: string) => {
+    setSubagentTabs((prev) => prev.filter((t) => t.id !== id));
+    setActiveSubagentId((cur) => (cur === id ? null : cur));
+  }, []);
+
+  const handleSelectSessionTab = useCallback(
+    (id: string) => {
+      setActiveSubagentId(null);
+      handleOpenSession(id);
+    },
+    [handleOpenSession]
+  );
+
+  // Drop subagent tabs that belong to other/deleted sessions when switching.
+  useEffect(() => {
+    setSubagentTabs((prev) => prev.filter((t) => t.parentSessionId === sessionId));
+    setActiveSubagentId((cur) => {
+      if (!cur) return null;
+      // Keep if still present for this session after filter (checked next render).
+      return cur;
+    });
+  }, [sessionId]);
+
+  useEffect(() => {
+    setActiveSubagentId((cur) => {
+      if (!cur) return null;
+      return subagentTabs.some((t) => t.id === cur) ? cur : null;
+    });
+  }, [subagentTabs]);
+
+  const activeSubagentTab = useMemo(
+    () => subagentTabs.find((t) => t.id === activeSubagentId) || null,
+    [subagentTabs, activeSubagentId]
+  );
+
+  const subagentDetailData = useMemo(() => {
+    if (!activeSubagentTab) return null;
+    return collectSubagentTimeline(messages, activeSubagentTab.id);
+  }, [activeSubagentTab, messages]);
 
   // Plan V2 (additive): structured PlanSession running alongside the
   // existing PlanModeController stage machine. See
@@ -2866,12 +2940,16 @@ export function ChatApp() {
         sessions={sessionList}
         currentId={sessionId}
         openTabIds={openTabIds}
-        onSelect={handleOpenSession}
+        onSelect={handleSelectSessionTab}
         onCloseTab={handleCloseTab}
         onNew={handleNewChat}
         onHistory={handleToggleHistory}
         onSettings={handleToggleSettings}
         historyOpen={showHistory}
+        subagentTabs={subagentTabs}
+        activeSubagentId={activeSubagentId}
+        onSelectSubagent={handleSelectSubagentTab}
+        onCloseSubagent={handleCloseSubagentTab}
       />
 
       <UXForMediumPanel
@@ -3009,7 +3087,23 @@ export function ChatApp() {
         aria-relevant="additions"
         onScroll={onMessageListScroll}
       >
-        {(() => {
+        {activeSubagentTab && subagentDetailData ? (
+          <SubagentDetailView
+            title={activeSubagentTab.title}
+            items={subagentDetailData.items}
+            fileEdits={subagentDetailData.fileEdits}
+            terminalRuns={subagentDetailData.terminalRuns}
+            isStreaming={subagentDetailData.isStreaming || streaming}
+            onBack={() => setActiveSubagentId(null)}
+            onOpenFile={handleOpenFile}
+            onAcceptFile={handleAcceptFileEdit}
+            onRejectFile={handleRejectFileEdit}
+            onWorktreeReview={handleWorktreeReview}
+            onWorktreeApply={handleWorktreeApply}
+            onWorktreeReject={handleWorktreeReject}
+          />
+        ) : (
+        (() => {
           const lastUserId = [...messages]
             .reverse()
             .find((m) => m.role === 'user')?.id;
@@ -3033,6 +3127,7 @@ export function ChatApp() {
               onFork={handleFork}
               onStopAndPrefill={handleStopAndPrefill}
               onCopy={(content) => navigator.clipboard.writeText(content)}
+              onOpenSubagent={handleOpenSubagent}
               onOpenFile={handleOpenFile}
               onAcceptFile={handleAcceptFileEdit}
               onRejectFile={handleRejectFileEdit}
@@ -3055,7 +3150,8 @@ export function ChatApp() {
               }}
             />
           ));
-        })()}
+        })()
+        )}
         {/* Anchor so scrollHeight always includes latest growth */}
         <div ref={messageEndRef} aria-hidden className="message-list-end" />
       </div>
@@ -3070,7 +3166,7 @@ export function ChatApp() {
           onCancel={handleQueueCancel}
         />
         {/* Stick ask_question UI above composer — never scroll off-screen at top */}
-        {showClarifying && pendingQuestions.length > 0 && (
+        {showClarifying && pendingQuestions.length > 0 && !activeSubagentTab && (
           <div className="clarifying-dock" role="region" aria-label="Clarifying questions">
             <ClarifyingQuestions
               questions={pendingQuestions.map(q => ({
@@ -3102,6 +3198,8 @@ export function ChatApp() {
           onAcceptFile={handleAcceptFileEdit}
           onRejectFile={handleRejectFileEdit}
         />
+        {/* Subagent detail tab: no chat composer (Cursor-style agent progress surface) */}
+        {!activeSubagentTab ? (
         <Composer
           onSend={handleSend}
           disabled={streaming || generatingPlan}
@@ -3135,6 +3233,11 @@ export function ChatApp() {
           contextUsagePercent={contextUsagePercent}
           contextUsageLabel={contextUsageLabel}
         />
+        ) : (
+          <div className="ak-subagent-detail__composer-placeholder" aria-hidden>
+            Agent progress — chat input stays on the main session tab
+          </div>
+        )}
       </footer>
         </div>
       </div>
