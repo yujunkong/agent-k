@@ -503,37 +503,46 @@ export function ChatApp() {
   );
 
   /**
-   * Restore Composer provider from session; fallback to configManager defaults.
+   * Restore Composer provider from session.
    * Local React state only — do not thrash global active connection on tab switch.
+   * New/empty sessions (no provider yet): keep the visible Composer selection and
+   * stamp it onto the session so New Chat inherits the tab you left, not stale globals.
    */
-  const restoreProviderForSession = useCallback((id: string) => {
-    const p = sessionStore.get(id)?.provider;
-    setProviderModel(
-      String(
-        p?.model ||
-          configManager.get('agent-k.provider.model') ||
-          'mlx-community/Qwen3.6-35B-A3B-4bit'
-      )
-    );
-    setProviderBaseUrl(
-      String(
-        p?.baseUrl ||
-          configManager.get('agent-k.provider.baseUrl') ||
-          'http://127.0.0.1:52415'
-      )
-    );
-    setProviderApiKey(
-      String(p?.apiKey ?? configManager.get('agent-k.provider.apiKey') ?? '')
-    );
-    setProviderType(
-      String(p?.type || configManager.get('agent-k.provider.type') || 'litellm')
-    );
-    setThinkingEffort(
-      parseThinkingEffort(
-        p?.thinkingEffort ?? configManager.get('agent-k.thinking.effort')
-      )
-    );
-  }, []);
+  const restoreProviderForSession = useCallback(
+    (id: string) => {
+      const p = sessionStore.get(id)?.provider;
+      if (!p?.model && !p?.thinkingEffort && !p?.baseUrl && !p?.type) {
+        persistProviderToSession(id);
+        return;
+      }
+      setProviderModel(
+        String(
+          p?.model ||
+            configManager.get('agent-k.provider.model') ||
+            'mlx-community/Qwen3.6-35B-A3B-4bit'
+        )
+      );
+      setProviderBaseUrl(
+        String(
+          p?.baseUrl ||
+            configManager.get('agent-k.provider.baseUrl') ||
+            'http://127.0.0.1:52415'
+        )
+      );
+      setProviderApiKey(
+        String(p?.apiKey ?? configManager.get('agent-k.provider.apiKey') ?? '')
+      );
+      setProviderType(
+        String(p?.type || configManager.get('agent-k.provider.type') || 'litellm')
+      );
+      setThinkingEffort(
+        parseThinkingEffort(
+          p?.thinkingEffort ?? configManager.get('agent-k.thinking.effort')
+        )
+      );
+    },
+    [persistProviderToSession]
+  );
 
   /** Session that owns the in-flight host loop / ask_question waiter */
   const loopSessionIdRef = useRef<string | null>(null);
