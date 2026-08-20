@@ -449,6 +449,9 @@ export function ChatApp() {
   const pendingQuestionsRef = useRef(pendingQuestions);
   pendingQuestionsRef.current = pendingQuestions;
 
+  /** After Plan Approve → Build: do not wipe plan chrome when mode flips to agent. */
+  const planBuildHandoffRef = useRef(false);
+
   /** Per-tab Plan FSM — do not leak Review chrome across sessions */
   type PlanSessionSnap = {
     flow: ReturnType<PlanModeController['getState']>;
@@ -461,6 +464,7 @@ export function ChatApp() {
   const planSnapBySessionRef = useRef<Map<string, PlanSessionSnap>>(new Map());
 
   const resetPlanChrome = useCallback(() => {
+    planBuildHandoffRef.current = false;
     planController.reset();
     setPlanStage('research');
     setShowPlanReview(false);
@@ -1551,10 +1555,11 @@ export function ChatApp() {
   }, [mode, debugController]);
 
   // Reset plan chrome when leaving plan (keep chat messages).
-  // Do NOT call run() on enter — that wiped Review state and leaked across tabs
-  // when New chat kept mode=plan. Per-session snap park/restore owns the FSM.
+  // Skip during Approve→Build handoff — setMode('agent') must not wipe the
+  // execution FSM or re-stamp Composer from stale globals.
   useEffect(() => {
     if (mode !== 'plan') {
+      if (planBuildHandoffRef.current) return;
       planController.reset();
       setPlanStage('research');
       setShowClarifying(false);
@@ -1824,14 +1829,24 @@ export function ChatApp() {
   // Build-ready: structured plan → host DAG executor; legacy markdown → agent handoff
   useEffect(() => {
     planController.onBuildReadyCallback((_context: string) => {
-      const planState = planController.getState();
+      // Keep Composer model/thinking across Approve — park before mode flip.
+      const sid = sessionIdRef.current;
+      if (sid) persistProviderToSession(sid);
+      planBuildHandoffRef.current = true;
+
       stopHandlerRef.current?.stop('user_stop');
-      sendEpochRef.current.bump(sessionIdRef.current);
+      sendEpochRef.current.bump(sid);
       setAwaitingUser(false);
       setShowClarifying(false);
       setMessages(cleanupStreamingAssistants);
       setMode('agent');
       setModeAuto(false);
+      setPlanStage('build');
+
+      // Mode flip can thrash globals; restore this tab's Composer selection.
+      queueMicrotask(() => {
+        if (sid) restoreProviderForSession(sid);
+      });
 
       const structuredPlan = planV2Adapter.session.getPlan();
       if (structuredPlan) {
@@ -1850,12 +1865,18 @@ export function ChatApp() {
               const requestId = `plan-exec-${Date.now().toString(36)}`;
               const executionSnapshot =
                 planV2Adapter.session.getExecutionPlan() ?? executionPlan;
+              // Use Composer (tab-scoped) runtime — not VS Code global defaults.
               api.postMessage({
                 type: 'plan.execute',
                 requestId,
                 parentTurnId: `turn-${turnNumberRef.current}`,
                 executionPlan: executionSnapshot,
-                repoRoot: structuredPlan.repoRoot ?? executionSnapshot.repoRoot
+                repoRoot: structuredPlan.repoRoot ?? executionSnapshot.repoRoot,
+                model: providerModelRef.current,
+                baseUrl: providerBaseUrlRef.current,
+                apiKey: providerApiKeyRef.current || undefined,
+                providerType: providerTypeRef.current,
+                thinkingEffort: thinkingEffortRef.current
               });
             } catch (e) {
               setError(e instanceof Error ? e.message : 'Failed to start plan execution.');
@@ -1880,8 +1901,13 @@ export function ChatApp() {
         });
       });
     });
-  }, [planController, planV2Adapter, cleanupStreamingAssistants]);
-
+  }, [
+    planController,
+    planV2Adapter,
+    cleanupStreamingAssistants,
+    persistProviderToSession,
+    restoreProviderForSession
+  ]);
 
   /**
    * Interrupt & Resynthesize.
@@ -2225,6 +2251,10 @@ export function ChatApp() {
       return;
     }
     if (newMode === mode && !modeAuto) return;
+    // User left Build handoff intentionally — allow plan chrome reset again.
+    if (newMode !== 'agent') {
+      planBuildHandoffRef.current = false;
+    }
     setModeAuto(false);
     // Shared transcript across modes — only tools/prompts change.
     // Stop in-flight stream so the next send uses the new mode cleanly.

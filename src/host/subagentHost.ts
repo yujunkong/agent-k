@@ -62,6 +62,7 @@ export type CreateSubagentHostOptions = {
   onReasoning?: SubagentAgentLoopOptions['onReasoning'];
   onToolCall?: SubagentAgentLoopOptions['onToolCall'];
   onToolResult?: SubagentAgentLoopOptions['onToolResult'];
+  onToolCallsBegin?: SubagentAgentLoopOptions['onToolCallsBegin'];
   maxConcurrent?: number;
   repoRoot?: string;
   worktrees?: SubagentWorktreeBindings;
@@ -192,7 +193,8 @@ export function createSubagentHost(options: CreateSubagentHostOptions): Subagent
       onDelta: options.onDelta,
       onReasoning: options.onReasoning,
       onToolCall: options.onToolCall,
-      onToolResult: options.onToolResult
+      onToolResult: options.onToolResult,
+      onToolCallsBegin: options.onToolCallsBegin
     });
 
   const repoRoot = options.repoRoot;

@@ -8,6 +8,7 @@ import {
   settleSubagentWorkEvents,
   applyWorkEvent,
   flattenSubagentWorkItems,
+  sealStaleThoughtsBeforeTools,
   upsertWorkEvents,
   patchSubagentResultInEvents,
   workEventFromHostPayload,
@@ -348,6 +349,47 @@ describe('work event lifecycle', () => {
     expect(header?.id).toBe('tl_subagent_a');
     expect(steps.map((s) => s.id)).toEqual(['tl_sub_a_thought', 'tl_sub_a_read']);
     expect(steps.every((s) => s.subagentId == null)).toBe(true);
+  });
+
+  it('seals a running Thought that already has tools below it', () => {
+    const sealed = sealStaleThoughtsBeforeTools(
+      [
+        {
+          id: 'tl_sub_a_thought_0',
+          type: 'thinking',
+          status: 'running',
+          label: 'Thought',
+          detail: 'planning…',
+          startedAt: 1
+        },
+        {
+          id: 'tl_sub_a_read',
+          type: 'read',
+          status: 'complete',
+          label: 'Read',
+          detail: 'a.ts'
+        },
+        {
+          id: 'tl_sub_a_thought_1',
+          type: 'thinking',
+          status: 'running',
+          label: 'Thought',
+          detail: 'next…',
+          startedAt: 5
+        }
+      ],
+      9
+    );
+    expect(sealed[0]).toMatchObject({
+      id: 'tl_sub_a_thought_0',
+      status: 'complete',
+      completedAt: 9
+    });
+    // Latest thought (no tools after it) stays live for mid-timeline Thinking.
+    expect(sealed[2]).toMatchObject({
+      id: 'tl_sub_a_thought_1',
+      status: 'running'
+    });
   });
 });
 

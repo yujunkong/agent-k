@@ -383,13 +383,26 @@ export function PlanningTailRow({ title }: { title: string }) {
   );
 }
 
-export function ThoughtRow({ step }: { step: TimelineStep }) {
+export function ThoughtRow({
+  step,
+  /** Subagent detail / sequential: collapse settled thoughts (Cursor-style). */
+  preferCollapsed = false
+}: {
+  step: TimelineStep;
+  preferCollapsed?: boolean;
+}) {
   const live = step.status === 'running';
-  const [open, setOpen] = useState(live);
+  // Cursor: live "Thinking" may show body; settled "Thought for Xs" stays collapsed.
+  const [open, setOpen] = useState(live && !preferCollapsed);
   const body = (step.body || '').trim();
   useEffect(() => {
-    if (live) setOpen(true);
-  }, [live]);
+    if (live) {
+      // Live Thinking stays visible (compact body); settled Thought collapses to chevron.
+      setOpen(true);
+    } else {
+      setOpen(false);
+    }
+  }, [live, step.id]);
   return (
     <ChevronRow
       title={formatThoughtTitle(step, live)}
@@ -398,7 +411,9 @@ export function ThoughtRow({ step }: { step: TimelineStep }) {
       hasError={step.status === 'failed'}
       onToggle={() => setOpen((v) => !v)}
     >
-      {body || live ? <ThoughtBody text={body} live={live} /> : null}
+      {body || live ? (
+        <ThoughtBody text={body} live={live} compact={preferCollapsed} />
+      ) : null}
     </ChevronRow>
   );
 }

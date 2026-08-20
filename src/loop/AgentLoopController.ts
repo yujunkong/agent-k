@@ -114,6 +114,11 @@ export interface LoopConfig {
     callId?: string
   ) => Promise<void>;
   /**
+   * First tool_call token of this model turn — seal Thought before tools execute
+   * so Cursor-style timelines stop updating the top Thinking row.
+   */
+  onToolCallsBegin?: () => void | Promise<void>;
+  /**
    * Host chat: re-bind ask_question → webview right before wait.
    * Avoids RuntimeServices notifier races (interrupt / new tab / concurrent send).
    */
@@ -1463,6 +1468,7 @@ export class AgentLoopController {
     let fullContent = '';
     let reasoningContent = '';
     let hitLengthLimit = false;
+    let toolCallsBeginNotified = false;
     const toolCallAcc = new Map<
       number,
       { id: string; name: string; arguments: string }
@@ -1494,6 +1500,10 @@ export class AgentLoopController {
           void this.config.onReasoning?.(reasoningContent);
         }
         if (chunk.toolCalls) {
+          if (!toolCallsBeginNotified) {
+            toolCallsBeginNotified = true;
+            void this.config.onToolCallsBegin?.();
+          }
           for (const tc of chunk.toolCalls as any[]) {
             const idx = typeof tc.index === 'number' ? tc.index : 0;
             const prev = toolCallAcc.get(idx) || {
