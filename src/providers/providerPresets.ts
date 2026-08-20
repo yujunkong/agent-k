@@ -12,15 +12,16 @@ export interface ProviderPreset {
   baseUrl: string;
 }
 
+/** 표준 Provider 프리셋 — Add Provider 칩에 표시 */
 export const PROVIDER_PRESETS: ProviderPreset[] = [
   { id: 'openai', name: 'OpenAI', type: 'openai', baseUrl: 'https://api.openai.com' },
-  { id: 'anthropic', name: 'Anthropic', type: 'anthropic', baseUrl: 'https://api.anthropic.com' },
+  { id: 'claude', name: 'Claude', type: 'anthropic', baseUrl: 'https://api.anthropic.com' },
+  { id: 'openai-compatible', name: 'OpenAI Compatible', type: 'litellm', baseUrl: 'http://127.0.0.1:4000' },
   { id: 'openrouter', name: 'OpenRouter', type: 'litellm', baseUrl: 'https://openrouter.ai/api' },
-  { id: 'groq', name: 'Groq', type: 'litellm', baseUrl: 'https://api.groq.com/openai' },
-  { id: 'together', name: 'Together', type: 'litellm', baseUrl: 'https://api.together.xyz' },
   { id: 'ollama', name: 'Ollama', type: 'ollama', baseUrl: 'http://127.0.0.1:11434' },
   { id: 'lmstudio', name: 'LM Studio', type: 'lmstudio', baseUrl: 'http://127.0.0.1:1234' },
-  { id: 'local', name: 'DGX Spark / LiteLLM', type: 'litellm', baseUrl: 'http://127.0.0.1:52415' }
+  { id: 'groq', name: 'Groq', type: 'litellm', baseUrl: 'https://api.groq.com/openai' },
+  { id: 'together', name: 'Together', type: 'litellm', baseUrl: 'https://api.together.xyz' }
 ];
 
 /** /models 미지원 Provider 를 위한 자주 쓰는 모델명 */
