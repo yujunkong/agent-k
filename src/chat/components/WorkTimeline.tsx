@@ -262,7 +262,9 @@ function renderTimelineNode(
   onWorktreeReject?: (subagentId: string) => void,
   compactFileEdit?: boolean,
   expandSubagentInline?: boolean,
-  onOpenSubagent?: (subagentId: string, title: string) => void
+  onOpenSubagent?: (subagentId: string, title: string) => void,
+  /** Subagent detail: collapse settled Thought rows (Cursor sequential chrome). */
+  preferCollapsedThought = false
 ): React.ReactNode {
   if (node.kind === 'group') {
     return (
@@ -299,7 +301,13 @@ function renderTimelineNode(
   }
 
   if (isThoughtChrome(node.step)) {
-    return <ThoughtRow key={node.step.id} step={node.step} />;
+    return (
+      <ThoughtRow
+        key={node.step.id}
+        step={node.step}
+        preferCollapsed={preferCollapsedThought}
+      />
+    );
   }
 
   return (
@@ -380,7 +388,8 @@ export function WorkTimeline({
           onWorktreeReject,
           undefined,
           subagentDetail,
-          onOpenSubagent
+          onOpenSubagent,
+          subagentDetail
         )
       )}
       {showPlanningTail ? <PlanningTailRow title={planningTailTitle} /> : null}

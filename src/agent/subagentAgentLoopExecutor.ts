@@ -11,6 +11,8 @@ export interface SubagentAgentLoopHooks {
   onReasoning?: (text: string) => void | Promise<void>;
   onToolCall?: (name: string, args: unknown, callId?: string) => void | Promise<void>;
   onToolResult?: (name: string, result: unknown, callId?: string) => void | Promise<void>;
+  /** First tool_call of the model turn — seal Thought before tools run. */
+  onToolCallsBegin?: () => void | Promise<void>;
 }
 
 export interface SubagentAgentLoopOptions {
@@ -39,6 +41,7 @@ export interface SubagentAgentLoopOptions {
     result: unknown,
     callId?: string
   ) => void | Promise<void>;
+  onToolCallsBegin?: (context: SubagentExecutionContext) => void | Promise<void>;
 }
 
 /**
@@ -67,6 +70,9 @@ export function createSubagentAgentLoopExecutor(
       },
       onToolResult: async (name, result, callId) => {
         await options.onToolResult?.(context, name, result, callId);
+      },
+      onToolCallsBegin: async () => {
+        await options.onToolCallsBegin?.(context);
       }
     };
 

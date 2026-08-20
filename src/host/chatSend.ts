@@ -268,6 +268,8 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
     /** Per-task thought segment — new id after each tool round so timeline stays chronological. */
     const subagentThoughtSeg = new Map<string, number>();
     const subagentThoughtOpen = new Map<string, boolean>();
+    /** After tool_calls begin, ignore late reasoning from the same stream turn. */
+    const subagentThoughtBlocked = new Map<string, boolean>();
     const subagentLastTerminalId = new Map<string, string>();
 
     const sealSubagentThought = (
@@ -325,6 +327,11 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           missionContinue: false,
           onAssistantDelta: hooks.onAssistantDelta,
           onReasoning: hooks.onReasoning,
+          onToolCallsBegin: hooks.onToolCallsBegin,
+          onTurnStart: async () => {
+            // New model turn — allow Thought segments again (Cursor mid-timeline Thinking).
+            subagentThoughtBlocked.set(context.task.id, false);
+          },
           onToolCall: async (name, args, callId) => {
             await hooks.onToolCall?.(name, args, callId);
           },
@@ -488,6 +495,8 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
       },
       onReasoning: (context, text) => {
         const taskId = context.task.id;
+        // Late reasoning after tool_calls in the same stream must not reopen Thought on top.
+        if (subagentThoughtBlocked.get(taskId)) return;
         const turn = currentTurn || 1;
         const clipped = String(text || '').trim().slice(0, 20000);
         if (!subagentThoughtOpen.get(taskId)) {
@@ -507,10 +516,16 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           parentTurnId: context.task.parentTurnId
         });
       },
+      // Seal Thought as soon as tool_calls appear in the stream (before execute).
+      onToolCallsBegin: (context) => {
+        const taskId = context.task.id;
+        sealSubagentThought(taskId, currentTurn || 1, context.task.parentTurnId);
+        subagentThoughtBlocked.set(taskId, true);
+      },
       onToolCall: (context, name, args, callId) => {
         const taskId = context.task.id;
         const turn = currentTurn || 1;
-        // Close current thought before the tool row — mirrors main-turn Cursor sequencing.
+        // Belt-and-suspenders: seal again if begin hook was skipped.
         sealSubagentThought(taskId, turn, context.task.parentTurnId);
         const kind = toolKind(name);
         const detail = shortDetail(name, args as Record<string, unknown>);

@@ -392,6 +392,10 @@ export function isSubagentHeaderEvent(item: ConversationWorkEvent): boolean {
 /**
  * Detail-tab shape: drop the group header and clear subagentId so WorkTimeline
  * uses the same top-level Thought / Exploring / Edit chrome as the main turn.
+ *
+ * Also seal stale running thoughts that sit above later tool rows — otherwise
+ * one Thought stays live at the top while Read/Edit cards pile up below
+ * (Cursor expects Thought ▸ tools ▸ Thought ▸ tools).
  */
 export function flattenSubagentWorkItems(
   items: ConversationWorkEvent[],
@@ -410,7 +414,32 @@ export function flattenSubagentWorkItems(
     }
     steps.push({ ...event, subagentId: undefined });
   }
-  return { header, steps };
+  return { header, steps: sealStaleThoughtsBeforeTools(steps) };
+}
+
+/**
+ * If a thinking row is still "running" but non-thought work already follows it,
+ * treat it as complete for display so the next Thought can appear mid-timeline.
+ */
+export function sealStaleThoughtsBeforeTools(
+  events: ConversationWorkEvent[],
+  now = Date.now()
+): ConversationWorkEvent[] {
+  let lastNonThought = -1;
+  for (let i = 0; i < events.length; i++) {
+    if (events[i].type !== 'thinking') lastNonThought = i;
+  }
+  if (lastNonThought < 0) return events;
+  return events.map((event, index) => {
+    if (event.type !== 'thinking') return event;
+    if (event.status !== 'running' && event.status !== 'pending') return event;
+    if (index >= lastNonThought) return event;
+    return {
+      ...event,
+      status: 'complete' as const,
+      completedAt: event.completedAt ?? now
+    };
+  });
 }
 
 /** Host chat.stream subagent.event → group header (summary only, never child transcript). */
