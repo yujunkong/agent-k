@@ -71,8 +71,15 @@ export function resolveWorkspacePath(filePath: string): { abs: string } | { erro
     }
   }
 
+  const slash = filePath.replace(/\\/g, '/').toLowerCase();
+  const cargoHint =
+    slash.includes('.cargo/registry') || slash.includes('.cargo/git')
+      ? ' Cargo registry/git sources are outside the project — do not grep them, and do not use Windows FINDSTR. Use crates.io docs or workspace Cargo.lock instead.'
+      : '';
   return {
-    error: `Path escapes workspace root: ${filePath} (open that folder in VS Code, or use a path under ${roots[0]})`
+    error:
+      `Path escapes workspace root: ${filePath} (open that folder in VS Code, or use a path under ${roots[0]}).` +
+      `${cargoHint} Prefer the grep tool over FINDSTR/findstr.`
   };
 }
 
@@ -224,6 +231,38 @@ const BLOCKED_CMD_PATTERNS = [
   />\s*\/dev\/sd/i
 ];
 
+/**
+ * FINDSTR / rg / grep / Select-String use exit 1 for "no matches".
+ * Treating that as a hard failure filled the timeline with red Command boxes.
+ */
+export function isSearchNoMatchExit(
+  command: string,
+  exitCode: number | null | undefined
+): boolean {
+  if (exitCode !== 1) return false;
+  return /\bFINDSTR\b|\bfindstr\b|\brg(?:\.exe)?\b|\bgrep\b|Select-String/i.test(
+    command
+  );
+}
+
+/** PRD-Spec-04: Windows terminal output is UTF-8 via `chcp 65001`. */
+export function wrapShellCommand(
+  command: string,
+  platform: NodeJS.Platform = process.platform
+): string {
+  if (platform !== 'win32') return command;
+  if (/\bchcp\s+65001\b/i.test(command)) return command;
+  return `chcp 65001 >nul & ${command}`;
+}
+
+export function terminalCommandEnv(
+  platform: NodeJS.Platform = process.platform
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, PYTHONIOENCODING: 'utf-8' };
+  if (platform === 'win32') env.PYTHONUTF8 = '1';
+  return env;
+}
+
 export async function executeRunTerminalCmd(
   input: ToolInput,
   opts?: {
@@ -255,23 +294,25 @@ export async function executeRunTerminalCmd(
         : path.join(getWorkspaceRoot(), input.cwd)
       : getWorkspaceRoot();
   const timeoutMs = (input.timeout as number) || 120_000;
+  const spawnCommand = wrapShellCommand(command);
+  const env = terminalCommandEnv();
 
   return new Promise((resolve) => {
-    const child = spawn(command, {
+    const child = spawn(spawnCommand, {
       shell: true,
       cwd,
-      env: process.env
+      env
     });
 
     let stdout = '';
     let stderr = '';
     child.stdout?.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
+      const text = chunk.toString('utf8');
       stdout += text;
       opts?.onChunk?.(text, 'stdout');
     });
     child.stderr?.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
+      const text = chunk.toString('utf8');
       stderr += text;
       opts?.onChunk?.(text, 'stderr');
     });
@@ -294,7 +335,8 @@ export async function executeRunTerminalCmd(
 
     child.on('close', (code) => {
       clearTimeout(timer);
-      const ok = code === 0;
+      const noMatch = isSearchNoMatchExit(command, code);
+      const ok = code === 0 || noMatch;
       resolve({
         success: ok,
         data: {
@@ -303,7 +345,8 @@ export async function executeRunTerminalCmd(
           stdout: stdout.slice(0, 50_000),
           stderr: stderr.slice(0, 50_000),
           exitCode: code,
-          description: input.description
+          description: input.description,
+          ...(noMatch ? { note: 'No matches (exit 1 is success for search commands)' } : {})
         },
         error: ok
           ? undefined

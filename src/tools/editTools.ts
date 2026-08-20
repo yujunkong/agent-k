@@ -55,7 +55,8 @@ const writeFileTool: ToolDefinition = {
 const runTerminalCmdTool: ToolDefinition = {
   name: 'run_terminal_cmd',
   description:
-    'Run a terminal command in the workspace root (build, test, lint, git, cargo, etc.). Prefer arg name `command` (alias `cmd` also accepted).',
+    'Run a terminal command in the workspace root (build, test, lint, git, cargo, etc.). Prefer arg name `command` (alias `cmd` also accepted). ' +
+    'Do not search source with FINDSTR/findstr/Select-String — use the grep tool (FINDSTR exit 1 = no match, not a hard failure).',
   parameters: {
     type: 'object',
     properties: {

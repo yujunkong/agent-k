@@ -38,7 +38,7 @@ describe('buildTimelineStepCardView', () => {
     });
   });
 
-  it('shows file stats in meta and keeps completed edits compact', () => {
+  it('shows file stats in meta and keeps completed edits boxed', () => {
     const step: TimelineStep = {
       id: 'edit_1',
       kind: 'file',
@@ -57,12 +57,12 @@ describe('buildTimelineStepCardView', () => {
       subtitle: 'src/auth/login.ts',
       meta: '+82 −21',
       expandable: true,
-      density: 'compact',
+      density: 'active',
       defaultOpen: false
     });
   });
 
-  it('summarizes terminal output in meta', () => {
+  it('summarizes terminal output in meta and keeps completed commands boxed', () => {
     const step: TimelineStep = {
       id: 'term_1',
       kind: 'terminal',
@@ -81,8 +81,31 @@ describe('buildTimelineStepCardView', () => {
       title: 'Ran command',
       subtitle: 'npm test',
       meta: '31 tests passed',
-      density: 'compact',
+      density: 'active',
       defaultOpen: false
+    });
+  });
+
+  it('drops FINDSTR/OEM noise from terminal meta', () => {
+    const step: TimelineStep = {
+      id: 'term_noise',
+      kind: 'terminal',
+      status: 'failed',
+      title: 'Terminal',
+      terminalRun: {
+        id: 'term_noise',
+        command: 'FINDSTR foo bar',
+        status: 'error',
+        stdout: '===\n',
+        stderr: '',
+        exitCode: 1
+      }
+    };
+    expect(buildTimelineStepCardView(step)).toMatchObject({
+      title: 'Running command',
+      subtitle: 'FINDSTR foo bar',
+      meta: 'Exit 1',
+      density: 'failed'
     });
   });
 

@@ -12,6 +12,8 @@ const grepTool: ToolDefinition = {
   description:
     'Search file CONTENTS for a regex/symbol (ripgrep). Use for identifiers, strings, error text. ' +
     'Do NOT use glob patterns like **/*.ts here — that is the glob tool. ' +
+    'Search the workspace only — not ~/.cargo/registry, node_modules, or target. ' +
+    'On Windows do NOT use FINDSTR / findstr / Select-String via run_terminal_cmd; this grep tool is the search API. ' +
     'Cursor UI shows this as Grepped.',
   parameters: {
     type: 'object',
