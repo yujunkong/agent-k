@@ -96,3 +96,15 @@ tools, providers, plan, worktree, safety
 - Providers 구현: `packages/providers` (`src/providers`는 shim)
 
 상세 Phase·Feature 매핑: `docs/architecture/AGENT-K-MONOREPO-FINAL.md`
+
+## Cursor Cloud specific instructions
+
+Agent-K is a VS Code extension (Node 22, npm workspaces). Standard commands live in root `package.json` `scripts` and `esbuild.js` / `vite.config.ts`; the notes below only cover cloud/headless caveats.
+
+- Dependencies: single `npm install` at repo root installs all workspaces (`packages/*`, `extensions/*`). This is the startup update script.
+- Lint / types: `npm run lint` and `npm run check-types` run headless. Lint is expected to report 0 errors with a large number of pre-existing `warning`s (curly/eqeqeq/semi) — warnings do not fail the build.
+- Build (dev): `node esbuild.js` bundles the extension host → `dist/extension.js`; `npm run build:webview` (vite) bundles the React chat webview → `dist/chat.js` + `dist/chat.css`. The vite build prints benign rollup warnings (`accessSync`/`constants` not exported by `node-shims.ts`, large-chunk warning) and still succeeds.
+- Tests that run headless: `npm run test:addon` (~145) and `npm run test:plan-v2` (~92) via tsx+mocha.
+- Tests that do NOT run in a plain headless VM: `npm run test:harness` and the default `npm test` (`vscode-test`). They import the real `vscode` module / need the Electron Extension Host, so they only work inside VS Code (or an xvfb + downloaded VS Code harness), not from bare Node.
+- Run the app in dev: `npm run dev:webview` starts Vite on `http://localhost:3000` and renders the chat UI standalone in a browser (webview's `vscode` API is shimmed / falls back to null). Composer, slash-command palette, mode switch, and timeline all work in the browser.
+- Expected limitation without the Extension Host: sending a message shows "Agent mode needs the Extension Host". Real agent runs require the VS Code Extension Development Host (F5) plus an LLM provider — by default a local LiteLLM proxy → MLX server (`scripts/start-litellm.sh`, `litellm_config.yaml`, upstream MLX on `127.0.0.1:52415`), which is not available in cloud. This is by design, not a setup error.
