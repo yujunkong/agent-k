@@ -180,6 +180,19 @@ describe('work event lifecycle', () => {
     expect(clipSubagentSummary(transcript)?.includes('line\n')).toBeFalsy();
   });
 
+  it('prefers task_run description for subagent progress title', () => {
+    const running = workEventFromSubagentHostEvent({
+      type: 'subagent.started',
+      taskId: 'b',
+      role: 'research',
+      status: 'running',
+      prompt: 'long handoff prompt that should not be the title',
+      description: 'Exploring auth flow'
+    });
+    expect(running?.description).toBe('Exploring auth flow');
+    expect(running?.label).toBe('Exploring auth flow · running');
+  });
+
   it('patches subagent header worktree state by subagent id', () => {
     const events: ConversationWorkEvent[] = [
       {

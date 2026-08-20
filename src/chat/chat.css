@@ -1198,11 +1198,23 @@ body {
   box-sizing: border-box;
 }
 
-/* Nested explore tool rows: one rail under the title column */
+/* Nested explore tool rows: one rail under the title column (only border-left here) */
 .ak-tool-slide-list.ak-explore-scroll {
   margin-left: var(--ak-thread-inset, 12px);
-  padding-left: 10px;
+  padding: 2px 0 6px 10px;
   border-left: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Live vs settled max-height for explore tool list */
+.ak-explore-scroll--live {
+  max-height: 220px;
+}
+
+.ak-explore-scroll--settled {
+  max-height: 320px;
 }
 
 .ak-explore-nested-thought {
@@ -1213,6 +1225,74 @@ body {
 /* Mid-Thought rows inside Exploring — no thread inset (already indented by explore rail) */
 .ak-explore-scroll .ak-explore-mid-thought__btn.ak-step-chevron-btn {
   padding-left: 0;
+}
+
+/* Explore mid-thought + tool rows (structure from ExploreChrome; styles live here) */
+.ak-explore-mid-thought {
+  padding: 1px 0;
+}
+
+.ak-explore-mid-thought__btn {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ak-explore-mid-thought__chevron {
+  opacity: 0.7;
+  flex-shrink: 0;
+  width: 10px;
+}
+
+.ak-explore-mid-thought__title {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.ak-explore-mid-thought--live .ak-explore-mid-thought__title {
+  font-weight: 500;
+}
+
+.ak-explore-tool-row {
+  display: flex;
+  gap: 8px;
+  padding: 1px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+}
+
+.ak-explore-tool-row__marker {
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.ak-explore-tool-row--failed .ak-explore-tool-row__marker {
+  opacity: 0.95;
+  color: #f87171;
+}
+
+.ak-explore-tool-row__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.ak-explore-tool-row--failed .ak-explore-tool-row__text {
+  color: #fca5a5;
+}
+
+.ak-explore-tool-row__detail {
+  opacity: 0.75;
 }
 
 /* Prose inside explore rail — don't re-apply thread inset */
@@ -1605,6 +1685,12 @@ body {
   font: inherit;
   text-align: left;
   box-sizing: border-box;
+  cursor: pointer;
+}
+
+/* Live Exploring with no expandable body yet — header is not a toggle */
+.ak-step-chevron-btn--locked {
+  cursor: default;
 }
 
 .ak-step-chevron {
@@ -1625,8 +1711,21 @@ body {
   flex: 0 1 auto;
 }
 
+/* Live Thinking / Exploring headers — weight from CSS, not inline */
+.ak-step-row--live > .ak-step-chevron-btn > .ak-step-title {
+  font-weight: 500;
+}
+
+.ak-step-row:not(.ak-step-row--live):not(.ak-step-row--error)
+  > .ak-step-chevron-btn
+  > .ak-step-title {
+  font-weight: 400;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
 .ak-step-row--error .ak-step-title {
   color: #e2556f;
+  font-weight: 500;
 }
 
 .ak-step-row--error .ak-step-chevron {
@@ -1783,36 +1882,150 @@ body {
 }
 
 .ak-worked--error .ak-worked__label,
-.ak-worked--error .ak-worked__chevron {
+.ak-worked--error .ak-worked__chevron,
+.ak-work-timeline--error .ak-worked__label,
+.ak-work-timeline--error .ak-worked__chevron {
   color: #e2556f;
 }
 
-.ak-worked__body {
-  margin-top: 6px;
-  /* Keep same thread column as live steps / final answer — no extra indent */
-  padding-left: 0;
-  margin-left: 0;
+/*
+ * WorkTimeline item column — single source of truth.
+ * No border-left here: ExploreChrome (.ak-explore-scroll) owns the explore rail.
+ * Live and settled share this column; settled only adds .ak-worked__toggle above.
+ */
+.ak-work-timeline {
+  margin: 2px 0 8px;
+  border: 0;
+  background: transparent;
+}
+
+.ak-work-timeline__items {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
   border-left: none;
 }
 
-.ak-worked__body .message-steps {
-  margin-left: 0;
+.ak-work-timeline--settled .ak-work-timeline__items {
+  margin-top: 6px;
 }
 
-.ak-worked__body .message-turn-prose {
-  margin-left: 0;
-  padding-left: var(--ak-thread-inset, 12px);
+/* Cards/subagents lack .ak-step-chevron-btn inset — align to thread column */
+.ak-work-timeline__items > .ak-timeline-card,
+.ak-work-timeline__items > .ak-work-subagent {
+  margin-left: var(--ak-thread-inset, 12px);
+  max-width: calc(100% - var(--ak-thread-inset, 12px));
 }
 
-.ak-worked__body .ak-step-row,
-.ak-worked__body .ak-file-edits-inline,
-.ak-worked__body .ak-terminal-runs-inline {
+/* Parent subagent progress row already has thread inset via chevron btn */
+.ak-work-timeline__items > .ak-work-subagent {
   margin-left: 0;
+  max-width: 100%;
 }
 
-.ak-worked__body .ak-work-timeline__items {
-  margin-left: 0;
-  padding-left: var(--ak-thread-inset, 12px);
+.ak-subagent-run__btn {
+  position: relative;
+}
+
+.ak-subagent-run__hint {
+  margin-left: auto;
+  padding-right: 4px;
+  font-size: 10px;
+  opacity: 0.45;
+  flex-shrink: 0;
+}
+
+.ak-subagent-run__btn:hover .ak-subagent-run__hint {
+  opacity: 0.85;
+}
+
+.ak-work-subagent--detail .ak-subagent-run__hint {
+  display: none;
+}
+
+.ak-work-subagent__children {
+  margin: 4px 0 8px var(--ak-thread-inset, 12px);
+  padding: 2px 0 4px 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Subagent detail pane (tab without composer) */
+.ak-subagent-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 8px 0 16px;
+}
+
+.ak-subagent-detail__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px var(--ak-thread-inset, 12px) 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 10%, transparent);
+  margin-bottom: 8px;
+}
+
+.ak-subagent-detail__back {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-textLink-foreground, #3794ff);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ak-subagent-detail__back:hover {
+  text-decoration: underline;
+}
+
+.ak-subagent-detail__titles {
+  min-width: 0;
+  flex: 1;
+}
+
+.ak-subagent-detail__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vscode-foreground, #ccc);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ak-subagent-detail__status {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.ak-subagent-detail__body {
+  flex: 1;
+  min-height: 0;
+}
+
+.ak-subagent-detail__empty {
+  padding: 12px var(--ak-thread-inset, 12px);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font-size: 12px;
+}
+
+.ak-subagent-detail__composer-placeholder {
+  padding: 10px 14px 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  opacity: 0.75;
+  border-top: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 8%, transparent);
 }
 
 /* Diff / terminal cards stick under Edited / Ran (not after wrap-up prose) */

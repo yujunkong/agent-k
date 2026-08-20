@@ -21,6 +21,7 @@ export interface ConversationTurnProps {
   onFork?: (id: string) => void;
   onCopy?: (content: string) => void;
   onStopAndPrefill?: (content: string) => void;
+  onOpenSubagent?: (subagentId: string, title: string) => void;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
@@ -33,7 +34,17 @@ export interface ConversationTurnProps {
 
 /** Conversation boundary + Cursor-style sibling assistant variants. */
 export function ConversationTurn(props: ConversationTurnProps) {
-  const { message, isStreaming, onOpenFile, onAcceptFile, onRejectFile, onWorktreeReview, onWorktreeApply, onWorktreeReject } = props;
+  const {
+    message,
+    isStreaming,
+    onOpenSubagent,
+    onOpenFile,
+    onAcceptFile,
+    onRejectFile,
+    onWorktreeReview,
+    onWorktreeApply,
+    onWorktreeReject
+  } = props;
   const streaming = !!isStreaming || message?.status === 'streaming';
   const isAssistant = message?.role === 'assistant';
   const variantMeta = isAssistant ? getVariantMeta(message) : null;
@@ -66,6 +77,7 @@ export function ConversationTurn(props: ConversationTurnProps) {
           workItems={workItems}
           changes={changes}
           isStreaming={streaming}
+          onOpenSubagent={onOpenSubagent}
           onOpenFile={onOpenFile}
           onAcceptFile={onAcceptFile}
           onRejectFile={onRejectFile}

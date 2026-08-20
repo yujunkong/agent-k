@@ -9,6 +9,23 @@
 .chat-tab--placeholder { align-items: center; padding: 0 11px; font-size: 12px; }
 .chat-tab__btn { min-width: 0; flex: 1; padding: 0 3px 0 10px; border: 0; border-radius: inherit; color: inherit; background: transparent; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .chat-tab__title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-tab__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin-right: 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--vscode-badge-foreground, #fff);
+  background: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 70%, transparent);
+  vertical-align: middle;
+}
+.chat-tab--subagent .chat-tab__btn { display: inline-flex; align-items: center; }
 .chat-tab__close { width: 26px; height: 26px; align-self: center; flex: 0 0 auto; margin-right: 3px; padding: 0; border: 0; border-radius: 5px; color: inherit; background: transparent; opacity: 0; cursor: pointer; }
 .chat-tab:hover .chat-tab__close,.chat-tab--active .chat-tab__close,.chat-tab:focus-within .chat-tab__close { opacity: .72; }
 .chat-tab__close:hover { opacity: 1; background: var(--vscode-toolbar-hoverBackground, rgba(90,93,94,.25)); }

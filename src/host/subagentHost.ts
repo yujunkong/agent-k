@@ -211,11 +211,17 @@ export function createSubagentHost(options: CreateSubagentHostOptions): Subagent
   const create = (
     parentTurnId: string,
     prompt: string,
-    role: SubagentRole = 'general'
+    role: SubagentRole = 'general',
+    description?: string
   ): SubagentTask => {
     const task = runner.create(parentTurnId, prompt, role);
-    created.set(task.id, task);
-    return task;
+    // Attach short UI label from task_run.description (Cursor-style progress title).
+    const withDesc =
+      description && description.trim()
+        ? { ...task, description: description.trim() }
+        : task;
+    created.set(withDesc.id, withDesc);
+    return withDesc;
   };
 
   const run = async (task: SubagentTask): Promise<SubagentTask> => {
@@ -265,7 +271,8 @@ export function createSubagentHost(options: CreateSubagentHostOptions): Subagent
           error: `Too many concurrent subagents (max ${maxConcurrent})`
         };
       }
-      const task = create(parentTurnId, prompt, roleFromTaskArgs(args));
+      const description = String(args.description ?? '').trim() || undefined;
+      const task = create(parentTurnId, prompt, roleFromTaskArgs(args), description);
       const finished = await run(task);
       return parentResultFromTask(finished);
     },

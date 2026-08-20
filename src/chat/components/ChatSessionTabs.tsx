@@ -1,8 +1,10 @@
 /**
  * Cursor-style session tabs + header actions.
+ * Also hosts subagent progress tabs (no composer — detail view in ChatApp).
  */
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import type { ChatSessionMeta } from '../ChatSessionStore';
+import type { SubagentDetailTab } from './SubagentDetailView';
 import {
   IconClose,
   IconHistory,
@@ -35,6 +37,11 @@ export interface ChatSessionTabsProps {
   onHistory: () => void;
   onSettings: () => void;
   historyOpen?: boolean;
+  /** Open subagent progress tabs (Cursor-style agent tabs). */
+  subagentTabs?: SubagentDetailTab[];
+  activeSubagentId?: string | null;
+  onSelectSubagent?: (id: string) => void;
+  onCloseSubagent?: (id: string) => void;
 }
 
 export function ChatSessionTabs({
@@ -46,7 +53,11 @@ export function ChatSessionTabs({
   onNew,
   onHistory,
   onSettings,
-  historyOpen
+  historyOpen,
+  subagentTabs = [],
+  activeSubagentId = null,
+  onSelectSubagent,
+  onCloseSubagent
 }: ChatSessionTabsProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -76,11 +87,13 @@ export function ChatSessionTabs({
     return () => document.removeEventListener('mousedown', onDoc);
   }, [moreOpen]);
 
+  const sessionActive = !activeSubagentId;
+
   return (
     <header className="chat-header chat-header--tabs">
       <div className="chat-header-tabs" role="tablist" aria-label="Chat sessions">
         {tabs.map((s) => {
-          const active = s.id === currentId;
+          const active = sessionActive && s.id === currentId;
           const title = formatTabTitle(s, sessions);
           return (
             <div
@@ -113,7 +126,44 @@ export function ChatSessionTabs({
             </div>
           );
         })}
-        {tabs.length === 0 ? (
+        {/* Subagent progress tabs — same strip, distinct chrome */}
+        {subagentTabs.map((t) => {
+          const active = activeSubagentId === t.id;
+          return (
+            <div
+              key={`sub-${t.id}`}
+              className={`chat-tab chat-tab--subagent${active ? ' chat-tab--active' : ''}`}
+              role="tab"
+              aria-selected={active}
+            >
+              <button
+                type="button"
+                className="chat-tab__btn"
+                title={`Agent · ${t.title}`}
+                onClick={() => onSelectSubagent?.(t.id)}
+              >
+                <span className="chat-tab__badge" aria-hidden>
+                  A
+                </span>
+                <span className="chat-tab__title">{t.title}</span>
+              </button>
+              <button
+                type="button"
+                className="chat-tab__close"
+                title="Close agent tab"
+                aria-label={`Close ${t.title} agent tab`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onCloseSubagent?.(t.id);
+                }}
+              >
+                <IconClose size={12} />
+              </button>
+            </div>
+          );
+        })}
+        {tabs.length === 0 && subagentTabs.length === 0 ? (
           <span className="chat-tab chat-tab--placeholder" aria-hidden>
             New chat
           </span>

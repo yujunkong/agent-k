@@ -59,6 +59,8 @@ export type TimelineStep = {
   body?: string;
   ref?: TimelineStepRef;
   subagentId?: string;
+  /** Short Cursor-style progress title (task_run.description). */
+  description?: string;
   result?: SubagentResult;
   /** Resolved previews — populated by the builder for render convenience */
   fileEdit?: FileEditPreview;
@@ -164,7 +166,12 @@ function buildStepFields(
     };
   }
   if (event.type === 'subagent') {
-    return { title: event.label };
+    // Title prefers description so parent progress row matches Cursor task names.
+    const title =
+      String(event.description || '').trim() ||
+      String(event.label || '').replace(/\s*·\s*(running|completed|failed|queued)$/i, '').trim() ||
+      'Agent';
+    return { title };
   }
   return {
     title: stepTitle(event),
@@ -195,6 +202,7 @@ export function eventToTimelineStep(
     durationMs,
     ref: event.ref,
     subagentId: event.subagentId,
+    description: event.description,
     result: event.result
   };
   if (previews?.fileEdits?.length) {
@@ -311,7 +319,7 @@ export function formatProgressLabel(step: TimelineStep | undefined): string | un
     return 'Thinking…';
   }
   if (step.kind === 'subagent') {
-    const label = String(step.title || '')
+    const label = String(step.description || step.title || '')
       .replace(/\s+·\s+(running|completed|failed|queued)$/i, '')
       .trim();
     return label || 'Working…';

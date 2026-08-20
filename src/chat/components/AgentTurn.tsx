@@ -13,6 +13,7 @@ export interface AgentTurnProps {
   isStreaming?: boolean;
   workedDurationMs?: number;
   children?: React.ReactNode;
+  onOpenSubagent?: (subagentId: string, title: string) => void;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
@@ -31,6 +32,7 @@ export function AgentTurn({
   isStreaming = false,
   workedDurationMs,
   children,
+  onOpenSubagent,
   onOpenFile,
   onAcceptFile,
   onRejectFile,
@@ -47,6 +49,7 @@ export function AgentTurn({
         terminalRuns={terminalRuns}
         isStreaming={isStreaming}
         workedDurationMs={workedDurationMs}
+        onOpenSubagent={onOpenSubagent}
         onOpenFile={onOpenFile}
         onAcceptFile={onAcceptFile}
         onRejectFile={onRejectFile}

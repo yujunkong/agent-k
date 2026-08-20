@@ -43,6 +43,8 @@ export type ConversationWorkEvent = {
   /** Host subagent id — WorkTimeline groups child rows under this parent. */
   subagentId?: string;
   parentTurnId?: string;
+  /** Short Cursor-style progress title from task_run.description (3–5 words). */
+  description?: string;
   /** Completion stats from subagent.event — not a child transcript. */
   result?: SubagentResult;
   /** Plan execution correlation — connects this event to the DAG run. */
@@ -235,6 +237,7 @@ export function upsertWorkEvents(
     label: incoming.label || prev.label,
     toolName: incoming.toolName ?? prev.toolName,
     detail: incoming.detail ?? prev.detail,
+    description: incoming.description ?? prev.description,
     startedAt: prev.startedAt ?? incoming.startedAt,
     completedAt: incoming.completedAt ?? prev.completedAt,
     ref: incoming.ref ?? prev.ref,
@@ -269,6 +272,7 @@ export type HostWorkPayload = {
   parentTurnId?: string;
   role?: string;
   prompt?: string;
+  description?: string;
   summary?: string;
   filesChanged?: number;
   toolCount?: number;
@@ -285,15 +289,33 @@ export function subagentRoleTitle(role?: string): string {
   return 'Subagent';
 }
 
-export function formatSubagentGroupLabel(
+/**
+ * Prefer task_run.description for the progress title; fall back to role + prompt slice.
+ */
+export function formatSubagentProgressTitle(
+  description?: string,
   role?: string,
-  prompt?: string,
-  status?: ConversationWorkStatus
+  prompt?: string
 ): string {
+  const desc = String(description || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (desc) return desc.length > 48 ? `${desc.slice(0, 47)}…` : desc;
   const promptPart = String(prompt || '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 40);
+  const head = [subagentRoleTitle(role), promptPart].filter(Boolean).join(' ');
+  return head || 'Agent';
+}
+
+export function formatSubagentGroupLabel(
+  role?: string,
+  prompt?: string,
+  status?: ConversationWorkStatus,
+  description?: string
+): string {
+  const title = formatSubagentProgressTitle(description, role, prompt);
   const statusPart =
     status === 'complete'
       ? 'completed'
@@ -302,8 +324,7 @@ export function formatSubagentGroupLabel(
         : status === 'pending'
           ? 'queued'
           : 'running';
-  const head = [subagentRoleTitle(role), promptPart].filter(Boolean).join(' ');
-  return `${head} · ${statusPart}`;
+  return `${title} · ${statusPart}`;
 }
 
 export function isSubagentHeaderEvent(item: ConversationWorkEvent): boolean {
@@ -319,6 +340,8 @@ export function workEventFromSubagentHostEvent(
   if (!taskId) return null;
   const status = workStatusFromHost(String(data.status || ''));
   const prompt = String(data.prompt || '').trim();
+  const description =
+    data.description != null ? String(data.description).trim() || undefined : undefined;
   const terminal = status === 'complete' || status === 'error';
   return {
     id: `tl_subagent_${taskId}`,
@@ -327,9 +350,11 @@ export function workEventFromSubagentHostEvent(
     label: formatSubagentGroupLabel(
       data.role != null ? String(data.role) : undefined,
       prompt,
-      status
+      status,
+      description
     ),
     detail: undefined,
+    description,
     result: terminal ? parseSubagentResult(data) : undefined,
     subagentId: taskId,
     parentTurnId:
@@ -374,6 +399,10 @@ export function workEventFromHostPayload(
     data.parentTurnId != null ? String(data.parentTurnId) : undefined;
 
   if (type === 'subagent') {
+    const description =
+      data.description != null
+        ? String(data.description).trim() || undefined
+        : undefined;
     return {
       id,
       type,
@@ -381,9 +410,11 @@ export function workEventFromHostPayload(
       label: formatSubagentGroupLabel(
         data.role,
         data.prompt || rawDetail,
-        status
+        status,
+        description
       ),
       detail: undefined,
+      description,
       result:
         status === 'complete' || status === 'error'
           ? parseSubagentResult(data as Record<string, unknown>)

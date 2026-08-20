@@ -1,14 +1,12 @@
 /**
  * Cursor-style Exploring/Explored + Thought chevron chrome for WorkTimeline.
  * Ported from MessageSteps; presentation nodes are the source of truth.
+ * Visual styles live in chat.css (ak-step-*, ak-explore-*) — keep inline styles minimal.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { TimelineStep } from '../conversation/timelinePresentation';
 import { isPlanGenerateStep } from '../planGenerateStep';
 
-const STEPS_FG = 'var(--vscode-descriptionForeground, #9d9d9d)';
-const STEPS_ERROR = '#e2556f';
-const STEPS_MUTED = 'var(--vscode-descriptionForeground, #9d9d9d)';
 const THOUGHT_DISPLAY_MAX = 16000;
 const MID_THOUGHT_DISPLAY_MAX = 900;
 
@@ -106,25 +104,20 @@ export function formatThoughtTitle(step: TimelineStep, live: boolean): string {
 function LiveStepTitle({
   title,
   live,
-  style,
   className
 }: {
   title: string;
   live: boolean;
-  style?: React.CSSProperties;
   className?: string;
 }) {
   if (!live) {
     return (
-      <span className={['ak-step-title', className].filter(Boolean).join(' ')} style={style}>
-        {title}
-      </span>
+      <span className={['ak-step-title', className].filter(Boolean).join(' ')}>{title}</span>
     );
   }
   return (
     <span
       className={['ak-step-title', 'ak-step-title--live-shimmer', className].filter(Boolean).join(' ')}
-      style={style}
       data-text={title}
     >
       <span className="ak-step-title__base">{title}</span>
@@ -191,9 +184,9 @@ function ChevronRow({
   onToggle: () => void;
   children?: React.ReactNode;
 }) {
-  const titleColor = hasError ? STEPS_ERROR : live ? undefined : STEPS_FG;
   const showRolling = !expanded && !!live && !!rollingStatus?.trim();
   const shimmerHeader = !!live && !hasError && rollingStatus == null;
+  const locked = live && !children;
   return (
     <div
       className={['ak-step-row', live ? 'ak-step-row--live' : '', hasError ? 'ak-step-row--error' : '']
@@ -203,30 +196,19 @@ function ChevronRow({
       <button
         type="button"
         onClick={() => {
-          if (live && !children) return;
+          if (locked) return;
           onToggle();
         }}
-        className="ak-step-chevron-btn"
+        className={['ak-step-chevron-btn', locked ? 'ak-step-chevron-btn--locked' : '']
+          .filter(Boolean)
+          .join(' ')}
         aria-expanded={expanded}
         aria-busy={live || undefined}
-        style={{ cursor: live && !children ? 'default' : 'pointer' }}
       >
-        <span
-          className="ak-step-chevron"
-          aria-hidden
-          style={hasError ? { color: STEPS_ERROR, opacity: 0.9 } : undefined}
-        >
+        <span className="ak-step-chevron" aria-hidden>
           {expanded ? '▾' : '▸'}
         </span>
-        <LiveStepTitle
-          title={title}
-          live={shimmerHeader}
-          style={{
-            fontWeight: live || hasError ? 500 : 400,
-            ...(titleColor ? { color: titleColor } : null),
-            ...(!shimmerHeader && live && !hasError ? { color: STEPS_FG } : null)
-          }}
-        />
+        <LiveStepTitle title={title} live={shimmerHeader} />
       </button>
       {showRolling ? (
         <div key={rollingStatus} className="ak-step-rolling ak-step-rolling--live" aria-live="polite">
@@ -300,14 +282,11 @@ function ExploreStreamList({
   return (
     <div
       ref={listRef}
-      className="ak-tool-slide-list ak-explore-scroll"
-      style={{
-        color: STEPS_MUTED,
-        maxHeight: live ? 220 : 320,
-        overflowX: 'hidden',
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch'
-      }}
+      className={[
+        'ak-tool-slide-list',
+        'ak-explore-scroll',
+        live ? 'ak-explore-scroll--live' : 'ak-explore-scroll--settled'
+      ].join(' ')}
       onScroll={() => {
         const el = listRef.current;
         if (!el) return;
@@ -332,7 +311,6 @@ function ExploreStreamList({
                   ? 'ak-explore-mid-thought ak-explore-mid-thought--live'
                   : 'ak-explore-mid-thought'
               }
-              style={{ padding: '1px 0' }}
             >
               <button
                 type="button"
@@ -341,25 +319,14 @@ function ExploreStreamList({
                 onClick={() => {
                   setOpenThoughtIds((p) => ({ ...p, [s.id]: !expanded }));
                 }}
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  width: '100%',
-                  padding: 0,
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'inherit',
-                  font: 'inherit',
-                  fontSize: 11.5,
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
               >
-                <span style={{ opacity: 0.7, flexShrink: 0, width: 10 }}>{expanded ? '▾' : '▸'}</span>
+                <span className="ak-explore-mid-thought__chevron" aria-hidden>
+                  {expanded ? '▾' : '▸'}
+                </span>
                 <LiveStepTitle
                   title={title}
                   live={!!thoughtLive}
-                  style={{ flex: '0 1 auto', minWidth: 0, fontWeight: thoughtLive ? 500 : 400 }}
+                  className="ak-explore-mid-thought__title"
                 />
               </button>
               {expanded ? (
@@ -371,40 +338,26 @@ function ExploreStreamList({
           );
         }
 
+        const rowFailed = s.status === 'failed';
+        const rowRunning = live && s.status === 'running';
         return (
           <div
             key={s.id}
-            className={live && s.status === 'running' ? 'ak-tool-slide-in ak-tool-row--running' : undefined}
-            style={{
-              display: 'flex',
-              gap: 8,
-              padding: '1px 0',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              fontSize: 11.5
-            }}
+            className={[
+              'ak-explore-tool-row',
+              rowRunning ? 'ak-tool-slide-in ak-tool-row--running ak-explore-tool-row--running' : '',
+              rowFailed ? 'ak-explore-tool-row--failed' : ''
+            ]
+              .filter(Boolean)
+              .join(' ')}
           >
-            <span
-              style={{
-                opacity: s.status === 'failed' ? 0.95 : 0.5,
-                flexShrink: 0,
-                color: s.status === 'failed' ? '#f87171' : undefined
-              }}
-            >
-              {s.status === 'failed' ? '✗' : s.status === 'running' ? '›' : '·'}
+            <span className="ak-explore-tool-row__marker" aria-hidden>
+              {rowFailed ? '✗' : s.status === 'running' ? '›' : '·'}
             </span>
-            <span
-              style={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                flex: 1,
-                color: s.status === 'failed' ? '#fca5a5' : undefined
-              }}
-            >
+            <span className="ak-explore-tool-row__text">
               {toolRowLabel(s)}
               {s.subtitle ? (
-                <span style={{ opacity: 0.75 }}> {formatExploreDetail(s.subtitle)}</span>
+                <span className="ak-explore-tool-row__detail"> {formatExploreDetail(s.subtitle)}</span>
               ) : null}
             </span>
             {s.status === 'running' ? (

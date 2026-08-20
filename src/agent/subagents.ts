@@ -29,6 +29,8 @@ export interface SubagentTask {
   parentTurnId: string;
   role: SubagentRole;
   prompt: string;
+  /** Short UI label from task_run.description (3–5 words), Cursor-style. */
+  description?: string;
   status: SubagentStatus;
   createdAt: number;
   startedAt?: number;
@@ -45,6 +47,7 @@ export interface SubagentTaskPatch {
   completedAt?: number;
   result?: string;
   error?: string;
+  description?: string;
   worktree?: SubagentWorktree;
   worktreeSnapshot?: SubagentWorktreeSnapshot;
 }
@@ -53,13 +56,16 @@ export function createSubagentTask(
   parentTurnId: string,
   prompt: string,
   role: SubagentRole = 'general',
-  now = Date.now()
+  now = Date.now(),
+  description?: string
 ): SubagentTask {
+  const desc = String(description || '').trim();
   return {
     id: `subagent-${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     parentTurnId,
     role,
     prompt: prompt.trim(),
+    ...(desc ? { description: desc } : {}),
     status: 'queued',
     createdAt: now
   };

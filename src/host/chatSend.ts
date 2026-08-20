@@ -140,6 +140,10 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
     thoughtRole?: 'opening' | 'mid';
     subagentId?: string;
     parentTurnId?: string;
+    /** Short Cursor-style UI title from task_run.description */
+    description?: string;
+    role?: string;
+    prompt?: string;
   }) => {
     const id = payload.id || `tl_${payload.kind}_${currentTurn}_${++timelineSeq}`;
     post('timeline', {
@@ -152,7 +156,10 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
       id,
       thoughtRole: payload.thoughtRole,
       subagentId: payload.subagentId,
-      parentTurnId: payload.parentTurnId
+      parentTurnId: payload.parentTurnId,
+      description: payload.description,
+      role: payload.role,
+      prompt: payload.prompt
     });
     return id;
   };
@@ -361,6 +368,10 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
               Number(parentOut?.data?.duration) || 0
             )
           : undefined;
+        // Prefer short task_run description for UI progress title (Cursor-style).
+        const uiDescription =
+          String(task.description || '').trim() ||
+          task.prompt.slice(0, 48).trim();
         post('subagent.event', {
           type: event.type,
           taskId: task.id,
@@ -369,6 +380,7 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           status: task.status,
           turn,
           prompt: task.prompt.slice(0, 80),
+          description: uiDescription,
           summary,
           filesChanged:
             task.worktreeSnapshot?.filesChanged ?? stats?.filesChanged,
@@ -393,13 +405,16 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
         postTimeline({
           kind: 'task',
           label: `${kindVerb('task')} · task_run`,
-          detail: task.prompt.slice(0, 80),
+          detail: uiDescription,
           toolName: 'task_run',
           status,
           id: `tl_subagent_${task.id}`,
           turn,
           subagentId: task.id,
-          parentTurnId: task.parentTurnId
+          parentTurnId: task.parentTurnId,
+          description: uiDescription,
+          role: task.role,
+          prompt: task.prompt.slice(0, 80)
         });
       },
       onReasoning: (context) => {
