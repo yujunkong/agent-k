@@ -44,9 +44,11 @@ export type PlanExecuteHostMessage = {
   parentTurnId: string;
   executionPlan: ExecutionPlan;
   repoRoot?: string;
+  /** Tab-scoped Composer runtime (preferred over VS Code globals). */
   model?: string;
   baseUrl?: string;
   apiKey?: string;
+  providerType?: string;
   thinkingEffort?: 'off' | 'low' | 'medium' | 'high' | 'max';
 };
 
@@ -521,7 +523,9 @@ async function resolvePlanExecuteRuntime(message: PlanExecuteHostMessage) {
     message.apiKey != null
       ? String(message.apiKey)
       : cfg.get<string>('provider.apiKey') || undefined;
-  const providerType = String(cfg.get('provider.type') || 'litellm') as
+  const providerType = String(
+    message.providerType || cfg.get('provider.type') || 'litellm'
+  ) as
     | 'litellm'
     | 'openai'
     | 'anthropic'
