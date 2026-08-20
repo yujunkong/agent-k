@@ -355,6 +355,95 @@ export function visibleSubagentChildren(
   return children.filter((child) => child.kind !== 'file');
 }
 
+/**
+ * Explore-run rollup (ported from MessageSteps.tsx summarizeExplored).
+ * Consecutive top-level read/search/generic steps collapse into one
+ * "Explored N files, M searches" line instead of a card per tool call.
+ * File edits / terminal runs / reasoning / subagent groups stay individual
+ * rows — matches the Cursor-style summary (screenshot: Worked / Explored /
+ * Edited as flat lines, cards reserved for special widgets like To-dos).
+ */
+const EXPLORE_ROLLUP_TITLES = new Set(['Read', 'Reading', 'Searched', 'Searching']);
+
+function isExploreRollupCandidate(node: TimelineNode): node is Extract<TimelineNode, { kind: 'step' }> {
+  if (node.kind !== 'step') return false;
+  const { kind, title } = node.step;
+  if (kind === 'tool') return EXPLORE_ROLLUP_TITLES.has(title);
+  // 'generic' tool-shaped steps (e.g. misc host tools) fold in as "other tool"
+  return kind === 'generic';
+}
+
+function summarizeExploreRun(run: TimelineStep[]): TimelineStep {
+  const anyRunning = run.some((s) => s.status === 'running');
+  const anyDone = run.some((s) => s.status === 'completed');
+  const allFailed = run.every((s) => s.status === 'failed');
+  const status: TimelineStepStatus = anyRunning ? 'running' : allFailed ? 'failed' : 'completed';
+  const live = status === 'running';
+  const prefix = live ? 'Exploring' : 'Explored';
+
+  if (status === 'failed' && !anyDone) {
+    return {
+      id: `tl_rollup_${run[0].id}`,
+      kind: 'tool',
+      status,
+      title: run.length === 1 ? `Failed · ${run[0].title}` : `Failed · ${run.length} tools`
+    };
+  }
+
+  let fileCount = 0;
+  let searchCount = 0;
+  let otherCount = 0;
+  for (const s of run) {
+    if (s.title === 'Read' || s.title === 'Reading') fileCount += 1;
+    else if (s.title === 'Searched' || s.title === 'Searching') searchCount += 1;
+    else otherCount += 1;
+  }
+
+  const parts: string[] = [];
+  if (fileCount) parts.push(`${fileCount} ${fileCount === 1 ? 'file' : 'files'}`);
+  if (searchCount) parts.push(`${searchCount} ${searchCount === 1 ? 'search' : 'searches'}`);
+  if (otherCount) parts.push(`${otherCount} other ${otherCount === 1 ? 'tool' : 'tools'}`);
+  const label = parts.length ? parts.join(', ') : `${run.length} ${run.length === 1 ? 'item' : 'items'}`;
+
+  return {
+    id: `tl_rollup_${run[0].id}`,
+    kind: 'tool',
+    status,
+    title: `${prefix} ${label}`
+  };
+}
+
+/**
+ * Collapse consecutive top-level explore-class steps into one rollup row.
+ * Running steps are never buffered — they keep their own id/subtitle so
+ * activeStepId / progressLabel ("Exploring session.ts") stay live and
+ * specific. Only settled (completed/failed) runs collapse into a summary.
+ */
+export function collapseExploreRuns(nodes: TimelineNode[]): TimelineNode[] {
+  const out: TimelineNode[] = [];
+  let buffer: TimelineStep[] = [];
+
+  const flush = () => {
+    if (!buffer.length) return;
+    out.push({
+      kind: 'step',
+      step: buffer.length === 1 ? buffer[0] : summarizeExploreRun(buffer)
+    });
+    buffer = [];
+  };
+
+  for (const node of nodes) {
+    if (isExploreRollupCandidate(node) && node.step.status !== 'running') {
+      buffer.push(node.step);
+    } else {
+      flush();
+      out.push(node);
+    }
+  }
+  flush();
+  return out;
+}
+
 export function countTimelineSteps(nodes: TimelineNode[]): number {
   return nodes.reduce((total, node) => {
     if (node.kind === 'group') {
@@ -425,13 +514,15 @@ export function buildTimelinePresentation(
     ensureGroup(subagentId).children.push(withPreviews(event));
   }
 
-  const finalizedNodes: TimelineNode[] = nodes.map((node) => {
-    if (node.kind !== 'group') return node;
-    return {
-      ...node,
-      subagent: buildSubagentGroupPresentation(node.step, node.children)
-    };
-  });
+  const finalizedNodes: TimelineNode[] = collapseExploreRuns(
+    nodes.map((node) => {
+      if (node.kind !== 'group') return node;
+      return {
+        ...node,
+        subagent: buildSubagentGroupPresentation(node.step, node.children)
+      };
+    })
+  );
 
   const stepCount = countTimelineSteps(finalizedNodes);
   const hasActive = finalizedNodes.some((node) => {

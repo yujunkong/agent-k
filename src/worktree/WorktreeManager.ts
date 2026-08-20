@@ -129,15 +129,16 @@ export class WorktreeManager {
     // Ensure directory exists
     fs.mkdirSync(path.dirname(worktreePath), { recursive: true });
 
-    // Create branch if needed
+    // Create branch if needed. Do not use POSIX `2>/dev/null` — execSync
+    // runs cmd.exe on Windows, which cannot resolve /dev/null.
     try {
-      execSync(`git branch -f ${sanitized} ${baseCommit || 'HEAD'} 2>/dev/null`, {
+      execSync(`git branch -f "${sanitized}" ${baseCommit || 'HEAD'}`, {
         cwd: this.repoRoot, stdio: 'pipe'
       });
     } catch { /* branch may exist */ }
 
-    // Create worktree
-    execSync(`git worktree add ${worktreePath} ${sanitized} 2>/dev/null`, {
+    // Create worktree. stderr is already captured via stdio: 'pipe'.
+    execSync(`git worktree add "${worktreePath}" "${sanitized}"`, {
       cwd: this.repoRoot, stdio: 'pipe'
     });
 
@@ -145,6 +146,7 @@ export class WorktreeManager {
       path: worktreePath,
       branch: sanitized,
       hash: execSync(`git rev-parse HEAD`, { cwd: worktreePath, stdio: 'pipe' }).toString().trim(),
+      detached: false,
       createdAt: Date.now(),
       active: true
     };
@@ -168,7 +170,7 @@ export class WorktreeManager {
    * Remove a worktree
    */
   async remove(worktreePath: string): Promise<void> {
-    execSync(`git worktree remove ${worktreePath} --force 2>/dev/null`, {
+    execSync(`git worktree remove "${worktreePath}" --force`, {
       cwd: this.repoRoot, stdio: 'pipe'
     });
 
@@ -274,7 +276,7 @@ export class WorktreeManager {
         continue;
       }
       try {
-        execSync(`git worktree remove ${fullPath} --force 2>/dev/null`, {
+        execSync(`git worktree remove "${fullPath}" --force`, {
           cwd: this.repoRoot, stdio: 'pipe'
         });
       } catch { /* ignore */ }
