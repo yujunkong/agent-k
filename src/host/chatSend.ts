@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { RuntimeServices } from '../core/RuntimeServices';
 import { configManager } from '../core/ConfigManager';
 import { sessionUsageTracker, updateUsageStatusBar } from './runtimeSingletons';
-import { toolKind, kindVerb, shortDetail, resultDetail } from './timelineLabels';
+import { toolKind, kindVerb, shortDetail, resultDetail, pickExploreDetail } from './timelineLabels';
 import { parseInlineEditAgentRequest } from '../chat/inlineEdit';
 import {
   createSubagentHost,
@@ -455,22 +455,13 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           { success, data: output.data, error: output.error },
           name
         );
-        const exploreKeepStart =
-          kind === 'searching' ||
-          kind === 'reading' ||
-          kind === 'browsing' ||
-          name === 'grep' ||
-          name === 'read_file' ||
-          name === 'read_files' ||
-          name === 'glob' ||
-          name === 'file_search' ||
-          name === 'codebase_search' ||
-          name === 'list_dir';
-        const detail = !success
-          ? endDetail || startDetail
-          : exploreKeepStart && startDetail
-            ? startDetail
-            : endDetail || startDetail;
+        const detail = pickExploreDetail({
+          name,
+          kind,
+          success,
+          startDetail,
+          endDetail
+        });
         postTimeline({
           kind,
           label: success
@@ -950,23 +941,14 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           (callId ? `tl_${String(callId)}` : `tl_tool_${turn}_${name}`);
         const startDetail = toolStartDetails.get(id);
         const endDetail = resultDetail(kind, result, name);
-        // Explore rows keep Grepped/Read args text; failures still show error
-        const exploreKeepStart =
-          kind === 'searching' ||
-          kind === 'reading' ||
-          kind === 'browsing' ||
-          name === 'grep' ||
-          name === 'read_file' ||
-          name === 'read_files' ||
-          name === 'glob' ||
-          name === 'file_search' ||
-          name === 'codebase_search' ||
-          name === 'list_dir';
-        const detail = !result.success
-          ? endDetail || startDetail
-          : exploreKeepStart && startDetail
-            ? startDetail
-            : endDetail || startDetail;
+        // Grep keeps args text; Read upgrades to executed L-window (not whole-file path)
+        const detail = pickExploreDetail({
+          name,
+          kind,
+          success: result.success,
+          startDetail,
+          endDetail
+        });
         toolStartDetails.delete(id);
         postTimeline({
           // Keep explore/action kind so UI groups correctly; status carries failure

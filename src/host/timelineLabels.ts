@@ -1,5 +1,51 @@
 /** Pure timeline label helpers used by runHostChatSend. */
 
+/** Matches executor default window (ContextRules TIER_A defaultReadLines). */
+const DEFAULT_READ_LINES = 250;
+
+function asFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+function fileBasename(path: string): string {
+  const base = path.replace(/\\/g, '/').split('/').filter(Boolean).pop() || path;
+  return base.length > 80 ? `${base.slice(0, 77)}…` : base;
+}
+
+/**
+ * Cursor-style read window: "WorkTimeline.tsx L1-80".
+ * Args (offset/limit) or result (startLine/endLine). Offset omitted → L1 + default window.
+ */
+export function formatReadLineWindow(
+  filePath: string,
+  src: Record<string, unknown> | undefined,
+  fallbackLimit = DEFAULT_READ_LINES
+): string {
+  const base = fileBasename(filePath || 'file');
+  const start =
+    asFiniteNumber(src?.startLine) ??
+    asFiniteNumber(src?.start_line) ??
+    asFiniteNumber(src?.offset) ??
+    1;
+  const endFromResult =
+    asFiniteNumber(src?.endLine) ?? asFiniteNumber(src?.end_line);
+  const limit = asFiniteNumber(src?.limit);
+  const end =
+    endFromResult != null
+      ? endFromResult
+      : limit != null && limit > 0
+        ? start + Math.floor(limit) - 1
+        : start + fallbackLimit - 1;
+  const lo = Math.max(1, Math.floor(start));
+  const hi = Math.max(lo, Math.floor(end));
+  return `${base} L${lo}-${hi}`;
+}
+
 // PRD-C0 §5.3: map tool name → timeline kind
 export const toolKind = (name: string): string => {
   if (
@@ -30,7 +76,7 @@ export const toolKind = (name: string): string => {
   }
   if (name.startsWith('browser_')) return 'browsing';
   if (name === 'ask_question') return 'asking';
-  // Session chrome — not a shell command (MessageSteps hides these)
+  // Session chrome — not a shell command
   if (
     name === 'todo_write' ||
     name === 'switch_mode' ||
@@ -40,7 +86,7 @@ export const toolKind = (name: string): string => {
     return 'session';
   }
   if (name === 'task_run' || name === 'skill_run') return 'task';
-  // Other MCP tools still count as explore/search surface in MessageSteps
+  // Other MCP tools still count as explore/search surface
   if (name.startsWith('mcp_')) return 'searching';
   return 'task';
 };
@@ -109,8 +155,8 @@ export const shortDetail = (
     if (name === 'read_files' && Array.isArray(args.paths) && args.paths.length) {
       const n = args.paths.length;
       const first = String(args.paths[0] ?? '');
-      const base = first.replace(/\\/g, '/').split('/').pop() || first;
-      return n === 1 ? base.slice(0, 80) : `${n} files · ${base.slice(0, 40)}`;
+      const window = formatReadLineWindow(first, args);
+      return n === 1 ? window : `${n} files · ${window}`;
     }
     const file = String(
       args.path ??
@@ -121,30 +167,8 @@ export const shortDetail = (
         ''
     ).trim();
     if (!file) return undefined;
-    const base = file.replace(/\\/g, '/').split('/').pop() || file;
-    const offset =
-      typeof args.offset === 'number'
-        ? args.offset
-        : typeof args.start_line === 'number'
-          ? args.start_line
-          : undefined;
-    const limit =
-      typeof args.limit === 'number'
-        ? args.limit
-        : typeof args.end_line === 'number' && offset != null
-          ? Math.max(0, args.end_line - offset + 1)
-          : undefined;
-    if (offset != null && offset > 0) {
-      const start = offset;
-      const end =
-        limit != null && limit > 0
-          ? start + limit - 1
-          : typeof args.end_line === 'number'
-            ? args.end_line
-            : start + 249;
-      return `${base} L${start}-${end}`;
-    }
-    return base.slice(0, 80);
+    // Always show the window — executor defaults to ~250 lines even without offset.
+    return formatReadLineWindow(file, args);
   }
 
   if (name === 'run_terminal_cmd' || name === 'terminal_output') {
@@ -224,7 +248,14 @@ export const resultDetail = (
       return `${obj.count} file(s)`;
     }
     if (Array.isArray(obj.matches)) return `${obj.matches.length} match(es)`;
-    if (typeof obj.path === 'string') return String(obj.path).slice(0, 80);
+    // read_file result: actual window, never the whole abs path
+    if (
+      (toolName === 'read_file' || toolName === 'read_files') &&
+      (typeof obj.path === 'string' || obj.startLine != null)
+    ) {
+      return formatReadLineWindow(String(obj.path || ''), obj);
+    }
+    if (typeof obj.path === 'string') return fileBasename(String(obj.path));
     if (typeof obj.command === 'string') {
       const cmd = String(obj.command);
       return cmd.length > 60 ? `${cmd.slice(0, 57)}…` : cmd;
@@ -235,3 +266,35 @@ export const resultDetail = (
   if (kind === 'searching') return 'done';
   return undefined;
 };
+
+/** Grep keeps "pattern in path"; reads upgrade to the executed L-window. */
+export function pickExploreDetail(input: {
+  name: string;
+  kind: string;
+  success: boolean;
+  startDetail?: string;
+  endDetail?: string;
+}): string | undefined {
+  const { name, kind, success, startDetail, endDetail } = input;
+  if (!success) return endDetail || startDetail;
+  if (
+    (name === 'read_file' || name === 'read_files') &&
+    endDetail &&
+    /\sL\d/.test(endDetail)
+  ) {
+    return endDetail;
+  }
+  const keepStart =
+    kind === 'searching' ||
+    kind === 'reading' ||
+    kind === 'browsing' ||
+    name === 'grep' ||
+    name === 'read_file' ||
+    name === 'read_files' ||
+    name === 'glob' ||
+    name === 'file_search' ||
+    name === 'codebase_search' ||
+    name === 'list_dir';
+  if (keepStart && startDetail) return startDetail;
+  return endDetail || startDetail;
+}

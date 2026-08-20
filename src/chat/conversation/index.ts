@@ -16,6 +16,8 @@ export { groupWorkTimelineItems } from './groupWorkTimelineItems';
 export {
   buildTimelinePresentation,
   buildSubagentGroupPresentation,
+  collapseExploreRuns,
+  collapseExploreSteps,
   eventToTimelineStep,
   formatProgressLabel,
   subagentHasAggregatedChanges,

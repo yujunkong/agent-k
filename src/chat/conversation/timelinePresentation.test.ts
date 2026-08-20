@@ -166,6 +166,59 @@ describe('timelinePresentation', () => {
     expect(presentation.activeStepId).toBe('tl_read_live');
     expect(presentation.progressLabel).toBe('Exploring session.ts');
     expect(presentation.summary.hasActive).toBe(true);
-    expect(presentation.summary.stepCount).toBe(2);
+    expect(presentation.summary.stepCount).toBe(1);
+    expect(presentation.nodes[0]).toMatchObject({
+      kind: 'explore',
+      step: { title: 'Exploring 1 file, 1 search' }
+    });
+    if (presentation.nodes[0].kind !== 'explore') return;
+    expect(presentation.nodes[0].children.map((c) => c.id)).toEqual([
+      'tl_read_live',
+      'tl_search_done'
+    ]);
+  });
+
+  it('keeps opening thought outside explore and nests mid-thought', () => {
+    const presentation = buildTimelinePresentation([
+      thinking,
+      {
+        id: 'tl_read_1',
+        type: 'read',
+        status: 'complete',
+        label: 'Read',
+        detail: 'login.ts'
+      },
+      {
+        id: 'tl_think_mid',
+        type: 'thinking',
+        status: 'complete',
+        label: 'Thinking',
+        detail: 'Need session next'
+      },
+      {
+        id: 'tl_search_1',
+        type: 'search',
+        status: 'complete',
+        label: 'Search',
+        detail: 'auth'
+      },
+      parentEdit
+    ]);
+    expect(presentation.nodes.map((n) => n.kind)).toEqual(['step', 'explore', 'step']);
+    expect(presentation.nodes[0]).toMatchObject({
+      kind: 'step',
+      step: { id: 'tl_thinking_1', kind: 'reasoning' }
+    });
+    if (presentation.nodes[1].kind !== 'explore') return;
+    expect(presentation.nodes[1].step.title).toBe('Explored 1 file, 1 search');
+    expect(presentation.nodes[1].children.map((c) => c.id)).toEqual([
+      'tl_read_1',
+      'tl_think_mid',
+      'tl_search_1'
+    ]);
+    expect(presentation.nodes[2]).toMatchObject({
+      kind: 'step',
+      step: { id: 'tl_edit_1', kind: 'file' }
+    });
   });
 });

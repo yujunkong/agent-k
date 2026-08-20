@@ -3,6 +3,7 @@ import type { FileEditPreview, TerminalRunPreview } from '../types';
 import { worktreeDiffTotals } from '../conversation/worktreeDiff';
 import { subagentHasAggregatedChanges } from '../conversation/timelinePresentation';
 import { formatSubagentFilesChanged } from '../conversation/subagentResult';
+import { isPlanGenerateStep } from '../planGenerateStep';
 
 /** Visual density for Cursor-style progress hierarchy. */
 export type TimelineStepDensity = 'active' | 'compact' | 'failed';
@@ -27,8 +28,9 @@ const CARD_TITLES: Partial<Record<TimelineStepKind, string>> = {
   file: 'Editing',
   terminal: 'Running command',
   subagent: 'Agent',
-  verify: 'Verifying',
-  generic: 'Working'
+    verify: 'Verifying',
+  generic: 'Working',
+  plan: 'Creating plan'
 };
 
 const CARD_TITLES_COMPLETED: Partial<Record<TimelineStepKind, string>> = {
@@ -38,12 +40,18 @@ const CARD_TITLES_COMPLETED: Partial<Record<TimelineStepKind, string>> = {
   terminal: 'Ran command',
   subagent: 'Agent',
   verify: 'Verified',
-  generic: 'Worked'
+  generic: 'Worked',
+  plan: 'Created plan'
 };
 
 function normalizeToolTitle(raw: string, kind: TimelineStepKind, completed = false): string {
   const titles = completed ? CARD_TITLES_COMPLETED : CARD_TITLES;
   const preset = titles[kind];
+  // Plan DAG rows keep their diagnostic label; only V2 generate uses Creating/Created plan.
+  if (kind === 'plan' && !isPlanGenerateStep({ title: raw, label: raw })) {
+    const head = String(raw || '').split(' · ')[0]?.trim();
+    if (head) return head;
+  }
   if (preset && kind !== 'tool' && kind !== 'generic') return preset;
   const base = String(raw || '').trim();
   if (!base) return preset || (completed ? 'Worked' : 'Working');

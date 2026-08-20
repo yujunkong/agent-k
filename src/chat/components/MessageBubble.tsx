@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { StreamingMarkdown } from '../StreamingMarkdown';
 import { stripFakeToolMarkup } from '../displaySanitize';
 import { attachmentDisplayLabel } from '../attachmentFormat';
-import { MessageSteps } from './MessageSteps';
 import { FileEditPreviewView } from './FileEditPreviewView';
 import { IconCopy, IconEdit, IconFork } from './Icons';
 import { FileTypeIcon } from './FileTypeIcon';
@@ -15,19 +14,6 @@ import {
   type TurnStatus
 } from '../turnState';
 import { extractUnderstandingLead } from '../understandingLead';
-
-const UNIFIED_TIMELINE_STEP_KINDS = new Set([
-  'thinking',
-  'planning',
-  'searching',
-  'reading',
-  'editing',
-  'running',
-  'browsing',
-  'task',
-  'asking',
-  'session'
-]);
 
 /** Phase 5 — index of active status on the linear progress rail (excludes error). */
 function turnStatusRailIndex(status: TurnStatus | null): number {
@@ -69,17 +55,6 @@ function foldLeadIntoBody(lead: string, body: string): string {
     return `${lead} ${body}`.trim();
   }
   return `${lead}${body}`.trim();
-}
-
-function formatWorkedLabel(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 800) return 'Worked briefly';
-  if (ms < 60_000) {
-    const sec = ms / 1000;
-    return `Worked for ${sec >= 10 ? Math.round(sec) : sec.toFixed(1)}s`;
-  }
-  const m = Math.floor(ms / 60_000);
-  const s = Math.round((ms % 60_000) / 1000);
-  return s > 0 ? `Worked for ${m}m ${s}s` : `Worked for ${m}m`;
 }
 
 function resolveWorkedMs(message: any): number {
@@ -147,19 +122,8 @@ export function MessageBubble({
   const rawSteps = Array.isArray(message.steps) ? message.steps : [];
   const hasWorkTimeline =
     Array.isArray(message.workItems) && message.workItems.length > 0;
-  /** Unified WorkTimeline owns thinking + tools — MessageSteps keeps leftover chrome only. */
-  const hideUnifiedSteps = hasWorkTimeline || rawSteps.some(
-    (s: { kind?: string }) => UNIFIED_TIMELINE_STEP_KINDS.has(String(s.kind || ''))
-  );
-  const bubbleSteps = hideUnifiedSteps
-    ? rawSteps.filter(
-        (s: { kind?: string }) => !UNIFIED_TIMELINE_STEP_KINDS.has(String(s.kind || ''))
-      )
-    : rawSteps;
-  const hasSteps = bubbleSteps.length > 0;
   const hasTimelineChrome = rawSteps.length > 0 || hasWorkTimeline;
   const fileEdits = Array.isArray(message.fileEdits) ? message.fileEdits : [];
-  const terminalRuns = Array.isArray(message.terminalRuns) ? message.terminalRuns : [];
   const turnProse = Array.isArray(message.turnProse) ? message.turnProse : [];
 
   /**
@@ -174,28 +138,7 @@ export function MessageBubble({
   const showUnderstandingBox = Boolean(understanding.lead);
   const bodyContent = showUnderstandingBox ? understanding.rest : displayContent;
 
-  const stepsDone =
-    isAssistant &&
-    hasSteps &&
-    !streamBody &&
-    message.status !== 'streaming';
-
-  const stepsHaveError =
-    hasSteps &&
-    (bubbleSteps as Array<{ itemStatus?: string }>).some(
-      (s) => s.itemStatus === 'error'
-    );
-
-  const [workedOpen, setWorkedOpen] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (streamBody || message.status === 'streaming') {
-      setWorkedOpen(true);
-    } else if (stepsDone) {
-      setWorkedOpen(false);
-    }
-  }, [message.id, streamBody, message.status, stepsDone]);
 
   // Keep "Just now" fresh for a few minutes after completion
   useEffect(() => {
@@ -204,7 +147,6 @@ export function MessageBubble({
     return () => window.clearInterval(id);
   }, [streamBody, message.id]);
 
-  const workedLabel = formatWorkedLabel(resolveWorkedMs(message));
   const completedAt =
     typeof message.timestamp === 'number' && message.timestamp > 0
       ? message.timestamp + (resolveWorkedMs(message) || 0)
@@ -222,26 +164,7 @@ export function MessageBubble({
       .join('\n\n') || displayContent;
 
   /**
-   * Timeline only — final/streaming answer always renders BELOW in the bubble
-   * so Worked collapse never swallows the reply.
-   */
-  const stepsBlock = hasSteps ? (
-    <MessageSteps
-      steps={bubbleSteps}
-      fileEdits={hasSteps ? fileEdits : []}
-      terminalRuns={hasSteps ? terminalRuns : []}
-      turnProse={turnProse}
-      isStreaming={streamBody}
-      onOpenFile={onOpenFile}
-      onAcceptFile={onAcceptFile}
-      onRejectFile={onRejectFile}
-    />
-  ) : null;
-
-  /**
-   * Final answer under the timeline. Mid-dig self-talk is in Thought;
-   * opening leads render inside MessageSteps — do not dump turnProse here
-   * when a tool timeline exists (that hid real replies earlier).
+   * Final answer under the timeline. Mid-dig self-talk lives in WorkTimeline Thought.
    */
   const sealedProseFallback = turnProse
     .map((p: { content: string }) => String(p.content || '').trim())
@@ -251,7 +174,7 @@ export function MessageBubble({
   const assistantBodyText =
     bodyContent.trim() ||
     planBody ||
-    (stepsDone && !streamBody && !hasSteps ? sealedProseFallback : '');
+    (!streamBody && !hasTimelineChrome ? sealedProseFallback : '');
   const showAssistantBody = Boolean(isAssistant && assistantBodyText);
   const missionAborted =
     isAssistant &&
@@ -311,7 +234,7 @@ export function MessageBubble({
         - linear progress rail (TURN_STATUS_ORDER)
         - current phase label
         - understanding box as the first card under the rail
-        MessageSteps grouping (Thought / Exploring / actions) continues below.
+        WorkTimeline owns Thought / Exploring / actions.
       */}
       {showPhaseChrome && turnStatus ? (
         <div
@@ -359,35 +282,8 @@ export function MessageBubble({
         </div>
       ) : null}
 
-      {/* 1) Timeline / Worked — tools & thoughts only (MessageSteps grouping) */}
-      {stepsDone ? (
-        <div
-          className={[
-            'ak-worked',
-            workedOpen ? 'ak-worked--open' : '',
-            stepsHaveError ? 'ak-worked--error' : ''
-          ]
-            .filter(Boolean)
-            .join(' ')}
-        >
-          <button
-            type="button"
-            className="ak-worked__toggle"
-            onClick={() => setWorkedOpen((v) => !v)}
-            aria-expanded={workedOpen}
-          >
-            <span className="ak-worked__label">{workedLabel}</span>
-            <span className="ak-worked__chevron" aria-hidden>
-              ▾
-            </span>
-          </button>
-          {workedOpen ? (
-            <div className="ak-worked__body">{stepsBlock}</div>
-          ) : null}
-        </div>
-      ) : hasSteps ? (
-        stepsBlock
-      ) : fileEdits.length > 0 ? (
+      {/* File edits only when WorkTimeline has no work items (legacy). */}
+      {!hasWorkTimeline && fileEdits.length > 0 ? (
         <div className="ak-file-edits" style={{ margin: '4px 0 8px' }}>
           {fileEdits.map((fe: FileEditPreview) => (
             <FileEditPreviewView

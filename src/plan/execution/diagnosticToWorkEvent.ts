@@ -92,8 +92,13 @@ function detailForEvent(event: AnyPlanDiagnosticEvent): string | undefined {
  * (e.g. task.ready is useful for tracing but not for UI rows).
  */
 export function diagnosticToWorkEvent(event: AnyPlanDiagnosticEvent): ConversationWorkEvent | null {
-  // Skip events that are trace-only (not useful as UI rows)
-  if (event.type === 'plan.task.ready') return null;
+  // Progress/dispatch live in the Executing N/M bar. WorkTimeline shows tools + failures.
+  const keep =
+    event.type === 'plan.task.failed' ||
+    event.type === 'plan.task.blocked' ||
+    event.type === 'plan.task.cancelled' ||
+    event.type === 'plan.execution.failed';
+  if (!keep) return null;
 
   const isTerminal = event.status === 'ok' || event.status === 'error' || event.status === 'blocked' || event.status === 'cancelled';
 

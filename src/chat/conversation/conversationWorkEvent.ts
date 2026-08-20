@@ -9,6 +9,8 @@ import {
   mergeSubagentResult,
   parseSubagentResult
 } from './subagentResult';
+import { PLAN_V2_GENERATE_STEP_ID } from '../planGenerateStep';
+import { shortDetail } from '../../host/timelineLabels';
 
 export type { SubagentResult } from './subagentResult';
 export { clipSubagentSummary } from './subagentResult';
@@ -31,6 +33,8 @@ export type ConversationWorkEvent = {
   type: ConversationWorkType;
   status: ConversationWorkStatus;
   label: string;
+  /** Host tool name — Grepped vs Searched, line-range read detail, etc. */
+  toolName?: string;
   detail?: string;
   startedAt?: number;
   completedAt?: number;
@@ -156,47 +160,12 @@ export function workStatusFromHost(
   return 'running';
 }
 
+/** Cursor-style detail — line ranges (L10-50), "pattern in path" for grep, etc. */
 export function detailFromToolArgs(
   toolName: string,
   args: Record<string, unknown> | undefined
 ): string | undefined {
-  if (!args) return undefined;
-  const name = toolName.toLowerCase();
-
-  if (name === 'grep') {
-    const pattern = String(args.pattern ?? args.query ?? '').trim();
-    return pattern || undefined;
-  }
-  if (name === 'glob' || name === 'file_search') {
-    const pattern = String(args.glob_pattern ?? args.pattern ?? args.query ?? '').trim();
-    return pattern || undefined;
-  }
-  if (name === 'read_files' && Array.isArray(args.paths) && args.paths.length) {
-    const first = String(args.paths[0] ?? '');
-    const base = first.replace(/\\/g, '/').split('/').pop() || first;
-    return args.paths.length === 1 ? base : `${args.paths.length} files · ${base}`;
-  }
-  if (name === 'run_terminal_cmd' || name === 'terminal_output') {
-    const cmd = String(args.command ?? args.cmd ?? args.description ?? '').trim();
-    return cmd ? (cmd.length > 80 ? `${cmd.slice(0, 77)}…` : cmd) : undefined;
-  }
-
-  const pick =
-    args.path ??
-    args.target_file ??
-    args.file_path ??
-    args.filepath ??
-    args.file ??
-    args.target ??
-    args.glob_pattern ??
-    args.pattern ??
-    args.query ??
-    args.command ??
-    args.url;
-  if (pick == null) return undefined;
-  const s = String(pick).replace(/\\/g, '/');
-  const base = s.split('/').filter(Boolean).pop() || s;
-  return base.length > 80 ? `${base.slice(0, 77)}…` : base;
+  return shortDetail(toolName, args);
 }
 
 export function beginWorkEvent(input: {
@@ -214,6 +183,7 @@ export function beginWorkEvent(input: {
     type,
     status: 'running',
     label: WORK_TYPE_LABEL[type],
+    toolName: input.toolName,
     detail: input.detail,
     startedAt: now
   };
@@ -263,6 +233,7 @@ export function upsertWorkEvents(
     ...incoming,
     type: incoming.type || prev.type,
     label: incoming.label || prev.label,
+    toolName: incoming.toolName ?? prev.toolName,
     detail: incoming.detail ?? prev.detail,
     startedAt: prev.startedAt ?? incoming.startedAt,
     completedAt: incoming.completedAt ?? prev.completedAt,
@@ -429,6 +400,7 @@ export function workEventFromHostPayload(
     type,
     status,
     label: WORK_TYPE_LABEL[type],
+    toolName,
     detail: rawDetail,
     startedAt: status === 'complete' || status === 'error' ? undefined : now,
     completedAt: status === 'complete' || status === 'error' ? now : undefined,
@@ -462,6 +434,16 @@ export function workEventsFromLegacySteps(
   const out: ConversationWorkEvent[] = [];
   for (const [index, step] of steps.entries()) {
     const kind = String(step.kind || '');
+    if (step.id === PLAN_V2_GENERATE_STEP_ID) {
+      const status = workStatusFromHost(step.status || step.itemStatus);
+      out.push({
+        id: PLAN_V2_GENERATE_STEP_ID,
+        type: 'plan',
+        status,
+        label: step.label || WORK_TYPE_LABEL.plan
+      });
+      continue;
+    }
     if (!LEGACY_WORK_KINDS.has(kind)) continue;
     const type = classifyWorkType(step.toolName, kind);
     if (!type) continue;
@@ -471,6 +453,7 @@ export function workEventsFromLegacySteps(
       type,
       status,
       label: WORK_TYPE_LABEL[type],
+      toolName: step.toolName,
       detail: step.detail
     });
   }

@@ -32,6 +32,11 @@ import {
   type AnyPlanDiagnosticEvent
 } from '../plan/execution/executionDiagnostics';
 import { toObservedToolCall } from '../plan/v2/toObservedToolCall';
+import {
+  workEventFromHostPayload,
+  type HostWorkPayload
+} from '../chat/conversation/conversationWorkEvent';
+import { toolKind, shortDetail, resultDetail, pickExploreDetail } from './timelineLabels';
 
 export type PlanExecuteHostMessage = {
   requestId: string;
@@ -47,6 +52,24 @@ export type PlanExecuteHostMessage = {
 export type PlanExecuteHostContext = {
   webview: vscode.Webview | undefined;
 };
+
+type PlanPost = (type: string, extra?: Record<string, unknown>) => void;
+
+function toolWorkId(
+  name: string,
+  callId: string | undefined,
+  subagentId?: string,
+  taskId?: string
+): string {
+  const key = callId && String(callId).trim() ? String(callId) : name;
+  if (subagentId) return `tl_sub_${subagentId}_${key}`;
+  return `tl_plan_${taskId || 'main'}_${key}`;
+}
+
+function emitPlanWork(post: PlanPost, payload: HostWorkPayload, fallback?: 'running' | 'complete' | 'error') {
+  const workEvent = workEventFromHostPayload(payload, fallback);
+  if (workEvent) post('plan.execution.workEvent', { workEvent });
+}
 
 export async function runHostPlanExecute(
   ctx: PlanExecuteHostContext,
@@ -104,6 +127,7 @@ export async function runHostPlanExecute(
     }
 
     const toolArgsByCallId = new Map<string, Record<string, unknown>>();
+    const toolStartDetails = new Map<string, string>();
 
     const postToolEvidence = (name: string, args: Record<string, unknown>, success: boolean) => {
       post('plan.toolEvidence', {
@@ -111,6 +135,95 @@ export async function runHostPlanExecute(
         args,
         success
       });
+    };
+
+    const emitToolStart = (
+      name: string,
+      args: Record<string, unknown>,
+      callId: string | undefined,
+      extra: { subagentId?: string; parentTurnId?: string; taskId?: string }
+    ) => {
+      const kind = toolKind(name);
+      const detail = shortDetail(name, args);
+      const id = toolWorkId(name, callId, extra.subagentId, extra.taskId);
+      if (detail) toolStartDetails.set(id, detail);
+      emitPlanWork(
+        post,
+        {
+          id,
+          toolName: name,
+          kind,
+          detail,
+          status: 'running',
+          subagentId: extra.subagentId,
+          parentTurnId: extra.parentTurnId
+        },
+        'running'
+      );
+    };
+
+    const emitToolEnd = (
+      name: string,
+      result: unknown,
+      callId: string | undefined,
+      extra: { subagentId?: string; parentTurnId?: string; taskId?: string }
+    ) => {
+      const kind = toolKind(name);
+      const id = toolWorkId(name, callId, extra.subagentId, extra.taskId);
+      const startDetail = toolStartDetails.get(id);
+      toolStartDetails.delete(id);
+      const output =
+        result && typeof result === 'object'
+          ? (result as { success?: boolean; data?: unknown; error?: string })
+          : {};
+      const success = output.success !== false;
+      const endDetail = resultDetail(
+        kind,
+        { success, data: output.data, error: output.error },
+        name
+      );
+      const detail = pickExploreDetail({
+        name,
+        kind,
+        success,
+        startDetail,
+        endDetail
+      });
+      emitPlanWork(
+        post,
+        {
+          id,
+          toolName: name,
+          kind,
+          detail,
+          error: success ? undefined : output.error,
+          status: success ? 'complete' : 'error',
+          subagentId: extra.subagentId,
+          parentTurnId: extra.parentTurnId
+        },
+        success ? 'complete' : 'error'
+      );
+    };
+
+    const emitReasoning = (
+      text: string,
+      extra: { subagentId?: string; parentTurnId?: string; taskId?: string }
+    ) => {
+      const id = extra.subagentId
+        ? `tl_sub_${extra.subagentId}_thought`
+        : `tl_plan_${extra.taskId || 'main'}_thought`;
+      emitPlanWork(
+        post,
+        {
+          id,
+          kind: 'thinking',
+          detail: text,
+          status: 'running',
+          subagentId: extra.subagentId,
+          parentTurnId: extra.parentTurnId
+        },
+        'running'
+      );
     };
 
     const subagentHost = createSubagentHost({
@@ -134,9 +247,22 @@ export async function runHostPlanExecute(
           thinkingEffort: runtime.thinkingEffort,
           workspaceRoot: cwd,
           onAssistantDelta: hooks.onAssistantDelta,
-          onReasoning: hooks.onReasoning,
+          onReasoning: async (text) => {
+            emitReasoning(text, {
+              subagentId: context.task.id,
+              parentTurnId: context.task.parentTurnId,
+              taskId: context.task.id
+            });
+            await hooks.onReasoning?.(text);
+          },
           onToolCall: async (name, args, callId) => {
-            toolArgsByCallId.set(callId || name, (args as Record<string, unknown>) || {});
+            const rec = (args as Record<string, unknown>) || {};
+            toolArgsByCallId.set(callId || name, rec);
+            emitToolStart(name, rec, callId, {
+              subagentId: context.task.id,
+              parentTurnId: context.task.parentTurnId,
+              taskId: context.task.id
+            });
             await hooks.onToolCall?.(name, args, callId);
           },
           onToolResult: async (name, result, callId) => {
@@ -147,6 +273,11 @@ export async function runHostPlanExecute(
             const args = toolArgsByCallId.get(callId || name) || {};
             toolArgsByCallId.delete(callId || name);
             postToolEvidence(name, args, output.success !== false);
+            emitToolEnd(name, result, callId, {
+              subagentId: context.task.id,
+              parentTurnId: context.task.parentTurnId,
+              taskId: context.task.id
+            });
             await hooks.onToolResult?.(name, result, callId);
           },
           onAskQuestion: (q) => {
@@ -268,7 +399,10 @@ export async function runHostPlanExecute(
           plan,
           task,
           runtime,
-          postToolEvidence
+          postToolEvidence,
+          emitToolStart,
+          emitToolEnd,
+          emitReasoning
         }),
       hooks
     });
@@ -285,6 +419,22 @@ async function runMainPlanTaskOnHost(input: {
   task: ExecutionPlanTask;
   runtime: ResolvedPlanExecuteRuntime;
   postToolEvidence: (name: string, args: Record<string, unknown>, success: boolean) => void;
+  emitToolStart: (
+    name: string,
+    args: Record<string, unknown>,
+    callId: string | undefined,
+    extra: { subagentId?: string; parentTurnId?: string; taskId?: string }
+  ) => void;
+  emitToolEnd: (
+    name: string,
+    result: unknown,
+    callId: string | undefined,
+    extra: { subagentId?: string; parentTurnId?: string; taskId?: string }
+  ) => void;
+  emitReasoning: (
+    text: string,
+    extra: { subagentId?: string; parentTurnId?: string; taskId?: string }
+  ) => void;
 }): Promise<{ success: boolean; error?: string }> {
   const repoRoot = getWorkspaceRoot();
   if (!repoRoot) {
@@ -292,6 +442,7 @@ async function runMainPlanTaskOnHost(input: {
   }
 
   const toolArgsByCallId = new Map<string, Record<string, unknown>>();
+  const extra = { taskId: input.task.id, parentTurnId: input.task.id };
   const loop = new input.runtime.AgentLoopController({
     mode: 'agent',
     maxTurns: input.runtime.maxTurns,
@@ -303,8 +454,13 @@ async function runMainPlanTaskOnHost(input: {
     provider: input.runtime.provider,
     thinkingEffort: input.runtime.thinkingEffort,
     workspaceRoot: repoRoot,
+    onReasoning: async (text) => {
+      input.emitReasoning(text, extra);
+    },
     onToolCall: async (name, args, callId) => {
-      toolArgsByCallId.set(callId || name, (args as Record<string, unknown>) || {});
+      const rec = (args as Record<string, unknown>) || {};
+      toolArgsByCallId.set(callId || name, rec);
+      input.emitToolStart(name, rec, callId, extra);
     },
     onToolResult: async (name, result, callId) => {
       const output =
@@ -314,6 +470,7 @@ async function runMainPlanTaskOnHost(input: {
       const args = toolArgsByCallId.get(callId || name) || {};
       toolArgsByCallId.delete(callId || name);
       input.postToolEvidence(name, args, output.success !== false);
+      input.emitToolEnd(name, result, callId, extra);
     },
     runSubagent: async () => ({
       success: false,

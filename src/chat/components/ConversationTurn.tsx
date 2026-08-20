@@ -65,6 +65,7 @@ export function ConversationTurn(props: ConversationTurnProps) {
           message={message}
           workItems={workItems}
           changes={changes}
+          isStreaming={streaming}
           onOpenFile={onOpenFile}
           onAcceptFile={onAcceptFile}
           onRejectFile={onRejectFile}

@@ -1739,7 +1739,7 @@ body {
   word-break: break-word;
 }
 
-/* Live phase: slightly tighter gap before MessageSteps / answer */
+/* Live phase: slightly tighter gap before WorkTimeline / answer */
 .message-bubble--live-phase .message-steps {
   margin-top: 2px;
 }
@@ -1808,6 +1808,11 @@ body {
 .ak-worked__body .ak-file-edits-inline,
 .ak-worked__body .ak-terminal-runs-inline {
   margin-left: 0;
+}
+
+.ak-worked__body .ak-work-timeline__items {
+  margin-left: 0;
+  padding-left: var(--ak-thread-inset, 12px);
 }
 
 /* Diff / terminal cards stick under Edited / Ran (not after wrap-up prose) */

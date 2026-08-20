@@ -220,8 +220,8 @@ suite('Plan execution — diagnostics', () => {
     assert.ok(line.includes('FILE_NOT_FOUND'));
   });
 
-  test('diagnosticToWorkEvent converts task events to ConversationWorkEvent', () => {
-    const event: AnyPlanDiagnosticEvent = {
+  test('diagnosticToWorkEvent skips progress rows — WorkTimeline owns tools', () => {
+    const started: AnyPlanDiagnosticEvent = {
       type: 'plan.task.started',
       turnId: 'turn-1',
       planId: 'plan-1',
@@ -233,11 +233,28 @@ suite('Plan execution — diagnostics', () => {
       status: 'running',
       metadata: { execution: 'subagent', title: 'Implement auth' }
     };
+    assert.strictEqual(diagnosticToWorkEvent(started), null);
+  });
+
+  test('diagnosticToWorkEvent keeps task.failed for the timeline', () => {
+    const event: AnyPlanDiagnosticEvent = {
+      type: 'plan.task.failed',
+      turnId: 'turn-1',
+      planId: 'plan-1',
+      executionId: 'exec-1',
+      taskId: 't1',
+      taskIndex: 0,
+      taskCount: 3,
+      timestamp: Date.now(),
+      status: 'error',
+      metadata: {
+        failure: { category: 'subagent', code: 'X', message: 'boom', retryable: false }
+      }
+    };
     const workEvent = diagnosticToWorkEvent(event);
     assert.ok(workEvent);
     assert.strictEqual(workEvent.type, 'plan');
-    assert.strictEqual(workEvent.status, 'running');
-    assert.ok(workEvent.label.includes('Implement auth'));
+    assert.strictEqual(workEvent.status, 'error');
     assert.strictEqual(workEvent.executionId, 'exec-1');
     assert.strictEqual(workEvent.taskId, 't1');
   });

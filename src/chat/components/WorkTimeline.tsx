@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   buildTimelinePresentation,
+  collapseExploreSteps,
   type TimelineNode,
   type TimelineStep,
   type TimelineStepStatus,
@@ -10,6 +11,8 @@ import {
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 import { TimelineStepCard } from './TimelineStepCard';
 import { SubagentChangesCard } from './SubagentChangesCard';
+import { ExploreRunRow, PlanningTailRow, ThoughtRow } from './ExploreChrome';
+import { isPlanGenerateStep, PLAN_V2_GENERATE_STEP_ID } from '../planGenerateStep';
 import { isPendingInlineEdit } from '../inlineEditReview';
 import { FileEditPreviewView } from './FileEditPreviewView';
 import { TerminalRunCard } from './TerminalRunCard';
@@ -28,6 +31,10 @@ export interface WorkTimelineProps {
   terminalRuns?: TerminalRunPreview[];
   defaultOpen?: boolean;
   title?: string;
+  /** Turn still streaming — show Planning tail when idle between tools */
+  isStreaming?: boolean;
+  /** Elapsed work ms for settled "Worked for Xs" label */
+  workedDurationMs?: number;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
@@ -36,8 +43,32 @@ export interface WorkTimelineProps {
   onWorktreeReject?: (subagentId: string) => void;
 }
 
-function stepsLabel(count: number): string {
-  return count === 1 ? '1 step' : `${count} steps`;
+/** Thought chevron is reasoning / plan-generate only — DAG diagnostics are cards. */
+function isThoughtChrome(step: TimelineStep): boolean {
+  return step.kind === 'reasoning' || isPlanGenerateStep(step);
+}
+
+/** Cursor-style settled turn duration (ported from MessageBubble). */
+function formatWorkedLabel(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 800) return 'Worked briefly';
+  if (ms < 60_000) {
+    const sec = ms / 1000;
+    return `Worked for ${sec >= 10 ? Math.round(sec) : sec.toFixed(1)}s`;
+  }
+  const m = Math.floor(ms / 60_000);
+  const s = Math.round((ms % 60_000) / 1000);
+  return s > 0 ? `Worked for ${m}m ${s}s` : `Worked for ${m}m`;
+}
+
+function resolveWorkedMs(items: ConversationWorkEvent[], override?: number): number {
+  if (typeof override === 'number' && override >= 0) return override;
+  let sum = 0;
+  for (const item of items) {
+    if (item.startedAt != null && item.completedAt != null) {
+      sum += Math.max(0, item.completedAt - item.startedAt);
+    }
+  }
+  return sum;
 }
 
 function stepStatusClass(status: TimelineStepStatus): string {
@@ -153,17 +184,19 @@ function SubagentTimelineGroup({
       </TimelineStepCard>
       {visibleChildren.length > 0 ? (
         <div className="ak-work-subagent__children">
-          {visibleChildren.map((child) => (
-            <WorkTimelineStepRow
-              key={child.id}
-              step={child}
-              activeStepId={activeStepId}
-              compactFileEdit={node.subagent.compactFileEdits && child.kind === 'file'}
-              onOpenFile={onOpenFile}
-              onAcceptFile={onAcceptFile}
-              onRejectFile={onRejectFile}
-            />
-          ))}
+          {collapseExploreSteps(visibleChildren).map((child) =>
+            renderTimelineNode(
+              child,
+              activeStepId,
+              onOpenFile,
+              onAcceptFile,
+              onRejectFile,
+              undefined,
+              undefined,
+              undefined,
+              node.subagent.compactFileEdits
+            )
+          )}
         </div>
       ) : null}
     </div>
@@ -178,7 +211,8 @@ function renderTimelineNode(
   onRejectFile?: (file: FileEditPreview) => void,
   onWorktreeReview?: (subagentId: string) => void,
   onWorktreeApply?: (subagentId: string) => void,
-  onWorktreeReject?: (subagentId: string) => void
+  onWorktreeReject?: (subagentId: string) => void,
+  compactFileEdit?: boolean
 ): React.ReactNode {
   if (node.kind === 'group') {
     return (
@@ -196,11 +230,32 @@ function renderTimelineNode(
     );
   }
 
+  if (node.kind === 'explore') {
+    // Exploring/Explored 묶음 — 카드가 아니라 MessageSteps식 chevron 행
+    const live = node.step.status === 'running' || node.children.some((c) => c.status === 'running');
+    const hasError =
+      node.step.status === 'failed' || node.children.some((c) => c.status === 'failed');
+    return (
+      <ExploreRunRow
+        key={node.step.id}
+        title={node.step.title}
+        childrenSteps={node.children}
+        live={live}
+        hasError={hasError}
+      />
+    );
+  }
+
+  if (isThoughtChrome(node.step)) {
+    return <ThoughtRow key={node.step.id} step={node.step} />;
+  }
+
   return (
     <WorkTimelineStepRow
       key={node.step.id}
       step={node.step}
       activeStepId={activeStepId}
+      compactFileEdit={compactFileEdit}
       onOpenFile={onOpenFile}
       onAcceptFile={onAcceptFile}
       onRejectFile={onRejectFile}
@@ -215,6 +270,8 @@ export function WorkTimeline({
   terminalRuns = [],
   defaultOpen = false,
   title,
+  isStreaming = false,
+  workedDurationMs,
   onOpenFile,
   onAcceptFile,
   onRejectFile,
@@ -226,52 +283,81 @@ export function WorkTimeline({
   const presentation = buildTimelinePresentation(items, { fileEdits, terminalRuns });
   const { summary: timelineSummary } = presentation;
   const pendingInline = fileEdits.some(isPendingInlineEdit);
-  const [open, setOpen] = useState(
-    defaultOpen || timelineSummary.hasActive || pendingInline
-  );
+  const live = timelineSummary.hasActive || isStreaming;
+  const settled = !timelineSummary.hasActive && !isStreaming;
+  const [workedOpen, setWorkedOpen] = useState(defaultOpen || timelineSummary.hasActive || pendingInline);
 
   useEffect(() => {
-    setOpen(timelineSummary.hasActive || pendingInline);
-  }, [timelineSummary.hasActive, pendingInline]);
+    if (isStreaming || timelineSummary.hasActive || pendingInline) {
+      setWorkedOpen(true);
+    } else if (settled) {
+      setWorkedOpen(false);
+    }
+  }, [isStreaming, timelineSummary.hasActive, pendingInline, settled]);
 
-  const summary = title
-    ? title
-    : timelineSummary.hasActive
-      ? presentation.progressLabel || `Working…`
-      : `${stepsLabel(timelineSummary.stepCount)} completed`;
+  // Idle between tool rounds — same tail as legacy MessageSteps
+  const showPlanningTail = isStreaming && !timelineSummary.hasActive;
+  const planGenRunning = items.some(
+    (e) => e.id === PLAN_V2_GENERATE_STEP_ID && e.status === 'running'
+  );
+  const planningTailTitle = planGenRunning ? 'Creating plan' : 'Planning next moves';
 
-  return (
-    <details
-      className="ak-work-timeline"
-      open={timelineSummary.hasActive || pendingInline || open}
-      onToggle={(event) => {
-        if (timelineSummary.hasActive) return;
-        setOpen((event.currentTarget as HTMLDetailsElement).open);
-      }}
-    >
-      <summary className="ak-work-timeline__summary">
-        <span
-          className="ak-work-timeline__marker"
-          data-active={timelineSummary.hasActive ? 'true' : undefined}
+  const workedLabel = title || formatWorkedLabel(resolveWorkedMs(items, workedDurationMs));
+
+  const itemNodes = (
+    <>
+      {presentation.nodes.map((node) =>
+        renderTimelineNode(
+          node,
+          presentation.activeStepId,
+          onOpenFile,
+          onAcceptFile,
+          onRejectFile,
+          onWorktreeReview,
+          onWorktreeApply,
+          onWorktreeReject
+        )
+      )}
+      {showPlanningTail ? <PlanningTailRow title={planningTailTitle} /> : null}
+    </>
+  );
+
+  // Settled — collapse under "Worked for Xs" (Cursor-style)
+  if (settled) {
+    return (
+      <div
+        className={[
+          'ak-worked',
+          workedOpen ? 'ak-worked--open' : '',
+          timelineSummary.hasError ? 'ak-worked--error' : ''
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        <button
+          type="button"
+          className="ak-worked__toggle"
+          onClick={() => setWorkedOpen((v) => !v)}
+          aria-expanded={workedOpen}
         >
-          {timelineSummary.hasActive ? '●' : timelineSummary.hasError ? '×' : '✓'}
-        </span>
-        <span className="ak-work-timeline__title">{summary}</span>
-      </summary>
-      <div className="ak-work-timeline__items">
-        {presentation.nodes.map((node) =>
-          renderTimelineNode(
-            node,
-            presentation.activeStepId,
-            onOpenFile,
-            onAcceptFile,
-            onRejectFile,
-            onWorktreeReview,
-            onWorktreeApply,
-            onWorktreeReject
-          )
-        )}
+          <span className="ak-worked__chevron" aria-hidden>
+            {workedOpen ? '▾' : '▸'}
+          </span>
+          <span className="ak-worked__label">{workedLabel}</span>
+        </button>
+        {workedOpen ? (
+          <div className="ak-worked__body">
+            <div className="ak-work-timeline__items">{itemNodes}</div>
+          </div>
+        ) : null}
       </div>
-    </details>
+    );
+  }
+
+  // Live — sequential rows at the bottom (no outer summary chrome)
+  return (
+    <div className={['ak-work-timeline', live ? 'ak-work-timeline--live' : ''].filter(Boolean).join(' ')}>
+      <div className="ak-work-timeline__items">{itemNodes}</div>
+    </div>
   );
 }

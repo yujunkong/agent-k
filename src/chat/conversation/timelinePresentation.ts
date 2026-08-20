@@ -37,6 +37,7 @@ export type TimelineStepKind =
   | 'terminal'
   | 'subagent'
   | 'verify'
+  | 'plan'
   | 'generic';
 
 export type TimelineStepStatus = 'running' | 'completed' | 'failed';
@@ -48,6 +49,10 @@ export type TimelineStep = {
   kind: TimelineStepKind;
   status: TimelineStepStatus;
   title: string;
+  /** Host tool name — Grepped/Grepping vs Searched/Searching */
+  toolName?: string;
+  /** Elapsed ms when settled — Thought for 2s */
+  durationMs?: number;
   /** Primary context line — file path, search query, command snippet */
   subtitle?: string;
   /** Expandable secondary body — reasoning text, error detail */
@@ -62,6 +67,11 @@ export type TimelineStep = {
 
 export type TimelineNode =
   | { kind: 'step'; step: TimelineStep }
+  | {
+      kind: 'explore';
+      step: TimelineStep;
+      children: TimelineStep[];
+    }
   | {
       kind: 'group';
       step: TimelineStep;
@@ -113,6 +123,8 @@ export function mapWorkTypeToStepKind(
       return 'subagent';
     case 'verify':
       return 'verify';
+    case 'plan':
+      return 'plan';
     case 'read':
     case 'search':
       return 'tool';
@@ -130,6 +142,9 @@ function stepTitle(event: ConversationWorkEvent): string {
     return event.status === 'complete' ? 'Read' : 'Reading';
   }
   if (event.type === 'search') {
+    if (event.toolName === 'grep') {
+      return event.status === 'complete' ? 'Grepped' : 'Grepping';
+    }
     return event.status === 'complete' ? 'Searched' : 'Searching';
   }
   if (event.type === 'edit') {
@@ -165,13 +180,19 @@ export function eventToTimelineStep(
   }
 ): TimelineStep {
   const fields = buildStepFields(event);
+  const durationMs =
+    event.startedAt != null && event.completedAt != null
+      ? Math.max(0, event.completedAt - event.startedAt)
+      : undefined;
   const step: TimelineStep = {
     id: event.id,
     kind: mapWorkTypeToStepKind(event.type),
     status: mapWorkStatusToStepStatus(event.status),
     title: fields.title,
+    toolName: event.toolName,
     subtitle: fields.subtitle,
     body: fields.body,
+    durationMs,
     ref: event.ref,
     subagentId: event.subagentId,
     result: event.result
@@ -235,13 +256,15 @@ export function groupTimelineSteps(events: ConversationWorkEvent[] = []): Timeli
     ensureGroup(subagentId).children.push(eventToTimelineStep(event));
   }
 
-  return nodes.map((node) => {
-    if (node.kind !== 'group') return node;
-    return {
-      ...node,
-      subagent: buildSubagentGroupPresentation(node.step, node.children)
-    };
-  });
+  return collapseExploreRuns(
+    nodes.map((node) => {
+      if (node.kind !== 'group') return node;
+      return {
+        ...node,
+        subagent: buildSubagentGroupPresentation(node.step, node.children)
+      };
+    })
+  );
 }
 
 export function findActiveStepId(nodes: TimelineNode[]): string | undefined {
@@ -249,7 +272,7 @@ export function findActiveStepId(nodes: TimelineNode[]): string | undefined {
   // not just a long-running subagent header.
   let fallback: string | undefined;
   for (const node of nodes) {
-    if (node.kind === 'group') {
+    if (node.kind === 'group' || node.kind === 'explore') {
       for (const child of node.children) {
         if (child.status === 'running') return child.id;
       }
@@ -268,7 +291,7 @@ function findStepById(
   if (!id) return undefined;
   for (const node of nodes) {
     if (node.step.id === id) return node.step;
-    if (node.kind === 'group') {
+    if (node.kind === 'group' || node.kind === 'explore') {
       const child = node.children.find((entry) => entry.id === id);
       if (child) return child;
     }
@@ -298,7 +321,8 @@ export function formatProgressLabel(step: TimelineStep | undefined): string | un
     terminal: 'Running',
     tool: 'Exploring',
     verify: 'Verifying',
-    generic: 'Working'
+    generic: 'Working',
+    plan: 'Creating'
   };
   const action = ACTION_MAP[step.kind] || step.title || 'Working';
   const target = step.subtitle || step.fileEdit?.path || step.terminalRun?.command;
@@ -356,57 +380,71 @@ export function visibleSubagentChildren(
 }
 
 /**
- * Explore-run rollup (ported from MessageSteps.tsx summarizeExplored).
- * Consecutive top-level read/search/generic steps collapse into one
- * "Explored N files, M searches" line instead of a card per tool call.
- * File edits / terminal runs / reasoning / subagent groups stay individual
- * rows — matches the Cursor-style summary (screenshot: Worked / Explored /
- * Edited as flat lines, cards reserved for special widgets like To-dos).
+ * Explore-run grouping (ported from MessageSteps Exploring/Explored chrome).
+ * Consecutive read/search/generic tools — and reasoning between them — collapse
+ * into one expandable row. Opening Thought stays a standalone step. File edits,
+ * terminal, verify, plan, and subagent groups flush the buffer.
  */
-const EXPLORE_ROLLUP_TITLES = new Set(['Read', 'Reading', 'Searched', 'Searching']);
+function isExploreBoundary(step: TimelineStep): boolean {
+  return (
+    step.kind === 'file' ||
+    step.kind === 'terminal' ||
+    step.kind === 'subagent' ||
+    step.kind === 'verify' ||
+    step.kind === 'plan'
+  );
+}
 
-function isExploreRollupCandidate(node: TimelineNode): node is Extract<TimelineNode, { kind: 'step' }> {
-  if (node.kind !== 'step') return false;
-  const { kind, title } = node.step;
-  if (kind === 'tool') return EXPLORE_ROLLUP_TITLES.has(title);
-  // 'generic' tool-shaped steps (e.g. misc host tools) fold in as "other tool"
-  return kind === 'generic';
+function isExploreTool(step: TimelineStep): boolean {
+  if (isExploreBoundary(step) || step.kind === 'reasoning' || step.kind === 'subagent') {
+    return false;
+  }
+  return step.kind === 'tool' || step.kind === 'generic';
 }
 
 function summarizeExploreRun(run: TimelineStep[]): TimelineStep {
-  const anyRunning = run.some((s) => s.status === 'running');
-  const anyDone = run.some((s) => s.status === 'completed');
-  const allFailed = run.every((s) => s.status === 'failed');
+  const tools = run.filter(isExploreTool);
+  const counted = tools.length ? tools : run;
+  const anyRunning = counted.some((s) => s.status === 'running');
+  const anyDone = counted.some((s) => s.status === 'completed');
+  const allFailed = counted.length > 0 && counted.every((s) => s.status === 'failed');
   const status: TimelineStepStatus = anyRunning ? 'running' : allFailed ? 'failed' : 'completed';
   const live = status === 'running';
   const prefix = live ? 'Exploring' : 'Explored';
+  const first = run[0];
 
   if (status === 'failed' && !anyDone) {
     return {
-      id: `tl_rollup_${run[0].id}`,
+      id: `tl_explore_${first.id}`,
       kind: 'tool',
       status,
-      title: run.length === 1 ? `Failed · ${run[0].title}` : `Failed · ${run.length} tools`
+      title: counted.length === 1 ? `Failed · ${counted[0].title}` : `Failed · ${counted.length} tools`
     };
   }
 
   let fileCount = 0;
   let searchCount = 0;
   let otherCount = 0;
-  for (const s of run) {
+  for (const s of tools) {
     if (s.title === 'Read' || s.title === 'Reading') fileCount += 1;
-    else if (s.title === 'Searched' || s.title === 'Searching') searchCount += 1;
-    else otherCount += 1;
+    else if (
+      s.title === 'Searched' ||
+      s.title === 'Searching' ||
+      s.title === 'Grepped' ||
+      s.title === 'Grepping'
+    ) {
+      searchCount += 1;
+    } else otherCount += 1;
   }
 
   const parts: string[] = [];
   if (fileCount) parts.push(`${fileCount} ${fileCount === 1 ? 'file' : 'files'}`);
   if (searchCount) parts.push(`${searchCount} ${searchCount === 1 ? 'search' : 'searches'}`);
   if (otherCount) parts.push(`${otherCount} other ${otherCount === 1 ? 'tool' : 'tools'}`);
-  const label = parts.length ? parts.join(', ') : `${run.length} ${run.length === 1 ? 'item' : 'items'}`;
+  const label = parts.length ? parts.join(', ') : `${tools.length} ${tools.length === 1 ? 'item' : 'items'}`;
 
   return {
-    id: `tl_rollup_${run[0].id}`,
+    id: `tl_explore_${first.id}`,
     kind: 'tool',
     status,
     title: `${prefix} ${label}`
@@ -414,34 +452,60 @@ function summarizeExploreRun(run: TimelineStep[]): TimelineStep {
 }
 
 /**
- * Collapse consecutive top-level explore-class steps into one rollup row.
- * Running steps are never buffered — they keep their own id/subtitle so
- * activeStepId / progressLabel ("Exploring session.ts") stay live and
- * specific. Only settled (completed/failed) runs collapse into a summary.
+ * Collapse consecutive explore-class steps into one chrome row with children.
+ * Running tools stay inside the group so Exploring N files can render live.
  */
 export function collapseExploreRuns(nodes: TimelineNode[]): TimelineNode[] {
   const out: TimelineNode[] = [];
   let buffer: TimelineStep[] = [];
 
+  const bufferHasTool = () => buffer.some(isExploreTool);
+
   const flush = () => {
     if (!buffer.length) return;
+    const tools = buffer.filter(isExploreTool);
+    if (!tools.length) {
+      for (const step of buffer) out.push({ kind: 'step', step });
+      buffer = [];
+      return;
+    }
     out.push({
-      kind: 'step',
-      step: buffer.length === 1 ? buffer[0] : summarizeExploreRun(buffer)
+      kind: 'explore',
+      step: summarizeExploreRun(buffer),
+      children: buffer
     });
     buffer = [];
   };
 
   for (const node of nodes) {
-    if (isExploreRollupCandidate(node) && node.step.status !== 'running') {
-      buffer.push(node.step);
-    } else {
+    if (node.kind === 'group') {
       flush();
       out.push(node);
+      continue;
     }
+    if (node.kind === 'explore') {
+      flush();
+      out.push(node);
+      continue;
+    }
+    const step = node.step;
+    if (isExploreTool(step)) {
+      buffer.push(step);
+      continue;
+    }
+    if (step.kind === 'reasoning' && bufferHasTool()) {
+      buffer.push(step);
+      continue;
+    }
+    flush();
+    out.push(node);
   }
   flush();
   return out;
+}
+
+export function collapseExploreSteps(steps: TimelineStep[]): TimelineNode[] {
+  return collapseExploreRuns(steps.map((step) => ({ kind: 'step' as const, step })));
 }
 
 export function countTimelineSteps(nodes: TimelineNode[]): number {
@@ -449,8 +513,23 @@ export function countTimelineSteps(nodes: TimelineNode[]): number {
     if (node.kind === 'group') {
       return total + 1 + visibleSubagentChildren(node.children, node.subagent).length;
     }
+    // Explore chrome is one row even when it wraps many tool children.
     return total + 1;
   }, 0);
+}
+
+function nodeIsActive(node: TimelineNode): boolean {
+  if (node.kind === 'group' || node.kind === 'explore') {
+    return node.step.status === 'running' || node.children.some((child) => child.status === 'running');
+  }
+  return node.step.status === 'running';
+}
+
+function nodeHasError(node: TimelineNode): boolean {
+  if (node.kind === 'group' || node.kind === 'explore') {
+    return node.step.status === 'failed' || node.children.some((child) => child.status === 'failed');
+  }
+  return node.step.status === 'failed';
 }
 
 /** Event store + sidecar previews → render-ready presentation tree. */
@@ -525,24 +604,8 @@ export function buildTimelinePresentation(
   );
 
   const stepCount = countTimelineSteps(finalizedNodes);
-  const hasActive = finalizedNodes.some((node) => {
-    if (node.kind === 'group') {
-      return (
-        node.step.status === 'running' ||
-        node.children.some((child) => child.status === 'running')
-      );
-    }
-    return node.step.status === 'running';
-  });
-  const hasError = finalizedNodes.some((node) => {
-    if (node.kind === 'group') {
-      return (
-        node.step.status === 'failed' ||
-        node.children.some((child) => child.status === 'failed')
-      );
-    }
-    return node.step.status === 'failed';
-  });
+  const hasActive = finalizedNodes.some(nodeIsActive);
+  const hasError = finalizedNodes.some(nodeHasError);
 
   const activeStepId = findActiveStepId(finalizedNodes);
 

@@ -10,6 +10,8 @@ export interface AgentTurnProps {
   fileEdits?: FileEditPreview[];
   terminalRuns?: TerminalRunPreview[];
   changes?: ChangeSummaryItem[];
+  isStreaming?: boolean;
+  workedDurationMs?: number;
   children?: React.ReactNode;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
@@ -26,6 +28,8 @@ export function AgentTurn({
   fileEdits = [],
   terminalRuns = [],
   changes = [],
+  isStreaming = false,
+  workedDurationMs,
   children,
   onOpenFile,
   onAcceptFile,
@@ -41,6 +45,8 @@ export function AgentTurn({
         items={workItems}
         fileEdits={fileEdits}
         terminalRuns={terminalRuns}
+        isStreaming={isStreaming}
+        workedDurationMs={workedDurationMs}
         onOpenFile={onOpenFile}
         onAcceptFile={onAcceptFile}
         onRejectFile={onRejectFile}

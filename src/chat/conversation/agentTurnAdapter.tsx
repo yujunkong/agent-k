@@ -8,6 +8,7 @@ export interface AgentTurnAdapterProps {
   message: unknown;
   workItems?: ConversationWorkEvent[];
   changes?: ChangeSummaryItem[];
+  isStreaming?: boolean;
   children?: React.ReactNode;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
@@ -22,6 +23,7 @@ export function AgentTurnAdapter({
   message,
   workItems = [],
   changes = [],
+  isStreaming = false,
   children,
   onOpenFile,
   onAcceptFile,
@@ -35,6 +37,7 @@ export function AgentTurnAdapter({
     title?: unknown;
     fileEdits?: FileEditPreview[];
     terminalRuns?: TerminalRunPreview[];
+    workedDurationMs?: number;
   } | null;
   const lead = candidate?.role === 'assistant' && typeof candidate.title === 'string'
     ? candidate.title
@@ -49,6 +52,8 @@ export function AgentTurnAdapter({
       fileEdits={fileEdits}
       terminalRuns={terminalRuns}
       changes={changes}
+      isStreaming={isStreaming}
+      workedDurationMs={candidate?.workedDurationMs}
       onOpenFile={onOpenFile}
       onAcceptFile={onAcceptFile}
       onRejectFile={onRejectFile}

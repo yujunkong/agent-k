@@ -270,6 +270,7 @@ describe('legacy step lift', () => {
         type: 'thinking',
         status: 'complete',
         label: 'Thinking',
+        toolName: undefined,
         detail: 'long thought dump'
       },
       {
@@ -277,6 +278,7 @@ describe('legacy step lift', () => {
         type: 'search',
         status: 'complete',
         label: 'Search',
+        toolName: 'grep',
         detail: 'foo'
       }
     ]);

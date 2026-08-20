@@ -10,7 +10,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { v4 as uuidv4 } from 'uuid';
 import { ConversationTurn } from './conversation';
 import { selectActiveConversationMessages } from './conversation/conversationVariants';
-import { PLAN_V2_GENERATE_STEP_ID } from './components/MessageSteps';
+import { PLAN_V2_GENERATE_STEP_ID, planGenerateWorkEvent } from './planGenerateStep';
 import { Composer } from './components/Composer';
 import { ChangedFilesBar } from './components/ChangedFilesBar';
 import type { CheckpointSummary } from './components/ChangedFilesBar';
@@ -18,7 +18,12 @@ import { useChatStream } from './hooks/useChatStream';
 import { useChatSessions, sessionStore } from './hooks/useChatSessions';
 import { useHostMessages } from './hooks/useHostMessages';
 import { getVsCodeApi } from './host/vscodeApi';
-import { patchSubagentResultInEvents, upsertWorkEvents } from './conversation/conversationWorkEvent';
+import {
+  patchSubagentResultInEvents,
+  settleWorkEvents,
+  upsertWorkEvents,
+  workEventFromSubagentHostEvent
+} from './conversation/conversationWorkEvent';
 import {
   applyHostWorktreeApplyResult,
   applyHostWorktreeRejectResult,
@@ -1128,9 +1133,18 @@ export function ChatApp() {
       const plan = data.executionPlan as ExecutionPlan | undefined;
       if (!plan) return;
       finalizePlanExecution(planV2Adapter.session, plan);
-      if (plan.status === 'failed') {
+      const fail = plan.status === 'failed';
+      if (fail) {
         setError(planV2Adapter.session.getExecutionError() ?? 'Plan execution failed.');
       }
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (!last || last.role !== 'assistant' || !last.workItems?.length) return prev;
+        return [
+          ...prev.slice(0, -1),
+          { ...last, workItems: settleWorkEvents(last.workItems, fail ? 'error' : 'complete') }
+        ];
+      });
     },
     'plan.execution.error': (data) => {
       setError(String(data.error || 'Plan execution failed.'));
@@ -1143,6 +1157,17 @@ export function ChatApp() {
     'plan.execution.workEvent': (data) => {
       const workEvent = data.workEvent as import('./conversation/conversationWorkEvent').ConversationWorkEvent | undefined;
       if (!workEvent?.id) return;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (!last || last.role !== 'assistant') return prev;
+        const updated = upsertWorkEvents(last.workItems, workEvent);
+        return [...prev.slice(0, -1), { ...last, workItems: updated }];
+      });
+    },
+    // Plan execute posts this as a top-level host message (not chat.stream).
+    'subagent.event': (data) => {
+      const workEvent = workEventFromSubagentHostEvent(data as Record<string, unknown>);
+      if (!workEvent) return;
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (!last || last.role !== 'assistant') return prev;
@@ -1757,6 +1782,7 @@ export function ChatApp() {
         thoughtRole: 'opening' as const,
         turn
       });
+      const planEvent = planGenerateWorkEvent('running');
       if (idx < 0) {
         next.push({
           id: uuidv4(),
@@ -1764,7 +1790,8 @@ export function ChatApp() {
           content: '',
           timestamp: Date.now(),
           status: 'streaming',
-          steps: [makeStep(1)]
+          steps: [makeStep(1)],
+          workItems: [planEvent]
         });
       } else {
         const msg = next[idx];
@@ -1788,7 +1815,12 @@ export function ChatApp() {
         if (!steps.some((s) => s.id === PLAN_V2_GENERATE_STEP_ID)) {
           steps.push(step);
         }
-        next[idx] = { ...msg, status: 'streaming', steps };
+        next[idx] = {
+          ...msg,
+          status: 'streaming',
+          steps,
+          workItems: upsertWorkEvents(msg.workItems, planEvent)
+        };
       }
       messagesRef.current = next;
       return next;
@@ -1801,11 +1833,12 @@ export function ChatApp() {
       const next = prev.map((m) => {
         if (
           m.role !== 'assistant' ||
-          !m.steps?.some((s) => s.id === PLAN_V2_GENERATE_STEP_ID)
+          (!m.steps?.some((s) => s.id === PLAN_V2_GENERATE_STEP_ID) &&
+            !m.workItems?.some((e) => e.id === PLAN_V2_GENERATE_STEP_ID))
         ) {
           return m;
         }
-        const steps = m.steps.map((s) =>
+        const steps = (m.steps || []).map((s) =>
           s.id === PLAN_V2_GENERATE_STEP_ID
             ? {
                 ...s,
@@ -1817,7 +1850,11 @@ export function ChatApp() {
         return {
           ...m,
           status: m.status === 'streaming' ? 'complete' : m.status,
-          steps
+          steps,
+          workItems: upsertWorkEvents(
+            m.workItems,
+            planGenerateWorkEvent(ok ? 'complete' : 'error')
+          )
         };
       });
       messagesRef.current = next;
@@ -2984,10 +3021,10 @@ export function ChatApp() {
               key={item.id}
               message={item}
               isStreaming={
-                (streaming || generatingPlan) &&
+                (streaming || generatingPlan || showPlanExecutionBar) &&
                 messages[messages.length - 1]?.id === item.id
               }
-              isAgentRunning={streaming || generatingPlan}
+              isAgentRunning={streaming || generatingPlan || showPlanExecutionBar}
               isLastUser={item.role === 'user' && item.id === lastUserId}
               isLastAssistant={
                 item.role === 'assistant' && item.id === lastAssistantId
