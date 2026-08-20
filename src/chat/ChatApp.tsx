@@ -190,8 +190,7 @@ export function ChatApp() {
   const stepStartRef = useRef<Record<string, number>>({});
 
   // ─── C5-C7 UI 상태 ─────────────────────────────────────
-  // Plan mode state
-  const [planController] = useState(() => new PlanModeController());
+  // Plan mode: one PlanModeController per chat session (never share across tabs).
   const planV2AdaptersRef = useRef<Map<string, PlanModeControllerAdapter>>(new Map());
   const [planStage, setPlanStage] = useState<PlanStage>('research');
   const [showClarifying, setShowClarifying] = useState(false);
@@ -202,6 +201,8 @@ export function ChatApp() {
   const [awaitingUser, setAwaitingUser] = useState(false);
   /** Plan V2 JSON generation after questions — keep timeline live */
   const [generatingPlan, setGeneratingPlan] = useState(false);
+  const generatingPlanRef = useRef(generatingPlan);
+  generatingPlanRef.current = generatingPlan;
   /** Prefill composer after Stop on a user bubble */
   const [composerSeed, setComposerSeed] = useState<{
     text: string;
@@ -453,7 +454,10 @@ export function ChatApp() {
   /** After Plan Approve → Build: do not wipe plan chrome when mode flips to agent. */
   const planBuildHandoffRef = useRef(false);
 
-  /** Per-tab Plan FSM — do not leak Review chrome across sessions */
+  /**
+   * Per-tab Plan chrome. Flow lives on each session's PlanModeController;
+   * snap parks UI flags so background Review does not paint the active Analysis tab.
+   */
   type PlanSessionSnap = {
     flow: ReturnType<PlanModeController['getState']>;
     showPlanReview: boolean;
@@ -461,51 +465,116 @@ export function ChatApp() {
     pendingQuestions: PendingQuestion[];
     lastPromotedPlan: string;
     promoteOnComplete: boolean;
+    generatingPlan: boolean;
   };
   const planSnapBySessionRef = useRef<Map<string, PlanSessionSnap>>(new Map());
 
+  /** Apply stage chrome only for the owning tab; otherwise update parked snap. */
+  const applyPlanStageUi = useCallback(
+    (ownerSessionId: string, stage: PlanStage, ctrl: PlanModeController) => {
+      const hasDoc = Boolean(ctrl.getState().planDocument?.content?.trim());
+      const openReview = stage === 'review' && hasDoc;
+      const closeReview =
+        stage === 'planning' || stage === 'research' || stage === 'questions';
+      if (ownerSessionId === sessionIdRef.current) {
+        setPlanStage(stage);
+        setShowClarifying(stage === 'questions');
+        if (openReview) setShowPlanReview(true);
+        else if (closeReview) setShowPlanReview(false);
+        return;
+      }
+      const prev = planSnapBySessionRef.current.get(ownerSessionId);
+      planSnapBySessionRef.current.set(ownerSessionId, {
+        flow: ctrl.getState(),
+        showPlanReview: openReview
+          ? true
+          : closeReview
+            ? false
+            : Boolean(prev?.showPlanReview),
+        showClarifying: stage === 'questions',
+        pendingQuestions: prev?.pendingQuestions?.map((q) => ({ ...q })) || [],
+        lastPromotedPlan: prev?.lastPromotedPlan || '',
+        promoteOnComplete: Boolean(prev?.promoteOnComplete),
+        generatingPlan: Boolean(prev?.generatingPlan)
+      });
+    },
+    []
+  );
+
+  /** Create/reuse a Plan V2 adapter with its own legacy controller (tab isolation). */
+  const ensurePlanAdapter = useCallback(
+    (id: string): PlanModeControllerAdapter => {
+      const key = String(id || '').trim() || 'global';
+      const existing = planV2AdaptersRef.current.get(key);
+      if (existing) return existing;
+      const created = new PlanModeControllerAdapter(key);
+      // Owner-gated: background moveToReview must not flip the visible tab's Review.
+      created.legacy.onStageChangeCallback((stage: PlanStage) => {
+        applyPlanStageUi(key, stage, created.legacy);
+      });
+      planV2AdaptersRef.current.set(key, created);
+      return created;
+    },
+    [applyPlanStageUi]
+  );
+
   const resetPlanChrome = useCallback(() => {
     planBuildHandoffRef.current = false;
-    planController.reset();
+    const currentId = sessionIdRef.current;
+    if (currentId) {
+      ensurePlanAdapter(currentId).legacy.reset();
+    }
     setPlanStage('research');
     setShowPlanReview(false);
     setShowClarifying(false);
     setPendingQuestions([]);
+    setGeneratingPlan(false);
     lastPromotedPlanRef.current = '';
     promotePlanOnCompleteRef.current = false;
-  }, [planController]);
+  }, [ensurePlanAdapter]);
 
   const parkPlanForSession = useCallback(
     (id: string) => {
       if (!id) return;
+      const ctrl = ensurePlanAdapter(id).legacy;
       planSnapBySessionRef.current.set(id, {
-        flow: planController.getState(),
+        flow: ctrl.getState(),
         showPlanReview: showPlanReviewRef.current,
         showClarifying: showClarifyingRef.current,
         pendingQuestions: pendingQuestionsRef.current.map((q) => ({ ...q })),
         lastPromotedPlan: lastPromotedPlanRef.current,
-        promoteOnComplete: promotePlanOnCompleteRef.current
+        promoteOnComplete: promotePlanOnCompleteRef.current,
+        generatingPlan: generatingPlanRef.current
       });
     },
-    [planController]
+    [ensurePlanAdapter]
   );
 
   const restorePlanForSession = useCallback(
     (id: string) => {
+      const adapter = ensurePlanAdapter(id);
       const snap = planSnapBySessionRef.current.get(id);
       if (!snap) {
-        resetPlanChrome();
+        // Fresh tab: use this session's controller stage, clear chrome flags.
+        setPlanStage(adapter.legacy.getState().stage || 'research');
+        setShowPlanReview(false);
+        setShowClarifying(false);
+        setPendingQuestions([]);
+        setGeneratingPlan(false);
+        lastPromotedPlanRef.current = '';
+        promotePlanOnCompleteRef.current = false;
         return;
       }
-      planController.hydrate(snap.flow, { emit: false });
+      adapter.legacy.hydrate(snap.flow, { emit: false });
       setPlanStage(snap.flow.stage || 'research');
       setShowPlanReview(Boolean(snap.showPlanReview));
       setShowClarifying(Boolean(snap.showClarifying));
       setPendingQuestions(snap.pendingQuestions || []);
+      setGeneratingPlan(Boolean(snap.generatingPlan));
       lastPromotedPlanRef.current = snap.lastPromotedPlan || '';
       promotePlanOnCompleteRef.current = Boolean(snap.promoteOnComplete);
     },
-    [planController, resetPlanChrome]
+    [ensurePlanAdapter]
   );
 
   /** Persist leaving-tab provider into session store (mirror plan park). */
@@ -616,6 +685,7 @@ export function ChatApp() {
       hasPlanSnap: (id) => planSnapBySessionRef.current.has(id),
       onDeletePlanSnap: (id) => {
         planSnapBySessionRef.current.delete(id);
+        planV2AdaptersRef.current.delete(id);
       }
     }
   });
@@ -716,28 +786,18 @@ export function ChatApp() {
 
   // Plan V2 (additive): structured PlanSession running alongside the
   // existing PlanModeController stage machine. See
-  // src/plan/v2/PlanModeControllerAdapter.ts — it mirrors state INTO
-  // planController rather than replacing it, so PlanReview/PlanEditor
-  // keep working unmodified. Until plan generation itself is switched to
-  // PlanV2Generator, planV2Adapter.session.getPlan() stays null and
-  // recordToolEvent() below is a safe no-op.
-  const planV2Adapter = useMemo(() => {
-    const existing = planV2AdaptersRef.current.get(sessionId);
-    if (existing) return existing;
-    const created = new PlanModeControllerAdapter(sessionId, planController);
-    planV2AdaptersRef.current.set(sessionId, created);
-    return created;
-  }, [sessionId, planController]);
+  // src/plan/v2/PlanModeControllerAdapter.ts — each chat tab owns its own
+  // legacy controller so Review chrome cannot bleed into Analysis tabs.
+  const planV2Adapter = useMemo(
+    () => ensurePlanAdapter(sessionId),
+    [sessionId, ensurePlanAdapter]
+  );
+  /** Visible Plan FSM for the active tab only. */
+  const planController = planV2Adapter.legacy;
   /** Resolve the Plan V2 adapter that owns a given chat session. */
   const getPlanV2AdapterForSession = useCallback(
-    (id: string) => {
-      const existing = planV2AdaptersRef.current.get(id);
-      if (existing) return existing;
-      const created = new PlanModeControllerAdapter(id, planController);
-      planV2AdaptersRef.current.set(id, created);
-      return created;
-    },
-    [planController]
+    (id: string) => ensurePlanAdapter(id),
+    [ensurePlanAdapter]
   );
   const [planV2Tick, setPlanV2Tick] = useState(0);
   useEffect(() => {
@@ -1031,30 +1091,21 @@ export function ChatApp() {
     };
   }, []);
 
-  // ─── Plan mode lifecycle (RW-C5-01) ───────────────────
-  useEffect(() => {
-    planController.onStageChangeCallback((stage: PlanStage) => {
-      setPlanStage(stage);
-      setShowClarifying(stage === 'questions');
-      // Never auto-open empty Plan editor on "planning" — agent writes the plan first.
-      // Open editor only in review when a real document exists.
-      if (stage === 'review' && planController.getState().planDocument?.content?.trim()) {
-        setShowPlanReview(true);
-      } else if (stage === 'planning' || stage === 'research' || stage === 'questions') {
-        setShowPlanReview(false);
-      }
-    });
-  }, [planController]);
+  // Stage chrome is wired per adapter in ensurePlanAdapter (owner-gated).
 
   /** Persist plan draft + open Review overlay (idempotent per content hash) */
   const promotePlanToReview = useCallback(
-    (planMdRaw: string, opts?: { slug?: string; title?: string }) => {
+    (planMdRaw: string, opts?: { slug?: string; title?: string; sessionId?: string }) => {
       const planMd = dedupeRepeatedPlanDocument(planMdRaw.trim());
       if (!planMd || planMd === '(no response)') return false;
 
+      const ownerSessionId = String(opts?.sessionId || sessionIdRef.current || '').trim();
+      const ownerCtrl = ensurePlanAdapter(ownerSessionId).legacy;
+      const isActiveOwner = ownerSessionId === sessionIdRef.current;
+
       const titleMatch = planMd.match(/^#\s+(.+)$/m);
       const title = (opts?.title || titleMatch?.[1] || 'Plan').trim();
-      const existingSlug = planController.getState().planDocument?.slug;
+      const existingSlug = ownerCtrl.getState().planDocument?.slug;
       const forced =
         opts?.slug && /^plan_[a-f0-9]+$/i.test(opts.slug) ? opts.slug : undefined;
       const slugForSave =
@@ -1068,21 +1119,38 @@ export function ChatApp() {
         const api =
           getVsCodeApi();
         if (!api?.postMessage) {
-          setError('Plan save: VS Code API is unavailable. Press F5 to reopen the Extension Host.');
+          if (isActiveOwner) {
+            setError('Plan save: VS Code API is unavailable. Press F5 to reopen the Extension Host.');
+          }
         } else {
           api.postMessage({
             type: 'plan.save',
             title,
             content: planMd,
-            slug: slugForSave
+            slug: slugForSave,
+            sessionId: ownerSessionId
           });
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Plan save request failed');
+        if (isActiveOwner) {
+          setError(e instanceof Error ? e.message : 'Plan save request failed');
+        }
       }
 
       if (planMd === lastPromotedPlanRef.current && planStageRef.current === 'review') {
-        setShowPlanReview(true);
+        if (isActiveOwner) setShowPlanReview(true);
+        else {
+          const prev = planSnapBySessionRef.current.get(ownerSessionId);
+          planSnapBySessionRef.current.set(ownerSessionId, {
+            flow: ownerCtrl.getState(),
+            showPlanReview: true,
+            showClarifying: Boolean(prev?.showClarifying),
+            pendingQuestions: prev?.pendingQuestions?.map((q) => ({ ...q })) || [],
+            lastPromotedPlan: planMd,
+            promoteOnComplete: false,
+            generatingPlan: Boolean(prev?.generatingPlan)
+          });
+        }
         return true;
       }
 
@@ -1092,7 +1160,7 @@ export function ChatApp() {
       } catch {
         sections = [];
       }
-      void planController
+      void ownerCtrl
         .setPlanDocument({
           slug: slugForSave || existingSlug || 'plan_pending',
           title,
@@ -1101,15 +1169,17 @@ export function ChatApp() {
           todoCount: planGenerator.extractTodos(planMd).length,
           createdAt: Date.now()
         })
-        .then(() => planController.moveToReview())
+        .then(() => ownerCtrl.moveToReview())
         .then(() => {
-          lastPromotedPlanRef.current = planMd;
-          promotePlanOnCompleteRef.current = false;
-          setPlanStage('review');
-          setShowPlanReview(true);
-          // Always replace the latest assistant bubble with summary+TODO
+          lastPromotedPlanRef.current = isActiveOwner
+            ? planMd
+            : lastPromotedPlanRef.current;
+          promotePlanOnCompleteRef.current = isActiveOwner
+            ? false
+            : promotePlanOnCompleteRef.current;
+          // Always replace the latest assistant bubble with summary+TODO on the owner tab.
           const summary = buildPlanChatSummary(planMd);
-          setMessages((prev) => {
+          updateSessionMessages(ownerSessionId, (prev) => {
             const next = [...prev];
             for (let i = next.length - 1; i >= 0; i--) {
               if (next[i].role !== 'assistant') continue;
@@ -1121,16 +1191,34 @@ export function ChatApp() {
               };
               break;
             }
-            messagesRef.current = next;
             return next;
           });
+          if (isActiveOwner) {
+            setPlanStage('review');
+            setShowPlanReview(true);
+            promotePlanOnCompleteRef.current = false;
+            lastPromotedPlanRef.current = planMd;
+          } else {
+            const prev = planSnapBySessionRef.current.get(ownerSessionId);
+            planSnapBySessionRef.current.set(ownerSessionId, {
+              flow: ownerCtrl.getState(),
+              showPlanReview: true,
+              showClarifying: false,
+              pendingQuestions: prev?.pendingQuestions?.map((q) => ({ ...q })) || [],
+              lastPromotedPlan: planMd,
+              promoteOnComplete: false,
+              generatingPlan: Boolean(prev?.generatingPlan)
+            });
+          }
         })
         .catch((e) => {
-          setError(e instanceof Error ? e.message : 'Could not move to Plan review.');
+          if (isActiveOwner) {
+            setError(e instanceof Error ? e.message : 'Could not move to Plan review.');
+          }
         });
       return true;
     },
-    [planController]
+    [ensurePlanAdapter, updateSessionMessages]
   );
 
   const commitPlanV2Result = useCallback(
@@ -1169,7 +1257,20 @@ export function ChatApp() {
       if (ownerSessionId === sessionIdRef.current) {
         setPlanStage('review');
         setShowPlanReview(true);
+        setGeneratingPlan(false);
         setError(null);
+      } else {
+        // Park Review for the owner tab — do not paint Analysis/Agent chrome.
+        const prev = planSnapBySessionRef.current.get(ownerSessionId);
+        planSnapBySessionRef.current.set(ownerSessionId, {
+          flow: ownerAdapter.legacy.getState(),
+          showPlanReview: true,
+          showClarifying: false,
+          pendingQuestions: prev?.pendingQuestions?.map((q) => ({ ...q })) || [],
+          lastPromotedPlan: rendered,
+          promoteOnComplete: false,
+          generatingPlan: false
+        });
       }
       return true;
     },
@@ -1223,9 +1324,12 @@ export function ChatApp() {
     },
     'plan.saved': (data) => {
       if (!data.slug) return;
-      const existing = planController.getState().planDocument;
+      // Prefer owning session when host echoes sessionId; else active tab.
+      const ownerId = String(data.sessionId || sessionIdRef.current || '').trim();
+      const ctrl = ensurePlanAdapter(ownerId).legacy;
+      const existing = ctrl.getState().planDocument;
       if (existing) {
-        void planController.setPlanDocument({
+        void ctrl.setPlanDocument({
           ...existing,
           slug: String(data.slug),
           title: String(data.title || existing.title)
@@ -1233,14 +1337,16 @@ export function ChatApp() {
       }
       if (data.filePath) {
         console.info('[Agent K] Plan saved:', data.filePath);
-        setError(null);
+        if (ownerId === sessionIdRef.current) setError(null);
       }
     },
     'plan.loaded': (data) => {
       if (data.content == null) return;
-      const existing = planController.getState().planDocument;
+      const ownerId = String(data.sessionId || sessionIdRef.current || '').trim();
+      const ctrl = ensurePlanAdapter(ownerId).legacy;
+      const existing = ctrl.getState().planDocument;
       if (existing) {
-        void planController.setPlanDocument({
+        void ctrl.setPlanDocument({
           ...existing,
           slug: String(data.slug || existing.slug),
           title: String(data.title || existing.title),
@@ -1328,8 +1434,9 @@ export function ChatApp() {
         if (data.aborted || data.error) return;
         const late = data.result as PlanV2GenerationResult;
         if (late?.ok && late.plan) {
-          const ownerSessionId =
-            String(data.sessionId || '') || sessionIdRef.current;
+          // Do not fall back to the visible tab — that reintroduces cross-tab bleed.
+          const ownerSessionId = String(data.sessionId || '').trim();
+          if (!ownerSessionId) return;
           void commitPlanV2Result(late, ownerSessionId, { late: true });
         }
       }
@@ -1590,19 +1697,24 @@ export function ChatApp() {
   // Reset plan chrome when leaving plan (keep chat messages).
   // Skip during Approve→Build handoff — setMode('agent') must not wipe the
   // execution FSM or re-stamp Composer from stale globals.
+  // Only reset THIS session's controller — parked Plan tabs keep their FSM.
   useEffect(() => {
     if (mode !== 'plan') {
       if (planBuildHandoffRef.current) return;
-      planController.reset();
+      const currentId = sessionIdRef.current;
+      if (currentId) {
+        ensurePlanAdapter(currentId).legacy.reset();
+        planSnapBySessionRef.current.delete(currentId);
+      }
       setPlanStage('research');
       setShowClarifying(false);
       setShowPlanReview(false);
       setPendingQuestions([]);
+      setGeneratingPlan(false);
       lastPromotedPlanRef.current = '';
       promotePlanOnCompleteRef.current = false;
-      planSnapBySessionRef.current.delete(sessionIdRef.current);
     }
-  }, [mode, planController]);
+  }, [mode, ensurePlanAdapter]);
 
   /**
    * Remove orphan empty streaming assistants; finalize non-empty ones.
@@ -1613,10 +1725,12 @@ export function ChatApp() {
   }, []);
 
   const makeAssistantStream = useCallback(
-    (effectiveMode: Mode, isStale?: () => boolean, ownerSessionId?: string) =>
-      createAssistantStreamSession({
+    (effectiveMode: Mode, isStale?: () => boolean, ownerSessionId?: string) => {
+      const ownerId = ownerSessionId || sessionIdRef.current;
+      const ownerAdapter = ensurePlanAdapter(ownerId);
+      return createAssistantStreamSession({
         isStale,
-        ownerSessionId,
+        ownerSessionId: ownerId,
         mode: effectiveMode,
         stepStartRef,
         turnNumberRef,
@@ -1627,9 +1741,10 @@ export function ChatApp() {
         planStageRef,
         pendingQuestionsRef,
         promotePlanOnCompleteRef,
-        planController,
+        // Owner's controller — background ask_question must not mutate Analysis tab FSM.
+        planController: ownerAdapter.legacy,
         debugController,
-        planV2HasPlan: () => Boolean(planV2Adapter.session.getPlan()),
+        planV2HasPlan: () => Boolean(ownerAdapter.session.getPlan()),
         setMessages,
         updateSessionMessages,
         getSessionMessages,
@@ -1638,12 +1753,13 @@ export function ChatApp() {
         setAwaitingUser,
         setDebugTick,
         setError,
-        promotePlanToReview
-      }),
+        promotePlanToReview: (md: string) =>
+          promotePlanToReview(md, { sessionId: ownerId })
+      });
+    },
     [
-      planController,
       debugController,
-      planV2Adapter,
+      ensurePlanAdapter,
       promotePlanToReview,
       updateSessionMessages,
       getSessionMessages
@@ -2036,11 +2152,26 @@ export function ChatApp() {
     return () => window.clearTimeout(t);
   }, [streaming, msgQueue, handleSend]);
 
-  const beginPlanGenerationUi = useCallback(() => {
-    setGeneratingPlan(true);
-    setAwaitingUser(false);
-    setShowClarifying(false);
-    setMessages((prev) => {
+  const beginPlanGenerationUi = useCallback((ownerSessionId?: string) => {
+    const ownerId = String(ownerSessionId || sessionIdRef.current || '').trim();
+    const isActive = ownerId === sessionIdRef.current;
+    if (isActive) {
+      setGeneratingPlan(true);
+      setAwaitingUser(false);
+      setShowClarifying(false);
+    } else {
+      const prev = planSnapBySessionRef.current.get(ownerId);
+      planSnapBySessionRef.current.set(ownerId, {
+        flow: ensurePlanAdapter(ownerId).legacy.getState(),
+        showPlanReview: Boolean(prev?.showPlanReview),
+        showClarifying: false,
+        pendingQuestions: prev?.pendingQuestions?.map((q) => ({ ...q })) || [],
+        lastPromotedPlan: prev?.lastPromotedPlan || '',
+        promoteOnComplete: Boolean(prev?.promoteOnComplete),
+        generatingPlan: true
+      });
+    }
+    updateSessionMessages(ownerId, (prev) => {
       const next = [...prev];
       let idx = -1;
       for (let i = next.length - 1; i >= 0; i--) {
@@ -2112,45 +2243,57 @@ export function ChatApp() {
           workItems: upsertWorkEvents(msg.workItems, planEvent)
         };
       }
-      messagesRef.current = next;
       return next;
     });
-  }, []);
+  }, [ensurePlanAdapter, updateSessionMessages]);
 
-  const endPlanGenerationUi = useCallback((ok: boolean) => {
-    setGeneratingPlan(false);
-    setMessages((prev) => {
-      const next = prev.map((m) => {
-        if (
-          m.role !== 'assistant' ||
-          (!m.steps?.some((s) => s.id === PLAN_V2_GENERATE_STEP_ID) &&
-            !m.workItems?.some((e) => e.id === PLAN_V2_GENERATE_STEP_ID))
-        ) {
-          return m;
+  const endPlanGenerationUi = useCallback(
+    (ok: boolean, ownerSessionId?: string) => {
+      const ownerId = String(ownerSessionId || sessionIdRef.current || '').trim();
+      const isActive = ownerId === sessionIdRef.current;
+      if (isActive) {
+        setGeneratingPlan(false);
+      } else {
+        const prev = planSnapBySessionRef.current.get(ownerId);
+        if (prev) {
+          planSnapBySessionRef.current.set(ownerId, {
+            ...prev,
+            generatingPlan: false
+          });
         }
-        const steps = (m.steps || []).map((s) =>
-          s.id === PLAN_V2_GENERATE_STEP_ID
-            ? {
-                ...s,
-                itemStatus: (ok ? 'done' : 'error') as 'done' | 'error',
-                label: ok ? 'Created plan' : 'Failed to create plan'
-              }
-            : s
-        );
-        return {
-          ...m,
-          status: m.status === 'streaming' ? 'complete' : m.status,
-          steps,
-          workItems: upsertWorkEvents(
-            m.workItems,
-            planGenerateWorkEvent(ok ? 'complete' : 'error')
-          )
-        };
-      });
-      messagesRef.current = next;
-      return next;
-    });
-  }, []);
+      }
+      updateSessionMessages(ownerId, (prev) =>
+        prev.map((m) => {
+          if (
+            m.role !== 'assistant' ||
+            (!m.steps?.some((s) => s.id === PLAN_V2_GENERATE_STEP_ID) &&
+              !m.workItems?.some((e) => e.id === PLAN_V2_GENERATE_STEP_ID))
+          ) {
+            return m;
+          }
+          const steps = (m.steps || []).map((s) =>
+            s.id === PLAN_V2_GENERATE_STEP_ID
+              ? {
+                  ...s,
+                  itemStatus: (ok ? 'done' : 'error') as 'done' | 'error',
+                  label: ok ? 'Created plan' : 'Failed to create plan'
+                }
+              : s
+          );
+          return {
+            ...m,
+            status: m.status === 'streaming' ? 'complete' : m.status,
+            steps,
+            workItems: upsertWorkEvents(
+              m.workItems,
+              planGenerateWorkEvent(ok ? 'complete' : 'error')
+            )
+          };
+        })
+      );
+    },
+    [updateSessionMessages]
+  );
 
   /** Stop button — abort + clear streaming orphans; composer accepts new messages */
   const handleStop = useCallback(() => {
@@ -3288,8 +3431,10 @@ export function ChatApp() {
         </div>
       )}
 
-      {/* Plan review: Approve & Execute is the only path into Build */}
-      {showPlanReview && planController.getState().planDocument?.content?.trim() ? (
+      {/* Plan review: only while this tab is in plan mode (tab isolation). */}
+      {mode === 'plan' &&
+      showPlanReview &&
+      planController.getState().planDocument?.content?.trim() ? (
         <div className="plan-editor-overlay" role="dialog" aria-label="Plan review">
           <PlanReview
             document={planController.getState().planDocument!}

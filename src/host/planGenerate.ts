@@ -5,7 +5,8 @@ import { appendWorkspaceContextToResearch } from '../plan/v2/workspaceContext';
 
 export type PlanGenerateContext = {
   webview: vscode.Webview | undefined;
-  planV2Aborts: Map<string, AbortController>;
+  /** requestId → abort + owning session (parallel-tab isolation) */
+  planV2Aborts: Map<string, { abort: AbortController; sessionId: string }>;
   planV2CancelledIds: Set<string>;
   abortPlanV2Generate: (requestId?: string) => void;
 };
@@ -39,7 +40,8 @@ export async function runPlanV2Generate(ctx: PlanGenerateContext, message: any):
   ctx.abortPlanV2Generate(requestId);
   ctx.planV2CancelledIds.delete(requestId);
   const abort = new AbortController();
-  ctx.planV2Aborts.set(requestId, abort);
+  // Record sessionId so chat.send can abort same-tab generates only.
+  ctx.planV2Aborts.set(requestId, { abort, sessionId: sessionId || '' });
 
   try {
     if (abort.signal.aborted) {

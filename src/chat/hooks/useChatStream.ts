@@ -478,6 +478,8 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       api.postMessage({
         type: 'chat.send',
         requestId: hostRequestId,
+        // Parallel tabs: host aborts only this session's in-flight Plan V2 generate.
+        sessionId: runtimeKey,
         mode,
         planStage: opts?.planStageOverride || planStageRef.current,
         debugStage: debugStageRef.current,
