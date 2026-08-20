@@ -1,0 +1,13 @@
+---
+description: Always-on Agent-K monorepo boundaries (FINAL Part B)
+alwaysApply: true
+---
+
+# Domain scope (always)
+
+- One session → one package (`packages/<one>` or `extensions/agent-k`). See root `AGENTS.md`.
+- Start with a Feature ID (e.g. AGENT-010, CHAT-002). Prefer Feature ID migration over file copy.
+- Cross boundary → change `packages/shared` types/protocol first.
+- Do not publish npm libs unless reuse across apps is explicit.
+- Enforce R-001…R-005: Composer≠ModelRouter, Typed Work Events, Worktree transactions, Plan state machine, Tool contracts.
+- No cycles. Dependency direction: extension → host → chat-ui/core → tools|providers|plan|worktree|safety ← shared.

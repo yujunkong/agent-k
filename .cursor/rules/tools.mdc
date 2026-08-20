@@ -1,0 +1,15 @@
+---
+description: tools package — Tool executors
+globs: packages/tools/**,src/tools/**
+alwaysApply: false
+---
+
+# @agent-k/tools
+
+**역할:** Read/Edit/Write/Search/Terminal/AskQuestion/Task/Skill/Browser/Debug executors + registry.
+
+**Feature IDs:** TOOL-*
+
+**R-005 필수:** input/output schema, permission, cancel, timeout, error, retry, timeline event
+
+**하면 안 됨:** React UI, Model routing, Worktree transaction 본문, `src/chat/**` 역의존 신규 추가

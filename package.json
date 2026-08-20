@@ -4,6 +4,11 @@
   "description": "AI Coding Agent with local model harness (Flash-tier reliable via verification loops)",
   "version": "0.0.2",
   "publisher": "agent-k",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "extensions/*"
+  ],
   "engines": {
     "vscode": "^1.125.0"
   },
@@ -665,7 +670,7 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
-    "lint": "eslint src",
+    "lint": "eslint src packages",
     "test": "vscode-test",
     "test:harness": "node --import tsx ./node_modules/mocha/bin/mocha.js --ui tdd --extension ts 'tests/acceptance/harness/ac*.spec.ts'",
     "test:plan-v2": "node --import tsx ./node_modules/mocha/bin/mocha.js --ui tdd --extension ts 'tests/unit/plan/v2/*.test.ts'",

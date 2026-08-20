@@ -18,10 +18,12 @@
     "ignoreDeprecations": "6.0",
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@agent-k/providers": ["packages/providers/src/types.ts"],
+      "@agent-k/providers/*": ["packages/providers/src/*"]
     },
     "types": ["vscode", "node", "mocha"]
   },
-  "include": ["src/**/*", "vite.config.ts", "esbuild.js"],
+  "include": ["src/**/*", "packages/**/*", "vite.config.ts", "esbuild.js"],
   "exclude": ["node_modules", "dist", "out", "tests"]
 }
