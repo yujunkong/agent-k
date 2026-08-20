@@ -86,15 +86,27 @@ function fileEditMeta(file: FileEditPreview): string | undefined {
   return parts.length ? parts.join(' ') : undefined;
 }
 
+/** Last-line meta is noise when FINDSTR/OEM encoding dumps punctuation or U+FFFD. */
+export function isNoisyTerminalMeta(line: string): boolean {
+  const text = String(line || '').trim();
+  if (!text) return true;
+  if (/[\uFFFD]/.test(text)) return true;
+  // e.g. "===" from a binary/FINDSTR hit used as the card subtitle
+  if (text.length <= 8 && /^[=*.#\-_/\\]+$/.test(text)) return true;
+  return false;
+}
+
 function terminalMeta(run: TerminalRunPreview): string | undefined {
   if (run.status === 'running') return undefined;
   const output = [run.stdout, run.stderr].filter(Boolean).join('\n').trim();
   if (output) {
     const lines = output.split(/\r?\n/).filter(Boolean);
     const last = lines[lines.length - 1] || '';
-    if (last) return last.length > 96 ? `${last.slice(0, 93)}…` : last;
+    if (last && !isNoisyTerminalMeta(last)) {
+      return last.length > 96 ? `${last.slice(0, 93)}…` : last;
+    }
   }
-  if (run.error) return run.error;
+  if (run.error && !isNoisyTerminalMeta(run.error)) return run.error;
   if (run.exitCode != null) return `Exit ${run.exitCode}`;
   return run.status === 'error' ? 'Failed' : undefined;
 }
@@ -114,6 +126,11 @@ export function resolveTimelineStepDensity(
 ): TimelineStepDensity {
   if (step.status === 'failed') return 'failed';
   if (step.status === 'running' || (activeStepId != null && step.id === activeStepId)) {
+    return 'active';
+  }
+  // Completed Edit / Command keep the bordered card. Compact chrome is
+  // transparent (looks like a plain list) — that is what hid the boxes.
+  if (step.kind === 'file' || step.kind === 'terminal') {
     return 'active';
   }
   return 'compact';

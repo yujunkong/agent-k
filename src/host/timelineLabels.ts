@@ -176,7 +176,8 @@ export const shortDetail = (
       args.command ?? args.cmd ?? args.shell ?? args.description ?? ''
     ).trim();
     if (!cmd) return undefined;
-    return cmd.length > 80 ? `${cmd.slice(0, 77)}…` : cmd;
+    // CSS ellipsis on the card subtitle; keep enough of long Windows paths.
+    return cmd.length > 160 ? `${cmd.slice(0, 157)}…` : cmd;
   }
 
   if (name === 'todo_write') {

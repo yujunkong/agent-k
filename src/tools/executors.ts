@@ -10,66 +10,102 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync, execSync } from 'child_process';
 
-/** Resolve ripgrep binary — VS Code GUI PATH often lacks Homebrew. */
-function findRipgrepBinary(): string | null {
-  const candidates = [
-    process.env.AGENT_K_RG_PATH,
-    'rg',
-    '/opt/homebrew/bin/rg',
-    '/usr/local/bin/rg',
-    '/usr/bin/rg'
-  ].filter(Boolean) as string[];
+/** PATH extras so GUI-hosted Node can still find rg / rg.exe. */
+function ripgrepSearchPath(platform: NodeJS.Platform = process.platform): string {
+  const home = process.env.USERPROFILE || process.env.HOME || '';
+  const local = process.env.LOCALAPPDATA || '';
+  const unix = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
+  const win = [
+    path.join(process.env.SystemRoot || 'C:\\Windows', 'System32'),
+    home ? path.join(home, '.cargo', 'bin') : '',
+    local ? path.join(local, 'Microsoft', 'WinGet', 'Links') : '',
+    local ? path.join(local, 'scoop', 'shims') : ''
+  ].filter(Boolean);
+  return [process.env.PATH || '', ...(platform === 'win32' ? win : unix)].join(
+    path.delimiter
+  );
+}
 
-  for (const bin of candidates) {
+function vscodeBundledRipgrep(exe: string): string[] {
+  try {
+    const vscode = require('vscode') as typeof import('vscode');
+    const appRoot = vscode.env?.appRoot;
+    if (!appRoot) return [];
+    return [
+      path.join(appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', exe),
+      path.join(appRoot, 'node_modules.asar.unpacked', '@vscode', 'ripgrep', 'bin', exe)
+    ];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Candidate rg binaries. Windows previously only tried Unix `rg` / `which`,
+ * so grep fell through to a slow JS walker and the model switched to FINDSTR.
+ */
+export function ripgrepBinaryCandidates(
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env
+): string[] {
+  const exe = platform === 'win32' ? 'rg.exe' : 'rg';
+  const home = env.USERPROFILE || env.HOME || '';
+  const local = env.LOCALAPPDATA || '';
+  const pf = env.ProgramFiles || 'C:\\Program Files';
+  const out: string[] = [];
+  if (env.AGENT_K_RG_PATH) out.push(env.AGENT_K_RG_PATH);
+  if (env.VSCODE_RIPGREP_PATH) out.push(env.VSCODE_RIPGREP_PATH);
+  out.push(exe);
+  if (platform === 'win32') {
+    out.push('rg');
+    out.push(path.join(pf, 'ripgrep', 'rg.exe'));
+    if (home) out.push(path.join(home, '.cargo', 'bin', 'rg.exe'));
+    if (local) {
+      out.push(path.join(local, 'Microsoft', 'WinGet', 'Links', 'rg.exe'));
+      out.push(path.join(local, 'scoop', 'shims', 'rg.exe'));
+    }
+  } else {
+    out.push('/opt/homebrew/bin/rg', '/usr/local/bin/rg', '/usr/bin/rg');
+  }
+  out.push(...vscodeBundledRipgrep(exe));
+  return out.filter(Boolean);
+}
+
+/** Resolve ripgrep binary — VS Code GUI PATH often lacks Homebrew / rg.exe. */
+export function findRipgrepBinary(): string | null {
+  const platform = process.platform;
+  const pathEnv = ripgrepSearchPath(platform);
+  const runEnv = { ...process.env, PATH: pathEnv };
+
+  for (const bin of ripgrepBinaryCandidates(platform)) {
     try {
-      if (bin === 'rg') {
-        execFileSync(bin, ['--version'], {
-          encoding: 'utf-8',
-          timeout: 3000,
-          stdio: ['ignore', 'pipe', 'ignore'],
-          env: {
-            ...process.env,
-            PATH: [
-              process.env.PATH || '',
-              '/opt/homebrew/bin',
-              '/usr/local/bin',
-              '/usr/bin',
-              '/bin'
-            ].join(path.delimiter)
-          }
-        });
-        return bin;
-      }
-      if (fs.existsSync(bin)) {
-        execFileSync(bin, ['--version'], {
-          encoding: 'utf-8',
-          timeout: 3000,
-          stdio: ['ignore', 'pipe', 'ignore']
-        });
-        return bin;
-      }
+      const isBare = bin === 'rg' || bin === 'rg.exe';
+      if (!isBare && !fs.existsSync(bin)) continue;
+      execFileSync(bin, ['--version'], {
+        encoding: 'utf-8',
+        timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+        env: runEnv
+      });
+      return bin;
     } catch {
       /* try next */
     }
   }
 
-  // Last resort: `which rg` with augmented PATH
+  // Last resort: `where rg` (Windows) / `which rg` (Unix)
   try {
-    const which = execSync('which rg', {
+    const locator = platform === 'win32' ? 'where rg' : 'which rg';
+    const found = execSync(locator, {
       encoding: 'utf-8',
       timeout: 3000,
-      env: {
-        ...process.env,
-        PATH: [
-          process.env.PATH || '',
-          '/opt/homebrew/bin',
-          '/usr/local/bin'
-        ].join(path.delimiter)
-      }
+      env: runEnv
     })
       .trim()
-      .split('\n')[0];
-    if (which && fs.existsSync(which)) return which;
+      .split(/\r?\n/)[0]
+      .replace(/^"/, '')
+      .replace(/"$/, '');
+    if (found && fs.existsSync(found)) return found;
   } catch {
     /* no rg */
   }
@@ -89,7 +125,17 @@ function grepJsFallback(
     re = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   }
 
-  const ignoreDir = new Set(['node_modules', '.git', 'dist', 'out', '.cursor', '.harb']);
+  const ignoreDir = new Set([
+    'node_modules',
+    '.git',
+    'dist',
+    'out',
+    '.cursor',
+    '.harb',
+    'target',
+    'vendor',
+    'build'
+  ]);
   const textExt = /\.(ts|tsx|js|jsx|mjs|cjs|json|md|py|rs|go|java|kt|swift|css|scss|html|yml|yaml|toml|sh|bash|zsh|txt|vue|svelte)$/i;
   const includeRe = include
     ? (() => {
@@ -177,11 +223,52 @@ export async function executeGrep(input: ToolInput): Promise<ToolOutput> {
 
   const t0 = Date.now();
   const rg = findRipgrepBinary();
+  const pathEnv = ripgrepSearchPath();
+
+  const packHits = (raw: string, truncatedHint = false, engine = 'rg') => {
+    const all = String(raw).split('\n').filter(Boolean);
+    const lines = all.slice(0, maxResults);
+    return {
+      success: true as const,
+      data: {
+        results: lines,
+        count: lines.length,
+        truncated: truncatedHint || all.length > maxResults,
+        engine
+      },
+      metadata: { duration: Date.now() - t0 }
+    };
+  };
 
   if (rg) {
     try {
       // NEVER join args into a shell string — `|` in patterns must stay literal
-      const args = ['-n', '--no-heading', '--color', 'never', '--hidden', '-S'];
+      const args = [
+        '-n',
+        '--no-heading',
+        '--color',
+        'never',
+        '--hidden',
+        '-S',
+        '--max-count',
+        String(maxResults),
+        '--max-filesize',
+        '2M',
+        '-g',
+        '!**/node_modules/**',
+        '-g',
+        '!**/target/**',
+        '-g',
+        '!**/.git/**',
+        '-g',
+        '!**/dist/**',
+        '-g',
+        '!**/out/**',
+        '-g',
+        '!**/.cargo/registry/**',
+        '-g',
+        '!**/.cargo/git/**'
+      ];
       if (include) {
         args.push('-g', String(include));
       }
@@ -192,30 +279,10 @@ export async function executeGrep(input: ToolInput): Promise<ToolOutput> {
         maxBuffer: 2 * 1024 * 1024,
         timeout: 30000,
         cwd,
-        env: {
-          ...process.env,
-          PATH: [
-            process.env.PATH || '',
-            '/opt/homebrew/bin',
-            '/usr/local/bin',
-            '/usr/bin',
-            '/bin'
-          ].join(path.delimiter)
-        }
+        env: { ...process.env, PATH: pathEnv }
       });
 
-      const all = String(result).split('\n').filter(Boolean);
-      const lines = all.slice(0, maxResults);
-      return {
-        success: true,
-        data: {
-          results: lines,
-          count: lines.length,
-          truncated: all.length > maxResults,
-          engine: 'rg'
-        },
-        metadata: { duration: Date.now() - t0 }
-      };
+      return packHits(String(result));
     } catch (error: any) {
       // rg exit 1 = no matches
       if (error.status === 1 || error.status === 0) {
@@ -224,6 +291,11 @@ export async function executeGrep(input: ToolInput): Promise<ToolOutput> {
           data: { results: [], count: 0, engine: 'rg' },
           metadata: { duration: Date.now() - t0 }
         };
+      }
+      // maxBuffer / timeout still often has partial stdout — treat as truncated success
+      const partial = String(error.stdout || '');
+      if (partial.trim()) {
+        return packHits(partial, true);
       }
       // Fall through to JS on missing binary / other errors
       if (error.status !== 127 && !/ENOENT|not found/i.test(String(error.message || ''))) {

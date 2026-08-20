@@ -69,8 +69,23 @@
  */
 .ak-timeline-card { border: 1px solid var(--ak-border-strong); border-radius: var(--ak-radius-sm); background: var(--ak-ui-surface); color: var(--ak-text-primary); font-size: 12px; overflow: hidden; transition: border-color .12s ease, opacity .12s ease; }
 .ak-timeline-card--compact { border-color: transparent; background: transparent; opacity: .78; }
+/* Edit / Command must stay boxed even if a caller still marks them compact. */
+.ak-timeline-card--compact.ak-timeline-card--file,
+.ak-timeline-card--compact.ak-timeline-card--terminal {
+  border-color: var(--ak-border-strong);
+  background: var(--ak-ui-surface);
+  opacity: 1;
+}
 .ak-timeline-card--compact .ak-timeline-card__header { padding: 3px 2px; gap: var(--ak-space-1); }
+.ak-timeline-card--compact.ak-timeline-card--file .ak-timeline-card__header,
+.ak-timeline-card--compact.ak-timeline-card--terminal .ak-timeline-card__header { padding: 7px 9px; }
 .ak-timeline-card--compact .ak-timeline-card__title { font-size: 11px; color: var(--ak-text-muted); }
+.ak-timeline-card--compact.ak-timeline-card--file .ak-timeline-card__title,
+.ak-timeline-card--compact.ak-timeline-card--terminal .ak-timeline-card__title {
+  font-size: 12px;
+  color: var(--ak-text-primary);
+  font-weight: 500;
+}
 .ak-timeline-card--compact .ak-timeline-card__subtitle,
 .ak-timeline-card--compact .ak-timeline-card__meta { font-size: 11px; }
 .ak-timeline-card--compact.ak-timeline-card--reasoning { opacity: .72; }
