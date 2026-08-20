@@ -12,10 +12,7 @@ import {
 } from 'react';
 import { ChatSessionStore } from '../ChatSessionStore';
 import type { ChatSessionMeta } from '../ChatSessionStore';
-import {
-  finalizeStreamingMessages,
-  sanitizeLoadedMessages
-} from '../chatAppHelpers';
+import { sanitizeLoadedMessages } from '../chatAppHelpers';
 import {
   hydrateActiveVariants,
   setActiveVariantChangeHandler
@@ -23,6 +20,7 @@ import {
 import { getVsCodeApi } from '../host/vscodeApi';
 import type { ChatMessage, Mode } from '../types';
 import type { PendingQuestion } from '../../tools/session/AskQuestionTool';
+import type { SendEpochMap } from '../sendEpoch';
 
 export const sessionStore = new ChatSessionStore();
 
@@ -45,7 +43,7 @@ export interface UseChatSessionsParams {
   streaming: boolean;
   awaitingUser: boolean;
   pendingQuestions: PendingQuestion[];
-  sendEpochRef: MutableRefObject<number>;
+  sendEpochRef: MutableRefObject<SendEpochMap>;
   loopSessionIdRef: MutableRefObject<string | null>;
   stopHandlerRef: { readonly current: { stop: (reason: 'user_stop') => unknown } | null };
   stepStartRef: MutableRefObject<Record<string, number>>;
@@ -194,20 +192,15 @@ export function useChatSessions(params: UseChatSessionsParams) {
   );
 
   const handleNewChat = useCallback(() => {
-    if (streaming) {
-      if (awaitingUser) {
-        parkedAwaitingRef.current = null;
-        setShowClarifying(false);
-        setAwaitingUser(false);
-        setPendingQuestions([]);
-      } else {
-        const kept = finalizeStreamingMessages(messagesRef.current);
-        messagesRef.current = kept;
-        setMessages(kept);
-      }
-      stopHandlerRef.current?.stop('user_stop');
-      sendEpochRef.current += 1;
-      loopSessionIdRef.current = null;
+    // Keep the leaving tab's host loop alive. A global Stop + epoch bump
+    // froze the previous (sometimes both) tabs when starting a second task.
+    if (streaming && awaitingUser) {
+      parkedAwaitingRef.current = { sessionId, questions: pendingQuestions };
+      setShowClarifying(false);
+      setAwaitingUser(false);
+    } else if (streaming) {
+      const snap = messagesRef.current.length ? messagesRef.current : messages;
+      sessionStore.saveMessages(sessionId, snap, mode, { setCurrent: false });
     }
     const snap = messagesRef.current.length ? messagesRef.current : messages;
     if (snap.length === 0) {
@@ -224,11 +217,10 @@ export function useChatSessions(params: UseChatSessionsParams) {
     }
     parkPlanForSession(sessionId);
     parkProviderForSession?.(sessionId);
-    sessionStore.saveMessages(sessionId, snap, mode);
+    sessionStore.saveMessages(sessionId, snap, mode, { setCurrent: false });
     const next = sessionStore.createEmpty(mode);
     setSessionId(next.id);
     setMessages([]);
-    stepStartRef.current = {};
     setSessionList(sessionStore.list());
     setOpenTabIds((prev) => [next.id, ...prev.filter((id) => id !== next.id)]);
     resetPlanChrome();
@@ -239,6 +231,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
   }, [
     streaming,
     awaitingUser,
+    pendingQuestions,
     messages,
     sessionId,
     mode,
@@ -248,13 +241,8 @@ export function useChatSessions(params: UseChatSessionsParams) {
     resetPlanChrome,
     parkedAwaitingRef,
     messagesRef,
-    stopHandlerRef,
-    sendEpochRef,
-    loopSessionIdRef,
-    stepStartRef,
     setShowClarifying,
     setAwaitingUser,
-    setPendingQuestions,
     setShowHistory,
     setError,
     setModeAuto
@@ -443,8 +431,9 @@ export function useChatSessions(params: UseChatSessionsParams) {
     (id: string) => {
       if (streaming && id === sessionId) {
         stopHandlerRef.current?.stop('user_stop');
-        sendEpochRef.current += 1;
+        sendEpochRef.current.bump(id);
       }
+      sendEpochRef.current.clear(id);
       onDeletePlanSnap(id);
       const next = sessionStore.delete(id);
       setSessionList(sessionStore.list());

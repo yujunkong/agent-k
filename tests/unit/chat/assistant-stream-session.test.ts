@@ -99,4 +99,59 @@ suite('createAssistantStreamSession', () => {
     onDelta({ debugStage: 'instrument' });
     assert.deepStrictEqual(stages, []);
   });
+
+  test('ask_question parks on ownerSessionId even if loopSessionIdRef moved to another tab', () => {
+    const refs = emptyRefs();
+    refs.loopSessionIdRef.current = 'sess-2';
+    refs.sessionIdRef.current = 'sess-2';
+    let awaiting = false;
+    let clarifying = false;
+    const { onDelta } = createAssistantStreamSession({
+      ...refs,
+      ownerSessionId: 'sess-1',
+      mode: 'agent',
+      planController: {
+        enterQuestionsStage() {},
+        addQuestion() {},
+        getQuestions: () => []
+      },
+      debugController: {
+        getStage: () => 'hypothesis',
+        getHypotheses: () => [],
+        addHypothesis() {
+          return {} as never;
+        },
+        syncStageFromHost() {}
+      },
+      planV2HasPlan: () => false,
+      setMessages: () => {},
+      updateSessionMessages: () => {},
+      getSessionMessages: () => refs.messagesRef.current,
+      setPendingQuestions: () => {},
+      setShowClarifying: (v) => {
+        clarifying = v;
+      },
+      setAwaitingUser: (v) => {
+        awaiting = v;
+      },
+      setDebugTick: () => {},
+      setError: () => {},
+      promotePlanToReview: () => {}
+    });
+
+    onDelta({
+      askQuestion: {
+        id: 'q-1',
+        question: 'Which file?',
+        options: ['a', 'b'],
+        required: true
+      }
+    });
+
+    assert.strictEqual(awaiting, false);
+    assert.strictEqual(clarifying, false);
+    assert.ok(refs.parkedAwaitingRef.current);
+    assert.strictEqual(refs.parkedAwaitingRef.current?.sessionId, 'sess-1');
+    assert.strictEqual(refs.parkedAwaitingRef.current?.questions[0]?.id, 'q-1');
+  });
 });

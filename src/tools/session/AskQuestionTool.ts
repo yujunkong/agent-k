@@ -212,7 +212,14 @@ export class AskQuestionTool {
     return Array.from(this.pendingQuestions.values());
   }
 
-  clear(): void {
+  clear(qids?: string[]): void {
+    if (qids && qids.length > 0) {
+      for (const id of qids) {
+        RuntimeServices.cancelQuestionById(id, 'ask_question cleared');
+        this.pendingQuestions.delete(id);
+      }
+      return;
+    }
     RuntimeServices.cancelQuestion('ask_question cleared');
     this.pendingQuestions.clear();
   }

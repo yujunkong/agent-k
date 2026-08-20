@@ -42,9 +42,13 @@ type AskWaiter = {
   reject: (err: Error) => void;
   timer: ReturnType<typeof setTimeout>;
   pending: PendingAskQuestion;
+  /** Host chat.send request that owns this waiter (parallel tabs). */
+  requestId?: string;
 };
 const askWaiters = new Map<string, AskWaiter>();
 let askQuestionNotifier: ((q: PendingAskQuestion) => void) | undefined;
+/** Last notifier registration — captured per waitForQuestion so a new tab cannot steal it. */
+let currentAskRequestId: string | undefined;
 
 export const RuntimeServices = {
   setWorkspaceState(state: vscode.Memento): void {
@@ -162,9 +166,14 @@ export const RuntimeServices = {
 
   /**
    * Extension host sets this so AskQuestionTool can postMessage to the webview.
+   * Optional requestId scopes waiters so Stop on one tab does not cancel another.
    */
-  setAskQuestionNotifier(cb: ((q: PendingAskQuestion) => void) | undefined): void {
+  setAskQuestionNotifier(
+    cb: ((q: PendingAskQuestion) => void) | undefined,
+    requestId?: string
+  ): void {
     askQuestionNotifier = cb;
+    currentAskRequestId = requestId;
   },
 
   /**
@@ -172,6 +181,9 @@ export const RuntimeServices = {
    * Multiple qids may wait in parallel (batched ask_question).
    */
   waitForQuestion(pending: PendingAskQuestion, timeoutMs = 600_000): Promise<string> {
+    // Capture at wait start — a later tab's setAskQuestionNotifier must not reroute this.
+    const notify = askQuestionNotifier;
+    const ownerRequestId = currentAskRequestId;
     return new Promise((resolve, reject) => {
       const existing = askWaiters.get(pending.id);
       if (existing) {
@@ -195,9 +207,10 @@ export const RuntimeServices = {
           reject(err);
         },
         timer,
-        pending
+        pending,
+        requestId: ownerRequestId
       });
-      if (!askQuestionNotifier) {
+      if (!notify) {
         const w = askWaiters.get(pending.id);
         if (w) {
           clearTimeout(w.timer);
@@ -211,7 +224,7 @@ export const RuntimeServices = {
         return;
       }
       try {
-        askQuestionNotifier(pending);
+        notify(pending);
       } catch (e) {
         const w = askWaiters.get(pending.id);
         if (w) {
@@ -236,13 +249,26 @@ export const RuntimeServices = {
     }
   },
 
-  cancelQuestion(reason = 'ask_question cancelled'): void {
+  cancelQuestion(reason = 'ask_question cancelled', requestId?: string): void {
     const err = new Error(reason);
-    for (const w of askWaiters.values()) {
+    for (const [id, w] of [...askWaiters.entries()]) {
+      if (requestId && w.requestId !== requestId) {
+        continue;
+      }
       clearTimeout(w.timer);
       w.reject(err);
+      askWaiters.delete(id);
     }
-    askWaiters.clear();
+  },
+
+  cancelQuestionById(qid: string, reason = 'ask_question cancelled'): void {
+    const w = askWaiters.get(qid);
+    if (!w) {
+      return;
+    }
+    clearTimeout(w.timer);
+    w.reject(new Error(reason));
+    askWaiters.delete(qid);
   },
 
   getPendingQuestion(): PendingAskQuestion | undefined {
@@ -250,11 +276,21 @@ export const RuntimeServices = {
     return first?.pending;
   },
 
-  getPendingQuestions(): PendingAskQuestion[] {
-    return [...askWaiters.values()].map((w) => w.pending);
+  getPendingQuestions(requestId?: string): PendingAskQuestion[] {
+    return [...askWaiters.values()]
+      .filter((w) => !requestId || w.requestId === requestId)
+      .map((w) => w.pending);
   },
 
-  isAskQuestionPending(): boolean {
-    return askWaiters.size > 0;
+  isAskQuestionPending(requestId?: string): boolean {
+    if (!requestId) {
+      return askWaiters.size > 0;
+    }
+    for (const w of askWaiters.values()) {
+      if (w.requestId === requestId) {
+        return true;
+      }
+    }
+    return false;
   }
 };
