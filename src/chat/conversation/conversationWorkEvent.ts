@@ -389,6 +389,30 @@ export function isSubagentHeaderEvent(item: ConversationWorkEvent): boolean {
   return Boolean(item.subagentId && item.id === `tl_subagent_${item.subagentId}`);
 }
 
+/**
+ * Detail-tab shape: drop the group header and clear subagentId so WorkTimeline
+ * uses the same top-level Thought / Exploring / Edit chrome as the main turn.
+ */
+export function flattenSubagentWorkItems(
+  items: ConversationWorkEvent[],
+  subagentId: string
+): { header?: ConversationWorkEvent; steps: ConversationWorkEvent[] } {
+  const id = String(subagentId || '').trim();
+  let header: ConversationWorkEvent | undefined;
+  const steps: ConversationWorkEvent[] = [];
+  for (const event of items) {
+    if (
+      event.id === `tl_subagent_${id}` ||
+      (event.type === 'subagent' && event.subagentId === id)
+    ) {
+      header = event;
+      continue;
+    }
+    steps.push({ ...event, subagentId: undefined });
+  }
+  return { header, steps };
+}
+
 /** Host chat.stream subagent.event → group header (summary only, never child transcript). */
 export function workEventFromSubagentHostEvent(
   data: Record<string, unknown>

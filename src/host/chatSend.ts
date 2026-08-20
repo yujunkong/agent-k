@@ -434,10 +434,12 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           });
         }
       },
-      onReasoning: (context) => {
+      onReasoning: (context, text) => {
+        const clipped = String(text || '').trim().slice(0, 20000);
         postTimeline({
           kind: 'thinking',
           label: 'Thought',
+          detail: clipped || undefined,
           status: 'running',
           id: `tl_sub_${context.task.id}_thought`,
           turn: currentTurn || 1,

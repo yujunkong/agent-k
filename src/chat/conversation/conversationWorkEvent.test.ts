@@ -7,6 +7,7 @@ import {
   settleWorkEvents,
   settleSubagentWorkEvents,
   applyWorkEvent,
+  flattenSubagentWorkItems,
   upsertWorkEvents,
   patchSubagentResultInEvents,
   workEventFromHostPayload,
@@ -315,6 +316,38 @@ describe('work event lifecycle', () => {
     expect(
       settleSubagentWorkEvents([thought], 'a', 'complete', 9)[0]
     ).toMatchObject({ status: 'complete', completedAt: 9 });
+  });
+
+  it('flattens subagent children into a main-turn sequence', () => {
+    const { header, steps } = flattenSubagentWorkItems(
+      [
+        {
+          id: 'tl_subagent_a',
+          type: 'subagent',
+          status: 'complete',
+          label: 'Agent',
+          subagentId: 'a'
+        },
+        {
+          id: 'tl_sub_a_thought',
+          type: 'thinking',
+          status: 'complete',
+          label: 'Thought',
+          subagentId: 'a'
+        },
+        {
+          id: 'tl_sub_a_read',
+          type: 'read',
+          status: 'complete',
+          label: 'Read',
+          subagentId: 'a'
+        }
+      ],
+      'a'
+    );
+    expect(header?.id).toBe('tl_subagent_a');
+    expect(steps.map((s) => s.id)).toEqual(['tl_sub_a_thought', 'tl_sub_a_read']);
+    expect(steps.every((s) => s.subagentId == null)).toBe(true);
   });
 });
 

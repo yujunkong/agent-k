@@ -3259,6 +3259,7 @@ export function ChatApp() {
             fileEdits={subagentDetailData.fileEdits}
             terminalRuns={subagentDetailData.terminalRuns}
             isStreaming={subagentDetailData.isStreaming}
+            workedDurationMs={subagentDetailData.workedDurationMs}
             onBack={() => setActiveSubagentId(null)}
             onOpenFile={handleOpenFile}
             onAcceptFile={handleAcceptFileEdit}

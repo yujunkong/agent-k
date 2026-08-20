@@ -10,7 +10,8 @@ export {
   applyWorkEvent,
   patchSubagentResultInEvents,
   workEventFromHostPayload,
-  workEventFromSubagentHostEvent
+  workEventFromSubagentHostEvent,
+  flattenSubagentWorkItems
 } from './conversationWorkEvent';
 export { normalizeWorkItems } from './normalizeWorkItems';
 export { groupWorkTimelineItems } from './groupWorkTimelineItems';
