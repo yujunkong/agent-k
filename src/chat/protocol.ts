@@ -15,6 +15,8 @@ export interface ChatMessagePayload {
 /** Webview → Host: Agent/Plan/Debug tool-mediated send */
 export interface ChatSendPayload {
   requestId: string;
+  /** Owning chat session/tab — scopes plan-generate abort to this tab only. */
+  sessionId?: string;
   messages: { role: string; content: string }[];
   mode: 'ask' | 'agent' | 'plan' | 'debug';
   /** Plan FSM stage for stage-specific system prompt */

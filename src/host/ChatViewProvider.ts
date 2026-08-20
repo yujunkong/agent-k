@@ -58,8 +58,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private _hostLoops = new Map<string, HostLoopRuntime>();
   /** Latest request id (legacy bridge fallback only). */
   private _hostLoopRequestId?: string;
-  /** In-flight Plan V2 LLM generations, keyed by webview requestId */
-  private _planV2Aborts = new Map<string, AbortController>();
+  /**
+   * In-flight Plan V2 LLM generations, keyed by webview requestId.
+   * sessionId lets chat.send abort only the same tab's generate (parallel tabs).
+   */
+  private _planV2Aborts = new Map<string, { abort: AbortController; sessionId: string }>();
   /** Cancel arrived before runPlanV2Generate registered an AbortController. */
   private _planV2CancelledIds = new Set<string>();
 
@@ -183,8 +186,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
     // Agent/Plan/Debug: host-mediated tool loop (webview cannot run fs tools)
     if (message.type === 'chat.send' && message.requestId != null) {
-      // Parallel tab runtime: do not abort existing loops from other sessions.
-      this.abortPlanV2Generate();
+      // Parallel tabs: abort only this session's Plan V2 generate — never all tabs.
+      const sendSessionId =
+        String(message.sessionId || '').trim() ||
+        this.sessionIdFromHostRequestId(String(message.requestId));
+      this.abortPlanV2GenerateForSession(sendSessionId);
       void this.runHostChatSend(message);
       return;
     }
@@ -305,7 +311,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             slug: stored.slug,
             title: stored.title,
             filePath: stored.filePath,
-            requestId: message.requestId
+            requestId: message.requestId,
+            sessionId: message.sessionId != null ? String(message.sessionId) : undefined
           });
           const uri = vscode.Uri.file(stored.filePath);
           if (openInEditor) {
@@ -363,7 +370,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             title: loaded.plan.title,
             content: loaded.content,
             filePath: loaded.plan.filePath,
-            requestId: message.requestId
+            requestId: message.requestId,
+            sessionId: message.sessionId != null ? String(message.sessionId) : undefined
           });
         } catch (err: any) {
           this._view?.webview.postMessage({
@@ -676,16 +684,35 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  /** Parse session/runtime key from `host_${sessionId}_${n}_${ts}` request ids. */
+  private sessionIdFromHostRequestId(requestId: string): string {
+    const m = String(requestId || '').match(/^host_(.+?)_\d+_\d+$/);
+    return m?.[1]?.trim() || '';
+  }
+
+  /** Abort Plan V2 generates that belong to one chat session only. */
+  private abortPlanV2GenerateForSession(sessionId?: string): void {
+    const owner = String(sessionId || '').trim();
+    if (!owner) return;
+    for (const [id, entry] of [...this._planV2Aborts.entries()]) {
+      if (entry.sessionId !== owner) continue;
+      this._planV2CancelledIds.add(id);
+      entry.abort.abort();
+      this._planV2Aborts.delete(id);
+    }
+  }
+
   private abortPlanV2Generate(requestId?: string): void {
     if (requestId) {
       this._planV2CancelledIds.add(requestId);
-      const ac = this._planV2Aborts.get(requestId);
-      ac?.abort();
+      const entry = this._planV2Aborts.get(requestId);
+      entry?.abort.abort();
       this._planV2Aborts.delete(requestId);
       return;
     }
+    // Dispose path only — cancel every in-flight Plan V2 generate.
     for (const id of this._planV2Aborts.keys()) this._planV2CancelledIds.add(id);
-    for (const ac of this._planV2Aborts.values()) ac.abort();
+    for (const entry of this._planV2Aborts.values()) entry.abort.abort();
     this._planV2Aborts.clear();
   }
 
