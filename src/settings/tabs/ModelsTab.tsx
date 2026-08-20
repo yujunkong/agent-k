@@ -1,12 +1,11 @@
 /**
  * Settings → AI Providers
  *
- * Zero Configuration: Name + Base URL + API Key 만 받고 Connect.
- * Provider Type 은 URL 자동 감지, 애매할 때만 OpenAI Compatible 폴백.
- * 고급 설정에서 Type / Headers 수동 지정. /models 실패 시 수동 모델 추가.
+ * 표준 Provider 프리셋(OpenAI, Claude, OpenAI Compatible, OpenRouter, Ollama, LM Studio 등)으로
+ * Name + Base URL + API Key 를 채운 뒤 Test / Save. Type 은 URL 자동 감지, 애매할 때만 수동 지정.
+ * /models 실패 시 수동 모델 추가. Integrations(GitHub/PR) 블록은 이 탭에서 제거.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { configManager } from '../../core/ConfigManager';
 import { fetchProviderModels } from '../../chat/providerModels';
 import { detectProviderType, isLocalBaseUrl } from '../../providers/detectProviderType';
 import {
@@ -25,14 +24,6 @@ import { PROVIDER_PRESETS, manualModelPresetsForType } from '../../providers/pro
 import { formatProviderStatusLine } from '../../providers/providerStatus';
 import type { ProviderType } from '../../providers/types';
 import { activateProviderProfile, getProviderProfiles } from '../../providers/ProviderProfiles';
-
-function persistToHost(values: Record<string, unknown>): void {
-  try {
-    const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
-    if (api?.postMessage) { api.postMessage({ type: 'config.update', values }); return; }
-  } catch { /* ignore */ }
-  try { window.parent.postMessage({ type: 'config.update', values }, '*'); } catch { /* ignore */ }
-}
 
 function parseHeaders(raw: string): Record<string, string> | undefined {
   const text = raw.trim();
@@ -71,14 +62,12 @@ export function ModelsTab() {
   const [providerType, setProviderType] = useState<ProviderType>('litellm');
   const [headersText, setHeadersText] = useState('');
 
-  const [busy, setBusy] = useState<'idle' | 'testing' | 'connecting'>('idle');
+  // busy: idle | testing | saving — Save 가 연결 저장+프로브
+  const [busy, setBusy] = useState<'idle' | 'testing' | 'saving'>('idle');
   const [preview, setPreview] = useState<{ ok: boolean; detail: string } | null>(null);
   const [manualModel, setManualModel] = useState('');
   const [showManualModels, setShowManualModels] = useState(false);
   const [formError, setFormError] = useState('');
-
-  const [githubToken, setGithubToken] = useState(() => String(configManager.get('agent-k.github.token') || ''));
-  const [githubReveal, setGithubReveal] = useState(false);
 
   const detection = useMemo(() => detectProviderType(baseUrl), [baseUrl]);
   const effectiveType: ProviderType = typeManual && isProviderType(providerType) ? providerType : detection.type;
@@ -155,7 +144,8 @@ export function ModelsTab() {
     setBusy('idle');
   };
 
-  const handleConnect = async () => {
+  /** 연결 저장 + /models 프로브 (이전 Connect 동작) */
+  const handleSave = async () => {
     if (!baseUrl.trim()) { setFormError('Base URL is required.'); return; }
     let displayName = name.trim();
     if (!displayName) {
@@ -166,7 +156,7 @@ export function ModelsTab() {
         displayName = 'Provider';
       }
     }
-    setBusy('connecting'); setFormError('');
+    setBusy('saving'); setFormError('');
     const existing = editingId ? getProviderConnection(editingId) : undefined;
     const saved = upsertProviderConnection({
       id: editingId || undefined,
@@ -237,7 +227,7 @@ export function ModelsTab() {
     <div className="settings-tab-content">
       <h3>AI Providers</h3>
       <p className="settings-hint">
-        Connect with a name, base URL, and API key. Agent K detects the provider, loads models, and picks a healthy endpoint when the same model exists in more than one place.
+        Add a standard provider (OpenAI, Claude, OpenAI Compatible, OpenRouter, Ollama, LM Studio, …), then Save. Agent K detects the type, loads models, and prefers a healthy endpoint when the same model exists in more than one place.
       </p>
 
       <div className="provider-list" role="list">
@@ -282,7 +272,7 @@ export function ModelsTab() {
               </button>
               {open ? (
                 <div className="provider-card__detail">
-                  {conn.lastError ? <div className="settings-hint" style={{ color: '#f87171' }}>{conn.lastError}</div> : null}
+                  {conn.lastError ? <div className="settings-error">{conn.lastError}</div> : null}
                   <div className="settings-actions">
                     <button type="button" className="settings-btn secondary" onClick={() => void handleRetry(conn)}>
                       {warn ? 'Reconnect' : 'Refresh models'}
@@ -297,12 +287,12 @@ export function ModelsTab() {
       </div>
 
       {formMode === 'closed' ? (
-        <button type="button" className="settings-btn secondary" onClick={openCreate}>＋ Add Provider</button>
+        <button type="button" className="settings-btn" onClick={openCreate}>＋ Add Provider</button>
       ) : (
         <div className="settings-section">
           <div className="settings-section__head">
             <p className="settings-section__title">{formMode === 'edit' ? 'Edit Provider' : 'Add Provider'}</p>
-            <p className="settings-section__desc">Only name, base URL, and API key are required.</p>
+            <p className="settings-section__desc">Pick a preset or enter name, base URL, and API key, then Save.</p>
           </div>
           <div className="settings-section__body">
             <div className="preset-row" aria-label="Provider presets">
@@ -312,7 +302,7 @@ export function ModelsTab() {
             </div>
             <div className="settings-field">
               <label>Name</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="DGX Spark" />
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="OpenAI" />
             </div>
             <div className="settings-field">
               <label>Base URL</label>
@@ -377,15 +367,15 @@ export function ModelsTab() {
               <button type="button" className="settings-btn secondary" onClick={() => void handleTest()} disabled={busy !== 'idle'}>
                 {busy === 'testing' ? 'Testing…' : 'Test'}
               </button>
-              <button type="button" className="settings-btn" onClick={() => void handleConnect()} disabled={busy !== 'idle'}>
-                {busy === 'connecting' ? 'Connecting…' : 'Connect'}
+              <button type="button" className="settings-btn" onClick={() => void handleSave()} disabled={busy !== 'idle'}>
+                {busy === 'saving' ? 'Saving…' : 'Save'}
               </button>
               <button type="button" className="settings-btn secondary" onClick={() => { resetForm(); setFormMode('closed'); }}>Cancel</button>
             </div>
             {preview ? (
-              <div className="settings-hint" style={{ color: preview.ok ? '#22c55e' : '#f87171' }}>{preview.detail}</div>
+              <div className={preview.ok ? 'settings-success' : 'settings-error'}>{preview.detail}</div>
             ) : null}
-            {formError ? <div className="settings-hint" style={{ color: '#f87171' }}>{formError}</div> : null}
+            {formError ? <div className="settings-error">{formError}</div> : null}
 
             {showManualModels && editingId ? (
               <div className="settings-field">
@@ -420,24 +410,6 @@ export function ModelsTab() {
           </div>
         </div>
       )}
-
-      <h3 style={{ marginTop: 28 }}>Integrations</h3>
-      <p className="settings-hint">Optional credentials for SCM / PR features.</p>
-      <div className="settings-field">
-        <label>GitHub Token</label>
-        <div className="settings-secret-row">
-          <input type={githubReveal ? 'text' : 'password'} value={githubToken} onChange={(e) => setGithubToken(e.target.value)} placeholder="ghp_…" autoComplete="off" />
-          <button type="button" className="settings-btn secondary settings-btn--tiny" onClick={() => setGithubReveal((v) => !v)}>{githubReveal ? 'Hide' : 'Show'}</button>
-          <button
-            type="button"
-            className="settings-btn secondary settings-btn--tiny"
-            onClick={() => {
-              configManager.update({ 'agent-k.github.token': githubToken });
-              persistToHost({ 'agent-k.github.token': githubToken });
-            }}
-          >Save</button>
-        </div>
-      </div>
     </div>
   );
 }

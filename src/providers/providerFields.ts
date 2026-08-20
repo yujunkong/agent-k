@@ -20,10 +20,10 @@ export const PROVIDER_FIELDS: Record<ProviderType, ProviderFieldMeta> = {
     needsBaseUrl: true,
     needsApiKey: true,
     apiKeyOptional: true,
-    defaultBaseUrl: 'http://127.0.0.1:52415',
+    defaultBaseUrl: 'http://127.0.0.1:4000',
     defaultModel: 'mlx-community/Qwen3.6-35B-A3B-4bit',
     hint:
-      'OpenAI-compatible (MLX/exo/LiteLLM). Local MLX usually needs no key; LiteLLM proxy may need a master key.'
+      'OpenAI Compatible endpoint (LiteLLM, vLLM, local proxy, OpenRouter-style gateways). Local servers often need no key.'
   },
   openai: {
     needsBaseUrl: false,
@@ -37,9 +37,9 @@ export const PROVIDER_FIELDS: Record<ProviderType, ProviderFieldMeta> = {
     needsBaseUrl: true,
     needsApiKey: true,
     apiKeyOptional: false,
-    defaultBaseUrl: 'http://127.0.0.1:4000',
+    defaultBaseUrl: 'https://api.anthropic.com',
     defaultModel: 'claude-sonnet-4-20250514',
-    hint: 'OpenAI-compatible Anthropic proxy (e.g. LiteLLM). Base URL + API key required.'
+    hint: 'Claude (Anthropic). Use the official API URL or an OpenAI-compatible proxy. API key required.'
   },
   ollama: {
     needsBaseUrl: true,
@@ -76,9 +76,9 @@ export const PROVIDER_FIELDS: Record<ProviderType, ProviderFieldMeta> = {
 };
 
 export const PROVIDER_LABELS: Record<ProviderType, string> = {
-  litellm: 'LiteLLM / OpenAI-compatible',
+  litellm: 'OpenAI Compatible',
   openai: 'OpenAI',
-  anthropic: 'Anthropic (via proxy)',
+  anthropic: 'Claude (Anthropic)',
   ollama: 'Ollama',
   lmstudio: 'LM Studio',
   'opencode-zen': 'OpenCode Zen',

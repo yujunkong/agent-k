@@ -4240,7 +4240,8 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .provider-card__status {
   font-size: 11px;
-  opacity: 0.7;
+  color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+  opacity: 1;
 }
 
 .provider-card__detail {
@@ -5154,13 +5155,16 @@ body.vscode-high-contrast .ak-code__cursor {
 .settings-field__label,
 .settings-field label {
   font-size: 11px;
-  opacity: 0.75;
+  color: var(--vscode-foreground);
+  opacity: 0.9;
 }
 
-.settings-field__hint {
+.settings-field__hint,
+.settings-hint {
   font-size: 11px;
-  opacity: 0.55;
   line-height: 1.35;
+  color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+  opacity: 1;
 }
 
 .settings-field input,
@@ -5372,37 +5376,43 @@ body.vscode-high-contrast .ak-code__cursor {
   margin-left: 6px;
   font-size: 11px;
   font-weight: 400;
-  color: #4ade80;
-  opacity: 0.9;
+  color: var(--vscode-testing-iconPassed, var(--vscode-charts-green, #4ade80));
+  opacity: 1;
 }
 
+/* Primary / secondary 버튼 — VS Code 테마 토큰으로 대비 보장 (투명+inherit 금지) */
 .settings-btn {
   align-self: flex-start;
   padding: 6px 14px;
   border: 1px solid transparent;
   border-radius: 4px;
   background: var(--vscode-button-background, #0e639c);
-  color: var(--vscode-button-foreground, #fff);
+  color: var(--vscode-button-foreground, #ffffff);
   font-size: 12px;
   cursor: pointer;
 }
 
-.settings-btn:hover {
+.settings-btn:hover:not(:disabled) {
   background: var(--vscode-button-hoverBackground, #1177bb);
 }
 
-.settings-btn.secondary {
-  background: transparent;
-  border-color: var(--vscode-button-secondaryBackground, #3c3c3c);
-  color: inherit;
+.settings-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
-.settings-btn.secondary:hover {
-  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+.settings-btn.secondary {
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #ffffff);
+  border-color: var(--vscode-button-secondaryBackground, #3a3d41);
+}
+
+.settings-btn.secondary:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
 
 .settings-btn--danger {
-  color: #f87171 !important;
+  color: var(--vscode-errorForeground, #f48771) !important;
 }
 
 .settings-btn--tiny {
@@ -5558,14 +5568,14 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .settings-success,
 .settings-status--success {
-  color: #22c55e;
+  color: var(--vscode-testing-iconPassed, var(--vscode-charts-green, #89d185));
   font-size: 12px;
   margin: 0;
 }
 
 .settings-error,
 .settings-status--error {
-  color: #f87171;
+  color: var(--vscode-errorForeground, #f48771);
   font-size: 12px;
   margin: 0;
 }
@@ -5911,59 +5921,7 @@ body.vscode-high-contrast .ak-code__cursor {
   min-width: 0;
 }
 
-.settings-stored-badge {
-  margin-left: 6px;
-  font-size: 11px;
-  font-weight: 400;
-  color: #4ade80;
-  opacity: 0.9;
-}
-
-.settings-btn--danger {
-  color: #f87171 !important;
-}
-
-.settings-btn--tiny {
-  padding: 2px 8px;
-  font-size: 11px;
-  align-self: center;
-}
-
-.settings-btn {
-  align-self: flex-start;
-  padding: 6px 14px;
-  border: 1px solid #3c3c3c;
-  border-radius: 4px;
-  background: var(--vscode-button-background, #0e639c);
-  color: var(--vscode-button-foreground, #fff);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.settings-btn:hover {
-  background: var(--vscode-button-hoverBackground, #1177bb);
-}
-
-.settings-btn.secondary {
-  background: #3c3c3c;
-}
-
-.settings-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.settings-success {
-  color: #22c55e;
-  font-size: 12px;
-}
-
-.settings-error {
-  color: #f87171;
-  font-size: 12px;
-}
+/* Duplicate settings-btn / success-error blocks removed — canonical rules above */
 
 
 .plan-overlay {
