@@ -19,6 +19,13 @@ export interface ChatSessionMeta {
   updatedAt: number;
 }
 
+/** Cursor-style subagent detail tab — persisted across tab switches / reload. */
+export interface SubagentTabRecord {
+  id: string;
+  title: string;
+  parentSessionId: string;
+}
+
 export interface ChatSession extends ChatSessionMeta {
   messages: ChatMessage[];
   /**
@@ -41,6 +48,8 @@ export interface ChatSession extends ChatSessionMeta {
 const INDEX_KEY = 'agent-k.chat.sessions.index';
 const CURRENT_KEY = 'agent-k.chat.sessions.current';
 const OPEN_TABS_KEY = 'agent-k.chat.sessions.openTabs';
+/** Open subagent progress tabs (Cursor-style agent tabs). */
+const SUBAGENT_TABS_KEY = 'agent-k.chat.subagentTabs';
 const LEGACY_KEY = 'agent-k.chat.history';
 const PREFIX = 'agent-k.chat.sessions.';
 const MAX_SESSIONS = 50;
@@ -115,6 +124,27 @@ export class ChatSessionStore {
     // Persist exactly what the UI closed/opened — never re-add currentId
     const valid = ids.filter((id) => this.index.includes(id));
     writeJson(OPEN_TABS_KEY, valid);
+  }
+
+  /** Persisted subagent tabs — filtered to sessions that still exist. */
+  getSubagentTabs(): SubagentTabRecord[] {
+    const stored = readJson<SubagentTabRecord[]>(SUBAGENT_TABS_KEY, []);
+    return stored.filter(
+      (t) =>
+        t?.id &&
+        t.parentSessionId &&
+        this.index.includes(t.parentSessionId)
+    );
+  }
+
+  setSubagentTabs(tabs: SubagentTabRecord[]): void {
+    const valid = tabs.filter(
+      (t) =>
+        t?.id &&
+        t.parentSessionId &&
+        this.index.includes(t.parentSessionId)
+    );
+    writeJson(SUBAGENT_TABS_KEY, valid);
   }
 
   list(): ChatSessionMeta[] {
