@@ -16,6 +16,7 @@ export default defineConfig({
       path: resolve(__dirname, 'src/chat/node-shims.ts'),
       // Workspace package — prefer @agent-k/providers over src/providers shims
       '@agent-k/providers': resolve(__dirname, 'packages/providers/src'),
+      '@agent-k/shared': resolve(__dirname, 'packages/shared/src'),
     }
   },
   // Webview loads chat.js as a classic/non-module script — strip Vite/ESM env bits

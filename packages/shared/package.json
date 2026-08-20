@@ -3,10 +3,18 @@
   "version": "0.0.0",
   "private": true,
   "description": "Protocol / work-event / common error types only. No business logic.",
+  "agentk": {
+    "status": "extracted",
+    "phase": 0,
+    "featureIds": ["EXT-*", "HOST-*", "CONV-*", "STREAM-*"]
+  },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./protocol": "./src/protocol.ts",
+    "./workEvent": "./src/workEvent.ts",
+    "./subagentResult": "./src/subagentResult.ts",
     "./*": "./src/*"
   },
   "sideEffects": false

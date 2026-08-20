@@ -13,6 +13,8 @@ Feature Master: `AGENT-K-FEATURE-MASTER-v2.1-PRODUCTION-MODE-FINAL.md` (v2.1-PRO
 4. **복사 이식 금지** — 파일 단위 복사가 아니라 Feature ID 단위 이식
 
 > 전환 중: 구현 상당수는 아직 `src/<domain>/`에 있다. 아래 표의 **역할/금지**가 소유권이며, 물리 경로는 stub README의 `owns`를 따른다.
+>
+> **v3.0 진행:** Phase 0 `@agent-k/shared` 추출됨 (protocol / workEvent / subagentResult). Phase 1 `@agent-k/providers` 추출됨.
 
 ## B-1. 패키지 경계 요약
 

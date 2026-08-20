@@ -16,8 +16,8 @@ That file is the single source for:
 
 | Package | Status |
 |---------|--------|
-| `@agent-k/providers` | **extracted** (`packages/providers`; `src/providers` shims) |
-| `@agent-k/shared` | scaffold (`packages/shared/src/index.ts`) |
+| `@agent-k/shared` | **Phase 0 extracted** (protocol, workEvent, subagentResult) |
+| `@agent-k/providers` | **Phase 1 extracted** (`packages/providers`; `src/providers` shims) |
 | chat-ui / host / core / tools / plan / worktree / safety | ownership stubs (code still in `src/`) |
 | `extensions/agent-k` | assembly stub (VSIX still root `package.json`) |
 

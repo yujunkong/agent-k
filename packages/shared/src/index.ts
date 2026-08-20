@@ -1,6 +1,7 @@
 /**
- * @agent-k/shared — types / protocol surface (Phase 0 scaffold).
- * Move concrete schemas here from src/chat/protocol.ts and work-event types as edges are cut.
- * Keep this package free of business logic, React, and vscode.
+ * @agent-k/shared — protocol + Typed Work Event contracts (Phase 0).
+ * No React, vscode, or business package dependencies.
  */
-export {};
+export * from './protocol';
+export * from './workEvent';
+export * from './subagentResult';
