@@ -218,9 +218,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       return;
     }
     if (message.type === 'chat.question.cancel') {
-      RuntimeServices.cancelQuestion(
-        message.qid != null ? `ask_question cancelled: ${message.qid}` : 'ask_question cancelled'
-      );
+      if (message.qid != null) {
+        RuntimeServices.cancelQuestionById(
+          String(message.qid),
+          `ask_question cancelled: ${message.qid}`
+        );
+      } else if (this._hostLoopRequestId) {
+        RuntimeServices.cancelQuestion(
+          'ask_question cancelled',
+          this._hostLoopRequestId
+        );
+      } else {
+        RuntimeServices.cancelQuestion('ask_question cancelled');
+      }
       return;
     }
     // Plan V2 semantic validation: resolve repository file existence in the
@@ -644,9 +654,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
     }
 
-    // Unstick ask_question / reproduce waiters
-    RuntimeServices.cancelQuestion('chat stopped');
-    RuntimeServices.cancelReproduce();
+    // Unstick ask_question / reproduce waiters for the aborted request(s) only.
+    if (requestId) {
+      RuntimeServices.cancelQuestion('chat stopped', requestId);
+      if (this._hostLoops.size === 0) {
+        RuntimeServices.cancelReproduce();
+      }
+    } else {
+      RuntimeServices.cancelQuestion('chat stopped');
+      RuntimeServices.cancelReproduce();
+    }
   }
 
   private abortPlanV2Generate(requestId?: string): void {

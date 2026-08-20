@@ -21,6 +21,7 @@ import {
 } from './components/SubagentDetailView';
 import { useChatStream } from './hooks/useChatStream';
 import { useChatSessions, sessionStore } from './hooks/useChatSessions';
+import { SendEpochMap } from './sendEpoch';
 import { useHostMessages } from './hooks/useHostMessages';
 import { getVsCodeApi } from './host/vscodeApi';
 import {
@@ -420,8 +421,8 @@ export function ChatApp() {
   /** ADDON-T10: handleSend (defined earlier) calls runSlashCommand (defined later) */
   const runSlashCommandRef = useRef<((cmd: SlashCommand) => void) | null>(null);
   const turnNumberRef = useRef(0);
-  /** Bumped on stop/resynth so in-flight handleSend (awaiting harness) is abandoned. */
-  const sendEpochRef = useRef(0);
+  /** Bumped on stop/resynth so in-flight handleSend (awaiting harness) is abandoned. Per session so a second tab cannot stale the first. */
+  const sendEpochRef = useRef(new SendEpochMap());
   /** After clarifying questions: next assistant complete → save as PLAN.md + open review */
   const promotePlanOnCompleteRef = useRef(false);
   /** Avoid re-promoting the same plan body in a loop */
@@ -1606,7 +1607,8 @@ export function ChatApp() {
       return;
     }
 
-    const epoch = ++sendEpochRef.current;
+    const ownerId = sessionIdRef.current;
+    const epoch = sendEpochRef.current.bump(ownerId);
     const planPhase = planV2Adapter.session.getPhase();
     const { mode: effectiveMode, decision: modeDecision } = resolveSendMode({
       userMessage: text,
@@ -1618,7 +1620,7 @@ export function ChatApp() {
     if (effectiveMode !== mode) {
       setMode(effectiveMode);
     }
-    loopSessionIdRef.current = sessionIdRef.current;
+    loopSessionIdRef.current = ownerId;
 
     if (effectiveMode === 'plan') {
       const phase = planV2Adapter.session.getPhase();
@@ -1660,7 +1662,7 @@ export function ChatApp() {
         effectiveMode,
         'A'
       );
-      if (epoch !== sendEpochRef.current) return; // superseded by stop/resynth
+      if (sendEpochRef.current.isStale(ownerId, epoch)) return; // superseded by stop/resynth on this tab
       payload = prependHarnessToUserPayload(payload, harnessCtx, effectiveMode);
       const fileHits = (harnessCtx.prefetchRaw.match(/Read file:/g) || []).length;
       setUxState((prev) => ({
@@ -1675,11 +1677,11 @@ export function ChatApp() {
       }));
       setStuckEvent(null);
     } catch {
-      if (epoch !== sendEpochRef.current) return;
+      if (sendEpochRef.current.isStale(ownerId, epoch)) return;
       /* prefetch 실패는 비치명 */
     }
 
-    if (epoch !== sendEpochRef.current) return;
+    if (sendEpochRef.current.isStale(ownerId, epoch)) return;
 
     // UI: 사용자 입력만 — harness/resynth wrapper는 API 요청에만 주입
     const userMsg: ChatMessage = {
@@ -1723,8 +1725,8 @@ export function ChatApp() {
 
     const stream = makeAssistantStream(
       effectiveMode,
-      () => epoch !== sendEpochRef.current,
-      sessionIdRef.current
+      () => sendEpochRef.current.isStale(ownerId, epoch),
+      ownerId
     );
     sendMessage(
       payload,
@@ -1738,7 +1740,7 @@ export function ChatApp() {
         ...(opts?.planStageOverride
           ? { planStageOverride: opts.planStageOverride }
           : {}),
-        runtimeKey: sessionIdRef.current,
+        runtimeKey: ownerId,
         ...(inlineCtx
           ? { inlineEdit: toInlineEditAgentRequest(displayText, inlineCtx) }
           : {})
@@ -1750,14 +1752,15 @@ export function ChatApp() {
   handleSendRef.current = handleSend;
 
   const handleRegenerate = useCallback(() => {
-    const epoch = ++sendEpochRef.current;
+    const ownerId = sessionIdRef.current;
+    const epoch = sendEpochRef.current.bump(ownerId);
     stepStartRef.current = {};
-    loopSessionIdRef.current = sessionIdRef.current;
+    loopSessionIdRef.current = ownerId;
     const snapshot = messagesRef.current;
     const stream = makeAssistantStream(
       mode,
-      () => epoch !== sendEpochRef.current,
-      sessionIdRef.current
+      () => sendEpochRef.current.isStale(ownerId, epoch),
+      ownerId
     );
     regenerate(
       snapshot,
@@ -1789,7 +1792,7 @@ export function ChatApp() {
     planController.onBuildReadyCallback((_context: string) => {
       const planState = planController.getState();
       stopHandlerRef.current?.stop('user_stop');
-      sendEpochRef.current += 1;
+      sendEpochRef.current.bump(sessionIdRef.current);
       setAwaitingUser(false);
       setShowClarifying(false);
       setMessages(cleanupStreamingAssistants);
@@ -1853,7 +1856,7 @@ export function ChatApp() {
    */
   const handleResynthesize = useCallback((text: string, opts?: { drainQueue?: boolean }) => {
     stopHandlerRef.current?.interruptForResynthesize();
-    sendEpochRef.current += 1;
+    sendEpochRef.current.bump(sessionIdRef.current);
     const drainQueue = opts?.drainQueue !== false;
     const drained = drainQueue ? msgQueue.drain() : [];
     msgQueue.pruneSettled();
@@ -1903,9 +1906,10 @@ export function ChatApp() {
     );
     const synthesisText = rebuilt[rebuilt.length - 1]?.content || instruction;
 
-    const epochAtSchedule = sendEpochRef.current;
+    const ownerId = sessionIdRef.current;
+    const epochAtSchedule = sendEpochRef.current.get(ownerId);
     setTimeout(() => {
-      if (epochAtSchedule !== sendEpochRef.current) return;
+      if (sendEpochRef.current.isStale(ownerId, epochAtSchedule)) return;
       handleSend(instruction, [], { apiUserContent: synthesisText });
     }, 50);
   }, [msgQueue, mode, handleSend, cleanupStreamingAssistants]);
@@ -2057,7 +2061,7 @@ export function ChatApp() {
   /** Stop button — abort + clear streaming orphans; composer accepts new messages */
   const handleStop = useCallback(() => {
     stopHandlerRef.current?.stop('user_stop');
-    sendEpochRef.current += 1; // abandon in-flight handleSend awaiting harness
+    sendEpochRef.current.bump(sessionIdRef.current); // abandon in-flight handleSend awaiting harness
     setAwaitingUser(false);
     setShowClarifying(false);
     if (generatingPlan) {
@@ -2143,7 +2147,7 @@ export function ChatApp() {
       if (idx < 0) return;
       if (streaming) {
         stopHandlerRef.current?.stop('user_stop');
-        sendEpochRef.current += 1;
+        sendEpochRef.current.bump(sessionIdRef.current);
       }
       const snap = messagesRef.current.length ? messagesRef.current : messages;
       if (snap.length > 0) {
@@ -2192,7 +2196,7 @@ export function ChatApp() {
     // Stop in-flight stream so the next send uses the new mode cleanly.
     if (streaming) {
       stopHandlerRef.current?.stop('user_stop');
-      sendEpochRef.current += 1;
+      sendEpochRef.current.bump(sessionIdRef.current);
       setMessages(cleanupStreamingAssistants);
     }
     setMode(newMode);
@@ -2389,14 +2393,16 @@ export function ChatApp() {
       // Host plan.v2.generate also abortHostChatLoop() and waits on the
       // send chain before the LLM call — research turns cannot overlap.
       stopHandlerRef.current?.stop('user_stop');
-      sendEpochRef.current += 1;
+      sendEpochRef.current.bump(sessionIdRef.current);
       const kept = cleanupStreamingAssistants(messagesRef.current);
       messagesRef.current = kept;
       setMessages(kept);
     }
     try {
       const api = getVsCodeApi();
-      api?.postMessage?.({ type: 'chat.question.cancel' });
+      for (const q of pendingQuestionsRef.current) {
+        api?.postMessage?.({ type: 'chat.question.cancel', qid: q.id });
+      }
     } catch {
       /* ignore */
     }
@@ -2459,11 +2465,13 @@ export function ChatApp() {
   const handleQuestionsCancel = useCallback(() => {
     try {
       const api = getVsCodeApi();
-      api?.postMessage?.({ type: 'chat.question.cancel' });
+      for (const q of pendingQuestionsRef.current) {
+        api?.postMessage?.({ type: 'chat.question.cancel', qid: q.id });
+      }
     } catch {
       /* ignore */
     }
-    askQuestionTool.clear();
+    askQuestionTool.clear(pendingQuestionsRef.current.map((q) => q.id));
     setShowClarifying(false);
     setPendingQuestions([]);
     setAwaitingUser(false);

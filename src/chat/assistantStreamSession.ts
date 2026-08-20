@@ -197,7 +197,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         }
         ctx.setDebugTick((t) => t + 1);
       }
-      const ownerId = ctx.loopSessionIdRef.current || ctx.sessionIdRef.current;
+      const ownerId = getOwnerSessionId();
       const qEntry: PendingQuestion = {
         id: q.id,
         question: normalized.question,
@@ -475,7 +475,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
 
     if (delta.status !== undefined) {
       if (delta.status === 'asking') {
-        const ownerId = ctx.loopSessionIdRef.current || ctx.sessionIdRef.current;
+        const ownerId = getOwnerSessionId();
         if (!ownerId || ownerId === ctx.sessionIdRef.current) {
           ctx.setAwaitingUser(true);
         }

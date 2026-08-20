@@ -114,6 +114,8 @@ export interface LoopConfig {
     required?: boolean;
     allowMultiple?: boolean;
   }) => void;
+  /** Host chat.send request id — scopes ask_question waiters to this loop. */
+  requestId?: string;
   onTurnStart?: (turn: number) => Promise<void>;
   onTurnEnd?: (turn: number, context: TurnContext) => Promise<void>;
   onStatus?: (status: LoopStatus) => void;
@@ -2292,11 +2294,16 @@ export class AgentLoopController {
 
       // ─── ask_question (C5-T02 / RW-C5-02) ───────────────
       if (name === 'ask_question') {
-        const { askQuestionTool } = await import('../tools/session/AskQuestionTool');
+        const { AskQuestionTool } = await import('../tools/session/AskQuestionTool');
+        // Per-loop instance so parallel tabs do not share pending-question state.
+        const askQuestionTool = new AskQuestionTool();
         // Re-bind UI bridge for this loop — survives interrupt→new-tab races
         if (this.config.onAskQuestion) {
           const { RuntimeServices } = await import('../core/RuntimeServices');
-          RuntimeServices.setAskQuestionNotifier(this.config.onAskQuestion);
+          RuntimeServices.setAskQuestionNotifier(
+            this.config.onAskQuestion,
+            this.config.requestId
+          );
         }
         const result = await askQuestionTool.execute(args);
         if (result.success) {

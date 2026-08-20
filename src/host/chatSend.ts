@@ -73,7 +73,7 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
       allowMultiple: Boolean(q.allowMultiple)
     });
     post('status', { status: 'asking' });
-  });
+  }, requestId);
 
 
   const inlineEdit = parseInlineEditAgentRequest(message.inlineEdit);
@@ -286,6 +286,7 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           maxTurns,
           turnTimeoutMs,
           modelId: model,
+          requestId,
           tier: 'A',
           contextBudget: modelContext.maxInputTokens,
           systemPrompt: modeRegistry.getSystemPrompt(childMode),
@@ -552,6 +553,7 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
       maxTurns,
       turnTimeoutMs,
       modelId: model,
+      requestId,
       tier: 'A',
       contextBudget: modelContext.maxInputTokens,
       systemPrompt,
@@ -1096,12 +1098,12 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
     // Keepalive so webview idle watchdog does not fire during slow LLM TTFT / ask_question
     const heartbeat = setInterval(() => {
       if (!isActive()) return;
-      const asking = RuntimeServices.isAskQuestionPending();
+      const asking = RuntimeServices.isAskQuestionPending(requestId);
       if (getRuntime()?.loop.isRunning || asking) {
         post('heartbeat', {});
       }
-      // Re-broadcast pending MCQ — recovers if first ask_question event was missed
-      const pendingAll = RuntimeServices.getPendingQuestions();
+      // Re-broadcast this request's MCQ only — never another tab's questions.
+      const pendingAll = RuntimeServices.getPendingQuestions(requestId);
       for (const pending of pendingAll) {
         post('ask_question', {
           qid: pending.id,
