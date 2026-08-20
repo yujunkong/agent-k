@@ -279,13 +279,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // than special-casing CORS in the webview (which can't be fixed
     // client-side; the server would have to add the header itself).
     if (message.type === 'plan.v2.generate' && message.requestId != null) {
-      // Stop any research AgentLoop first, then generate — never overlap.
-      this.abortHostChatLoop();
+      // Stop only the same session/runtime loop first, then generate.
+      this.abortHostChatLoopsForSession(String(message.sessionId || ''));
       void this.runPlanV2Generate(message);
       return;
     }
     if (message.type === 'plan.execute' && message.requestId != null) {
-      this.abortHostChatLoop();
+      this.abortHostChatLoopsForSession(String(message.sessionId || ''));
       void executeHostPlanExecute({ webview: this._view?.webview }, message);
       return;
     }
@@ -663,6 +663,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     } else {
       RuntimeServices.cancelQuestion('chat stopped');
       RuntimeServices.cancelReproduce();
+    }
+  }
+
+  /** Stop only host chat loops that belong to one chat session/runtime key. */
+  private abortHostChatLoopsForSession(sessionId?: string) {
+    const owner = String(sessionId || '').trim();
+    if (!owner) return;
+    const prefix = `host_${owner}_`;
+    for (const id of [...this._hostLoops.keys()]) {
+      if (id.startsWith(prefix)) this.abortHostChatLoop(id);
     }
   }
 
