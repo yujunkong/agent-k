@@ -1,4 +1,13 @@
 import * as vscode from 'vscode';
+import { classifyProbeResult } from '../providers/providerStatus';
+
+function mergeProbeHeaders(apiKey?: string, extraHeaders?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...(extraHeaders || {}) };
+  if (apiKey && !headers.Authorization && !headers['x-api-key'] && !headers['X-Api-Key']) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  return headers;
+}
 
 /** Extension Host에서 /v1/models 연결 테스트 (CSP·CORS 우회) */
 export async function runProviderConnectionTest(
@@ -6,7 +15,8 @@ export async function runProviderConnectionTest(
   requestId: string,
   baseUrl: string,
   apiKey?: string,
-  model?: string
+  model?: string,
+  extraHeaders?: Record<string, string>
 ): Promise<void> {
   if (!webview) return;
 
@@ -16,25 +26,25 @@ export async function runProviderConnectionTest(
 
   const root = String(baseUrl || '').replace(/\/$/, '');
   if (!root) {
-    post({ ok: false, detail: 'Base URL is empty' });
+    post({ ok: false, detail: 'Base URL is empty', health: 'offline' });
     return;
   }
 
   try {
-    const headers: Record<string, string> = {};
-    if (apiKey) {
-      headers.Authorization = `Bearer ${apiKey}`;
-    }
+    const headers = mergeProbeHeaders(apiKey, extraHeaders);
     const response = await fetch(`${root}/v1/models`, { headers });
     const status = response.status;
+    const health = classifyProbeResult(response.ok, status);
 
     if (!response.ok) {
       let detail = `HTTP ${status}`;
-      if (status === 401) {
+      if (status === 401 || status === 403) {
         detail +=
-          ' — Unauthorized. LiteLLM (:4000) needs a valid master key in API Key. Or use direct MLX at http://127.0.0.1:52415 with full model id (e.g. mlx-community/Qwen3.6-35B-A3B-4bit).';
+          ' — Auth failed. Check API Key, or use a local endpoint that does not require auth.';
+      } else if (status === 429) {
+        detail += ' — Rate limited. Retry in a moment.';
       }
-      post({ ok: false, status, detail });
+      post({ ok: false, status, detail, health });
       return;
     }
 
@@ -45,13 +55,13 @@ export async function runProviderConnectionTest(
       model && found
         ? `OK — model "${model}" listed (${modelIds.length} models)`
         : modelIds.length > 0
-          ? `OK — server reachable (${modelIds.length} models). Model may still work if loaded on demand.`
-          : 'OK — server reachable (no models in list).';
+          ? `OK — server reachable (${modelIds.length} models).`
+          : 'OK — server reachable (no models in list). Add a model name manually.';
 
-    post({ ok: true, status, detail, modelIds });
+    post({ ok: true, status, detail, modelIds, health });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    post({ ok: false, detail: msg || 'Connection failed' });
+    post({ ok: false, detail: msg || 'Connection failed', health: 'offline' });
   }
 }
 

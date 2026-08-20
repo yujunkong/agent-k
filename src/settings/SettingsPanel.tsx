@@ -61,9 +61,9 @@ const TAB_GROUPS: TabGroup[] = [
     tabs: [
       {
         id: 'models',
-        label: 'Models',
+        label: 'AI Providers',
         icon: '⬡',
-        keywords: 'provider model api key openai litellm ollama credentials github token',
+        keywords: 'provider model api key openai litellm ollama credentials github token connect',
       },
       {
         id: 'features',

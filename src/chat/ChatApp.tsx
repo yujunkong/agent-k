@@ -140,9 +140,12 @@ import {
 } from './assistantStreamSession';
 import {
   getComposerModels,
+  getUnifiedComposerModels,
   persistProviderModel,
   refreshComposerModels
 } from './providerModels';
+import { normalizeModelId } from '../providers/normalizeModelId';
+import { getActiveProviderName } from '../providers/ModelResolver';
 // ADDON-T10: slash command UX (/compact /cost /model /permissions /help)
 import { SLASH_COMMANDS, resolveSlashCommand, type SlashCommand } from './composerPalette';
 
@@ -2556,12 +2559,21 @@ export function ChatApp() {
     requestModelContext();
   }, [requestModelContext]);
 
-  const modelLabel = shortModelName(providerModel);
+  const unifiedModels = useMemo(() => getUnifiedComposerModels(), [composerModels]);
+  const activeProviderName = getActiveProviderName();
+  const modelCanonical = normalizeModelId(providerModel) || providerModel;
+  const unifiedCurrent = unifiedModels.find((m) => m.canonicalId === modelCanonical);
+  const modelLabel = unifiedCurrent
+    ? `${unifiedCurrent.displayName}${activeProviderName ? ` · ${activeProviderName}` : ''}`
+    : shortModelName(providerModel);
 
   const handleModelChange = useCallback((next: string) => {
     if (!next) return;
     persistProviderModel(next);
-    setProviderModel(next);
+    setProviderModel(String(configManager.get('agent-k.provider.model') || next));
+    setProviderType(String(configManager.get('agent-k.provider.type') || 'litellm'));
+    setProviderBaseUrl(String(configManager.get('agent-k.provider.baseUrl') || ''));
+    setProviderApiKey(String(configManager.get('agent-k.provider.apiKey') || ''));
   }, []);
 
   const handleThinkingEffortChange = useCallback((next: ThinkingEffort) => {
@@ -2591,10 +2603,21 @@ export function ChatApp() {
   );
 
   const composerModelOptions = useMemo(() => {
+    if (unifiedModels.length > 0) {
+      return unifiedModels.map((m) => ({
+        id: m.canonicalId,
+        label: m.displayName,
+        providerName:
+          m.canonicalId === modelCanonical
+            ? (activeProviderName || m.providers[0]?.connectionName)
+            : m.providers[0]?.connectionName,
+        tags: m.tags
+      }));
+    }
     const ids = [...composerModels];
     if (providerModel && !ids.includes(providerModel)) ids.unshift(providerModel);
     return ids;
-  }, [composerModels, providerModel]);
+  }, [composerModels, providerModel, unifiedModels, activeProviderName, modelCanonical]);
 
   // Load /v1/models into Composer whenever the provider endpoint changes
   useEffect(() => {
@@ -3062,7 +3085,7 @@ export function ChatApp() {
           modeLabels={MODE_LABELS}
           modeTooltips={MODE_TOOLTIPS}
           modelLabel={modelLabel}
-          modelId={providerModel}
+          modelId={modelCanonical || providerModel}
           modelOptions={composerModelOptions}
           onModelChange={handleModelChange}
           thinkingEffort={thinkingEffort}

@@ -344,6 +344,16 @@
             "type": "string"
           }
         },
+        "agent-k.provider.connections": {
+          "type": "array",
+          "default": [],
+          "description": "Saved AI provider connections (name, base URL, discovered models, health)"
+        },
+        "agent-k.provider.preferUserOrder": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, Composer uses the dragged provider order instead of Local-first auto resolve"
+        },
         "agent-k.github.token": {
           "type": "string",
           "default": "",
