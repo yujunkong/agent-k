@@ -1,4 +1,5 @@
 import { configManager } from '../core/ConfigManager';
+import { normalizeModelId } from './normalizeModelId';
 import type { ProviderType } from './types';
 
 export const PROVIDER_PROFILES_KEY = 'agent-k.provider.profiles';
@@ -14,6 +15,8 @@ export interface ProviderProfile {
   enabled: boolean;
   createdAt: number;
   updatedAt: number;
+  /** ProviderConnections 레지스트리의 연결 id (없으면 레거시 per-model 프로필) */
+  connectionId?: string;
 }
 
 function vscodeApi(): { postMessage: (msg: unknown) => void } | null {
@@ -43,10 +46,10 @@ function readProfiles(): ProviderProfile[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter((p): p is ProviderProfile =>
     !!p && typeof p === 'object' &&
-    typeof p.id === 'string' &&
-    typeof p.type === 'string' &&
-    typeof p.baseUrl === 'string' &&
-    typeof p.model === 'string'
+    typeof (p as ProviderProfile).id === 'string' &&
+    typeof (p as ProviderProfile).type === 'string' &&
+    typeof (p as ProviderProfile).baseUrl === 'string' &&
+    typeof (p as ProviderProfile).model === 'string'
   );
 }
 
@@ -93,7 +96,8 @@ export function upsertProviderProfile(input: Partial<ProviderProfile> & {
     model: input.model,
     enabled: input.enabled ?? existing?.enabled ?? true,
     createdAt: existing?.createdAt || now,
-    updatedAt: now
+    updatedAt: now,
+    connectionId: input.connectionId ?? existing?.connectionId
   };
   const next = existing
     ? current.map((p) => p.id === id ? profile : p)
@@ -142,7 +146,12 @@ export function activateProviderProfile(profileId: string): ProviderProfile | un
 }
 
 export function findProviderProfileForModel(model: string): ProviderProfile | undefined {
-  const profiles = readProfiles().filter((p) => p.enabled && p.model === model);
+  const enabled = readProfiles().filter((p) => p.enabled);
+  const exact = enabled.filter((p) => p.model === model);
+  const canon = normalizeModelId(model);
+  const profiles = exact.length > 0
+    ? exact
+    : enabled.filter((p) => canon && normalizeModelId(p.model) === canon);
   if (profiles.length === 0) return undefined;
   const active = getActiveProviderProfileId();
   return profiles.find((p) => p.id === active) || profiles[0];

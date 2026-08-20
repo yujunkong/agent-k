@@ -7,10 +7,18 @@ import React, {
   useState
 } from 'react';
 import { IconCheck, IconChevronDown } from './Icons';
+import { MODEL_TAG_LABELS, type ModelTag } from '../../providers/modelTags';
+
+export interface ModelSelectorOption {
+  id: string;
+  label: string;
+  providerName?: string;
+  tags?: ModelTag[];
+}
 
 interface ModelSelectorProps {
   value: string;
-  options: string[];
+  options: Array<string | ModelSelectorOption>;
   onChange: (modelId: string) => void;
   disabled?: boolean;
   /** Short label shown on the trigger (falls back to last path segment) */
@@ -22,15 +30,26 @@ function shortModelName(id: string): string {
   return short.length > 32 ? `${short.slice(0, 30)}…` : short;
 }
 
-function matchesFilter(id: string, query: string): boolean {
+function asOption(item: string | ModelSelectorOption): ModelSelectorOption {
+  if (typeof item === 'string') {
+    return { id: item, label: shortModelName(item) };
+  }
+  return item;
+}
+
+function matchesFilter(opt: ModelSelectorOption, query: string, tag: ModelTag | 'all'): boolean {
+  if (tag !== 'all' && !(opt.tags || []).includes(tag)) return false;
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  const short = (id.split('/').pop() || id).toLowerCase();
-  return id.toLowerCase().includes(q) || short.includes(q);
+  const hay = [opt.id, opt.label, opt.providerName, ...(opt.tags || [])]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return hay.includes(q);
 }
 
 /**
- * Composer model picker with type-to-filter (native &lt;select&gt; cannot search).
+ * Composer model picker: unified list + search + optional tag/provider badges.
  */
 export function ModelSelector({
   value,
@@ -41,6 +60,7 @@ export function ModelSelector({
 }: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
+  const [tagFilter, setTagFilter] = useState<ModelTag | 'all'>('all');
   const [highlight, setHighlight] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLInputElement>(null);
@@ -48,18 +68,28 @@ export function ModelSelector({
   const listId = useId();
 
   const allOptions = useMemo(() => {
-    if (value && !options.includes(value)) return [value, ...options];
-    return options;
+    const mapped = options.map(asOption);
+    if (value && !mapped.some((o) => o.id === value)) {
+      return [{ id: value, label: shortModelName(value) }, ...mapped];
+    }
+    return mapped;
   }, [options, value]);
 
+  const availableTags = useMemo(() => {
+    const set = new Set<ModelTag>();
+    for (const o of allOptions) (o.tags || []).forEach((t) => set.add(t));
+    return [...set];
+  }, [allOptions]);
+
   const filtered = useMemo(
-    () => allOptions.filter((id) => matchesFilter(id, filter)),
-    [allOptions, filter]
+    () => allOptions.filter((opt) => matchesFilter(opt, filter, tagFilter)),
+    [allOptions, filter, tagFilter]
   );
 
   const close = useCallback(() => {
     setOpen(false);
     setFilter('');
+    setTagFilter('all');
     setHighlight(0);
   }, []);
 
@@ -122,13 +152,14 @@ export function ModelSelector({
     }
     if (e.key === 'Enter') {
       e.preventDefault();
-      const id = filtered[highlight];
+      const id = filtered[highlight]?.id;
       if (id) pick(id);
       return;
     }
   };
 
-  const display = label || shortModelName(value || allOptions[0] || 'Model');
+  const selected = allOptions.find((o) => o.id === value);
+  const display = label || selected?.label || shortModelName(value || allOptions[0]?.id || 'Model');
 
   return (
     <div className="model-selector-wrapper" ref={rootRef}>
@@ -139,7 +170,7 @@ export function ModelSelector({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
-        title={value || display}
+        title={selected?.providerName ? `${display} · ${selected.providerName}` : value || display}
         aria-label={`Model: ${value || display}`}
         onClick={() => {
           if (!disabled) setOpen((v) => !v);
@@ -164,14 +195,31 @@ export function ModelSelector({
                 setHighlight(0);
               }}
               onKeyDown={onFilterKeyDown}
-              placeholder="Filter models…"
-              aria-label="Filter models"
+              placeholder="Search models…"
+              aria-label="Search models"
               aria-controls={listId}
               aria-autocomplete="list"
               autoComplete="off"
               spellCheck={false}
             />
           </div>
+          {availableTags.length > 0 ? (
+            <div className="model-selector__tags" role="tablist" aria-label="Filter by tag">
+              <button
+                type="button"
+                className={`model-tag${tagFilter === 'all' ? ' is-active' : ''}`}
+                onClick={() => { setTagFilter('all'); setHighlight(0); }}
+              >All</button>
+              {availableTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  className={`model-tag${tagFilter === tag ? ' is-active' : ''}`}
+                  onClick={() => { setTagFilter(tag); setHighlight(0); }}
+                >{MODEL_TAG_LABELS[tag]}</button>
+              ))}
+            </div>
+          ) : null}
           <ul
             id={listId}
             className="model-selector__list"
@@ -184,27 +232,37 @@ export function ModelSelector({
                 No matches
               </li>
             ) : (
-              filtered.map((id, idx) => {
-                const selected = id === value;
+              filtered.map((opt, idx) => {
+                const isSelected = opt.id === value;
                 const active = idx === highlight;
                 return (
-                  <li key={id} role="presentation">
+                  <li key={opt.id} role="presentation">
                     <button
                       type="button"
                       role="option"
                       data-model-idx={idx}
-                      aria-selected={selected}
-                      title={id}
+                      aria-selected={isSelected}
+                      title={opt.providerName ? `${opt.label} · ${opt.providerName}` : opt.id}
                       className={`model-selector__item${
-                        selected ? ' is-selected' : ''
+                        isSelected ? ' is-selected' : ''
                       }${active ? ' is-active' : ''}`}
                       onMouseEnter={() => setHighlight(idx)}
-                      onClick={() => pick(id)}
+                      onClick={() => pick(opt.id)}
                     >
-                      <span className="model-selector__item-label">
-                        {shortModelName(id)}
+                      <span className="model-selector__item-main">
+                        <span className="model-selector__item-label">{opt.label}</span>
+                        {opt.providerName ? (
+                          <span className="model-selector__item-provider">{opt.providerName}</span>
+                        ) : null}
+                        {(opt.tags || []).length > 0 ? (
+                          <span className="model-selector__item-badges">
+                            {opt.tags!.map((t) => (
+                              <span key={t} className={`model-badge model-badge--${t}`}>{MODEL_TAG_LABELS[t]}</span>
+                            ))}
+                          </span>
+                        ) : null}
                       </span>
-                      {selected ? (
+                      {isSelected ? (
                         <span className="model-selector__item-check" aria-hidden>
                           <IconCheck size={14} />
                         </span>

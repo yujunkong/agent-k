@@ -7,7 +7,7 @@ import {
   type InlineEditContext
 } from '../inlineEdit';
 import { ModeSelector } from './ModeSelector';
-import { ModelSelector } from './ModelSelector';
+import { ModelSelector, type ModelSelectorOption } from './ModelSelector';
 import { IconQueue } from './Icons';
 import { ComposerPalette, type PaletteItem } from './ComposerPalette';
 import {
@@ -57,7 +57,7 @@ interface ComposerProps {
   /** Full model id (for select value) */
   modelId?: string;
   /** Models from provider /v1/models (Composer picker) */
-  modelOptions?: string[];
+  modelOptions?: Array<string | ModelSelectorOption>;
   /** User picked a model from the composer dropdown */
   onModelChange?: (modelId: string) => void;
   /** Thinking effort (Off / Low / Med / High / Max) */
@@ -874,7 +874,13 @@ export function Composer({
               />
               {onModelChange && (modelOptions.length > 0 || modelId) ? (
                 <ModelSelector
-                  value={modelId || modelOptions[0] || ''}
+                  value={
+                    modelId ||
+                    (typeof modelOptions[0] === 'string'
+                      ? modelOptions[0]
+                      : modelOptions[0]?.id) ||
+                    ''
+                  }
                   options={modelOptions}
                   onChange={onModelChange}
                   disabled={isStreaming}

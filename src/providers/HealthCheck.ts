@@ -1,7 +1,8 @@
 /**
  * HealthCheck - 프로바이더 헬스체크
- * 
- * GET /models 호출로 검증. 주기적 체크(5분). 상태 관리.
+ *
+ * GET /models 로 검증. UI 는 이벤트 기반(Connect / 재시도 / Composer 엔드포인트 변경).
+ * 주기적 polling 은 호출하지 않는 것이 기본이며, startPeriodic 은 호환용으로만 남긴다.
  */
 export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
 

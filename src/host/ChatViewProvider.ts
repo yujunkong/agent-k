@@ -145,9 +145,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     requestId: string,
     baseUrl: string,
     apiKey?: string,
-    model?: string
+    model?: string,
+    extraHeaders?: Record<string, string>
   ): Promise<void> {
-    await probeProviderConnection(this._view?.webview, requestId, baseUrl, apiKey, model);
+    await probeProviderConnection(this._view?.webview, requestId, baseUrl, apiKey, model, extraHeaders);
   }
 
   private async refreshModelContext(message: {
@@ -163,11 +164,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (!message || typeof message !== 'object') return;
     // Models tab: 연결 테스트는 Host fetch로 수행
     if (message.type === 'provider.test' && message.requestId != null) {
+      const extraHeaders =
+        message.extraHeaders && typeof message.extraHeaders === 'object' && !Array.isArray(message.extraHeaders)
+          ? Object.fromEntries(
+              Object.entries(message.extraHeaders as Record<string, unknown>).filter(
+                (entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string'
+              )
+            )
+          : undefined;
       void this.runProviderConnectionTest(
         String(message.requestId),
         String(message.baseUrl ?? ''),
         message.apiKey ? String(message.apiKey) : undefined,
-        message.model ? String(message.model) : undefined
+        message.model ? String(message.model) : undefined,
+        extraHeaders
       );
       return;
     }

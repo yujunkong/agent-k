@@ -146,7 +146,8 @@ export class WorktreeManager {
       branch: sanitized,
       hash: execSync(`git rev-parse HEAD`, { cwd: worktreePath, stdio: 'pipe' }).toString().trim(),
       createdAt: Date.now(),
-      active: true
+      active: true,
+      detached: false
     };
 
     return info;
