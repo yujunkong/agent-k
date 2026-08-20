@@ -327,6 +327,9 @@ export function ChatApp() {
   providerTypeRef.current = providerType;
   thinkingEffortRef.current = thinkingEffort;
 
+  /** Skip global config writes while restoring a tab's provider (prevents cross-tab bleed). */
+  const isRestoringProviderRef = useRef(false);
+
   /** Write current Composer provider fields into a session (tab-scoped). */
   const persistProviderToSession = useCallback(
     (id: string, patch?: Partial<NonNullable<ChatSession['provider']>>) => {
@@ -517,9 +520,11 @@ export function ChatApp() {
    */
   const restoreProviderForSession = useCallback(
     (id: string) => {
+      isRestoringProviderRef.current = true;
       const p = sessionStore.get(id)?.provider;
       if (!p?.model && !p?.thinkingEffort && !p?.baseUrl && !p?.type) {
         persistProviderToSession(id);
+        isRestoringProviderRef.current = false;
         return;
       }
       setProviderModel(
@@ -547,6 +552,10 @@ export function ChatApp() {
           p?.thinkingEffort ?? configManager.get('agent-k.thinking.effort')
         )
       );
+      // Release after React applies restored state (avoid thrashing global config).
+      queueMicrotask(() => {
+        isRestoringProviderRef.current = false;
+      });
     },
     [persistProviderToSession]
   );
@@ -608,8 +617,16 @@ export function ChatApp() {
   sessionIdRef.current = sessionId;
 
   // Cursor-style subagent progress tabs (no composer — detail pane only).
-  const [subagentTabs, setSubagentTabs] = useState<SubagentDetailTab[]>([]);
+  // Persisted in localStorage so tab switches / reload keep individual agent tabs open.
+  const [subagentTabs, setSubagentTabs] = useState<SubagentDetailTab[]>(() =>
+    sessionStore.getSubagentTabs()
+  );
   const [activeSubagentId, setActiveSubagentId] = useState<string | null>(null);
+
+  // Persist subagent tab strip whenever it changes.
+  useEffect(() => {
+    sessionStore.setSubagentTabs(subagentTabs);
+  }, [subagentTabs]);
 
   const handleOpenSubagent = useCallback(
     (subagentId: string, title: string) => {
@@ -632,9 +649,18 @@ export function ChatApp() {
     [sessionId]
   );
 
-  const handleSelectSubagentTab = useCallback((id: string) => {
-    setActiveSubagentId(id);
-  }, []);
+  const handleSelectSubagentTab = useCallback(
+    (id: string) => {
+      const tab = subagentTabs.find((t) => t.id === id);
+      if (!tab) return;
+      // Jump to the parent chat session so messages/provider match this agent run.
+      if (tab.parentSessionId !== sessionId) {
+        handleOpenSession(tab.parentSessionId);
+      }
+      setActiveSubagentId(id);
+    },
+    [subagentTabs, sessionId, handleOpenSession]
+  );
 
   const handleCloseSubagentTab = useCallback((id: string) => {
     setSubagentTabs((prev) => prev.filter((t) => t.id !== id));
@@ -643,21 +669,21 @@ export function ChatApp() {
 
   const handleSelectSessionTab = useCallback(
     (id: string) => {
+      // Leave subagent detail view but keep agent tabs in the strip.
       setActiveSubagentId(null);
       handleOpenSession(id);
     },
     [handleOpenSession]
   );
 
-  // Drop subagent tabs that belong to other/deleted sessions when switching.
+  // Drop subagent tabs whose parent session was deleted (not on every tab switch).
   useEffect(() => {
-    setSubagentTabs((prev) => prev.filter((t) => t.parentSessionId === sessionId));
-    setActiveSubagentId((cur) => {
-      if (!cur) return null;
-      // Keep if still present for this session after filter (checked next render).
-      return cur;
+    const validSessionIds = new Set(sessionList.map((s) => s.id));
+    setSubagentTabs((prev) => {
+      const next = prev.filter((t) => validSessionIds.has(t.parentSessionId));
+      return next.length === prev.length ? prev : next;
     });
-  }, [sessionId]);
+  }, [sessionList]);
 
   useEffect(() => {
     setActiveSubagentId((cur) => {
@@ -671,10 +697,17 @@ export function ChatApp() {
     [subagentTabs, activeSubagentId]
   );
 
+  /** Messages for the active subagent's parent session (may differ from current tab). */
+  const subagentParentMessages = useMemo(() => {
+    if (!activeSubagentTab) return messages;
+    if (activeSubagentTab.parentSessionId === sessionId) return messages;
+    return getSessionMessages(activeSubagentTab.parentSessionId);
+  }, [activeSubagentTab, sessionId, messages, getSessionMessages]);
+
   const subagentDetailData = useMemo(() => {
     if (!activeSubagentTab) return null;
-    return collectSubagentTimeline(messages, activeSubagentTab.id);
-  }, [activeSubagentTab, messages]);
+    return collectSubagentTimeline(subagentParentMessages, activeSubagentTab.id);
+  }, [activeSubagentTab, subagentParentMessages]);
 
   // Plan V2 (additive): structured PlanSession running alongside the
   // existing PlanModeController stage machine. See
@@ -2759,25 +2792,13 @@ export function ChatApp() {
 
   const handleCloseSettings = useCallback(() => {
     setShowSettings(false);
-    // Settings may have changed provider/model — refresh context window
-    const type = String(configManager.get('agent-k.provider.type') || 'litellm');
-    const baseUrl = String(
-      configManager.get('agent-k.provider.baseUrl') || providerBaseUrl
-    );
-    const apiKey = String(configManager.get('agent-k.provider.apiKey') || '');
-    const model = String(
-      configManager.get('agent-k.provider.model') || providerModel
-    );
-    setProviderType(type);
-    setProviderBaseUrl(baseUrl);
-    setProviderApiKey(apiKey);
-    setProviderModel(model);
-    setComposerModels(getComposerModels());
+    // Restore this tab's provider from session store — do not overwrite with globals.
     const id = sessionStore.getCurrentId();
     if (id) {
-      persistProviderToSession(id, { type, baseUrl, apiKey, model });
+      restoreProviderForSession(id);
     }
-  }, [providerBaseUrl, providerModel, persistProviderToSession]);
+    setComposerModels(getComposerModels());
+  }, [restoreProviderForSession]);
 
   const handleToggleHistory = useCallback((e?: React.MouseEvent) => {
     e?.preventDefault();
@@ -2861,6 +2882,7 @@ export function ChatApp() {
 
   // When model changes, snap effort onto levels that model accepts
   useEffect(() => {
+    if (isRestoringProviderRef.current) return;
     const cap = resolveThinkingCapability(providerModel);
     setThinkingEffort((prev) => {
       const next = clampThinkingEffort(prev, cap);
@@ -3364,8 +3386,15 @@ export function ChatApp() {
           onAcceptFile={handleAcceptFileEdit}
           onRejectFile={handleRejectFileEdit}
         />
-        {/* Subagent detail tab: no chat composer (Cursor-style agent progress surface) */}
-        {!activeSubagentTab ? (
+        {/* Keep Composer mounted while subagent tab is active so model/draft state is not lost. */}
+        <div
+          className={
+            activeSubagentTab
+              ? 'ak-composer-host ak-composer-host--hidden'
+              : 'ak-composer-host'
+          }
+          aria-hidden={Boolean(activeSubagentTab)}
+        >
         <Composer
           onSend={handleSend}
           disabled={streaming || generatingPlan}
@@ -3399,11 +3428,12 @@ export function ChatApp() {
           contextUsagePercent={contextUsagePercent}
           contextUsageLabel={contextUsageLabel}
         />
-        ) : (
+        </div>
+        {activeSubagentTab ? (
           <div className="ak-subagent-detail__composer-placeholder" aria-hidden>
             Agent progress — chat input stays on the main session tab
           </div>
-        )}
+        ) : null}
       </footer>
         </div>
       </div>

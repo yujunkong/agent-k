@@ -2021,6 +2021,20 @@ body {
   border-top: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 8%, transparent);
 }
 
+/** Keep Composer mounted during subagent detail — hide visually, preserve draft/model UI state. */
+.ak-composer-host--hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  pointer-events: none;
+}
+
 /* Diff / terminal cards stick under Edited / Ran (not after wrap-up prose) */
 .ak-cards-under-action {
   margin: 2px 0 8px;

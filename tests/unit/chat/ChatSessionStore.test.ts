@@ -92,3 +92,36 @@ suite('ChatSessionStore provider', () => {
     assert.strictEqual(forked.provider, undefined);
   });
 });
+
+suite('ChatSessionStore subagent tabs', () => {
+  let store: ChatSessionStore;
+
+  setup(() => {
+    installMemoryLocalStorage();
+    store = new ChatSessionStore();
+  });
+
+  test('setSubagentTabs persists and filters orphaned sessions', () => {
+    const session = store.createEmpty('agent');
+    store.setSubagentTabs([
+      { id: 'sub-1', title: 'Explore', parentSessionId: session.id },
+      { id: 'sub-2', title: 'Orphan', parentSessionId: 'sess-missing' }
+    ]);
+
+    const loaded = store.getSubagentTabs();
+    assert.strictEqual(loaded.length, 1);
+    assert.strictEqual(loaded[0].id, 'sub-1');
+    assert.strictEqual(loaded[0].title, 'Explore');
+  });
+
+  test('delete session drops subagent tabs on next read via filter', () => {
+    const session = store.createEmpty('agent');
+    store.setSubagentTabs([
+      { id: 'sub-1', title: 'Agent', parentSessionId: session.id }
+    ]);
+    store.delete(session.id);
+
+    const fresh = new ChatSessionStore();
+    assert.strictEqual(fresh.getSubagentTabs().length, 0);
+  });
+});
