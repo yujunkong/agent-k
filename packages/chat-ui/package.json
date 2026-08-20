@@ -6,6 +6,8 @@
   "agentk": {
     "owns": ["src/chat/**", "src/settings/**"],
     "status": "stub",
-    "bundler": "vite"
+    "phase": 3,
+    "bundler": "vite",
+    "featureIds": ["CHAT-*", "CONV-*", "UI-*", "CURSOR-*", "SET-*(UI)", "STREAM-*(UI)"]
   }
 }

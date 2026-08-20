@@ -1,21 +1,17 @@
 ---
-description: LLM providers and model routing — leaf package; no tools/host/chat coupling
-globs: src/providers/**,packages/providers/**
+description: providers package — Provider and Model layer
+globs: packages/providers/**,src/providers/**
 alwaysApply: false
 ---
 
 # @agent-k/providers
 
-You are in the **providers** package (LLM clients, model registry/routing, health/probe helpers).
+**역할:** Provider registry/connections/profiles, Model registry/resolver/routing, health.
 
-## Allowed
-- Provider clients, profiles, model lists, routing, tool-call parse/format for LLM streams
-- Types used by UI selectors (status, tags) — keep UI-agnostic
+**Feature IDs:** PROVIDER-*, MODEL-*, UXPROV-*, CFG-008
 
-## Forbidden
-- Importing `src/tools/**`, `src/host/**`, or `src/chat/**`
-- VS Code view/webview HTML
-- Tool executor logic
+**R-001 필수:** Composer dropdown과 runtime ModelRouter 분리. UI 코드 금지.
 
-## Dependencies
-Prefer `@agent-k/providers` imports. May use core config (`ConfigManager`) and small shared types (e.g. thinking effort). Do not grow new edges into host/chat/tools.
+**하면 안 됨:** Tool 실행 본문, React, Agent loop 제어, host/chat import
+
+구현은 `packages/providers`. `src/providers`는 compatibility shim만.

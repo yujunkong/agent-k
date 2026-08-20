@@ -2,7 +2,7 @@
   "name": "@agent-k/core",
   "version": "0.0.0",
   "private": true,
-  "description": "Agent-K harness / agent loop / config runtime. Sources still under src/{core,harness,loop,agent,...}.",
+  "description": "Agent runtime: loop, modes, context, harness, domain services. Sources still under src/* until Phase 2.",
   "agentk": {
     "owns": [
       "src/core/**",
@@ -12,15 +12,16 @@
       "src/mode/**",
       "src/prefetch/**",
       "src/compaction/**",
-      "src/hooks/**",
-      "src/verification/**",
-      "src/checkpoint/**",
-      "src/session/**",
-      "src/permission/**",
+      "src/debug/**",
+      "src/artifacts/**",
       "src/memories/**",
       "src/telemetry/**",
-      "src/skills/**"
+      "src/skills/**",
+      "src/mcp/**",
+      "src/session/**"
     ],
-    "status": "stub"
+    "status": "stub",
+    "phase": 2,
+    "featureIds": ["AGENT-*", "MODE-*", "CTX-*", "HARNESS-*", "DEBUG-*", "MEM-*", "SKILL-*", "ART-*", "TEL-*", "CFG-*", "REL-*", "MCP-*"]
   }
 }

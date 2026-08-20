@@ -1,0 +1,11 @@
+{
+  "name": "@agent-k/extension",
+  "version": "0.0.0",
+  "private": true,
+  "description": "VS Code extension assembler only (activation, contributes, wiring). Root package.json still ships the VSIX during transition.",
+  "agentk": {
+    "status": "stub",
+    "role": "assembly",
+    "ownsEventually": ["package.json contributes", "src/extension.ts", "resources/"]
+  }
+}

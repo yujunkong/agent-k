@@ -1,13 +1,8 @@
 # extensions/agent-k
 
-VSIX **assembler** for Agent-K.
+VS Code extension **assembler** only: activation + commands + contributes + wiring.
 
-Today the VS Code extension `package.json`, `resources/`, and build entry still live at the
-**repository root** (required for existing packaging scripts). The target layout moves
-contributes + `esbuild` entry here while depending on workspace packages:
+도메인 로직 금지. 의존 대상: `host`, `chat-ui`, `core`, `tools`, `providers`, `plan`, `worktree`, `safety`, `shared`.
 
-- `@agent-k/host` — activation / ChatViewProvider
-- `@agent-k/chat-ui` — webview bundle input
-- `@agent-k/core` / `@agent-k/tools` / `@agent-k/providers` / `@agent-k/mcp`
-
-Do not publish workspace packages to npm unless an external consumer needs them.
+전환기에는 루트 `package.json` / `src/extension.ts` / `resources/` 가 실제 VSIX 엔트리이다.
+이 폴더는 목표 레이아웃 스켈레톤이다.

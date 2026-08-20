@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "description": "LLM providers, model registry/routing, and stream tool-call helpers for Agent-K",
+  "agentk": {
+    "status": "extracted",
+    "phase": 1,
+    "featureIds": ["PROVIDER-*", "MODEL-*", "UXPROV-*", "CFG-008"]
+  },
   "main": "./src/types.ts",
   "types": "./src/types.ts",
   "exports": {

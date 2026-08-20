@@ -1,0 +1,12 @@
+{
+  "name": "@agent-k/worktree",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Worktree / subagent isolation / Best-of-N (2nd-wave). Sources under src/worktree, src/patches.",
+  "agentk": {
+    "owns": ["src/worktree/**", "src/patches/**"],
+    "status": "stub",
+    "phase": "4-5",
+    "featureIds": ["WT-*", "SUB-*", "BON-*", "SCM-001"]
+  }
+}

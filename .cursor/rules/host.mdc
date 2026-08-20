@@ -1,23 +1,17 @@
 ---
-description: Extension host / VS Code API only — no chat React component rewrites
-globs: src/host/**,src/extension.ts,packages/host/**
+description: host package — Extension Host bridge only
+globs: packages/host/**,extensions/agent-k/**,src/host/**,src/extension.ts
 alwaysApply: false
 ---
 
 # @agent-k/host
 
-You are in the **extension host** domain (Node + `vscode` API, esbuild bundle).
+**역할:** activation, WebviewProvider, commands, config bridge, plan/subagent/worktree host wiring.
 
-## Allowed
-- `ChatViewProvider`, session/plan/debug host bridges, runtime singletons
-- `postMessage` handlers and host-side orchestration
-- Activation wiring in `src/extension.ts`
+**Feature IDs:** EXT-*, HOST-*
 
-## Forbidden without an explicit cross-cutting task
-- Rewriting React UI under `src/chat/components/**` or chat CSS
-- Vite webview build config unless activation/HTML loading requires it
-- Provider HTTP client internals (prefer `src/providers` / `packages/providers`)
+**해도 됨:** `vscode` API, packages import 조립, postMessage bridge
 
-## Boundary notes
-- Live chat provider is `src/host/ChatViewProvider.ts` (not the dead duplicate under `src/chat/`).
-- Prefer calling core/tools/providers packages over importing chat UI helpers; if a helper is shared, move it out of chat first.
+**하면 안 됨:** React UI 본문, AgentLoop 본문, Tool executor 본문
+
+**extensions/agent-k:** activation + contributes + wiring만. 전환기 소스는 `src/host/**`, `src/extension.ts`.

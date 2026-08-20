@@ -1,6 +1,5 @@
 # @agent-k/core (stub)
 
-**Status:** ownership stub — runtime cluster still split across `src/core`, `src/harness`,
-`src/loop`, `src/agent`, and related leaf services.
-
-Must not import chat-ui. Break harness↔tools cycles before physical extract.
+**Owns (today):** harness / loop / agent / config / debug / memories / skills / mcp / … under `src/`  
+**Feature IDs:** AGENT-*, MODE-*, CTX-*, HARNESS-*, DEBUG-*, …  
+**금지:** React, vscode UI. Emit Typed Work Events (R-002).

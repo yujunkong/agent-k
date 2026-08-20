@@ -2,10 +2,12 @@
   "name": "@agent-k/host",
   "version": "0.0.0",
   "private": true,
-  "description": "Agent-K extension host. Source still under src/host until Phase 3 extract.",
+  "description": "Agent-K extension host bridge. Source still under src/host until Phase 0/3 extract.",
   "agentk": {
     "owns": ["src/host/**", "src/extension.ts"],
     "status": "stub",
-    "bundler": "esbuild"
+    "phase": 0,
+    "bundler": "esbuild",
+    "featureIds": ["EXT-*", "HOST-*"]
   }
 }

@@ -1,12 +1,13 @@
 ---
-description: Agent-K monorepo domain boundaries — always prefer one package/domain per task
+description: Always-on Agent-K monorepo boundaries (FINAL Part B)
 alwaysApply: true
 ---
 
 # Domain scope (always)
 
-- One task → one domain. See root `AGENTS.md`.
-- Prefer editing under the owning folder only; do not "drive-by" refactor other domains.
-- Do **not** publish new npm libs unless reuse across apps is an explicit requirement.
-- Dependency direction: `chat-ui` ↛ `host` internals; `tools` ↛ `chat-ui`; `providers` ↛ `tools`/`host`/`chat`.
-- Host↔webview communication goes through `src/chat/protocol.ts` + `postMessage`, not by importing host modules into the webview graph.
+- One session → one package (`packages/<one>` or `extensions/agent-k`). See root `AGENTS.md`.
+- Start with a Feature ID (e.g. AGENT-010, CHAT-002). Prefer Feature ID migration over file copy.
+- Cross boundary → change `packages/shared` types/protocol first.
+- Do not publish npm libs unless reuse across apps is explicit.
+- Enforce R-001…R-005: Composer≠ModelRouter, Typed Work Events, Worktree transactions, Plan state machine, Tool contracts.
+- No cycles. Dependency direction: extension → host → chat-ui/core → tools|providers|plan|worktree|safety ← shared.

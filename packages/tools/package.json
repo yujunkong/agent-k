@@ -2,9 +2,11 @@
   "name": "@agent-k/tools",
   "version": "0.0.0",
   "private": true,
-  "description": "Agent-K tool registry and executors. Source still under src/tools.",
+  "description": "Tool registry and executors. Source still under src/tools.",
   "agentk": {
     "owns": ["src/tools/**"],
-    "status": "stub"
+    "status": "stub",
+    "phase": 2,
+    "featureIds": ["TOOL-*"]
   }
 }

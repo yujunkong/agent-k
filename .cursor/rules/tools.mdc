@@ -1,21 +1,15 @@
 ---
-description: Tools registry and executors — no chat UI; no provider HTTP clients
-globs: src/tools/**,packages/tools/**
+description: tools package — Tool executors
+globs: packages/tools/**,src/tools/**
 alwaysApply: false
 ---
 
 # @agent-k/tools
 
-You are in the **tools** domain (registry, executors, tool backends).
+**역할:** Read/Edit/Write/Search/Terminal/AskQuestion/Task/Skill/Browser/Debug executors + registry.
 
-## Allowed
-- Tool definitions, registry, executors, patch/search/indexing backends used by tools
-- Shared normalize/diff helpers that used to leak from chat (keep them here, not in UI)
+**Feature IDs:** TOOL-*
 
-## Forbidden
-- Importing `src/chat/**` (webview helpers). If needed, move the helper into tools or a tiny shared module first.
-- Implementing LLM HTTP clients (that is `providers`)
-- Chat layout / React components
+**R-005 필수:** input/output schema, permission, cancel, timeout, error, retry, timeline event
 
-## Dependency direction
-`tools → core/types` only. Not `tools → chat-ui`. Not `tools → providers` implementations.
+**하면 안 됨:** React UI, Model routing, Worktree transaction 본문, `src/chat/**` 역의존 신규 추가

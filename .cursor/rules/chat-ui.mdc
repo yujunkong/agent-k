@@ -1,23 +1,17 @@
 ---
-description: Chat webview / React UI only — no extension-host or tool-executor changes
-globs: src/chat/**,packages/chat-ui/**
+description: chat-ui package — Webview UI only
+globs: packages/chat-ui/**,src/chat/**,src/settings/**
 alwaysApply: false
 ---
 
 # @agent-k/chat-ui
 
-You are in the **chat webview** domain (browser bundle via Vite).
+**역할:** Webview React UI (Composer, Timeline, Conversation, Settings UI, Diff preview).
 
-## Allowed
-- React components, hooks, CSS, i18n, conversation presentation
-- Webview bridge (`src/chat/host/vscodeApi.ts` — this is NOT extension host)
-- Message handling that stays on the UI side of `protocol.ts`
+**Feature IDs:** CHAT-*, CONV-*, UI-*, CURSOR-*, STREAM-*(표시), SET-*(UI), INLINE-*(diff UI), BROWSER/DESIGN panel UI
 
-## Forbidden without an explicit cross-cutting task
-- `src/host/**`, `src/extension.ts`, VS Code `activate` wiring
-- Tool executor implementations under `src/tools/**`
-- Agent loop / harness runtime under `src/loop/**`, `src/harness/**`
-- Adding new Node/`vscode` imports (Vite stubs exist only as a safety net — remove leakage, don't rely on it)
+**해도 됨:** React, CSS, webview state, host와 message protocol(`shared`) 통신, Typed Work Event presentation
 
-## If host behavior must change
-Extend `src/chat/protocol.ts` and implement the handler in `src/host/**` in a **separate, scoped** change — do not pull host modules into the webview.
+**하면 안 됨:** `vscode` import, fs/child_process/agent loop/provider HTTP, ModelRouter·PermissionGate·Worktree apply
+
+**작업 단위:** 이 도메인만 수정. 전환기 소스는 `src/chat/**` (+ settings panels).

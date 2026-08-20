@@ -1,0 +1,18 @@
+---
+description: safety package — permission, secrets, hooks, verification
+globs: packages/safety/**,src/permission/**,src/secrets/**,src/checkpoint/**,src/hooks/**,src/verification/**
+alwaysApply: false
+---
+
+# @agent-k/safety
+
+**역할:** Permission gate, deny globs, terminal deny, write gate, secrets, checkpoint, hooks, verification runners. (2차 — 분리 전엔 `core`/`tools`)
+
+**Feature IDs:** SAFE-*
+
+**원칙:**
+- deny: `.env*`, `secrets/**`, keys, `.git/**`, `node_modules/**`
+- terminal deny: `rm -rf /`, `mkfs`, `dd if=`, fork bomb 등
+- Hook 실패 시 명시적 error contract
+
+**하면 안 됨:** UI 구현, Tool 전체 재구현

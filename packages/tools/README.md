@@ -1,5 +1,5 @@
 # @agent-k/tools (stub)
 
-**Status:** ownership stub — sources in `src/tools/**`.
-
-Do not import `src/chat/**`. Move shared helpers into tools before adding new edges.
+**Owns (today):** `src/tools/**`  
+**Feature IDs:** TOOL-*  
+**R-005** tool contract required. No chat-ui imports.

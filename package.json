@@ -6,7 +6,8 @@
   "publisher": "agent-k",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "extensions/*"
   ],
   "engines": {
     "vscode": "^1.125.0"

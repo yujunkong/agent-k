@@ -1,5 +1,5 @@
 # @agent-k/host (stub)
 
-**Status:** ownership stub — sources still in `src/host/**` and `src/extension.ts`.
-
-VS Code API and activation live here. Do not rewrite chat React components in the same change.
+**Owns (today):** `src/host/**`, `src/extension.ts`  
+**Feature IDs:** EXT-*, HOST-*  
+**허용:** `vscode` API · **금지:** React UI, agent loop 본문
