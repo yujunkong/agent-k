@@ -304,6 +304,9 @@ export function WorkTimeline({
 
   const workedLabel = title || formatWorkedLabel(resolveWorkedMs(items, workedDurationMs));
 
+  // Live + settled share one item column; settled only adds the "Worked for Xs" header.
+  const showItems = !settled || workedOpen;
+
   const itemNodes = (
     <>
       {presentation.nodes.map((node) =>
@@ -322,18 +325,17 @@ export function WorkTimeline({
     </>
   );
 
-  // Settled — collapse under "Worked for Xs" (Cursor-style)
-  if (settled) {
-    return (
-      <div
-        className={[
-          'ak-worked',
-          workedOpen ? 'ak-worked--open' : '',
-          timelineSummary.hasError ? 'ak-worked--error' : ''
-        ]
-          .filter(Boolean)
-          .join(' ')}
-      >
+  return (
+    <div
+      className={[
+        'ak-work-timeline',
+        settled ? 'ak-work-timeline--settled' : live ? 'ak-work-timeline--live' : '',
+        timelineSummary.hasError ? 'ak-work-timeline--error' : ''
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {settled ? (
         <button
           type="button"
           className="ak-worked__toggle"
@@ -345,19 +347,8 @@ export function WorkTimeline({
           </span>
           <span className="ak-worked__label">{workedLabel}</span>
         </button>
-        {workedOpen ? (
-          <div className="ak-worked__body">
-            <div className="ak-work-timeline__items">{itemNodes}</div>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  // Live — sequential rows at the bottom (no outer summary chrome)
-  return (
-    <div className={['ak-work-timeline', live ? 'ak-work-timeline--live' : ''].filter(Boolean).join(' ')}>
-      <div className="ak-work-timeline__items">{itemNodes}</div>
+      ) : null}
+      {showItems ? <div className="ak-work-timeline__items">{itemNodes}</div> : null}
     </div>
   );
 }

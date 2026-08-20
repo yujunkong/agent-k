@@ -61,13 +61,12 @@
 .ak-agent-turn { padding: 14px 0 20px; }
 .ak-agent-turn__lead { margin-bottom: 10px; }
 .ak-agent-turn__response { margin-top: 10px; }
-.ak-work-timeline { margin: var(--ak-space-3) 0; border: 0; background: transparent; }
-.ak-work-timeline__summary { display: flex; align-items: center; gap: var(--ak-space-2); min-height: 24px; padding: 2px 0; color: var(--ak-text-muted); font-size: 12px; cursor: pointer; list-style: none; }
-.ak-work-timeline__summary::-webkit-details-marker { display: none; }
-.ak-work-timeline__marker { width: 14px; color: var(--vscode-textLink-foreground, var(--ak-text-primary)); font-size: 9px; }
-.ak-work-timeline__title { min-width: 0; }
-.ak-work-timeline__marker[data-active='true'] { color: var(--vscode-textLink-foreground, var(--ak-text-primary)); animation: ak-live-blink 1.6s ease-in-out infinite; }
-.ak-work-timeline__items { margin: 3px 0 3px var(--ak-space-2); padding: 2px 0 2px 14px; border-left: 1px solid var(--ak-border-strong); display: flex; flex-direction: column; gap: var(--ak-space-2); }
+/*
+ * WorkTimeline / Explore / Worked chrome lives in chat.css only.
+ * Do NOT reintroduce .ak-work-timeline__items { border-left } here —
+ * ExploreChrome already draws its own rail and a second border looks like
+ * the Cursor presentation “lost” its design.
+ */
 .ak-timeline-card { border: 1px solid var(--ak-border-strong); border-radius: var(--ak-radius-sm); background: var(--ak-ui-surface); color: var(--ak-text-primary); font-size: 12px; overflow: hidden; transition: border-color .12s ease, opacity .12s ease; }
 .ak-timeline-card--compact { border-color: transparent; background: transparent; opacity: .78; }
 .ak-timeline-card--compact .ak-timeline-card__header { padding: 3px 2px; gap: var(--ak-space-1); }
@@ -201,10 +200,7 @@ button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vsc
 .ak-worktree-file__panel { margin: 2px 0 var(--ak-space-1) var(--ak-space-5); border: 1px solid var(--ak-border-strong); border-radius: var(--ak-space-1); overflow: hidden; max-height: 220px; overflow-y: auto; }
 .ak-worktree-file__diff { font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
 .ak-worktree-file__empty { font-size: 11px; color: var(--ak-text-muted); padding: 6px var(--ak-space-2); }
-.ak-worked { margin: 6px 0 10px; }
-.ak-worked__toggle { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; border: 0; color: var(--ak-ui-muted); background: transparent; font-size: 11px; cursor: pointer; }
-.ak-worked__toggle:hover { color: var(--vscode-foreground, #ccc); }
-.ak-worked__body { margin-top: 3px; }
+/* .ak-worked* — owned by chat.css (Cursor Exploring / Thought / Worked) */
 .ak-file-edits { display: none; }
 .message-content { max-width: 820px; }
 .message-actions { min-height: 24px; margin-top: 7px; }
@@ -232,7 +228,6 @@ button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vsc
   .message-bubble.user { padding: 9px 10px; }
   .message-bubble.assistant { padding-top: 10px; padding-bottom: 14px; }
   .message-content { max-width: 100%; }
-  .ak-work-timeline__items { padding-left: 11px; }
   .ak-understanding-box { padding: 7px 8px; }
 }
 
@@ -251,8 +246,7 @@ button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vsc
 
 @media (prefers-reduced-motion: reduce) {
   .message-bubble *,.composer * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
-  .ak-timeline-card--live .ak-timeline-card__marker,
-  .ak-work-timeline__marker[data-active='true'] { animation: none !important; }
+  .ak-timeline-card--live .ak-timeline-card__marker { animation: none !important; }
   .ak-timeline-card__title-shine { display: none !important; animation: none !important; }
   .ak-timeline-card__title-base { color: var(--vscode-foreground, #e8e8e8) !important; }
 }
