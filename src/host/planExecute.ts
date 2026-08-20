@@ -41,6 +41,7 @@ import { toolKind, shortDetail, resultDetail, pickExploreDetail } from './timeli
 
 export type PlanExecuteHostMessage = {
   requestId: string;
+  sessionId?: string;
   parentTurnId: string;
   executionPlan: ExecutionPlan;
   repoRoot?: string;
@@ -82,8 +83,9 @@ export async function runHostPlanExecute(
   if (!webview) return;
 
   const requestId = String(message.requestId);
+  const sessionId = String(message.sessionId || '').trim() || undefined;
   const post = (type: string, extra: Record<string, unknown> = {}) => {
-    void webview.postMessage({ type, requestId, ...extra });
+    void webview.postMessage({ type, requestId, sessionId, ...extra });
   };
 
   try {

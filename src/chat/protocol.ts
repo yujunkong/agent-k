@@ -31,6 +31,8 @@ export interface ChatSendPayload {
 /** Webview → Host: run approved structured plan through DAG executor */
 export interface PlanExecutePayload {
   requestId: string;
+  /** Owning chat session/tab for isolation. */
+  sessionId?: string;
   parentTurnId: string;
   executionPlan: import('../plan/execution/types').ExecutionPlan;
   /** Workspace root from plan generation — validated against host folder at execution. */
@@ -38,6 +40,7 @@ export interface PlanExecutePayload {
   model?: string;
   baseUrl?: string;
   apiKey?: string;
+  providerType?: string;
   thinkingEffort?: 'off' | 'low' | 'medium' | 'high' | 'max';
 }
 

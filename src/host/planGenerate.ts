@@ -26,15 +26,17 @@ export function isAbortError(error: unknown): boolean {
  */
 export async function runPlanV2Generate(ctx: PlanGenerateContext, message: any): Promise<void> {
   const requestId = String(message.requestId);
+  const sessionId = String(message.sessionId || '').trim() || undefined;
   const post = (payload: Record<string, unknown>) =>
-    void ctx.webview?.postMessage({ type: 'plan.v2.generate.result', requestId, ...payload });
+    void ctx.webview?.postMessage({ type: 'plan.v2.generate.result', requestId, sessionId, ...payload });
 
   if (ctx.planV2CancelledIds.has(requestId)) {
     ctx.planV2CancelledIds.delete(requestId);
     post({ error: 'Plan generation cancelled.', aborted: true });
     return;
   }
-  ctx.abortPlanV2Generate();
+  // Cancel only this request; other tabs may be generating their own plans.
+  ctx.abortPlanV2Generate(requestId);
   ctx.planV2CancelledIds.delete(requestId);
   const abort = new AbortController();
   ctx.planV2Aborts.set(requestId, abort);
@@ -98,7 +100,7 @@ export async function runPlanV2Generate(ctx: PlanGenerateContext, message: any):
 
     // Webview 180s budget starts here — not when the generate message was
     // queued behind the previous AgentLoop.
-    void ctx.webview?.postMessage({ type: 'plan.v2.generate.started', requestId });
+    void ctx.webview?.postMessage({ type: 'plan.v2.generate.started', requestId, sessionId });
 
     const result = await generator.generate({
       goal: String(message.goal || ''),

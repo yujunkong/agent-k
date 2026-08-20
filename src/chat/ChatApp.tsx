@@ -436,6 +436,7 @@ export function ChatApp() {
   const sessionIdRef = useRef(sessionStore.loadActive().id);
   const planFileExistsResolversRef = useRef(new Map<string, { resolve: (exists: boolean) => void; reject: (error: Error) => void; }>());
   const planV2GenerateResolversRef = useRef(new Map<string, {
+    sessionId: string;
     resolve: (result: PlanV2GenerationResult) => void;
     reject: (error: Error) => void;
     beginGenerateTimeout: () => void;
@@ -727,6 +728,17 @@ export function ChatApp() {
     planV2AdaptersRef.current.set(sessionId, created);
     return created;
   }, [sessionId, planController]);
+  /** Resolve the Plan V2 adapter that owns a given chat session. */
+  const getPlanV2AdapterForSession = useCallback(
+    (id: string) => {
+      const existing = planV2AdaptersRef.current.get(id);
+      if (existing) return existing;
+      const created = new PlanModeControllerAdapter(id, planController);
+      planV2AdaptersRef.current.set(id, created);
+      return created;
+    },
+    [planController]
+  );
   const [planV2Tick, setPlanV2Tick] = useState(0);
   useEffect(() => {
     return planV2Adapter.session.onEvent(() => setPlanV2Tick((t) => t + 1));
@@ -952,6 +964,7 @@ export function ChatApp() {
         return;
       }
       const requestId = `plan_v2_${uuidv4()}`;
+      const ownerSessionId = sessionIdRef.current;
       planV2ActiveRequestRef.current = requestId;
       const fireWatchdog = (message: string) => {
         planV2GenerateResolversRef.current.delete(requestId);
@@ -972,6 +985,7 @@ export function ChatApp() {
         onGenerateTimeout: () => fireWatchdog(PLAN_V2_GENERATE_TIMEOUT_MESSAGE)
       });
       planV2GenerateResolversRef.current.set(requestId, {
+        sessionId: ownerSessionId,
         resolve: (result) => {
           watchdog.clear();
           planV2TimedOutRef.current.delete(requestId);
@@ -992,6 +1006,7 @@ export function ChatApp() {
       api.postMessage({
         type: 'plan.v2.generate',
         requestId,
+        sessionId: ownerSessionId,
         goal: params.goal,
         researchContext: params.researchContext,
         rejectionFeedback: params.rejectionFeedback,
@@ -1119,43 +1134,46 @@ export function ChatApp() {
   );
 
   const commitPlanV2Result = useCallback(
-    async (result: PlanV2GenerationResult, opts?: { late?: boolean }) => {
+    async (
+      result: PlanV2GenerationResult,
+      ownerSessionId: string,
+      opts?: { late?: boolean }
+    ) => {
       if (!result.ok || !result.plan) return false;
-      const phase = planV2Adapter.session.getPhase();
+      const ownerAdapter = getPlanV2AdapterForSession(ownerSessionId);
+      const phase = ownerAdapter.session.getPhase();
       if (opts?.late && (phase === 'executing' || phase === 'completed')) {
         return false;
       }
-      const state = planV2Adapter.session.getState();
-      await planV2Adapter.acceptGeneratedPlan(result.plan, {
+      const state = ownerAdapter.session.getState();
+      await ownerAdapter.acceptGeneratedPlan(result.plan, {
         attempts: result.attempts,
         failures: result.failures,
         researchContext: state.researchFindings
       });
-      const rendered = planV2Adapter.getFullPlanContext();
+      const rendered = ownerAdapter.getFullPlanContext();
       const summary = buildPlanChatSummary(rendered);
       const content = opts?.late
         ? `Plan generation finished after timeout and was applied.\n\n${summary}`
         : summary;
-      setMessages((prev) => {
-        const next = [
-          ...prev,
-          {
-            id: uuidv4(),
-            role: 'assistant' as const,
-            content,
-            timestamp: Date.now(),
-            status: 'complete' as const
-          }
-        ];
-        messagesRef.current = next;
-        return next;
-      });
-      setPlanStage('review');
-      setShowPlanReview(true);
-      setError(null);
+      updateSessionMessages(ownerSessionId, (prev) => [
+        ...prev,
+        {
+          id: uuidv4(),
+          role: 'assistant' as const,
+          content,
+          timestamp: Date.now(),
+          status: 'complete' as const
+        }
+      ]);
+      if (ownerSessionId === sessionIdRef.current) {
+        setPlanStage('review');
+        setShowPlanReview(true);
+        setError(null);
+      }
       return true;
     },
-    [planV2Adapter]
+    [getPlanV2AdapterForSession, updateSessionMessages]
   );
 
   useHostMessages({
@@ -1310,15 +1328,19 @@ export function ChatApp() {
         if (data.aborted || data.error) return;
         const late = data.result as PlanV2GenerationResult;
         if (late?.ok && late.plan) {
-          void commitPlanV2Result(late, { late: true });
+          const ownerSessionId =
+            String(data.sessionId || '') || sessionIdRef.current;
+          void commitPlanV2Result(late, ownerSessionId, { late: true });
         }
       }
     },
     'plan.toolEvidence': (data) => {
       try {
-        const phase = planV2Adapter.session.getPhase();
+        const ownerSessionId = String(data.sessionId || '') || sessionIdRef.current;
+        const ownerAdapter = getPlanV2AdapterForSession(ownerSessionId);
+        const phase = ownerAdapter.session.getPhase();
         if (phase !== 'executing' && phase !== 'completed') return;
-        planV2Adapter.recordToolEvent(
+        ownerAdapter.recordToolEvent(
           toObservedToolCall(
             String(data.name || ''),
             data.args as Record<string, unknown> | undefined,
@@ -1332,13 +1354,17 @@ export function ChatApp() {
     'plan.execution.started': (data) => {
       const plan = data.executionPlan as ExecutionPlan | undefined;
       if (!plan) return;
-      if (!planV2Adapter.session.getExecutionPlan()) {
-        startPlanExecution(planV2Adapter.session, plan);
+      const ownerSessionId = String(data.sessionId || '') || sessionIdRef.current;
+      const ownerAdapter = getPlanV2AdapterForSession(ownerSessionId);
+      if (!ownerAdapter.session.getExecutionPlan()) {
+        startPlanExecution(ownerAdapter.session, plan);
       }
     },
     'plan.execution.updated': (data) => {
       const plan = data.executionPlan as ExecutionPlan | undefined;
       if (!plan) return;
+      const ownerSessionId = String(data.sessionId || '') || sessionIdRef.current;
+      const ownerAdapter = getPlanV2AdapterForSession(ownerSessionId);
 
       // Record task-level execution events so PlanSession.executionError
       // is populated before finalizePlanExecution reads it.
@@ -1349,26 +1375,28 @@ export function ChatApp() {
         if (execTask) {
           if (taskEvent === 'started') {
             recordTaskExecutionStarted(
-              planV2Adapter.session, taskId, execTask.execution, execTask.subagentId
+              ownerAdapter.session, taskId, execTask.execution, execTask.subagentId
             );
           } else if (taskEvent === 'failed') {
             const error = (data.error as string) || `Task "${execTask.title}" failed`;
-            recordTaskExecutionFailed(planV2Adapter.session, execTask, error);
+            recordTaskExecutionFailed(ownerAdapter.session, execTask, error);
           }
         }
       }
 
-      updatePlanExecutionSnapshot(planV2Adapter.session, plan);
+      updatePlanExecutionSnapshot(ownerAdapter.session, plan);
     },
     'plan.execution.complete': (data) => {
       const plan = data.executionPlan as ExecutionPlan | undefined;
       if (!plan) return;
-      finalizePlanExecution(planV2Adapter.session, plan);
+      const ownerSessionId = String(data.sessionId || '') || sessionIdRef.current;
+      const ownerAdapter = getPlanV2AdapterForSession(ownerSessionId);
+      finalizePlanExecution(ownerAdapter.session, plan);
       const fail = plan.status === 'failed';
-      if (fail) {
-        setError(planV2Adapter.session.getExecutionError() ?? 'Plan execution failed.');
+      if (fail && ownerSessionId === sessionIdRef.current) {
+        setError(ownerAdapter.session.getExecutionError() ?? 'Plan execution failed.');
       }
-      setMessages((prev) => {
+      updateSessionMessages(ownerSessionId, (prev) => {
         const last = prev[prev.length - 1];
         if (!last || last.role !== 'assistant' || !last.workItems?.length) return prev;
         return [
@@ -1378,7 +1406,10 @@ export function ChatApp() {
       });
     },
     'plan.execution.error': (data) => {
-      setError(String(data.error || 'Plan execution failed.'));
+      const ownerSessionId = String(data.sessionId || '') || sessionIdRef.current;
+      if (ownerSessionId === sessionIdRef.current) {
+        setError(String(data.error || 'Plan execution failed.'));
+      }
     },
     'plan.execution.diagnostic': (_data) => {
       // Diagnostic events are logged host-side; webview receives them for
@@ -1388,7 +1419,8 @@ export function ChatApp() {
     'plan.execution.workEvent': (data) => {
       const workEvent = data.workEvent as import('./conversation/conversationWorkEvent').ConversationWorkEvent | undefined;
       if (!workEvent?.id) return;
-      setMessages((prev) => {
+      const ownerSessionId = String(data.sessionId || '') || sessionIdRef.current;
+      updateSessionMessages(ownerSessionId, (prev) => {
         const last = prev[prev.length - 1];
         if (!last || last.role !== 'assistant') return prev;
         const updated = applyWorkEvent(last.workItems, workEvent);
@@ -1399,7 +1431,8 @@ export function ChatApp() {
     'subagent.event': (data) => {
       const workEvent = workEventFromSubagentHostEvent(data as Record<string, unknown>);
       if (!workEvent) return;
-      setMessages((prev) => {
+      const ownerSessionId = String(data.sessionId || '') || sessionIdRef.current;
+      updateSessionMessages(ownerSessionId, (prev) => {
         const last = prev[prev.length - 1];
         if (!last || last.role !== 'assistant') return prev;
         const updated = applyWorkEvent(last.workItems, workEvent);
@@ -1869,6 +1902,7 @@ export function ChatApp() {
               api.postMessage({
                 type: 'plan.execute',
                 requestId,
+                sessionId: sid,
                 parentTurnId: `turn-${turnNumberRef.current}`,
                 executionPlan: executionSnapshot,
                 repoRoot: structuredPlan.repoRoot ?? executionSnapshot.repoRoot,
@@ -2512,7 +2546,7 @@ export function ChatApp() {
           return;
         }
         endPlanGenerationUi(true);
-        await commitPlanV2Result(result);
+        await commitPlanV2Result(result, sessionIdRef.current);
       })
       .catch((e) => {
         endPlanGenerationUi(false);
