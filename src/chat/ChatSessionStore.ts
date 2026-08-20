@@ -28,6 +28,14 @@ export interface ChatSession extends ChatSessionMeta {
    * Persisted per-session (not global) so tab switch / reload keeps UX.
    */
   activeVariants?: Record<string, number>;
+  /** Tab-scoped provider selection (model / thinking / connection). */
+  provider?: {
+    model?: string;
+    thinkingEffort?: string;
+    type?: string;
+    baseUrl?: string;
+    apiKey?: string;
+  };
 }
 
 const INDEX_KEY = 'agent-k.chat.sessions.index';
@@ -210,7 +218,9 @@ export class ChatSessionStore {
       createdAt: prev?.createdAt || now,
       updatedAt: now,
       messages,
-      activeVariants: prev?.activeVariants ?? {}
+      activeVariants: prev?.activeVariants ?? {},
+      // Keep tab-scoped provider across message saves (do not wipe).
+      provider: prev?.provider
     };
     this.writeSession(session);
     if (!this.index.includes(id)) {
@@ -266,6 +276,22 @@ export class ChatSessionStore {
 
     this.currentId = id;
     this.persistCurrent();
+  }
+
+  /**
+   * Persist tab-scoped provider selection without wiping messages.
+   * Does not change currentId (park may run on a leaving tab).
+   */
+  setProvider(id: string, provider: NonNullable<ChatSession['provider']>): void {
+    const prev = this.readSession(id);
+    if (!prev) return;
+    const session: ChatSession = {
+      ...prev,
+      provider: { ...prev.provider, ...provider },
+      updatedAt: Date.now(),
+      messageCount: prev.messages.length
+    };
+    this.writeSession(session);
   }
 
   /** ADDON-T06: metas to send host-ward on `host.sessions.persist` */

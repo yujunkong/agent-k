@@ -29,6 +29,10 @@ export const sessionStore = new ChatSessionStore();
 export interface ChatSessionLifecycle {
   parkPlanForSession: (id: string) => void;
   restorePlanForSession: (id: string) => void;
+  /** Persist leaving-tab provider into session store (tab-scoped runtime). */
+  parkProviderForSession?: (id: string) => void;
+  /** Restore provider React state from session (fallback to config defaults). */
+  restoreProviderForSession?: (id: string) => void;
   resetPlanChrome: () => void;
   hasPlanSnap: (id: string) => boolean;
   onDeletePlanSnap: (id: string) => void;
@@ -80,6 +84,8 @@ export function useChatSessions(params: UseChatSessionsParams) {
   const {
     parkPlanForSession,
     restorePlanForSession,
+    parkProviderForSession,
+    restoreProviderForSession,
     resetPlanChrome,
     hasPlanSnap,
     onDeletePlanSnap
@@ -206,6 +212,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
     const snap = messagesRef.current.length ? messagesRef.current : messages;
     if (snap.length === 0) {
       parkPlanForSession(sessionId);
+      parkProviderForSession?.(sessionId);
       resetPlanChrome();
       setShowHistory(false);
       setError(null);
@@ -216,6 +223,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
       return;
     }
     parkPlanForSession(sessionId);
+    parkProviderForSession?.(sessionId);
     sessionStore.saveMessages(sessionId, snap, mode);
     const next = sessionStore.createEmpty(mode);
     setSessionId(next.id);
@@ -224,6 +232,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
     setSessionList(sessionStore.list());
     setOpenTabIds((prev) => [next.id, ...prev.filter((id) => id !== next.id)]);
     resetPlanChrome();
+    restoreProviderForSession?.(next.id);
     setError(null);
     setShowHistory(false);
     setModeAuto(true);
@@ -234,6 +243,8 @@ export function useChatSessions(params: UseChatSessionsParams) {
     sessionId,
     mode,
     parkPlanForSession,
+    parkProviderForSession,
+    restoreProviderForSession,
     resetPlanChrome,
     parkedAwaitingRef,
     messagesRef,
@@ -268,6 +279,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
         sessionStore.saveMessages(sessionId, messages, mode);
       }
       parkPlanForSession(sessionId);
+      parkProviderForSession?.(sessionId);
       const loaded = sessionStore.switchTo(id);
       if (!loaded) return;
       setSessionId(loaded.id);
@@ -282,6 +294,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
       setError(null);
       setShowHistory(false);
       restorePlanForSession(id);
+      restoreProviderForSession?.(id);
       const parked = parkedAwaitingRef.current;
       if (parked && parked.sessionId === id) {
         setPendingQuestions(parked.questions);
@@ -301,7 +314,9 @@ export function useChatSessions(params: UseChatSessionsParams) {
       mode,
       pendingQuestions,
       parkPlanForSession,
+      parkProviderForSession,
       restorePlanForSession,
+      restoreProviderForSession,
       hasPlanSnap,
       parkedAwaitingRef,
       messagesRef,
@@ -344,6 +359,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
         sessionStore.saveMessages(sessionId, snap, mode);
       }
       parkPlanForSession(sessionId);
+      parkProviderForSession?.(sessionId);
 
       const idx = openTabIds.indexOf(id);
       const neighborId =
@@ -365,6 +381,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
             remaining.includes(neighborId) ? remaining : [neighborId, ...remaining]
           );
           restorePlanForSession(neighborId);
+          restoreProviderForSession?.(neighborId);
           const parked = parkedAwaitingRef.current;
           if (parked && parked.sessionId === neighborId) {
             setPendingQuestions(parked.questions);
@@ -388,6 +405,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
       setSessionList(sessionStore.list());
       setOpenTabIds([fresh.id]);
       resetPlanChrome();
+      restoreProviderForSession?.(fresh.id);
       setError(null);
       setShowHistory(false);
     },
@@ -400,7 +418,9 @@ export function useChatSessions(params: UseChatSessionsParams) {
       mode,
       pendingQuestions,
       parkPlanForSession,
+      parkProviderForSession,
       restorePlanForSession,
+      restoreProviderForSession,
       resetPlanChrome,
       hasPlanSnap,
       parkedAwaitingRef,
@@ -440,6 +460,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
           prev.includes(next.id) ? prev : [next.id, ...prev]
         );
         restorePlanForSession(next.id);
+        restoreProviderForSession?.(next.id);
         setError(null);
       }
     },
@@ -447,6 +468,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
       streaming,
       sessionId,
       restorePlanForSession,
+      restoreProviderForSession,
       onDeletePlanSnap,
       stopHandlerRef,
       sendEpochRef,

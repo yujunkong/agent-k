@@ -83,7 +83,7 @@ import { DebugModeController } from '../debug/DebugModeController';
 import type { DebugStage, Hypothesis } from '../debug/DebugModeController';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
-import type { ChatSessionMeta } from './ChatSessionStore';
+import type { ChatSession, ChatSessionMeta } from './ChatSessionStore';
 // RW-C5-02: ask_question 도구 → ClarifyingQuestions 브리지
 import { askQuestionTool } from '../tools/session/AskQuestionTool';
 import type { PendingQuestion } from '../tools/session/AskQuestionTool';
@@ -269,47 +269,110 @@ export function ChatApp() {
   const [queueTick, setQueueTick] = useState(0);
   const stopHandlerRef = useRef<StopHandler | null>(null);
 
-  const [providerModel, setProviderModel] = useState(() =>
-    String(configManager.get('agent-k.provider.model') || 'mlx-community/Qwen3.6-35B-A3B-4bit')
-  );
-  const [providerBaseUrl, setProviderBaseUrl] = useState(() =>
-    String(configManager.get('agent-k.provider.baseUrl') || 'http://127.0.0.1:52415')
-  );
-  const [providerApiKey, setProviderApiKey] = useState(() =>
-    String(configManager.get('agent-k.provider.apiKey') || '')
-  );
-  const [providerType, setProviderType] = useState(() =>
-    String(configManager.get('agent-k.provider.type') || 'litellm')
-  );
+  const [providerModel, setProviderModel] = useState(() => {
+    // Prefer tab-scoped session provider so reload keeps the active tab's model.
+    const fromSession = sessionStore.loadActive().provider?.model;
+    return String(
+      fromSession ||
+        configManager.get('agent-k.provider.model') ||
+        'mlx-community/Qwen3.6-35B-A3B-4bit'
+    );
+  });
+  const [providerBaseUrl, setProviderBaseUrl] = useState(() => {
+    const fromSession = sessionStore.loadActive().provider?.baseUrl;
+    return String(
+      fromSession ||
+        configManager.get('agent-k.provider.baseUrl') ||
+        'http://127.0.0.1:52415'
+    );
+  });
+  const [providerApiKey, setProviderApiKey] = useState(() => {
+    const fromSession = sessionStore.loadActive().provider?.apiKey;
+    return String(
+      fromSession ?? configManager.get('agent-k.provider.apiKey') ?? ''
+    );
+  });
+  const [providerType, setProviderType] = useState(() => {
+    const fromSession = sessionStore.loadActive().provider?.type;
+    return String(fromSession || configManager.get('agent-k.provider.type') || 'litellm');
+  });
   const [composerModels, setComposerModels] = useState<string[]>(() => getComposerModels());
   const [modelContextBudget, setModelContextBudget] = useState<number>(() =>
     Number(configManager.get('agent-k.context.budget')) || 100000
   );
   const [modelContextSource, setModelContextSource] = useState<string>('fallback');
-  const [thinkingEffort, setThinkingEffort] = useState<ThinkingEffort>(() =>
-    parseThinkingEffort(configManager.get('agent-k.thinking.effort'))
+  const [thinkingEffort, setThinkingEffort] = useState<ThinkingEffort>(() => {
+    const fromSession = sessionStore.loadActive().provider?.thinkingEffort;
+    return parseThinkingEffort(
+      fromSession ?? configManager.get('agent-k.thinking.effort')
+    );
+  });
+
+  // Refs so parkProvider can snapshot latest values without stale closures.
+  const providerModelRef = useRef(providerModel);
+  const providerBaseUrlRef = useRef(providerBaseUrl);
+  const providerApiKeyRef = useRef(providerApiKey);
+  const providerTypeRef = useRef(providerType);
+  const thinkingEffortRef = useRef(thinkingEffort);
+  providerModelRef.current = providerModel;
+  providerBaseUrlRef.current = providerBaseUrl;
+  providerApiKeyRef.current = providerApiKey;
+  providerTypeRef.current = providerType;
+  thinkingEffortRef.current = thinkingEffort;
+
+  /** Write current Composer provider fields into a session (tab-scoped). */
+  const persistProviderToSession = useCallback(
+    (id: string, patch?: Partial<NonNullable<ChatSession['provider']>>) => {
+      if (!id) return;
+      sessionStore.setProvider(id, {
+        model: providerModelRef.current,
+        thinkingEffort: thinkingEffortRef.current,
+        type: providerTypeRef.current,
+        baseUrl: providerBaseUrlRef.current,
+        apiKey: providerApiKeyRef.current,
+        ...patch
+      });
+    },
+    []
   );
 
   useEffect(() => {
     const syncModels = () => setComposerModels(getComposerModels());
+    const writeThroughCurrent = (
+      patch: Partial<NonNullable<ChatSession['provider']>>
+    ) => {
+      // Settings → active tab: keep session provider aligned with globals.
+      const id = sessionStore.getCurrentId();
+      if (id) persistProviderToSession(id, patch);
+    };
     const unsubs = [
       configManager.on('agent-k.provider.model', (_k, v) => {
-        setProviderModel(String(v || ''));
+        const model = String(v || '');
+        setProviderModel(model);
         syncModels();
+        writeThroughCurrent({ model });
       }),
       configManager.on('agent-k.provider.baseUrl', (_k, v) => {
-        setProviderBaseUrl(String(v || ''));
+        const baseUrl = String(v || '');
+        setProviderBaseUrl(baseUrl);
+        writeThroughCurrent({ baseUrl });
       }),
       configManager.on('agent-k.provider.apiKey', (_k, v) => {
-        setProviderApiKey(String(v || ''));
+        const apiKey = String(v || '');
+        setProviderApiKey(apiKey);
+        writeThroughCurrent({ apiKey });
       }),
       configManager.on('agent-k.provider.availableModels', syncModels),
       configManager.on('agent-k.provider.models', syncModels),
       configManager.on('agent-k.thinking.effort', (_k, v) => {
-        setThinkingEffort(parseThinkingEffort(v));
+        const effort = parseThinkingEffort(v);
+        setThinkingEffort(effort);
+        writeThroughCurrent({ thinkingEffort: effort });
       }),
       configManager.on('agent-k.provider.type', (_k, v) => {
-        setProviderType(String(v || 'litellm'));
+        const type = String(v || 'litellm');
+        setProviderType(type);
+        writeThroughCurrent({ type });
       }),
       configManager.on('agent-k.context.budget', (_k, v) => {
         const n = Number(v);
@@ -318,7 +381,7 @@ export function ChatApp() {
     ];
     syncModels();
     return () => unsubs.forEach((u) => u());
-  }, []);
+  }, [persistProviderToSession]);
 
   const handleWorktreeResultRef = useRef<
     (payload: Record<string, unknown>) => void
@@ -331,6 +394,8 @@ export function ChatApp() {
     planStage,
     debugStage: mode === 'debug' ? debugController.getStage() : undefined,
     thinkingEffort,
+    // Tab-scoped streaming UI + Stop (declared before useChatSessions — avoid circular hook order).
+    activeRuntimeKey: sessionStore.getCurrentId() ?? undefined,
     onWorktreeResult: (payload) => handleWorktreeResultRef.current(payload)
   });
 
@@ -428,6 +493,57 @@ export function ChatApp() {
     [planController, resetPlanChrome]
   );
 
+  /** Persist leaving-tab provider into session store (mirror plan park). */
+  const parkProviderForSession = useCallback(
+    (id: string) => {
+      if (!id) return;
+      persistProviderToSession(id);
+    },
+    [persistProviderToSession]
+  );
+
+  /**
+   * Restore Composer provider from session.
+   * Local React state only — do not thrash global active connection on tab switch.
+   * New/empty sessions (no provider yet): keep the visible Composer selection and
+   * stamp it onto the session so New Chat inherits the tab you left, not stale globals.
+   */
+  const restoreProviderForSession = useCallback(
+    (id: string) => {
+      const p = sessionStore.get(id)?.provider;
+      if (!p?.model && !p?.thinkingEffort && !p?.baseUrl && !p?.type) {
+        persistProviderToSession(id);
+        return;
+      }
+      setProviderModel(
+        String(
+          p?.model ||
+            configManager.get('agent-k.provider.model') ||
+            'mlx-community/Qwen3.6-35B-A3B-4bit'
+        )
+      );
+      setProviderBaseUrl(
+        String(
+          p?.baseUrl ||
+            configManager.get('agent-k.provider.baseUrl') ||
+            'http://127.0.0.1:52415'
+        )
+      );
+      setProviderApiKey(
+        String(p?.apiKey ?? configManager.get('agent-k.provider.apiKey') ?? '')
+      );
+      setProviderType(
+        String(p?.type || configManager.get('agent-k.provider.type') || 'litellm')
+      );
+      setThinkingEffort(
+        parseThinkingEffort(
+          p?.thinkingEffort ?? configManager.get('agent-k.thinking.effort')
+        )
+      );
+    },
+    [persistProviderToSession]
+  );
+
   /** Session that owns the in-flight host loop / ask_question waiter */
   const loopSessionIdRef = useRef<string | null>(null);
   /** Park Clarifying UI when user switches tabs while Waiting… */
@@ -473,6 +589,8 @@ export function ChatApp() {
     lifecycle: {
       parkPlanForSession,
       restorePlanForSession,
+      parkProviderForSession,
+      restoreProviderForSession,
       resetPlanChrome,
       hasPlanSnap: (id) => planSnapBySessionRef.current.has(id),
       onDeletePlanSnap: (id) => {
@@ -1958,8 +2076,11 @@ export function ChatApp() {
         sessionStore.saveMessages(sessionId, snap, mode);
       }
       parkPlanForSession(sessionId);
+      parkProviderForSession(sessionId);
       const sliced = snap.slice(0, idx + 1);
       const forked = sessionStore.forkFromMessages(sliced, mode);
+      // Fork inherits the leaving tab's provider selection (still in React state).
+      persistProviderToSession(forked.id);
       setSessionId(forked.id);
       setMessages(sanitizeLoadedMessages(forked.messages || []));
       stepStartRef.current = {};
@@ -1974,7 +2095,16 @@ export function ChatApp() {
       parkedAwaitingRef.current = null;
       loopSessionIdRef.current = null;
     },
-    [messages, streaming, sessionId, mode, parkPlanForSession, resetPlanChrome]
+    [
+      messages,
+      streaming,
+      sessionId,
+      mode,
+      parkPlanForSession,
+      parkProviderForSession,
+      persistProviderToSession,
+      resetPlanChrome
+    ]
   );
 
   const handleModeChange = useCallback((newMode: ModePicker) => {
@@ -2547,12 +2677,24 @@ export function ChatApp() {
   const handleCloseSettings = useCallback(() => {
     setShowSettings(false);
     // Settings may have changed provider/model — refresh context window
-    setProviderType(String(configManager.get('agent-k.provider.type') || 'litellm'));
-    setProviderBaseUrl(String(configManager.get('agent-k.provider.baseUrl') || providerBaseUrl));
-    setProviderApiKey(String(configManager.get('agent-k.provider.apiKey') || ''));
-    setProviderModel(String(configManager.get('agent-k.provider.model') || providerModel));
+    const type = String(configManager.get('agent-k.provider.type') || 'litellm');
+    const baseUrl = String(
+      configManager.get('agent-k.provider.baseUrl') || providerBaseUrl
+    );
+    const apiKey = String(configManager.get('agent-k.provider.apiKey') || '');
+    const model = String(
+      configManager.get('agent-k.provider.model') || providerModel
+    );
+    setProviderType(type);
+    setProviderBaseUrl(baseUrl);
+    setProviderApiKey(apiKey);
+    setProviderModel(model);
     setComposerModels(getComposerModels());
-  }, [providerBaseUrl, providerModel]);
+    const id = sessionStore.getCurrentId();
+    if (id) {
+      persistProviderToSession(id, { type, baseUrl, apiKey, model });
+    }
+  }, [providerBaseUrl, providerModel, persistProviderToSession]);
 
   const handleToggleHistory = useCallback((e?: React.MouseEvent) => {
     e?.preventDefault();
@@ -2607,11 +2749,22 @@ export function ChatApp() {
   const handleModelChange = useCallback((next: string) => {
     if (!next) return;
     persistProviderModel(next);
-    setProviderModel(String(configManager.get('agent-k.provider.model') || next));
-    setProviderType(String(configManager.get('agent-k.provider.type') || 'litellm'));
-    setProviderBaseUrl(String(configManager.get('agent-k.provider.baseUrl') || ''));
-    setProviderApiKey(String(configManager.get('agent-k.provider.apiKey') || ''));
-  }, []);
+    const model = String(configManager.get('agent-k.provider.model') || next);
+    const type = String(configManager.get('agent-k.provider.type') || 'litellm');
+    const baseUrl = String(configManager.get('agent-k.provider.baseUrl') || '');
+    const apiKey = String(configManager.get('agent-k.provider.apiKey') || '');
+    setProviderModel(model);
+    setProviderType(type);
+    setProviderBaseUrl(baseUrl);
+    setProviderApiKey(apiKey);
+    // Keep this tab's provider independent of other sessions.
+    persistProviderToSession(sessionIdRef.current, {
+      model,
+      type,
+      baseUrl,
+      apiKey
+    });
+  }, [persistProviderToSession]);
 
   const handleThinkingEffortChange = useCallback((next: ThinkingEffort) => {
     const capped = clampThinkingEffort(
@@ -2620,7 +2773,8 @@ export function ChatApp() {
     );
     setThinkingEffort(capped);
     void configManager.set('agent-k.thinking.effort', capped);
-  }, [providerModel]);
+    persistProviderToSession(sessionIdRef.current, { thinkingEffort: capped });
+  }, [providerModel, persistProviderToSession]);
 
   // When model changes, snap effort onto levels that model accepts
   useEffect(() => {
@@ -2629,10 +2783,12 @@ export function ChatApp() {
       const next = clampThinkingEffort(prev, cap);
       if (next !== prev) {
         void configManager.set('agent-k.thinking.effort', next);
+        const id = sessionStore.getCurrentId();
+        if (id) persistProviderToSession(id, { thinkingEffort: next });
       }
       return next;
     });
-  }, [providerModel]);
+  }, [providerModel, persistProviderToSession]);
 
   const composerThinkingOptions = useMemo(
     () => thinkingOptionsForModel(providerModel),
