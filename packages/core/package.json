@@ -1,0 +1,26 @@
+{
+  "name": "@agent-k/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Agent-K harness / agent loop / config runtime. Sources still under src/{core,harness,loop,agent,...}.",
+  "agentk": {
+    "owns": [
+      "src/core/**",
+      "src/harness/**",
+      "src/loop/**",
+      "src/agent/**",
+      "src/mode/**",
+      "src/prefetch/**",
+      "src/compaction/**",
+      "src/hooks/**",
+      "src/verification/**",
+      "src/checkpoint/**",
+      "src/session/**",
+      "src/permission/**",
+      "src/memories/**",
+      "src/telemetry/**",
+      "src/skills/**"
+    ],
+    "status": "stub"
+  }
+}

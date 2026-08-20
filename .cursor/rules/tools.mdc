@@ -1,0 +1,21 @@
+---
+description: Tools registry and executors — no chat UI; no provider HTTP clients
+globs: src/tools/**,packages/tools/**
+alwaysApply: false
+---
+
+# @agent-k/tools
+
+You are in the **tools** domain (registry, executors, tool backends).
+
+## Allowed
+- Tool definitions, registry, executors, patch/search/indexing backends used by tools
+- Shared normalize/diff helpers that used to leak from chat (keep them here, not in UI)
+
+## Forbidden
+- Importing `src/chat/**` (webview helpers). If needed, move the helper into tools or a tiny shared module first.
+- Implementing LLM HTTP clients (that is `providers`)
+- Chat layout / React components
+
+## Dependency direction
+`tools → core/types` only. Not `tools → chat-ui`. Not `tools → providers` implementations.

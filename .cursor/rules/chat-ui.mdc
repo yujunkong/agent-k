@@ -1,0 +1,23 @@
+---
+description: Chat webview / React UI only — no extension-host or tool-executor changes
+globs: src/chat/**,packages/chat-ui/**
+alwaysApply: false
+---
+
+# @agent-k/chat-ui
+
+You are in the **chat webview** domain (browser bundle via Vite).
+
+## Allowed
+- React components, hooks, CSS, i18n, conversation presentation
+- Webview bridge (`src/chat/host/vscodeApi.ts` — this is NOT extension host)
+- Message handling that stays on the UI side of `protocol.ts`
+
+## Forbidden without an explicit cross-cutting task
+- `src/host/**`, `src/extension.ts`, VS Code `activate` wiring
+- Tool executor implementations under `src/tools/**`
+- Agent loop / harness runtime under `src/loop/**`, `src/harness/**`
+- Adding new Node/`vscode` imports (Vite stubs exist only as a safety net — remove leakage, don't rely on it)
+
+## If host behavior must change
+Extend `src/chat/protocol.ts` and implement the handler in `src/host/**` in a **separate, scoped** change — do not pull host modules into the webview.

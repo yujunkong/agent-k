@@ -1,0 +1,20 @@
+---
+description: MCP client and bootstrap — register tools via API; no UI
+globs: src/mcp/**,packages/mcp/**
+alwaysApply: false
+---
+
+# @agent-k/mcp
+
+You are in the **MCP** domain (stdio/client, server parse, deferred tools bootstrap).
+
+## Allowed
+- MCP session/client, config parse, bootstrap that **registers** tools through the registry API
+
+## Forbidden
+- Chat UI / settings React panels (unless a dedicated MCP settings task says so — then only settings tabs, not chat layout)
+- Host webview HTML / ChatViewProvider rewrites
+- Provider HTTP stack
+
+## Boundary
+Depend on a tools **registration interface**, not deep executor internals.

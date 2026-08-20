@@ -1,0 +1,21 @@
+---
+description: LLM providers and model routing — leaf package; no tools/host/chat coupling
+globs: src/providers/**,packages/providers/**
+alwaysApply: false
+---
+
+# @agent-k/providers
+
+You are in the **providers** package (LLM clients, model registry/routing, health/probe helpers).
+
+## Allowed
+- Provider clients, profiles, model lists, routing, tool-call parse/format for LLM streams
+- Types used by UI selectors (status, tags) — keep UI-agnostic
+
+## Forbidden
+- Importing `src/tools/**`, `src/host/**`, or `src/chat/**`
+- VS Code view/webview HTML
+- Tool executor logic
+
+## Dependencies
+Prefer `@agent-k/providers` imports. May use core config (`ConfigManager`) and small shared types (e.g. thinking effort). Do not grow new edges into host/chat/tools.
