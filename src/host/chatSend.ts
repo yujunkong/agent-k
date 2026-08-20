@@ -265,6 +265,33 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
 
     const childToolStartDetails = new Map<string, string>();
     const childStats = new Map<string, ReturnType<typeof createSubagentRunStats>>();
+    /** Per-task thought segment — new id after each tool round so timeline stays chronological. */
+    const subagentThoughtSeg = new Map<string, number>();
+    const subagentThoughtOpen = new Map<string, boolean>();
+    const subagentLastTerminalId = new Map<string, string>();
+
+    const sealSubagentThought = (
+      taskId: string,
+      turn: number,
+      parentTurnId: string | undefined,
+      status: 'done' | 'error' = 'done'
+    ) => {
+      if (!subagentThoughtOpen.get(taskId)) return;
+      const seg = subagentThoughtSeg.get(taskId) ?? 0;
+      postTimeline({
+        kind: 'thinking',
+        label: 'Thought',
+        status,
+        id: `tl_sub_${taskId}_thought_${seg}`,
+        turn,
+        thoughtRole: 'mid',
+        subagentId: taskId,
+        parentTurnId
+      });
+      subagentThoughtOpen.set(taskId, false);
+      subagentThoughtSeg.set(taskId, seg + 1);
+    };
+
     const statsFor = (taskId: string) => {
       let stats = childStats.get(taskId);
       if (!stats) {
@@ -303,6 +330,24 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           },
           onToolResult: async (name, result, callId) => {
             await hooks.onToolResult?.(name, result, callId);
+          },
+          onTerminalEvent: async (ev) => {
+            post('terminal.run', {
+              id: ev.id,
+              phase: ev.phase,
+              command: ev.command,
+              description: ev.description,
+              cwd: ev.cwd,
+              chunk: ev.chunk,
+              stream: ev.stream,
+              exitCode: ev.exitCode,
+              error: ev.error,
+              durationMs: ev.durationMs,
+              turn: ev.turn != null ? Number(ev.turn) : currentTurn || 1,
+              status: ev.status,
+              toolId: subagentLastTerminalId.get(context.task.id),
+              subagentId: context.task.id
+            });
           },
           onAskQuestion: (q) => {
             if (!isActive()) {
@@ -420,8 +465,15 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
           role: task.role,
           prompt: task.prompt.slice(0, 80)
         });
-        // Thought is posted as running and never closed — close it with the header.
+        // Seal open thought segment(s) when the subagent header finishes.
         if (finished) {
+          sealSubagentThought(
+            task.id,
+            turn,
+            task.parentTurnId,
+            status === 'error' ? 'error' : 'done'
+          );
+          // Legacy single-id thought row (pre-segmentation runs).
           postTimeline({
             kind: 'thinking',
             label: 'Thought',
@@ -435,27 +487,41 @@ export async function runHostChatSend(ctx: ChatSendContext, message: any): Promi
         }
       },
       onReasoning: (context, text) => {
+        const taskId = context.task.id;
+        const turn = currentTurn || 1;
         const clipped = String(text || '').trim().slice(0, 20000);
+        if (!subagentThoughtOpen.get(taskId)) {
+          subagentThoughtSeg.set(taskId, subagentThoughtSeg.get(taskId) ?? 0);
+          subagentThoughtOpen.set(taskId, true);
+        }
+        const seg = subagentThoughtSeg.get(taskId) ?? 0;
         postTimeline({
           kind: 'thinking',
           label: 'Thought',
           detail: clipped || undefined,
           status: 'running',
-          id: `tl_sub_${context.task.id}_thought`,
-          turn: currentTurn || 1,
+          id: `tl_sub_${taskId}_thought_${seg}`,
+          turn,
           thoughtRole: 'mid',
-          subagentId: context.task.id,
+          subagentId: taskId,
           parentTurnId: context.task.parentTurnId
         });
       },
       onToolCall: (context, name, args, callId) => {
+        const taskId = context.task.id;
+        const turn = currentTurn || 1;
+        // Close current thought before the tool row — mirrors main-turn Cursor sequencing.
+        sealSubagentThought(taskId, turn, context.task.parentTurnId);
         const kind = toolKind(name);
         const detail = shortDetail(name, args as Record<string, unknown>);
-        const id = `tl_sub_${context.task.id}_${
+        const id = `tl_sub_${taskId}_${
           callId && String(callId).trim() ? String(callId) : name
         }`;
         if (detail) childToolStartDetails.set(id, detail);
-        recordSubagentTool(statsFor(context.task.id));
+        if (name === 'run_terminal_cmd' || name === 'terminal_output') {
+          subagentLastTerminalId.set(taskId, id);
+        }
+        recordSubagentTool(statsFor(taskId));
         postTimeline({
           kind,
           label: `${kindVerb(kind)} · ${name}`,

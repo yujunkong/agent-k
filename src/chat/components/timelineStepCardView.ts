@@ -183,6 +183,9 @@ export function buildTimelineStepCardView(
     // Active file edits expand; completed stay compact until clicked.
     defaultOpen = live;
   } else if (step.kind === 'terminal' && step.terminalRun) {
+    // Cursor-style: human description as card title ("Run timeline-related unit tests").
+    const desc = step.terminalRun.description?.trim();
+    if (desc) title = desc;
     subtitle = step.terminalRun.command || subtitle;
     meta = terminalMeta(step.terminalRun);
     expandable = true;

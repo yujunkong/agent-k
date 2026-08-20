@@ -266,4 +266,46 @@ describe('timelinePresentation', () => {
       step: { id: 'tl_sub_a_edit', kind: 'file' }
     });
   });
+
+  it('sequential mode keeps one node per tool (Cursor-style subagent detail)', () => {
+    const events = [
+      {
+        id: 'tl_sub_a_thought_0',
+        type: 'thinking',
+        status: 'complete',
+        label: 'Thought',
+        detail: 'Plan first'
+      },
+      {
+        id: 'tl_sub_a_read',
+        type: 'read',
+        status: 'complete',
+        label: 'Read',
+        detail: 'login.ts'
+      },
+      {
+        id: 'tl_sub_a_grep',
+        type: 'search',
+        status: 'complete',
+        label: 'Grepped',
+        toolName: 'grep',
+        detail: 'auth'
+      },
+      {
+        id: 'tl_sub_a_edit',
+        type: 'edit',
+        status: 'complete',
+        label: 'Edit',
+        detail: 'login.ts'
+      }
+    ] as Parameters<typeof buildTimelinePresentation>[0];
+    const presentation = buildTimelinePresentation(events, {}, { sequential: true });
+    expect(presentation.nodes.map((n) => n.kind)).toEqual(['step', 'step', 'step', 'step']);
+    expect(presentation.nodes.map((n) => (n.kind === 'step' ? n.step.id : ''))).toEqual([
+      'tl_sub_a_thought_0',
+      'tl_sub_a_read',
+      'tl_sub_a_grep',
+      'tl_sub_a_edit'
+    ]);
+  });
 });

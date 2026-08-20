@@ -169,7 +169,9 @@ export function SubagentDetailView({
             terminalRuns={terminalRuns}
             isStreaming={isStreaming}
             workedDurationMs={workedDurationMs}
-            defaultOpen={isStreaming}
+            /* Detail tab: always expanded, Cursor-style sequential steps (no Worked collapse). */
+            defaultOpen
+            subagentDetail
             onOpenFile={onOpenFile}
             onAcceptFile={onAcceptFile}
             onRejectFile={onRejectFile}

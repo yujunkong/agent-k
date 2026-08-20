@@ -540,13 +540,22 @@ function nodeHasError(node: TimelineNode): boolean {
   return node.step.status === 'failed';
 }
 
+export type TimelinePresentationOptions = {
+  /**
+   * Subagent detail tab: emit one node per tool in event order.
+   * Skips explore rollup so Thought / Explored / terminal / Edit interleave like Cursor.
+   */
+  sequential?: boolean;
+};
+
 /** Event store + sidecar previews → render-ready presentation tree. */
 export function buildTimelinePresentation(
   events: ConversationWorkEvent[] = [],
   previews: {
     fileEdits?: FileEditPreview[];
     terminalRuns?: TerminalRunPreview[];
-  } = {}
+  } = {},
+  options: TimelinePresentationOptions = {}
 ): TimelinePresentation {
   const fileEdits = previews.fileEdits ?? [];
   const terminalRuns = previews.terminalRuns ?? [];
@@ -601,15 +610,17 @@ export function buildTimelinePresentation(
     ensureGroup(subagentId).children.push(withPreviews(event));
   }
 
-  const finalizedNodes: TimelineNode[] = collapseExploreRuns(
-    nodes.map((node) => {
-      if (node.kind !== 'group') return node;
-      return {
-        ...node,
-        subagent: buildSubagentGroupPresentation(node.step, node.children)
-      };
-    })
-  );
+  const mappedNodes: TimelineNode[] = nodes.map((node) => {
+    if (node.kind !== 'group') return node;
+    return {
+      ...node,
+      subagent: buildSubagentGroupPresentation(node.step, node.children)
+    };
+  });
+  // Sequential detail view keeps chronological tool rows — no "Explored N files" batch at bottom.
+  const finalizedNodes: TimelineNode[] = options.sequential
+    ? mappedNodes
+    : collapseExploreRuns(mappedNodes);
 
   const stepCount = countTimelineSteps(finalizedNodes);
   const hasActive = finalizedNodes.some(nodeIsActive);
