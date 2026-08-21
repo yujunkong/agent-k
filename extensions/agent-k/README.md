@@ -6,10 +6,13 @@ VSIX assembler only — activation + contributes + wiring.
 
 | ID | Scope |
 |----|--------|
-| **EXT-001** | `activate` → `@agent-k/host`, Activity Bar + `agent-k.chat` webview |
+| **EXT-001** | `activate` → `@agent-k/host`, Activity Bar + `agent-k.chat` |
+| **EXT-002** | Loads Chat UI shell from `media/chat.js` (built by `@agent-k/chat-ui`) |
 
-Domain logic stays in `packages/host` (and other packages). Do not put agent loop / React UI here.
+## Build webview assets
 
-## Status
+```bash
+npm run build:webview   # from repo root
+```
 
-EXT-001: sidebar Chat view loads Phase 0 hello HTML and completes `ui.ready` → `host.hello`.
+Writes `media/chat.js` + `media/chat.css`.

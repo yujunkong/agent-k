@@ -1,12 +1,12 @@
 /**
- * EXT-001 — minimal Chat WebviewViewProvider (hello handshake only).
- * Full chat runtime / send bridge lands in HOST-001 / HOST-002.
+ * EXT-001 / EXT-002 — Chat WebviewViewProvider.
+ * Loads chat-ui shell from extension media/; hello via SHARED protocol.
  */
 
 import * as vscode from 'vscode';
-import { buildHelloHtml } from './helloHtml';
 import { createNonce } from './nonce';
 import { replyToWebviewMessage } from './replyToWebviewMessage';
+import { buildShellHtml } from './shellHtml';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   /** Must match contributes.views id in extensions/agent-k/package.json. */
@@ -28,7 +28,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [this.extensionUri],
+      // media/ holds chat-ui IIFE built by @agent-k/chat-ui.
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
     };
 
     webviewView.webview.html = this.getHtml(webviewView.webview);
@@ -47,9 +48,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private getHtml(webview: vscode.Webview): string {
-    return buildHelloHtml({
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'chat.js'),
+    );
+    const styleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'chat.css'),
+    );
+
+    return buildShellHtml({
       nonce: createNonce(),
       cspSource: webview.cspSource,
+      scriptUri: scriptUri.toString(),
+      styleUri: styleUri.toString(),
     });
   }
 }
