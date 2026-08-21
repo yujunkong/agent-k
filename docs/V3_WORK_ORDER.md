@@ -30,20 +30,20 @@
 
 | ID | 작업 | 패키지 | 상태 |
 |----|------|--------|------|
-| S-001 | 루트 workspace package.json + workspaces | root | [ ] |
-| S-002 | extensions/agent-k 빈 조립 패키지 | extensions/agent-k | [ ] |
-| S-003 | packages/shared 빈 패키지 | shared | [ ] |
-| S-004 | packages/host 빈 패키지 | host | [ ] |
-| S-005 | packages/chat-ui 빈 패키지 | chat-ui | [ ] |
-| S-006 | packages/core 빈 패키지 | core | [ ] |
-| S-007 | packages/tools 빈 패키지 | tools | [ ] |
-| S-008 | packages/providers 빈 패키지 | providers | [ ] |
-| S-009 | packages/plan · worktree · safety stub | plan/worktree/safety | [ ] |
-| S-010 | 루트 AGENTS.md (Monorepo Part B) | root | [ ] |
-| S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [ ] |
-| S-012 | README 빌드/실행 최소 안내 | root | [ ] |
+| S-001 | 루트 workspace package.json + workspaces | root | [x] |
+| S-002 | extensions/agent-k 빈 조립 패키지 | extensions/agent-k | [x] |
+| S-003 | packages/shared 빈 패키지 | shared | [x] |
+| S-004 | packages/host 빈 패키지 | host | [x] |
+| S-005 | packages/chat-ui 빈 패키지 | chat-ui | [x] |
+| S-006 | packages/core 빈 패키지 | core | [x] |
+| S-007 | packages/tools 빈 패키지 | tools | [x] |
+| S-008 | packages/providers 빈 패키지 | providers | [x] |
+| S-009 | packages/plan · worktree · safety stub | plan/worktree/safety | [x] |
+| S-010 | 루트 AGENTS.md (Monorepo Part B) | root | [x] |
+| S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
+| S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** `S-001` → … → `S-012` 완료 후 **`EXT-001`** (Phase 0).
+**바로 다음:** **`SHARED-001`** (protocol types) 또는 **`EXT-001`** (activation).
 
 ---
 
@@ -508,7 +508,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 ## 다음으로 할 일
 
-1. **S-001** — 루트 workspace 스켈레톤
-2. S-002~S-012
-3. **SHARED-001** 또는 **EXT-001**부터 이식
+1. **SHARED-001** — Extension↔Webview protocol types (`packages/shared`)
+2. **EXT-001** — Extension activation (`extensions/agent-k` + `packages/host`)
+3. Phase 0 나머지 (HOST/CFG) 순차 이식
 

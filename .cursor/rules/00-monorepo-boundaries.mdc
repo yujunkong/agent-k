@@ -1,0 +1,13 @@
+---
+description: Always-on Agent-K monorepo boundaries (v3.0)
+alwaysApply: true
+---
+
+# Domain scope (always)
+
+- One session → one package (`packages/<one>` or `extensions/agent-k`). See root `AGENTS.md`.
+- Start with a Feature ID from `docs/V3_WORK_ORDER.md`.
+- Cross boundary → change `packages/shared` first.
+- Do not publish npm libs unless reuse across apps is explicit.
+- Enforce R-001…R-005. No cycles.
+- Reference code: read `v2.1-PRODUCTION-MODE` only; write only on `v3.0`.

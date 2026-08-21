@@ -1,0 +1,17 @@
+---
+description: core package — Agent runtime
+globs: packages/core/**
+alwaysApply: false
+---
+
+# @agent-k/core
+
+**역할:** Agent loop, modes, context, compaction, harness, debug/memories/skills/artifacts/telemetry/config domain.
+
+**Feature IDs:** AGENT-*, MODE-*, CTX-*, HARNESS-*, DEBUG-*, MEM-*, SKILL-*, ART-*, TEL-*, CFG-*, REL-*, STREAM-*(runtime), MCP-*
+
+**해도 됨:** pure/runtime TS, tools/providers/shared 의존, Typed events emit
+
+**하면 안 됨:** React, vscode UI, provider HTTP 복제
+
+**R-002:** Work Event를 타입으로 발행.

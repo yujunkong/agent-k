@@ -1,0 +1,13 @@
+{
+  "name": "@agent-k/providers",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Provider/Model layer (R-001: Composer ≠ ModelRouter).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "sideEffects": false
+}

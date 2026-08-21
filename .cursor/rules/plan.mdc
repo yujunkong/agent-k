@@ -1,0 +1,15 @@
+---
+description: plan package — Plan V1/V2 and execution
+globs: packages/plan/**
+alwaysApply: false
+---
+
+# @agent-k/plan
+
+**역할:** Plan V1, Plan V2, Execution engine, scheduler, diagnostics.
+
+**Feature IDs:** PLAN-*, PLAN2-*, EXEC-*, MODE-003/007/009
+
+**R-004:** PlanCreated → … → Completed | Failed | Cancelled
+
+**하면 안 됨:** Chat UI, Worktree apply 본문, prompt 한 방으로 plan 대체

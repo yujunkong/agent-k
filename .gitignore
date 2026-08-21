@@ -1,4 +1,4 @@
-# Ignore local leftovers on clean v3.0 (docs-first)
+# Ignore local leftovers on clean v3.0
 node_modules/
 dist/
 out/

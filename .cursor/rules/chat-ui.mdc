@@ -1,0 +1,17 @@
+---
+description: chat-ui package — Webview UI only
+globs: packages/chat-ui/**
+alwaysApply: false
+---
+
+# @agent-k/chat-ui
+
+**역할:** Webview React UI (Composer, Timeline, Conversation, Settings UI, Diff preview).
+
+**Feature IDs:** CHAT-*, CONV-*, UI-*, CURSOR-*, STREAM-*(표시), SET-*(UI), INLINE-*(diff UI), BROWSER/DESIGN panel UI
+
+**해도 됨:** React, CSS, webview state, host와 message protocol(`shared`) 통신, Typed Work Event presentation
+
+**하면 안 됨:** `vscode` import, fs/child_process/agent loop/provider HTTP, ModelRouter·PermissionGate·Worktree apply
+
+**작업 단위:** 이 폴더만 수정.

@@ -1,0 +1,16 @@
+{
+  "name": "agent-k-monorepo",
+  "private": true,
+  "version": "3.0.0-skeleton",
+  "description": "Agent-K v3.0 clean transplant monorepo (skeleton only)",
+  "workspaces": [
+    "packages/*",
+    "extensions/*"
+  ],
+  "scripts": {
+    "check": "node -e \"console.log('skeleton: no build yet — start EXT-001 / SHARED-001')\""
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

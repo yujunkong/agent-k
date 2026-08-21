@@ -1,0 +1,15 @@
+---
+description: shared package — types and protocol only
+globs: packages/shared/**
+alwaysApply: false
+---
+
+# @agent-k/shared
+
+**역할:** protocol types, work event types, common error types만.
+
+**의존성:** shared ← 모든 packages. shared는 비즈니스 패키지를 의존하지 않음.
+
+**해도 됨:** pure types, message protocol, Typed Work Event definitions
+
+**하면 안 됨:** 비즈니스 로직, React, vscode, provider HTTP, tool executors

@@ -103,8 +103,8 @@ Done when: 8-item checklist + tests; summarize files touched
 | D0 | 문서만: Work Plan / Work Order / Monorepo Final | **완료** |
 | D1 | Feature Master 원본을 `docs/`에 배치 | **완료** |
 | D2 | Master ↔ Work Order Feature ID 세분화 (D-006) | **완료** |
-| S0 | 모노레포 스켈레톤 + AGENTS.md + cursor rules (코드 최소) | **다음** |
-| P0… | Work Order Phase 0부터 Feature 이식 | 대기 |
+| S0 | 모노레포 스켈레톤 + AGENTS.md + cursor rules (코드 최소) | **완료** |
+| P0… | Work Order Phase 0부터 Feature 이식 (`SHARED-001` / `EXT-001`) | **다음** |
 
 ---
 

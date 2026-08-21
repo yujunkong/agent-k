@@ -1,0 +1,13 @@
+{
+  "name": "@agent-k/tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tool registry and executors (R-005 contracts).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "sideEffects": false
+}

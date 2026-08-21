@@ -1,0 +1,13 @@
+{
+  "name": "@agent-k/host",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Extension Host bridge (vscode API). No React UI / agent loop body.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "sideEffects": false
+}

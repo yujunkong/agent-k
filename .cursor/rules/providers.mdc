@@ -1,0 +1,15 @@
+---
+description: providers package — Provider and Model layer
+globs: packages/providers/**
+alwaysApply: false
+---
+
+# @agent-k/providers
+
+**역할:** Provider registry/connections/profiles, Model registry/resolver/routing, health.
+
+**Feature IDs:** PROVIDER-*, MODEL-*, UXPROV-*, CFG-008
+
+**R-001 필수:** Composer dropdown과 runtime ModelRouter 분리. UI 코드 금지.
+
+**하면 안 됨:** Tool 실행 본문, React, Agent loop 제어

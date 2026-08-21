@@ -1,0 +1,13 @@
+{
+  "name": "@agent-k/worktree",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Worktree / subagent isolation / Best-of-N (2nd-wave stub).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "sideEffects": false
+}
