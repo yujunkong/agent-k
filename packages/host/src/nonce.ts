@@ -1,14 +1,22 @@
 /**
- * EXT-001 — CSP nonce helper (minimal subset of EXT-004).
- * Pure: no vscode dependency so unit tests stay node-friendly.
+ * EXT-004 — CSP nonce helper (pure; no vscode dependency).
+ * Canonical name `getNonce` matches v2.1; `createNonce` kept as alias.
  */
 
-/** Generate a short random nonce for webview CSP + script tags. */
-export function createNonce(size = 32): string {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const NONCE_ALPHABET =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+/**
+ * Generate a cryptographically-weak but CSP-suitable random nonce.
+ * Webview CSP only needs unpredictability within the document lifetime.
+ */
+export function getNonce(size = 32): string {
   let out = '';
   for (let i = 0; i < size; i += 1) {
-    out += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+    out += NONCE_ALPHABET.charAt(Math.floor(Math.random() * NONCE_ALPHABET.length));
   }
   return out;
 }
+
+/** @deprecated Prefer getNonce — alias kept for EXT-001 call sites. */
+export const createNonce = getNonce;

@@ -43,7 +43,7 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **`EXT-003`** (commands) 또는 **`HOST-001`** / **CHAT-001** — EXT-002 shell OK.
+**바로 다음:** **`HOST-001`** / **CHAT-001** / **CFG-001** — EXT-001~005 OK.
 
 ---
 
@@ -61,9 +61,9 @@ Phase 0 시작 전/병행: shared 계약.
 |------------|------|--------|------|
 | EXT-001 | Extension activation | extensions/agent-k + host | [x] |
 | EXT-002 | Chat View | extensions/agent-k + host | [x] |
-| EXT-003 | Command registration | extensions/agent-k + host | [ ] |
-| EXT-004 | CSP / nonce / Webview security | extensions/agent-k + host | [ ] |
-| EXT-005 | Workspace path abstraction | extensions/agent-k + host | [ ] |
+| EXT-003 | Command registration | extensions/agent-k + host | [x] |
+| EXT-004 | CSP / nonce / Webview security | extensions/agent-k + host | [x] |
+| EXT-005 | Workspace path abstraction | extensions/agent-k + host | [x] |
 | HOST-001 | ChatViewProvider | host | [ ] |
 | HOST-002 | Chat send bridge | host | [ ] |
 | HOST-003 | Composer host | host | [ ] |
@@ -508,7 +508,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 ## 다음으로 할 일
 
-1. **EXT-003** — Command registration (`extensions/agent-k` + `packages/host`)
-2. **EXT-004~005** / **HOST-001+** / **CFG-001~003** / **CHAT-001** 순차 이식
-3. EXT-002: React Chat shell in `packages/chat-ui` loaded via `media/chat.js`
+1. **HOST-001** — ChatViewProvider lifecycle 보강 (`packages/host`)
+2. **CHAT-001** / **CFG-001~003** 순차 이식
+3. EXT-003~005 완료: commands + CSP/nonce + workspacePaths
 

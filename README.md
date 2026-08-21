@@ -27,7 +27,8 @@ docs/                   # Master + monorepo + work order
 - **SHARED-001 / SHARED-002:** protocol + Typed Work Event contracts.
 - **EXT-001:** Activity Bar + `agent-k.chat` + hello handshake.
 - **EXT-002:** React Chat shell (`packages/chat-ui`) → `extensions/agent-k/media/chat.js`.
-- **Next Feature:** `EXT-003` — see Work Order Phase 0.
+- **EXT-003~005:** commands (19) + CSP/nonce webview HTML + workspace path abstraction.
+- **Next Feature:** `HOST-001` / `CHAT-001` / `CFG-001` — see Work Order Phase 0.
 
 ## Commands
 

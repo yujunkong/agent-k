@@ -104,7 +104,7 @@ Done when: 8-item checklist + tests; summarize files touched
 | D1 | Feature Master 원본을 `docs/`에 배치 | **완료** |
 | D2 | Master ↔ Work Order Feature ID 세분화 (D-006) | **완료** |
 | S0 | 모노레포 스켈레톤 + AGENTS.md + cursor rules (코드 최소) | **완료** |
-| P0… | Work Order Phase 0 Feature 이식 | **진행** — SHARED + EXT-001/002 완료, 다음 `EXT-003` |
+| P0… | Work Order Phase 0 Feature 이식 | **진행** — SHARED + EXT-001~005 완료, 다음 `HOST-001` / `CHAT-001` / `CFG-001` |
 
 ---
 
