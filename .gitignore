@@ -1,0 +1,10 @@
+# Ignore local leftovers on clean v3.0 (docs-first)
+node_modules/
+dist/
+out/
+.vscode-test/
+*.vsix
+.env
+.env.*
+.DS_Store
+*.local.json
