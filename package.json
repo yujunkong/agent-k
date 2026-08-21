@@ -10,8 +10,9 @@
   "scripts": {
     "check": "npm run test",
     "build:webview": "npm run build -w @agent-k/chat-ui",
-    "test": "npm run test -w @agent-k/shared && npm run test -w @agent-k/host && npm run test -w @agent-k/chat-ui",
-    "typecheck": "npm run typecheck -w @agent-k/shared && npm run typecheck -w @agent-k/host && npm run typecheck -w @agent-k/chat-ui && npm run typecheck -w agent-k"
+    "test": "npm run test -w @agent-k/shared && npm run test -w @agent-k/host && npm run test -w @agent-k/chat-ui && npm run test -w @agent-k/providers",
+    "typecheck": "npm run typecheck -w @agent-k/shared && npm run typecheck -w @agent-k/host && npm run typecheck -w @agent-k/chat-ui && npm run typecheck -w @agent-k/providers && npm run typecheck -w agent-k",
+    "smoke:providers": "npm run smoke -w @agent-k/providers"
   },
   "engines": {
     "node": ">=18"

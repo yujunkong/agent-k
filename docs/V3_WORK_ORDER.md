@@ -91,24 +91,24 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| PROVIDER-001 | Provider type detection | providers | [ ] |
-| PROVIDER-002 | Provider registry | providers | [ ] |
-| PROVIDER-003 | Provider connections | providers | [ ] |
-| PROVIDER-004 | Provider profiles | providers | [ ] |
-| PROVIDER-005 | Provider presets | providers | [ ] |
-| PROVIDER-006 | Provider fields | providers | [ ] |
-| PROVIDER-007 | Provider status | providers | [ ] |
-| PROVIDER-008 | Provider health check | providers | [ ] |
-| PROVIDER-009 | Provider probe | providers | [ ] |
-| PROVIDER-010 | LiteLLM provider | providers | [ ] |
-| PROVIDER-011 | OpenAI provider | providers | [ ] |
-| PROVIDER-012 | Anthropic provider | providers | [ ] |
-| PROVIDER-013 | Ollama provider | providers | [ ] |
-| PROVIDER-014 | LM Studio provider | providers | [ ] |
-| PROVIDER-015 | OpenCode Zen / Go | providers | [ ] |
-| PROVIDER-016 | DGX provider | providers | [ ] |
-| PROVIDER-017 | Secret manager (provider keys) | providers | [ ] |
-| PROVIDER-018 | Tool result formatter | providers | [ ] |
+| PROVIDER-001 | Provider type detection | providers | [x] |
+| PROVIDER-002 | Provider registry | providers | [x] |
+| PROVIDER-003 | Provider connections | providers | [x] |
+| PROVIDER-004 | Provider profiles | providers | [x] |
+| PROVIDER-005 | Provider presets | providers | [x] |
+| PROVIDER-006 | Provider fields | providers | [x] |
+| PROVIDER-007 | Provider status | providers | [x] |
+| PROVIDER-008 | Provider health check | providers | [x] |
+| PROVIDER-009 | Provider probe | providers | [x] |
+| PROVIDER-010 | LiteLLM provider | providers | [x] |
+| PROVIDER-011 | OpenAI provider | providers | [x] |
+| PROVIDER-012 | Anthropic provider | providers | [x] |
+| PROVIDER-013 | Ollama provider | providers | [x] |
+| PROVIDER-014 | LM Studio provider | providers | [x] |
+| PROVIDER-015 | OpenCode Zen / Go | providers | [-] 스킵 (이번 세션 범위 외) |
+| PROVIDER-016 | DGX provider | providers | [-] 스킵 (이번 세션 범위 외) |
+| PROVIDER-017 | Secret manager (provider keys) | providers | [-] 스킵 (이번 세션 범위 외) |
+| PROVIDER-018 | Tool result formatter | providers | [-] 스킵 (이번 세션 범위 외) |
 | MODEL-001 | Model Registry | providers | [ ] |
 | MODEL-002 | Model Resolver | providers | [ ] |
 | MODEL-003 | Model Routing | providers | [ ] |
