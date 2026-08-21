@@ -51,7 +51,7 @@ agent-k/
 │   └── shared/                  # types, protocol, pure utils (최소)
 │
 ├── docs/
-│   └── feature-master.md        # Feature Master 사본/링크
+│   └── AGENT-K-FEATURE-MASTER-v2.1-PRODUCTION-MODE-FINAL.md
 │
 └── .cursor/
     └── rules/                   # Part C 규칙 파일
