@@ -25,15 +25,16 @@ docs/                   # Master + monorepo + work order
 
 - **S-001~S-012:** skeleton done.
 - **SHARED-001 / SHARED-002:** protocol + Typed Work Event contracts in `packages/shared`.
-- **Next Feature:** `EXT-001` — see Work Order Phase 0.
+- **EXT-001:** Activity Bar + `agent-k.chat` webview hello (`ui.ready` → `host.hello`).
+- **Next Feature:** `EXT-002` / `HOST-001` — see Work Order Phase 0.
 
 ## Commands
 
 ```bash
 npm install          # link workspaces
-npm run check        # shared unit tests (vitest)
-npm run typecheck    # shared tsc --noEmit
+npm run check        # shared + host unit tests (vitest)
+npm run typecheck    # shared + host + extension tsc --noEmit
 ```
 
-Full VS Code build/run lands with **EXT-001** (activation + contributes).
+F5 / packaged VSIX build (esbuild → `dist/`) can follow in a later EXT ticket.
 Do not copy `v2.1` `src/` wholesale — transplant by Feature ID only.

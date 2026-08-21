@@ -1,11 +1,15 @@
 /**
- * Extension entry — EXT-001 will wire activate/deactivate.
- * Assembly only: import from @agent-k/host (and other packages) later.
+ * EXT-001 — thin VSIX assembler entry.
+ * Domain logic lives in @agent-k/host; this file only wires activate/deactivate.
  */
-export function activate(): void {
-  // Skeleton: no-op until EXT-001.
+
+import type * as vscode from 'vscode';
+import { activateAgentK, deactivateAgentK } from '@agent-k/host';
+
+export function activate(context: vscode.ExtensionContext): void {
+  activateAgentK(context);
 }
 
 export function deactivate(): void {
-  // Skeleton: no-op until EXT-001.
+  deactivateAgentK();
 }

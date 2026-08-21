@@ -43,7 +43,7 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **`EXT-001`** (activation) — SHARED-001/002 완료.
+**바로 다음:** **`EXT-002`** (Chat View) 또는 **`EXT-003`** / **`HOST-001`** 심화 — EXT-001 hello OK.
 
 ---
 
@@ -59,7 +59,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| EXT-001 | Extension activation | extensions/agent-k + host | [ ] |
+| EXT-001 | Extension activation | extensions/agent-k + host | [x] |
 | EXT-002 | Chat View | extensions/agent-k + host | [ ] |
 | EXT-003 | Command registration | extensions/agent-k + host | [ ] |
 | EXT-004 | CSP / nonce / Webview security | extensions/agent-k + host | [ ] |
@@ -508,7 +508,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 ## 다음으로 할 일
 
-1. **EXT-001** — Extension activation (`extensions/agent-k` + `packages/host`)
-2. Phase 0 나머지 (EXT/HOST/CFG) 순차 이식 — hello는 SHARED `ui.ready`/`host.hello` 사용
-3. SHARED-001/002는 `packages/shared`에 완료 (protocol + Typed Work Event)
+1. **EXT-002** — Chat View (chat-ui shell) 또는 **HOST-001** 심화
+2. **EXT-003~005** / **HOST-002+** / **CFG-001~003** 순차 이식
+3. EXT-001: Activity Bar + `agent-k.chat` + `ui.ready`→`host.hello` (Phase 0 Hello OK)
 
