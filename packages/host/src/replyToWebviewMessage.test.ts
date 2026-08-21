@@ -1,11 +1,11 @@
 /**
- * EXT-001 — unit tests for ui.ready → host.hello (no vscode).
+ * EXT-001 / EXT-002 — host unit tests (no vscode).
  */
 
 import { describe, expect, it } from 'vitest';
 import { PROTOCOL_VERSION } from '@agent-k/shared';
-import { buildHelloHtml } from './helloHtml';
 import { replyToWebviewMessage } from './replyToWebviewMessage';
+import { buildShellHtml } from './shellHtml';
 
 describe('EXT-001 replyToWebviewMessage', () => {
   it('replies host.hello to ui.ready', () => {
@@ -34,14 +34,18 @@ describe('EXT-001 replyToWebviewMessage', () => {
   });
 });
 
-describe('EXT-001 helloHtml', () => {
-  it('embeds ui.ready handshake and CSP nonce', () => {
-    const html = buildHelloHtml({ nonce: 'testnonce', cspSource: 'https://csp.test' });
-    expect(html).toContain("type: 'ui.ready'");
-    expect(html).toContain(`const PROTOCOL_VERSION = ${PROTOCOL_VERSION}`);
-    expect(html).toContain('protocolVersion: PROTOCOL_VERSION');
+describe('EXT-002 shellHtml', () => {
+  it('loads chat-ui bundle with CSP nonce and #chat-root', () => {
+    const html = buildShellHtml({
+      nonce: 'testnonce',
+      cspSource: 'https://csp.test',
+      scriptUri: 'https://webview/media/chat.js',
+      styleUri: 'https://webview/media/chat.css',
+    });
+    expect(html).toContain('id="chat-root"');
     expect(html).toContain('nonce-testnonce');
-    expect(html).toContain('acquireVsCodeApi');
-    expect(html).toContain('UI Hello OK');
+    expect(html).toContain('https://webview/media/chat.js');
+    expect(html).toContain('https://webview/media/chat.css');
+    expect(html).toContain('script nonce="testnonce"');
   });
 });

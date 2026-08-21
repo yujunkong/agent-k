@@ -24,17 +24,18 @@ docs/                   # Master + monorepo + work order
 ## Status
 
 - **S-001~S-012:** skeleton done.
-- **SHARED-001 / SHARED-002:** protocol + Typed Work Event contracts in `packages/shared`.
-- **EXT-001:** Activity Bar + `agent-k.chat` webview hello (`ui.ready` → `host.hello`).
-- **Next Feature:** `EXT-002` / `HOST-001` — see Work Order Phase 0.
+- **SHARED-001 / SHARED-002:** protocol + Typed Work Event contracts.
+- **EXT-001:** Activity Bar + `agent-k.chat` + hello handshake.
+- **EXT-002:** React Chat shell (`packages/chat-ui`) → `extensions/agent-k/media/chat.js`.
+- **Next Feature:** `EXT-003` — see Work Order Phase 0.
 
 ## Commands
 
 ```bash
-npm install          # link workspaces
-npm run check        # shared + host unit tests (vitest)
-npm run typecheck    # shared + host + extension tsc --noEmit
+npm install             # link workspaces
+npm run build:webview   # esbuild chat-ui → extensions/agent-k/media
+npm run check           # shared + host + chat-ui tests
+npm run typecheck
 ```
 
-F5 / packaged VSIX build (esbuild → `dist/`) can follow in a later EXT ticket.
 Do not copy `v2.1` `src/` wholesale — transplant by Feature ID only.

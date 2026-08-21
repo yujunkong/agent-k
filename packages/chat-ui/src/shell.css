@@ -1,0 +1,63 @@
+/**
+ * EXT-002 — Chat UI stylesheet (VS Code theme CSS variables).
+ */
+
+:root {
+  color-scheme: light dark;
+  --ak-fg: var(--vscode-foreground, #ccc);
+  --ak-muted: var(--vscode-descriptionForeground, #888);
+  --ak-accent: var(--vscode-button-background, #0e639c);
+  --ak-bg: var(--vscode-sideBar-background, transparent);
+  --ak-font: var(--vscode-font-family, system-ui, sans-serif);
+  --ak-ok: var(--vscode-testing-iconPassed, #3fb950);
+  --ak-err: var(--vscode-testing-iconFailed, #f85149);
+}
+
+html,
+body,
+#chat-root {
+  margin: 0;
+  height: 100%;
+  background: var(--ak-bg);
+  color: var(--ak-fg);
+  font-family: var(--ak-font);
+}
+
+.ak-shell {
+  box-sizing: border-box;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.25rem;
+}
+
+.ak-shell__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ak-shell__subtitle {
+  margin: 0;
+  color: var(--ak-muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.ak-shell__status {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-left: 3px solid var(--ak-accent);
+  font-size: 0.9rem;
+}
+
+.ak-shell__status[data-state='ok'] {
+  border-left-color: var(--ak-ok);
+}
+
+.ak-shell__status[data-state='error'] {
+  border-left-color: var(--ak-err);
+}

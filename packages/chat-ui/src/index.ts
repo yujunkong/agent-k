@@ -1,6 +1,11 @@
 /**
- * @agent-k/chat-ui — skeleton entry.
- * Webview React UI. No vscode / fs / agent loop / provider HTTP.
- * Feature transplants land here per docs/V3_WORK_ORDER.md.
+ * @agent-k/chat-ui — Webview React UI.
+ *
+ * Feature IDs:
+ * - EXT-002 Chat View shell (entry)
+ *
+ * No vscode / fs / agent loop / provider HTTP.
  */
-export {};
+
+export { Shell } from './Shell';
+export { getVsCodeApi, setVsCodeApiForTests, type VsCodeApi } from './vscodeApi';
