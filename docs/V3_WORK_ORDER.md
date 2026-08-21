@@ -43,7 +43,7 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **`SHARED-001`** (protocol types) 또는 **`EXT-001`** (activation).
+**바로 다음:** **`EXT-001`** (activation) — SHARED-001/002 완료.
 
 ---
 
@@ -53,8 +53,8 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| SHARED-001 | Extension↔Webview protocol types | shared | [ ] |
-| SHARED-002 | Typed Work Event contracts (R-002) | shared | [ ] |
+| SHARED-001 | Extension↔Webview protocol types | shared | [x] |
+| SHARED-002 | Typed Work Event contracts (R-002) | shared | [x] |
 **완료/원칙:** 확장 로드 + host↔webview shared protocol 통신 (UI Hello OK).
 
 | Feature ID | 제목 | 패키지 | 상태 |
@@ -508,7 +508,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 ## 다음으로 할 일
 
-1. **SHARED-001** — Extension↔Webview protocol types (`packages/shared`)
-2. **EXT-001** — Extension activation (`extensions/agent-k` + `packages/host`)
-3. Phase 0 나머지 (HOST/CFG) 순차 이식
+1. **EXT-001** — Extension activation (`extensions/agent-k` + `packages/host`)
+2. Phase 0 나머지 (EXT/HOST/CFG) 순차 이식 — hello는 SHARED `ui.ready`/`host.hello` 사용
+3. SHARED-001/002는 `packages/shared`에 완료 (protocol + Typed Work Event)
 

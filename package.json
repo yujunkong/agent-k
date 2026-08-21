@@ -8,7 +8,9 @@
     "extensions/*"
   ],
   "scripts": {
-    "check": "node -e \"console.log('skeleton: no build yet — start EXT-001 / SHARED-001')\""
+    "check": "npm run test -w @agent-k/shared",
+    "test": "npm run test -w @agent-k/shared",
+    "typecheck": "npm run typecheck -w @agent-k/shared"
   },
   "engines": {
     "node": ">=18"
