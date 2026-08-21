@@ -1,7 +1,28 @@
 # @agent-k/chat-ui
 
-Webview React UI. No vscode / fs / agent loop / provider HTTP.
+Webview React UI. No `vscode` / fs / agent loop / provider HTTP.
 
-**Status:** skeleton (S-00x). No Feature logic yet — transplant starts at Phase 0.
+## Feature IDs
 
-See `docs/V3_WORK_ORDER.md` and `docs/AGENT-K-MONOREPO-FINAL.md`.
+| ID | Scope |
+|----|--------|
+| **EXT-002** | Chat View shell — React entry for `agent-k.chat` |
+
+## Layout
+
+```text
+src/
+  main.tsx      # createRoot → Shell
+  Shell.tsx     # brand + host.hello status; posts ui.ready
+  vscodeApi.ts  # acquireVsCodeApi wrapper
+  shell.css
+esbuild.mjs     # IIFE → dist/ + copy to extensions/agent-k/media
+```
+
+## Commands
+
+```bash
+npm run build -w @agent-k/chat-ui
+npm test -w @agent-k/chat-ui
+npm run typecheck -w @agent-k/chat-ui
+```
