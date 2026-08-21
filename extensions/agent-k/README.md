@@ -1,7 +1,15 @@
 # extensions/agent-k
 
-VS Code extension **assembler** only: activation, commands, contributes, wiring.
+VSIX assembler only — activation + contributes + wiring.
 
-Domain logic lives in `packages/*`. Do not implement agent loop / tools / UI here.
+## Feature IDs
 
-**Status:** skeleton. Next Feature: `EXT-001` (activation).
+| ID | Scope |
+|----|--------|
+| **EXT-001** | `activate` → `@agent-k/host`, Activity Bar + `agent-k.chat` webview |
+
+Domain logic stays in `packages/host` (and other packages). Do not put agent loop / React UI here.
+
+## Status
+
+EXT-001: sidebar Chat view loads Phase 0 hello HTML and completes `ui.ready` → `host.hello`.

@@ -1,7 +1,7 @@
 {
   "name": "agent-k",
   "displayName": "Agent K",
-  "description": "Agent-K v3.0 assembler (skeleton — activation lands in EXT-001)",
+  "description": "Agent-K v3.0 assembler — activation (EXT-001)",
   "version": "0.0.0",
   "private": true,
   "publisher": "agent-k",
@@ -9,10 +9,41 @@
     "vscode": "^1.85.0"
   },
   "categories": ["AI", "Machine Learning"],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:agent-k.chat"
+  ],
   "main": "./src/extension.ts",
-  "contributes": {},
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agent-k",
+          "title": "Agent K",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agent-k": [
+        {
+          "type": "webview",
+          "id": "agent-k.chat",
+          "name": "Chat",
+          "visibility": "visible"
+        }
+      ]
+    }
+  },
   "scripts": {
-    "check": "node -e \"console.log('@agent-k extension skeleton')\""
+    "check": "node -e \"console.log('@agent-k EXT-001 assembler OK')\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agent-k/host": "*",
+    "@agent-k/shared": "*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.8.2"
   }
 }
