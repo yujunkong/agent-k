@@ -1,7 +1,29 @@
 # @agent-k/host
 
-Extension Host bridge (vscode API). No React UI / agent loop body.
+Extension Host bridge (`vscode` API). No React UI / agent loop body.
 
-**Status:** skeleton (S-00x). No Feature logic yet — transplant starts at Phase 0.
+## Feature IDs
 
-See `docs/V3_WORK_ORDER.md` and `docs/AGENT-K-MONOREPO-FINAL.md`.
+| ID | Scope |
+|----|--------|
+| **EXT-001** | Activation + Activity Bar + Chat webview hello (`ui.ready` → `host.hello`) |
+
+## Layout
+
+```text
+src/
+  activate.ts              # registerWebviewViewProvider
+  ChatViewProvider.ts      # webview lifecycle + message bridge
+  helloHtml.ts             # Phase 0 inline HTML (no chat-ui)
+  replyToWebviewMessage.ts # pure handshake helper
+  nonce.ts                 # CSP nonce (EXT-004 subset)
+```
+
+## Commands
+
+```bash
+npm test -w @agent-k/host
+npm run typecheck -w @agent-k/host
+```
+
+Assembler: `extensions/agent-k` (contributes + thin `activate`).

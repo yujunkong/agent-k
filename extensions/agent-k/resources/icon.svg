@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- EXT-001 Activity Bar icon (monochrome; VS Code tints via theme) -->
+  <path
+    fill="currentColor"
+    d="M12 2L4 6.5v5.2c0 4.7 3.2 9.1 8 10.3 4.8-1.2 8-5.6 8-10.3V6.5L12 2zm0 2.2l6 3.4v4.1c0 3.6-2.4 7-6 8.1-3.6-1.1-6-4.5-6-8.1V7.6l6-3.4z"
+  />
+  <circle cx="12" cy="12" r="3" fill="currentColor" />
+</svg>
