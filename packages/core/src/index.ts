@@ -1,6 +1,6 @@
 /**
- * @agent-k/core — skeleton entry.
- * Agent runtime: loop, modes, context, harness, config domain.
- * Feature transplants land here per docs/V3_WORK_ORDER.md.
+ * @agent-k/core — Agent runtime entry.
+ * CFG-001~003 config domain exported; further Features land per V3_WORK_ORDER.
  */
-export {};
+
+export * from './config';
