@@ -100,8 +100,8 @@ Done when: 8-item checklist + tests; summarize files touched
 
 | 단계 | 내용 | 상태 |
 |------|------|------|
-| D0 | 문서만: Work Plan / Work Order / Monorepo Final | **진행 중** |
-| D1 | Feature Master 원본을 `docs/`에 배치 | 대기 (파일 필요) |
+| D0 | 문서만: Work Plan / Work Order / Monorepo Final | **완료** |
+| D1 | Feature Master 원본을 `docs/`에 배치 | **완료** |
 | S0 | 모노레포 스켈레톤 + AGENTS.md + cursor rules (코드 최소) | 대기 |
 | P0… | Work Order Phase 0부터 Feature 이식 | 대기 |
 

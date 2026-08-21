@@ -20,7 +20,7 @@ Master 파일이 아직 없으면 아래 **ID 범위**로 티켓을 쪼개고, M
 | D-002 | `docs/AGENT-K-MONOREPO-FINAL.md` 배치 | [x] |
 | D-003 | `docs/V3_WORK_PLAN.md` 작성 | [x] |
 | D-004 | `docs/V3_WORK_ORDER.md` 작성 (이 파일) | [x] |
-| D-005 | Feature Master 원본을 `docs/AGENT-K-FEATURE-MASTER-v2.1-PRODUCTION-MODE-FINAL.md`로 추가 | [ ] |
+| D-005 | Feature Master 원본을 `docs/AGENT-K-FEATURE-MASTER-v2.1-PRODUCTION-MODE-FINAL.md`로 추가 | [x] |
 | D-006 | Master와 이 Work Order ID를 대조해 티켓 세분화 | [ ] |
 
 ---
@@ -131,9 +131,8 @@ Monorepo Final A-5 Phase 0.
 
 ## 다음으로 할 일 (지금)
 
-1. **D-005** — Feature Master 파일을 v3.0 `docs/`에 추가 (사용자 제공/업로드).
-2. **D-006** — Master 항목을 이 Order의 Phase 티켓에 매핑.
-3. **S-001~S-011** — 빈 모노레포 스켈레톤 + AGENTS.md + rules.
-4. **P0-001**부터 이식 시작.
+1. **D-006** — Feature Master 항목을 이 Order의 Phase 티켓에 매핑·세분화.
+2. **S-001~S-011** — 빈 모노레포 스켈레톤 + AGENTS.md + rules.
+3. **P0-001**부터 이식 시작.
 
 한 번에 Phase 전체를 열지 말 것. **다음 체크 하나 = 다음 PR/세션.**
