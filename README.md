@@ -23,14 +23,16 @@ docs/                   # Master + monorepo + work order
 
 ## Status
 
-- **S-001~S-012:** skeleton done (empty packages, no Feature logic).
-- **Next Feature:** `SHARED-001` or `EXT-001` — see Work Order Phase 0.
+- **S-001~S-012:** skeleton done.
+- **SHARED-001 / SHARED-002:** protocol + Typed Work Event contracts in `packages/shared`.
+- **Next Feature:** `EXT-001` — see Work Order Phase 0.
 
 ## Commands
 
 ```bash
 npm install          # link workspaces
-npm run check        # skeleton placeholder
+npm run check        # shared unit tests (vitest)
+npm run typecheck    # shared tsc --noEmit
 ```
 
 Full VS Code build/run lands with **EXT-001** (activation + contributes).
