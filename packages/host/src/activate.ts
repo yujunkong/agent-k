@@ -1,10 +1,12 @@
 /**
- * EXT-001 — Extension Host activation wiring.
- * Register webview provider first (v2.1 pattern) so the sidebar never deadlocks.
+ * EXT-001 / EXT-003 — Extension Host activation wiring.
+ * Register webview provider first (v2.1 pattern) so the sidebar never deadlocks,
+ * then register the EXT-003 command catalog.
  */
 
 import * as vscode from 'vscode';
 import { ChatViewProvider } from './ChatViewProvider';
+import { registerCommands } from './registerCommands';
 
 let provider: ChatViewProvider | undefined;
 
@@ -26,6 +28,9 @@ export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvid
       webviewOptions: { retainContextWhenHidden: true },
     }),
   );
+
+  // EXT-003 — command catalog (stubs until HOST-*/PLAN-*/MCP-* land).
+  context.subscriptions.push(...registerCommands(provider));
 
   return provider;
 }

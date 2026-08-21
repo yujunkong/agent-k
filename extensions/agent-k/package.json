@@ -1,7 +1,7 @@
 {
   "name": "agent-k",
   "displayName": "Agent K",
-  "description": "Agent-K v3.0 assembler — activation (EXT-001)",
+  "description": "Agent-K v3.0 assembler — activation, Chat View, commands (EXT-001~005)",
   "version": "0.0.0",
   "private": true,
   "publisher": "agent-k",
@@ -10,7 +10,26 @@
   },
   "categories": ["AI", "Machine Learning"],
   "activationEvents": [
-    "onView:agent-k.chat"
+    "onView:agent-k.chat",
+    "onCommand:agent-k.chat.new",
+    "onCommand:agent-k.openSettings",
+    "onCommand:agent-k.openProjectConfig",
+    "onCommand:agent-k.provider.add",
+    "onCommand:agent-k.mode.switch",
+    "onCommand:agent-k.chat.focusInput",
+    "onCommand:agent-k.chat.attachSelection",
+    "onCommand:agent-k.inlineEdit",
+    "onCommand:agent-k.plan.open",
+    "onCommand:agent-k.plan.build",
+    "onCommand:agent-k.plan.openReview",
+    "onCommand:agent-k.debug.open",
+    "onCommand:agent-k.review.open",
+    "onCommand:agent-k.browser.open",
+    "onCommand:agent-k.artifacts.open",
+    "onCommand:agent-k.mcp.reload",
+    "onCommand:agent-k.mcp.connect",
+    "onCommand:agent-k.mcp.disconnect",
+    "onCommand:agent-k.bestOfN.run"
   ],
   "main": "./src/extension.ts",
   "contributes": {
@@ -32,10 +51,206 @@
           "visibility": "visible"
         }
       ]
-    }
+    },
+    "commands": [
+      {
+        "command": "agent-k.chat.new",
+        "title": "New Chat",
+        "icon": "$(add)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.openSettings",
+        "title": "Open Settings",
+        "icon": "$(gear)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.openProjectConfig",
+        "title": "Open Project Config (.agentk/settings.json)",
+        "icon": "$(json)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.provider.add",
+        "title": "Add Provider",
+        "icon": "$(cloud-add)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.mode.switch",
+        "title": "Switch Mode",
+        "icon": "$(symbol-method)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.chat.focusInput",
+        "title": "Focus Chat Input",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.chat.attachSelection",
+        "title": "Attach Selection to Chat",
+        "icon": "$(mention)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.inlineEdit",
+        "title": "Inline Edit",
+        "icon": "$(edit)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.plan.open",
+        "title": "Plan Mode: Create Plan",
+        "icon": "$(book)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.plan.build",
+        "title": "Build Plan",
+        "icon": "$(play)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.plan.openReview",
+        "title": "Open Plan Review",
+        "icon": "$(eye)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.debug.open",
+        "title": "Debug Mode: Start Debugging",
+        "icon": "$(bug)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.review.open",
+        "title": "Code Review Session",
+        "icon": "$(check-all)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.browser.open",
+        "title": "Open Browser Session",
+        "icon": "$(browser)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.artifacts.open",
+        "title": "Open Artifacts Gallery",
+        "icon": "$(file-media)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.mcp.reload",
+        "title": "MCP: Reload Servers",
+        "icon": "$(debug-reconnect)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.mcp.connect",
+        "title": "MCP: Connect Server",
+        "icon": "$(plug)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.mcp.disconnect",
+        "title": "MCP: Disconnect All",
+        "icon": "$(debug-disconnect)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.bestOfN.run",
+        "title": "Run Best-of-N",
+        "icon": "$(git-compare)",
+        "category": "Agent K"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "agent-k.chat.new",
+          "when": "view == agent-k.chat",
+          "group": "navigation"
+        },
+        {
+          "command": "agent-k.openSettings",
+          "when": "view == agent-k.chat",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "agent-k.plan.build",
+          "when": "agent-k.isPlanDocument",
+          "group": "navigation@1"
+        },
+        {
+          "command": "agent-k.plan.openReview",
+          "when": "agent-k.isPlanDocument",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "agent-k.inlineEdit",
+          "when": "editorHasSelection",
+          "group": "agent-k@0"
+        },
+        {
+          "command": "agent-k.chat.attachSelection",
+          "when": "editorHasSelection",
+          "group": "agent-k@1"
+        },
+        {
+          "command": "agent-k.plan.build",
+          "when": "agent-k.isPlanDocument",
+          "group": "agent-k@2"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "agent-k.chat.new",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n",
+        "when": "view == agent-k.chat"
+      },
+      {
+        "command": "agent-k.openSettings",
+        "key": "ctrl+,",
+        "mac": "cmd+,",
+        "when": "view == agent-k.chat"
+      },
+      {
+        "command": "agent-k.mode.switch",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m",
+        "when": "view == agent-k.chat"
+      },
+      {
+        "command": "agent-k.provider.add",
+        "key": "ctrl+shift+p",
+        "mac": "cmd+shift+p",
+        "when": "view == agent-k.chat"
+      },
+      {
+        "command": "agent-k.chat.focusInput",
+        "key": "ctrl+l",
+        "mac": "cmd+l",
+        "when": "view == agent-k.chat"
+      },
+      {
+        "command": "agent-k.chat.attachSelection",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "editorHasSelection"
+      }
+    ]
   },
   "scripts": {
-    "check": "node -e \"console.log('@agent-k EXT-001 assembler OK')\"",
+    "check": "node -e \"console.log('@agent-k EXT-001~005 assembler OK')\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
