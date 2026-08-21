@@ -43,7 +43,7 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **`CFG-001`** / **CHAT-001** / **PROVIDER-001** — EXT + HOST Phase 0 OK.
+**바로 다음:** **CHAT-001** / Phase 1 MODEL·CFG-008 — SHARED + EXT + HOST + CFG-001~003 + PROVIDER-001~014 OK.
 
 ---
 
@@ -79,9 +79,9 @@ Phase 0 시작 전/병행: shared 계약.
 | HOST-013 | Subagent worktree registry | host | [x] |
 | HOST-014 | Timeline labels | host | [x] |
 | HOST-015 | Worktree manager (host) | host | [x] |
-| CFG-001 | ConfigManager | core | [ ] |
-| CFG-002 | ProjectConfig | core | [ ] |
-| CFG-003 | Permission configuration | core | [ ] |
+| CFG-001 | ConfigManager | core | [x] |
+| CFG-002 | ProjectConfig | core | [x] |
+| CFG-003 | Permission configuration | core | [x] |
 
 ---
 
@@ -508,7 +508,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 ## 다음으로 할 일
 
-1. **CFG-001~003** — ConfigManager / ProjectConfig (`packages/core`)
-2. **CHAT-001** / **PROVIDER-001+** 순차 이식
+1. **CHAT-001** — Chat shell / timeline 뼈대 (`packages/chat-ui`)
+2. Phase 1 잔여: **MODEL-*** / **CFG-008** / **UXPROV-*** (`packages/providers`)
 3. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
 
