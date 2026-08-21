@@ -37,8 +37,14 @@ Type is always `litellm` (UI label **OpenAI Compatible**) unless `autoDetectType
 ## Commands
 
 ```bash
+# Unit tests
 npm run test -w @agent-k/providers
+
+# Typecheck
 npm run typecheck -w @agent-k/providers
+
+# Runnable smoke (mock OpenAI Compatible /v1/models → detect → connect → probe)
+npm run smoke -w @agent-k/providers
 ```
 
 Host owns vscode `fetch` / postMessage for UXPROV-001; inject `setProviderConfigStore` when CFG lands.

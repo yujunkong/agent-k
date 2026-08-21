@@ -12,7 +12,8 @@
   "sideEffects": false,
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "smoke": "vite-node src/smoke.ts"
   },
   "dependencies": {
     "@agent-k/shared": "*"
