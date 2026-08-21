@@ -1,12 +1,16 @@
 /**
- * EXT-001 / EXT-002 / EXT-003 / EXT-004 — Chat WebviewViewProvider.
- * Loads chat-ui shell from extension media/; hello via SHARED protocol.
- * Command surface stubs (EXT-003) until HOST-* feature bodies land.
+ * HOST-001 / EXT-* — Chat WebviewViewProvider.
+ * Webview lifecycle, message router, command surface stubs.
  */
 
 import * as vscode from 'vscode';
+import type { ChatSendContext, HostLoopRuntime } from './chatSend';
+import { handleWebviewMessage } from './handleWebviewMessage';
 import { getNonce } from './nonce';
-import { replyToWebviewMessage } from './replyToWebviewMessage';
+import {
+  abortPlanV2Generate,
+  type PlanGenerateContext,
+} from './planGenerate';
 import { getWebviewHtml } from './webviewHtml';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
@@ -14,6 +18,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'agent-k.chat';
 
   private view?: vscode.WebviewView;
+
+  /** HOST-002 — in-flight agent loops keyed by requestId. */
+  private readonly hostLoops = new Map<string, HostLoopRuntime>();
+  private hostLoopRequestId: string | undefined;
+
+  /** HOST-008 — Plan V2 generate abort tracking. */
+  private readonly planV2Aborts = new Map<
+    string,
+    { abort: AbortController; sessionId: string }
+  >();
+  private readonly planV2CancelledIds = new Set<string>();
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -36,127 +51,128 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage((message: unknown) => {
-      const reply = replyToWebviewMessage(message, this.extensionVersion);
-      if (reply) {
-        void webviewView.webview.postMessage(reply);
-      }
+      handleWebviewMessage(this.routerContext(), message);
     });
   }
 
-  /** Post a host→webview message when the view is alive (HOST-* later). */
+  /** Post a host→webview message when the view is alive. */
   public postMessage(message: unknown): Thenable<boolean> | undefined {
     return this.view?.webview.postMessage(message);
   }
 
+  /** Build router ctx bound to this provider instance. */
+  private routerContext() {
+    const chatSend: ChatSendContext = {
+      webview: this.view?.webview,
+      hostLoops: this.hostLoops,
+      getHostLoopRequestId: () => this.hostLoopRequestId,
+      setHostLoopRequestId: (id) => {
+        this.hostLoopRequestId = id;
+      },
+    };
+    const planGenerate: PlanGenerateContext = {
+      webview: this.view?.webview,
+      planV2Aborts: this.planV2Aborts,
+      planV2CancelledIds: this.planV2CancelledIds,
+      abortPlanV2Generate: (requestId) =>
+        abortPlanV2Generate(planGenerate, requestId),
+    };
+    return {
+      webview: this.view?.webview,
+      extensionVersion: this.extensionVersion,
+      chatSend,
+      planGenerate,
+    };
+  }
+
   // ─── EXT-003 command stubs (HOST-*/PLAN-*/MCP-* fill behavior later) ───
 
-  /** Focus chat view and request a new session (HOST-007). */
   public newSession(): void {
     void this.focusChatView();
-    void vscode.window.showInformationMessage('[Agent K] New Chat (HOST-007 pending)');
   }
 
-  /** Open settings panel in webview (HOST-004). */
   public openSettings(_tab?: string): void {
     void this.focusChatView();
-    void vscode.window.showInformationMessage('[Agent K] Open Settings (HOST-004 pending)');
   }
 
-  /** Open project config (HOST-005). */
   public openProjectConfig(): void {
     void this.focusChatView();
-    void vscode.window.showInformationMessage(
-      '[Agent K] Open Project Config (HOST-005 pending)',
-    );
+    void import('./configProject').then((m) => m.handleProjectConfigOpen());
   }
 
-  /** Switch agent mode (MODE-* / HOST later). */
   public switchMode(): void {
     void this.focusChatView();
-    void vscode.window.showInformationMessage('[Agent K] Switch Mode (MODE-* pending)');
   }
 
-  /** Focus composer input in webview. */
   public focusInput(): void {
     void this.focusChatView();
   }
 
-  /** Attach active editor selection to chat (HOST-002). */
   public attachEditorSelection(): void {
     void this.focusChatView();
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.selection.isEmpty) {
+      void vscode.window.showInformationMessage(
+        '[Agent K] Select text in the editor to attach.',
+      );
+      return;
+    }
+    // HOST-002 attachment payload wiring lands with composer UI (CHAT-*).
     void vscode.window.showInformationMessage(
-      '[Agent K] Attach Selection (HOST-002 pending)',
+      `[Agent K] Selection ready (${editor.selection.end.line - editor.selection.start.line + 1} line(s)).`,
     );
   }
 
-  /** Inline edit entry (INLINE-*). */
   public requestInlineEdit(): void {
     void vscode.window.showInformationMessage('[Agent K] Inline Edit (INLINE-* pending)');
   }
 
-  /** Plan create (PLAN-*). */
   public openPlanCreate(): void {
     void this.focusChatView();
-    void vscode.window.showInformationMessage('[Agent K] Plan Create (PLAN-* pending)');
   }
 
-  /** Build plan from editor / CodeLens (PLAN-*). */
   public buildPlanFromEditor(_uri?: vscode.Uri): void {
     void vscode.window.showInformationMessage('[Agent K] Build Plan (PLAN-* pending)');
   }
 
-  /** Open plan review (PLAN-*). */
   public openPlanReviewFromEditor(_uri?: vscode.Uri): void {
     void vscode.window.showInformationMessage('[Agent K] Plan Review (PLAN-* pending)');
   }
 
-  /** Debug mode start (DEBUG-*). */
   public openDebug(): void {
     void this.focusChatView();
-    void vscode.window.showInformationMessage('[Agent K] Debug Start (DEBUG-* pending)');
   }
 
-  /** Code review session. */
   public openReview(): void {
     void this.focusChatView();
-    void vscode.window.showInformationMessage('[Agent K] Code Review (pending)');
   }
 
-  /** Browser session (BROWSER-*). */
   public openBrowserSession(): void {
     void this.focusChatView();
-    void vscode.window.showInformationMessage('[Agent K] Browser Session (BROWSER-* pending)');
   }
 
-  /** Artifacts gallery (ART-*). */
   public openArtifacts(): void {
     void this.focusChatView();
-    void vscode.window.showInformationMessage('[Agent K] Artifacts Gallery (ART-* pending)');
   }
 
-  /** MCP reload (MCP-*). */
   public mcpReload(): void {
     void vscode.window.showInformationMessage('[Agent K] MCP Reload (MCP-* pending)');
   }
 
-  /** MCP connect (MCP-*). */
   public mcpConnect(): void {
     void vscode.window.showInformationMessage('[Agent K] MCP Connect (MCP-* pending)');
   }
 
-  /** MCP disconnect (MCP-*). */
   public mcpDisconnect(): void {
     void vscode.window.showInformationMessage('[Agent K] MCP Disconnect (MCP-* pending)');
   }
 
-  /** Best-of-N (BON-*). */
   public runBestOfN(): void {
     void vscode.window.showInformationMessage('[Agent K] Best-of-N (BON-* pending)');
   }
 
   /** Reveal the Agent-K Activity Bar container + chat webview. */
   private async focusChatView(): Promise<void> {
-    // workbench.view.extension.<containerId> opens the Activity Bar view.
     await vscode.commands.executeCommand('workbench.view.extension.agent-k');
   }
 

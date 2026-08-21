@@ -5,5 +5,6 @@
 export * from './chat-send';
 export * from './chat-stream';
 export * from './guards';
+export * from './host-bridge';
 export * from './messages';
 export * from './sessions';
