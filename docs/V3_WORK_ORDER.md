@@ -1,14 +1,15 @@
-# v3.0 작업 순서 (Work Order)
+# v3.0 작업 순서 (Work Order) — Feature ID 세분화
 
 **참조 브랜치:** `v2.1-PRODUCTION-MODE` (읽기 전용)  
 **쓰기 브랜치:** `v3.0`  
 **패키지 정의:** `docs/AGENT-K-MONOREPO-FINAL.md`  
 **작업 방식:** `docs/V3_WORK_PLAN.md`  
-**Feature 권위:** `docs/AGENT-K-FEATURE-MASTER-v2.1-PRODUCTION-MODE-FINAL.md` (배치 후 이 파일이 `[x]` 기준)
+**Feature 권위:** `docs/AGENT-K-FEATURE-MASTER-v2.1-PRODUCTION-MODE-FINAL.md`
 
-체크 표시: `[ ]` 미착수 · `[~]` 진행 중 · `[x]` 8항목 통과 완료
+체크: `[ ]` 미착수 · `[~]` 진행 중 · `[x]` 8항목 통과 완료
 
-Master 파일이 아직 없으면 아래 **ID 범위**로 티켓을 쪼개고, Master 도착 시 ID를 1:1로 치환·상세화한다.
+이식 순서 = Feature Master **§38**. 패키지 열 = Monorepo Final 매핑.
+**한 세션 = Feature ID 하나.**
 
 ---
 
@@ -16,123 +17,498 @@ Master 파일이 아직 없으면 아래 **ID 범위**로 티켓을 쪼개고, M
 
 | ID | 작업 | 상태 |
 |----|------|------|
-| D-001 | v3.0 리셋 (앱 코드 없음, v2.1 대비 docs-only) | [x] |
-| D-002 | `docs/AGENT-K-MONOREPO-FINAL.md` 배치 | [x] |
-| D-003 | `docs/V3_WORK_PLAN.md` 작성 | [x] |
-| D-004 | `docs/V3_WORK_ORDER.md` 작성 (이 파일) | [x] |
-| D-005 | Feature Master 원본을 `docs/AGENT-K-FEATURE-MASTER-v2.1-PRODUCTION-MODE-FINAL.md`로 추가 | [x] |
-| D-006 | Master와 이 Work Order ID를 대조해 티켓 세분화 | [ ] |
+| D-001 | v3.0 리셋 (docs-only) | [x] |
+| D-002 | `docs/AGENT-K-MONOREPO-FINAL.md` | [x] |
+| D-003 | `docs/V3_WORK_PLAN.md` | [x] |
+| D-004 | `docs/V3_WORK_ORDER.md` | [x] |
+| D-005 | Feature Master 원본 배치 | [x] |
+| D-006 | Master ↔ Work Order Feature ID 세분화 | [x] |
 
 ---
 
-## S — 스켈레톤 (코드 최소, 동작 Feature 아님)
-
-Monorepo Final A-2 구조만. 도메인 로직 이식은 Phase 0부터.
+## S — 스켈레톤 (다음 실제 작업)
 
 | ID | 작업 | 패키지 | 상태 |
 |----|------|--------|------|
-| S-001 | 루트 workspace `package.json` + workspaces | root | [ ] |
-| S-002 | `extensions/agent-k` 빈 조립 패키지 (package.json만) | extensions/agent-k | [ ] |
-| S-003 | `packages/shared` 빈 패키지 | shared | [ ] |
-| S-004 | `packages/host` 빈 패키지 | host | [ ] |
-| S-005 | `packages/chat-ui` 빈 패키지 | chat-ui | [ ] |
-| S-006 | `packages/core` 빈 패키지 | core | [ ] |
-| S-007 | `packages/tools` 빈 패키지 | tools | [ ] |
-| S-008 | `packages/providers` 빈 패키지 | providers | [ ] |
-| S-009 | `packages/plan` / `worktree` / `safety` stub (2차) | plan, worktree, safety | [ ] |
-| S-010 | 루트 `AGENTS.md` (Monorepo Final Part B) | root | [ ] |
-| S-011 | `.cursor/rules/*.mdc` (Monorepo Final Part C) | .cursor/rules | [ ] |
-| S-012 | README에 스켈레톤 후 빌드/실행 방법 (최소) | root | [ ] |
+| S-001 | 루트 workspace package.json + workspaces | root | [ ] |
+| S-002 | extensions/agent-k 빈 조립 패키지 | extensions/agent-k | [ ] |
+| S-003 | packages/shared 빈 패키지 | shared | [ ] |
+| S-004 | packages/host 빈 패키지 | host | [ ] |
+| S-005 | packages/chat-ui 빈 패키지 | chat-ui | [ ] |
+| S-006 | packages/core 빈 패키지 | core | [ ] |
+| S-007 | packages/tools 빈 패키지 | tools | [ ] |
+| S-008 | packages/providers 빈 패키지 | providers | [ ] |
+| S-009 | packages/plan · worktree · safety stub | plan/worktree/safety | [ ] |
+| S-010 | 루트 AGENTS.md (Monorepo Part B) | root | [ ] |
+| S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [ ] |
+| S-012 | README 빌드/실행 최소 안내 | root | [ ] |
+
+**바로 다음:** `S-001` → … → `S-012` 완료 후 **`EXT-001`** (Phase 0).
 
 ---
 
-## Phase 0 — Assembly + host + shared (+ CFG)
+## Phase 0 — 뼈대 (Master §38)
 
-Monorepo Final A-5 Phase 0.
+Phase 0 시작 전/병행: shared 계약.
 
-| ID | Feature 범위 (Master) | 패키지 | 비고 | 상태 |
-|----|----------------------|--------|------|------|
-| P0-001 | EXT-001~005 | extensions/agent-k, host | activation, CSP/nonce, 최소 contributes | [ ] |
-| P0-002 | HOST-001~015 (최소) | host | ChatViewProvider 뼈대, postMessage bridge | [ ] |
-| P0-003 | shared protocol / work-event types | shared | R-002 계약만, UI 없음 | [ ] |
-| P0-004 | CFG-001~003 | core 또는 host | 설정 뼈대 | [ ] |
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| SHARED-001 | Extension↔Webview protocol types | shared | [ ] |
+| SHARED-002 | Typed Work Event contracts (R-002) | shared | [ ] |
+**완료/원칙:** 확장 로드 + host↔webview shared protocol 통신 (UI Hello OK).
 
-**Phase 0 완료 조건:** 빈 확장이 로드되고 host↔webview가 shared protocol로 메시지 타입을 주고받는다 (UI는 Hello 수준 가능).
-
----
-
-## Phase 1 — Providers (R-001)
-
-| ID | Feature 범위 | 패키지 | 비고 | 상태 |
-|----|--------------|--------|------|------|
-| P1-001 | PROVIDER-001~018 | providers | Registry, Connections, Profiles, Health, LiteLLM | [ ] |
-| P1-002 | MODEL-001~011 | providers | Registry, Resolver, **ModelRouter** | [ ] |
-| P1-003 | UXPROV-001~006 | providers (+ host bridge) | connection test / model refresh 로직 | [ ] |
-| P1-004 | CFG-008 | providers | provider configuration | [ ] |
-| P1-005 | R-001 검증 | providers / chat-ui | Composer dropdown ≠ ModelRouter (모듈 분리) | [ ] |
-
----
-
-## Phase 2 — core + tools + safety
-
-| ID | Feature 범위 | 패키지 | 비고 | 상태 |
-|----|--------------|--------|------|------|
-| P2-001 | AGENT-001~019 | core | AgentLoop, doom loop, timeout, parallel | [ ] |
-| P2-002 | MODE-001~009 | core | Ask/Agent/Plan/Debug/Auto | [ ] |
-| P2-003 | CTX-001~012 | core | Context, Compaction, Prefetch | [ ] |
-| P2-004 | HARNESS-001~007 | core | verification-first, rules | [ ] |
-| P2-005 | TOOL-001~017 | tools | R-005 contract 필수 | [ ] |
-| P2-006 | SAFE-001~010 | safety (또는 core/tools) | permission, secrets, checkpoint, hooks | [ ] |
-| P2-007 | STREAM-* (runtime) | core | turnState, sendEpoch — UI 표시는 Phase 3 | [ ] |
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| EXT-001 | Extension activation | extensions/agent-k + host | [ ] |
+| EXT-002 | Chat View | extensions/agent-k + host | [ ] |
+| EXT-003 | Command registration | extensions/agent-k + host | [ ] |
+| EXT-004 | CSP / nonce / Webview security | extensions/agent-k + host | [ ] |
+| EXT-005 | Workspace path abstraction | extensions/agent-k + host | [ ] |
+| HOST-001 | ChatViewProvider | host | [ ] |
+| HOST-002 | Chat send bridge | host | [ ] |
+| HOST-003 | Composer host | host | [ ] |
+| HOST-004 | Config bridge | host | [ ] |
+| HOST-005 | Project config bridge | host | [ ] |
+| HOST-006 | Runtime singletons | host | [ ] |
+| HOST-007 | Session host | host | [ ] |
+| HOST-008 | Plan host | host | [ ] |
+| HOST-009 | Workspace index host | host | [ ] |
+| HOST-010 | Provider probe host | host | [ ] |
+| HOST-011 | Subagent host | host | [ ] |
+| HOST-012 | Subagent worktree bridge | host | [ ] |
+| HOST-013 | Subagent worktree registry | host | [ ] |
+| HOST-014 | Timeline labels | host | [ ] |
+| HOST-015 | Worktree manager (host) | host | [ ] |
+| CFG-001 | ConfigManager | core | [ ] |
+| CFG-002 | ProjectConfig | core | [ ] |
+| CFG-003 | Permission configuration | core | [ ] |
 
 ---
 
-## Phase 3 — chat-ui
+## Phase 1 — Providers / Models (R-001)
 
-| ID | Feature 범위 | 패키지 | 비고 | 상태 |
-|----|--------------|--------|------|------|
-| P3-001 | CHAT-001~011 | chat-ui | shell, Composer, Sessions, Palette | [ ] |
-| P3-002 | CONV-001~020 | chat-ui | Timeline, Cards — Typed Work Event만 소비 (R-002) | [ ] |
-| P3-003 | UI-001~024 / CURSOR-001~006 | chat-ui | presentation / layout | [ ] |
-| P3-004 | STREAM-* (UI) | chat-ui | streaming 표시, prose seal | [ ] |
-| P3-005 | SET-001~013 (UI) | chat-ui | SettingsPanel — 로직은 providers/core | [ ] |
+**완료/원칙:** Composer dropdown ≠ runtime ModelRouter.
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| PROVIDER-001 | Provider type detection | providers | [ ] |
+| PROVIDER-002 | Provider registry | providers | [ ] |
+| PROVIDER-003 | Provider connections | providers | [ ] |
+| PROVIDER-004 | Provider profiles | providers | [ ] |
+| PROVIDER-005 | Provider presets | providers | [ ] |
+| PROVIDER-006 | Provider fields | providers | [ ] |
+| PROVIDER-007 | Provider status | providers | [ ] |
+| PROVIDER-008 | Provider health check | providers | [ ] |
+| PROVIDER-009 | Provider probe | providers | [ ] |
+| PROVIDER-010 | LiteLLM provider | providers | [ ] |
+| PROVIDER-011 | OpenAI provider | providers | [ ] |
+| PROVIDER-012 | Anthropic provider | providers | [ ] |
+| PROVIDER-013 | Ollama provider | providers | [ ] |
+| PROVIDER-014 | LM Studio provider | providers | [ ] |
+| PROVIDER-015 | OpenCode Zen / Go | providers | [ ] |
+| PROVIDER-016 | DGX provider | providers | [ ] |
+| PROVIDER-017 | Secret manager (provider keys) | providers | [ ] |
+| PROVIDER-018 | Tool result formatter | providers | [ ] |
+| MODEL-001 | Model Registry | providers | [ ] |
+| MODEL-002 | Model Resolver | providers | [ ] |
+| MODEL-003 | Model Routing | providers | [ ] |
+| MODEL-004 | Model normalization | providers | [ ] |
+| MODEL-005 | Model tags | providers | [ ] |
+| MODEL-006 | Available models | providers | [ ] |
+| MODEL-007 | Composer model persistence | providers | [ ] |
+| MODEL-008 | Thinking capability | providers | [ ] |
+| MODEL-009 | Tier-based turns | providers | [ ] |
+| MODEL-010 | Provider order | providers | [ ] |
+| MODEL-011 | Model context info | providers | [ ] |
+| CFG-008 | Provider configuration | providers | [ ] |
+| UXPROV-001 | Connection test | providers (+ chat-ui picker) | [ ] |
+| UXPROV-002 | Auto-refresh models | providers (+ chat-ui picker) | [ ] |
+| UXPROV-003 | Searchable model picker | providers (+ chat-ui picker) | [ ] |
+| UXPROV-004 | Saved connections | providers (+ chat-ui picker) | [ ] |
+| UXPROV-005 | Provider order | providers (+ chat-ui picker) | [ ] |
+| UXPROV-006 | Local-first auto resolve | providers (+ chat-ui picker) | [ ] |
 
 ---
 
-## Phase 4~5 — worktree + Subagent (R-003)
+## Phase 2 — Agent Core + Modes + Safety
 
-| ID | Feature 범위 | 패키지 | 비고 | 상태 |
-|----|--------------|--------|------|------|
-| P4-001 | WT-001~015 | worktree | Prepare→…→rollback | [ ] |
-| P4-002 | SUB-001~014 | worktree / core | isolation | [ ] |
-| P4-003 | BON-001~005 | worktree | Best-of-N | [ ] |
-| P4-004 | SCM-001 | worktree | commit message | [ ] |
+**완료/원칙:** TOOL은 R-005 contract 필수. MODE/DEBUG/REL·잔여 CFG는 Master §38에 명시되지 않아 Phase 2에 배치.
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| AGENT-001 | AgentLoopController | core | [ ] |
+| AGENT-002 | Multi-turn execution | core | [ ] |
+| AGENT-003 | Tool loop | core | [ ] |
+| AGENT-004 | Tool execution | core | [ ] |
+| AGENT-005 | Context assembly | core | [ ] |
+| AGENT-006 | Context compaction | core | [ ] |
+| AGENT-007 | Tool-call preservation during compaction | core | [ ] |
+| AGENT-008 | Max turns | core | [ ] |
+| AGENT-009 | Turn timeout | core | [ ] |
+| AGENT-010 | Doom loop detection | core | [ ] |
+| AGENT-011 | Error recovery | core | [ ] |
+| AGENT-012 | Weak final answer detection | core | [ ] |
+| AGENT-013 | Closing summary detection | core | [ ] |
+| AGENT-014 | Continue-work detection | core | [ ] |
+| AGENT-015 | Broken tool payload detection | core | [ ] |
+| AGENT-016 | Classifier diagnostics | core | [ ] |
+| AGENT-017 | Parallel executor | core | [ ] |
+| AGENT-018 | Streaming tool executor | core | [ ] |
+| AGENT-019 | Synthesize instructions | core | [ ] |
+| TOOL-001 | Read tools | tools | [ ] |
+| TOOL-002 | Edit tools | tools | [ ] |
+| TOOL-003 | Write tools | tools | [ ] |
+| TOOL-004 | Search / grep | tools | [ ] |
+| TOOL-005 | Glob/path search | tools | [ ] |
+| TOOL-006 | Terminal executor | tools | [ ] |
+| TOOL-007 | AskQuestionTool | tools | [ ] |
+| TOOL-008 | Tool call parser | providers (parser) / tools | [ ] |
+| TOOL-009 | Executor abstraction | tools | [ ] |
+| TOOL-010 | Write executor | tools | [ ] |
+| TOOL-011 | TodoWriteTool | tools | [ ] |
+| TOOL-012 | TaskTool / SubAgent orchestration | tools | [ ] |
+| TOOL-013 | SkillTool | tools | [ ] |
+| TOOL-014 | Browser tool group | tools | [ ] |
+| TOOL-015 | Debug tools | tools | [ ] |
+| TOOL-016 | Tool registry | tools | [ ] |
+| TOOL-017 | Parallel search | tools | [ ] |
+| CTX-001 | Context budget | core | [ ] |
+| CTX-002 | Read max lines | core | [ ] |
+| CTX-003 | Context assembler | core | [ ] |
+| CTX-004 | Compaction engine | core | [ ] |
+| CTX-005 | Workspace context | core | [ ] |
+| SAFE-001 | Permission gate | safety | [ ] |
+| SAFE-002 | Deny globs | safety | [ ] |
+| SAFE-003 | Terminal deny patterns | safety | [ ] |
+| SAFE-004 | Write gate | safety | [ ] |
+| SAFE-005 | Secret scan / Secrets Vault | safety | [ ] |
+| SAFE-006 | Checkpoint | safety | [ ] |
+| SAFE-007 | Verification-first | safety | [ ] |
+| SAFE-008 | Verification micro-loop | safety | [ ] |
+| SAFE-009 | Related test execution | safety | [ ] |
+| SAFE-010 | Hooks system | safety | [ ] |
+| MODE-001 | Ask Mode | core | [ ] |
+| MODE-002 | Agent Mode | core | [ ] |
+| MODE-003 | Plan Mode | core | [ ] |
+| MODE-004 | Debug Mode | core | [ ] |
+| MODE-005 | Auto Mode | core | [ ] |
+| MODE-006 | Sticky mode | core | [ ] |
+| MODE-007 | Plan V2 sticky state | core | [ ] |
+| MODE-008 | Manual mode override | core | [ ] |
+| MODE-009 | Plan → Agent handoff | core | [ ] |
+| DEBUG-001 | Debug controller | core (+ chat-ui UI) | [ ] |
+| DEBUG-002 | Hypothesis | core (+ chat-ui UI) | [ ] |
+| DEBUG-003 | Reproduce | core (+ chat-ui UI) | [ ] |
+| DEBUG-004 | Analyze | core (+ chat-ui UI) | [ ] |
+| DEBUG-005 | Fix | core (+ chat-ui UI) | [ ] |
+| DEBUG-006 | Cleanup | core (+ chat-ui UI) | [ ] |
+| DEBUG-007 | Debug timeline | core (+ chat-ui UI) | [ ] |
+| DEBUG-008 | Debug evidence | core (+ chat-ui UI) | [ ] |
+| DEBUG-009 | Instrumentation | core (+ chat-ui UI) | [ ] |
+| DEBUG-010 | Multi-file debug / templates / log server | core (+ chat-ui UI) | [ ] |
+| REL-001 | Classifier diagnostics | core | [ ] |
+| REL-002 | Plan watchdog | core | [ ] |
+| REL-003 | Streaming stabilization | core | [ ] |
+| REL-004 | Turn state machine | core | [ ] |
+| REL-005 | Send epoch protection | core | [ ] |
+| REL-006 | Regeneration safety | core | [ ] |
+| REL-007 | Tool payload validation | core | [ ] |
+| REL-008 | Compaction integrity | core | [ ] |
+| CFG-004 | Harness configuration | core | [ ] |
+| CFG-005 | Queue configuration | core | [ ] |
+| CFG-006 | Terminal configuration | core | [ ] |
+| CFG-007 | Review configuration | core | [ ] |
+| CFG-009 | Thinking effort | core | [ ] |
+| CFG-010 | Debug classifier diagnostics | core | [ ] |
 
 ---
 
-## Phase 6 — plan (R-004)
+## Phase 3 — Chat / Streaming / Conversation
 
-| ID | Feature 범위 | 패키지 | 비고 | 상태 |
-|----|--------------|--------|------|------|
-| P6-001 | PLAN-001~010 | plan | Plan V1 | [ ] |
-| P6-002 | PLAN2-001~015 | plan | Plan V2 | [ ] |
-| P6-003 | EXEC-001~012 | plan | Execution engine + state machine | [ ] |
+**완료/원칙:** CONV-002 types는 shared; UI는 Typed Work Event만 소비 (R-002).
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| CHAT-001 | Chat application shell | chat-ui | [ ] |
+| CHAT-002 | Composer | chat-ui | [ ] |
+| CHAT-003 | Searchable Model Picker | chat-ui | [ ] |
+| CHAT-004 | Mode selector | chat-ui | [ ] |
+| CHAT-005 | File/selection attachment | chat-ui | [ ] |
+| CHAT-006 | Message queue | chat-ui | [ ] |
+| CHAT-007 | Chat sessions | chat-ui | [ ] |
+| CHAT-008 | Chat history | chat-ui | [ ] |
+| CHAT-009 | New Chat | chat-ui | [ ] |
+| CHAT-010 | Side Chat | chat-ui | [ ] |
+| CHAT-011 | Composer palette | chat-ui | [ ] |
+| STREAM-001 | Assistant stream session | core (runtime) / chat-ui (표시) | [ ] |
+| STREAM-002 | Turn state | core (runtime) / chat-ui (표시) | [ ] |
+| STREAM-003 | Send epoch | core (runtime) / chat-ui (표시) | [ ] |
+| STREAM-004 | Streaming buffer stabilization | core (runtime) / chat-ui (표시) | [ ] |
+| STREAM-005 | Prose sealing | core (runtime) / chat-ui (표시) | [ ] |
+| STREAM-006 | Regenerate turn | core (runtime) / chat-ui (표시) | [ ] |
+| STREAM-007 | Stop / cancellation | core (runtime) / chat-ui (표시) | [ ] |
+| STREAM-008 | Plan V2 generation watchdog | core (runtime) / chat-ui (표시) | [ ] |
+| STREAM-009 | Understanding lead | core (runtime) / chat-ui (표시) | [ ] |
+| STREAM-010 | Opening lead | core (runtime) / chat-ui (표시) | [ ] |
+| CONV-001 | ConversationTurn | chat-ui | [ ] |
+| CONV-002 | Work Event model | shared (+ chat-ui consumers) | [ ] |
+| CONV-003 | Work event normalization | chat-ui | [ ] |
+| CONV-004 | Work event details | chat-ui | [ ] |
+| CONV-005 | Work item grouping | chat-ui | [ ] |
+| CONV-006 | Timeline presentation | chat-ui | [ ] |
+| CONV-007 | Conversation variants | chat-ui | [ ] |
+| CONV-008 | Agent turn adapter | chat-ui | [ ] |
+| CONV-009 | Subagent result presentation | chat-ui | [ ] |
+| CONV-010 | Subagent group presentation | chat-ui | [ ] |
+| CONV-011 | Worktree diff presentation | chat-ui | [ ] |
+| CONV-012 | Change summary normalization | chat-ui | [ ] |
+| CONV-013 | Work timeline | chat-ui | [ ] |
+| CONV-014 | Timeline step card | chat-ui | [ ] |
+| CONV-015 | Explore Chrome | chat-ui | [ ] |
+| CONV-016 | Changed Files bar | chat-ui | [ ] |
+| CONV-017 | Change Summary card | chat-ui | [ ] |
+| CONV-018 | Terminal Run Card | chat-ui | [ ] |
+| CONV-019 | File Edit Card | chat-ui | [ ] |
+| CONV-020 | Conversation tabs | chat-ui | [ ] |
 
 ---
 
-## Phase 7+ — Inline, Review, integrations
+## Phase 4 — Worktree / Patch (R-003)
 
-| ID | Feature 범위 | 패키지 | 비고 | 상태 |
-|----|--------------|--------|------|------|
-| P7-001 | INLINE-* | chat-ui + host/core | UI vs controller 분리 | [ ] |
-| P7-002 | Review / BROWSER / DESIGN / MCP / GH | 해당 패키지 | Master 상세에 따름 | [ ] |
+**완료/원칙:** Prepare→Validate→Snapshot→Apply→Verify→Commit/Adopt / rollback.
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| WT-001 | Worktree manager | worktree | [ ] |
+| WT-002 | Worktree creation | worktree | [ ] |
+| WT-003 | Worktree registry | worktree | [ ] |
+| WT-004 | Worktree path validation | worktree | [ ] |
+| WT-005 | Worktree isolation | worktree | [ ] |
+| WT-006 | Worktree snapshot | worktree | [ ] |
+| WT-007 | Worktree diff | worktree | [ ] |
+| WT-008 | Git porcelain parsing | worktree | [ ] |
+| WT-009 | Patch validation | worktree | [ ] |
+| WT-010 | Patch apply | worktree | [ ] |
+| WT-011 | Untracked file transfer | worktree | [ ] |
+| WT-012 | Worktree review | worktree | [ ] |
+| WT-013 | Diff review panel | worktree | [ ] |
+| WT-014 | Adopt / reject | worktree | [ ] |
+| WT-015 | Subagent worktree bridge | worktree | [ ] |
 
 ---
 
-## 다음으로 할 일 (지금)
+## Phase 5 — Subagent
 
-1. **D-006** — Feature Master 항목을 이 Order의 Phase 티켓에 매핑·세분화.
-2. **S-001~S-011** — 빈 모노레포 스켈레톤 + AGENTS.md + rules.
-3. **P0-001**부터 이식 시작.
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| SUB-001 | Subagent task model | worktree / core (UI→chat-ui) | [ ] |
+| SUB-002 | Subagent creation | worktree / core (UI→chat-ui) | [ ] |
+| SUB-003 | Subagent runner | worktree / core (UI→chat-ui) | [ ] |
+| SUB-004 | Subagent Agent Loop executor | worktree / core (UI→chat-ui) | [ ] |
+| SUB-005 | Subagent result | worktree / core (UI→chat-ui) | [ ] |
+| SUB-006 | Subagent cancellation | worktree / core (UI→chat-ui) | [ ] |
+| SUB-007 | Subagent lifecycle guard | worktree / core (UI→chat-ui) | [ ] |
+| SUB-008 | Subagent roles | worktree / core (UI→chat-ui) | [ ] |
+| SUB-009 | Subagent description | worktree / core (UI→chat-ui) | [ ] |
+| SUB-010 | Subagent detail view | worktree / core (UI→chat-ui) | [ ] |
+| SUB-011 | Subagent run row | worktree / core (UI→chat-ui) | [ ] |
+| SUB-012 | Subagent changes card | worktree / core (UI→chat-ui) | [ ] |
+| SUB-013 | Subagent result presentation | worktree / core (UI→chat-ui) | [ ] |
+| SUB-014 | Subagent worktree | worktree / core (UI→chat-ui) | [ ] |
 
-한 번에 Phase 전체를 열지 말 것. **다음 체크 하나 = 다음 PR/세션.**
+---
+
+## Phase 6 — Plan V1/V2 + Execution (R-004)
+
+**완료/원칙:** Plan state machine 준수. prompt 한 방 대체 금지.
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| PLAN-001 | Plan Mode controller | plan | [ ] |
+| PLAN-002 | Research | plan | [ ] |
+| PLAN-003 | Clarifying Questions | plan | [ ] |
+| PLAN-004 | Plan generation | plan | [ ] |
+| PLAN-005 | Plan review | plan | [ ] |
+| PLAN-006 | Plan storage | plan | [ ] |
+| PLAN-007 | Plan promotion | plan | [ ] |
+| PLAN-008 | Plan editor / history | plan | [ ] |
+| PLAN-009 | Plan enforcement / context injection | plan | [ ] |
+| PLAN-010 | Failure recovery / complexity / todo branching | plan | [ ] |
+| PLAN2-001 | PlanSession | plan | [ ] |
+| PLAN2-002 | PlanEvent | plan | [ ] |
+| PLAN2-003 | PlanPhaseTransitions | plan | [ ] |
+| PLAN2-004 | PlanV2Generator | plan | [ ] |
+| PLAN2-005 | LiteLLMPlanModel | plan | [ ] |
+| PLAN2-006 | WorkspaceContext | plan | [ ] |
+| PLAN2-007 | EvidenceEngine | plan | [ ] |
+| PLAN2-008 | FailureContext | plan | [ ] |
+| PLAN2-009 | SchemaValidator | plan | [ ] |
+| PLAN2-010 | SemanticValidator | plan | [ ] |
+| PLAN2-011 | File intent resolution | plan | [ ] |
+| PLAN2-012 | Markdown rendering | plan | [ ] |
+| PLAN2-013 | Observed tool call | plan | [ ] |
+| PLAN2-014 | Plan watchdog | plan | [ ] |
+| PLAN2-015 | PlanModeControllerAdapter | plan | [ ] |
+| EXEC-001 | Execution Plan build | plan | [ ] |
+| EXEC-002 | Execution Context validation | plan | [ ] |
+| EXEC-003 | Execution Plan validation | plan | [ ] |
+| EXEC-004 | Plan phase mapping | plan | [ ] |
+| EXEC-005 | Task inference | plan | [ ] |
+| EXEC-006 | Task prompt generation | plan | [ ] |
+| EXEC-007 | Task scheduler | plan | [ ] |
+| EXEC-008 | Plan execution engine | plan | [ ] |
+| EXEC-009 | Execution persistence | plan | [ ] |
+| EXEC-010 | Execution diagnostics | plan | [ ] |
+| EXEC-011 | Execution presentation | plan | [ ] |
+| EXEC-012 | Subagent task bridge | plan | [ ] |
+
+---
+
+## Phase 7 — Coding UX
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| INLINE-001 | Inline Edit command | host/core + chat-ui(UI) | [ ] |
+| INLINE-002 | Selection context | host/core + chat-ui(UI) | [ ] |
+| INLINE-003 | Inline edit generation | host/core + chat-ui(UI) | [ ] |
+| INLINE-004 | Inline edit diff | host/core + chat-ui(UI) | [ ] |
+| INLINE-005 | Inline edit review | host/core + chat-ui(UI) | [ ] |
+| INLINE-006 | Selection diff apply | host/core + chat-ui(UI) | [ ] |
+| INLINE-007 | Inline Completion | host/core + chat-ui(UI) | [ ] |
+| REVIEW-001 | Code Review session | core/host (+ chat-ui) | [ ] |
+| REVIEW-002 | Agent Review loop | core/host (+ chat-ui) | [ ] |
+| REVIEW-003 | Review apply policy | core/host (+ chat-ui) | [ ] |
+| REVIEW-004 | Review checkpoint | core/host (+ chat-ui) | [ ] |
+| REVIEW-005 | Review diff | core/host (+ chat-ui) | [ ] |
+| REVIEW-006 | Accept / Apply / Undo | core/host (+ chat-ui) | [ ] |
+
+---
+
+## Phase 8 — Intelligence / integrations
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| CTX-006 | Workspace index | core | [ ] |
+| CTX-007 | Codebase index | core | [ ] |
+| CTX-008 | Semantic search | core | [ ] |
+| CTX-009 | Mention extraction | core | [ ] |
+| CTX-010 | File intent | core | [ ] |
+| CTX-011 | Prefetch engine | core | [ ] |
+| CTX-012 | Chat search index | core | [ ] |
+| HARNESS-001 | Harness enabled | core | [ ] |
+| HARNESS-002 | Verification first | core | [ ] |
+| HARNESS-003 | Prefetch | core | [ ] |
+| HARNESS-004 | Verification micro-loop | core | [ ] |
+| HARNESS-005 | Project rules loader | core | [ ] |
+| HARNESS-006 | Routing heuristics | core | [ ] |
+| HARNESS-007 | Context rules / Cursor pattern / UX helpers | core | [ ] |
+| BROWSER-001 | Browser session | core (+ chat-ui preview) | [ ] |
+| BROWSER-002 | Browser automation | core (+ chat-ui preview) | [ ] |
+| BROWSER-003 | Browser evidence | core (+ chat-ui preview) | [ ] |
+| BROWSER-004 | Browser preview | core (+ chat-ui preview) | [ ] |
+| DESIGN-001 | Design Mode | core (+ chat-ui) | [ ] |
+| DESIGN-002 | Design inspection workflow | core (+ chat-ui) | [ ] |
+| MCP-001 | MCP client | core | [ ] |
+| MCP-002 | MCP reload | core | [ ] |
+| MCP-003 | MCP connect | core | [ ] |
+| MCP-004 | MCP disconnect | core | [ ] |
+| MCP-005 | MCP permissions | core | [ ] |
+| MCP-006 | Stdio MCP session / bootstrap / parse | core | [ ] |
+| SKILL-001 | Skills system | core | [ ] |
+| SKILL-002 | Skill discovery/loading | core | [ ] |
+| SKILL-003 | Skill feature flag | core | [ ] |
+| MEM-001 | Memories | core | [ ] |
+| MEM-002 | SecretStorage integration | core | [ ] |
+| MEM-003 | Memory feature flag | core | [ ] |
+| MEM-004 | Auto memory detector | core | [ ] |
+| GH-001 | GitHub agent workflow | core/host | [ ] |
+| GH-002 | GitHub token | core/host | [ ] |
+| GH-003 | PR/Issue workflow | core/host | [ ] |
+| ART-001 | Artifact store | core (+ chat-ui gallery) | [ ] |
+| ART-002 | Artifact gallery | core (+ chat-ui gallery) | [ ] |
+| ART-003 | Artifact open command | core (+ chat-ui gallery) | [ ] |
+| BON-001 | Best-of-N execution | worktree | [ ] |
+| BON-002 | Candidate comparison | worktree | [ ] |
+| BON-003 | Candidate diff | worktree | [ ] |
+| BON-004 | Adopt winner | worktree | [ ] |
+| BON-005 | Worktree isolation for candidates | worktree | [ ] |
+| SCM-001 | Commit message generator | worktree/host | [ ] |
+| TEL-001 | Cost tracker | core | [ ] |
+| TEL-002 | Status bar cost | core | [ ] |
+| TEL-003 | Telemetry collector | core | [ ] |
+
+---
+
+## Phase 9 — Settings / UI polish
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| SET-001 | Settings shell | chat-ui (UI) | [ ] |
+| SET-002 | Models tab | chat-ui (UI) | [ ] |
+| SET-003 | Context tab | chat-ui (UI) | [ ] |
+| SET-004 | Features tab | chat-ui (UI) | [ ] |
+| SET-005 | Harness tab | chat-ui (UI) | [ ] |
+| SET-006 | MCP tab | chat-ui (UI) | [ ] |
+| SET-007 | Permission tab | chat-ui (UI) | [ ] |
+| SET-008 | Privacy tab | chat-ui (UI) | [ ] |
+| SET-009 | Queue tab | chat-ui (UI) | [ ] |
+| SET-010 | Review tab | chat-ui (UI) | [ ] |
+| SET-011 | Rules tab | chat-ui (UI) | [ ] |
+| SET-012 | Terminal tab | chat-ui (UI) | [ ] |
+| SET-013 | JSON config tab | chat-ui (UI) | [ ] |
+| UI-001~023 | Presentation components (AgentTurn, Timeline, Cards, …) | chat-ui | [ ] |
+| UI-024 | StreamingMarkdown / Mermaid / VirtualList / extras | chat-ui | [ ] |
+| CURSOR-001 | Cursor UI base | chat-ui | [ ] |
+| CURSOR-002 | Conversation layout | chat-ui | [ ] |
+| CURSOR-003 | Conversation tabs | chat-ui | [ ] |
+| CURSOR-004 | Composer polish | chat-ui | [ ] |
+| CURSOR-005 | Workspace polish | chat-ui | [ ] |
+| CURSOR-006 | Conversation variants CSS | chat-ui | [ ] |
+
+---
+
+## Phase 10 — 통합 검증 (Master §38)
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| INT-001 | Provider → Agent → Tool → Context → Chat E2E | integration | [ ] |
+| INT-002 | Plan → Task → Subagent → Worktree → Review → Adopt | integration | [ ] |
+| INT-003 | Auto Mode → Agent/Plan/Debug/Ask 전환 | integration | [ ] |
+| INT-004 | Streaming → Stop → Queue → Regenerate | integration | [ ] |
+| INT-005 | Inline Edit → Diff → Apply | integration | [ ] |
+| INT-006 | Provider failure → fallback/routing | integration | [ ] |
+| INT-007 | Worktree partial failure → rollback/recovery | integration | [ ] |
+| INT-008 | Cost/Telemetry 동작 | integration | [ ] |
+| INT-009 | Hooks + Verification micro-loop | integration | [ ] |
+
+---
+
+## 테스트 인벤토리 (Feature와 병행)
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| TEST-001 | Agent | tests | [ ] |
+| TEST-002 | Chat / Streaming | tests | [ ] |
+| TEST-003 | Core / Harness | tests | [ ] |
+| TEST-004 | Host | tests | [ ] |
+| TEST-005 | Mode | tests | [ ] |
+| TEST-006 | Plan Execution / Plan V2 | tests | [ ] |
+| TEST-007 | Provider | tests | [ ] |
+| TEST-008 | Tools / Conversation | tests | [ ] |
+
+---
+
+## 커버리지 노트
+
+- Master 개별 ID 헤더 수: **338** (UI 범위 헤더 제외 시 단일 ID)
+- 이 Work Order에 펼친 Feature 행: Phase 표 + SHARED + INT + TEST
+- Master 단일 ID → Phase 표 **전부 매핑됨**.
+- `UI-001~023` / `UI-024`는 Master 요약 섹션이라 범위 티켓으로 유지.
+- `MODE` / `DEBUG` / `REL` / 잔여 `CFG` / `UXPROV`는 §38 본문에 묶음이 없어 논리 Phase에 배치함.
+
+## 다음으로 할 일
+
+1. **S-001** — 루트 workspace 스켈레톤
+2. S-002~S-012
+3. **SHARED-001** 또는 **EXT-001**부터 이식
+
