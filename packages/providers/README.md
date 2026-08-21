@@ -17,8 +17,23 @@ Provider/Model layer (R-001: Composer dropdown ≠ runtime ModelRouter).
 | PROVIDER-009 | `providerProbe.ts` | domain `/v1/models` probe (no vscode) |
 | PROVIDER-010 | `LiteLLMProvider.ts` | OpenAI-compatible HTTP client |
 | PROVIDER-011…014 | types + presets + fields + detect | OpenAI / Anthropic / Ollama / LM Studio |
+| MODEL-001 | `ModelRegistry.ts` | unified catalog across connections |
+| MODEL-002 | `ModelResolver.ts` | local-first resolve + activate |
+| MODEL-003 | `ModelRouter.ts` + `ModelRouting.ts` | tier route ≠ role→profile routing |
+| MODEL-004 | `normalizeModelId.ts` | canonicalize / display / match |
+| MODEL-005 | `modelTags.ts` | local/fast/cheap/reasoning/vision |
+| MODEL-006/007 | `availableModels.ts` | discovery + composer persistence |
+| MODEL-008 | `thinkingEffort.ts` | capability + effort clamp / wire opts |
+| MODEL-009 | `ModelTiers.ts` | A/B/C **maxTurns** policies |
+| MODEL-010 | `ProviderConnections` preferUserOrder | drag order |
+| MODEL-011 | `modelContextInfo.ts` | context window resolve (inject fetch) |
+| CFG-008 | `providerConfig.ts` | type / URL / model / keys / connections |
+| UXPROV-001 | `testProviderConnection` | connection test (inject fetch) |
+| UXPROV-002 | `refreshAvailableModels` | probe → catalog refresh |
+| UXPROV-003 | `modelPicker.ts` | searchable filter helpers (no React) |
+| UXPROV-004 | `ProviderConnections` | saved connections |
 
-**Skipped this session:** PROVIDER-015…018 (OpenCode Zen/Go, DGX, SecretManager, ToolResultFormatter).
+**Skipped this session:** PROVIDER-015…018; UXPROV-005/006 UI (resolver local-first is domain-ready).
 
 ## Custom OpenAI Compatible
 
@@ -34,6 +49,28 @@ addCustomOpenAICompatibleConnection({
 
 Type is always `litellm` (UI label **OpenAI Compatible**) unless `autoDetectType: true`.
 
+## Model layer (R-001)
+
+```ts
+import {
+  listUnifiedModels,
+  resolveAndActivateModel,
+  ModelRouter,
+  filterModelOptions,
+  refreshAvailableModels,
+} from '@agent-k/providers';
+
+// Composer: unified list + filter (not ModelRouter)
+const options = listUnifiedModels();
+filterModelOptions(options.map((m) => m.canonicalId), { query: 'qwen' });
+
+// Runtime: resolver activates connection; router picks tier for agent loop
+resolveAndActivateModel('qwen3-coder');
+new ModelRouter().route({ taskType: 'plan', complexity: 'complex' });
+```
+
+Host injects `setProviderConfigStore` and CSP-safe `fetchImpl` for probe/refresh.
+
 ## Commands
 
 ```bash
@@ -46,5 +83,3 @@ npm run typecheck -w @agent-k/providers
 # Runnable smoke (mock OpenAI Compatible /v1/models → detect → connect → probe)
 npm run smoke -w @agent-k/providers
 ```
-
-Host owns vscode `fetch` / postMessage for UXPROV-001; inject `setProviderConfigStore` when CFG lands.

@@ -1,5 +1,5 @@
 /**
- * Model id normalize helpers (used by PROVIDER-003/004; full MODEL-004 later).
+ * MODEL-004 — Model id normalization / display / equality.
  */
 
 export function normalizeModelId(raw: string): string {

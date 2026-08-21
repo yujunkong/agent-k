@@ -1898,9 +1898,11 @@ VS Code Extension
 - [x] CFG-001~003
 
 ## Phase 1 — Provider abstraction을 먼저 고정
-- [ ] PROVIDER-001~018
-- [ ] MODEL-001~011
-- [ ] CFG-008
+- [x] PROVIDER-001~014 (015~018 skipped this phase)
+- [x] MODEL-001~011
+- [x] CFG-008
+- [x] UXPROV-001~004 (domain APIs; chat-ui picker later)
+- [ ] UXPROV-005~006
 
 **원칙:** Composer dropdown과 runtime provider routing을 처음부터 분리한다.
 

@@ -43,7 +43,7 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **CHAT-001** / Phase 1 MODEL·CFG-008 — SHARED + EXT + HOST + CFG-001~003 + PROVIDER-001~014 OK.
+**바로 다음:** **CHAT-001** / Phase 1 잔여 UXPROV-005·006 — SHARED + EXT + HOST + CFG-001~003 + PROVIDER-001~014 + MODEL-001~011 + CFG-008 + UXPROV-001~004 OK.
 
 ---
 
@@ -109,22 +109,22 @@ Phase 0 시작 전/병행: shared 계약.
 | PROVIDER-016 | DGX provider | providers | [-] 스킵 (이번 세션 범위 외) |
 | PROVIDER-017 | Secret manager (provider keys) | providers | [-] 스킵 (이번 세션 범위 외) |
 | PROVIDER-018 | Tool result formatter | providers | [-] 스킵 (이번 세션 범위 외) |
-| MODEL-001 | Model Registry | providers | [ ] |
-| MODEL-002 | Model Resolver | providers | [ ] |
-| MODEL-003 | Model Routing | providers | [ ] |
-| MODEL-004 | Model normalization | providers | [ ] |
-| MODEL-005 | Model tags | providers | [ ] |
-| MODEL-006 | Available models | providers | [ ] |
-| MODEL-007 | Composer model persistence | providers | [ ] |
-| MODEL-008 | Thinking capability | providers | [ ] |
-| MODEL-009 | Tier-based turns | providers | [ ] |
-| MODEL-010 | Provider order | providers | [ ] |
-| MODEL-011 | Model context info | providers | [ ] |
-| CFG-008 | Provider configuration | providers | [ ] |
-| UXPROV-001 | Connection test | providers (+ chat-ui picker) | [ ] |
-| UXPROV-002 | Auto-refresh models | providers (+ chat-ui picker) | [ ] |
-| UXPROV-003 | Searchable model picker | providers (+ chat-ui picker) | [ ] |
-| UXPROV-004 | Saved connections | providers (+ chat-ui picker) | [ ] |
+| MODEL-001 | Model Registry | providers | [x] |
+| MODEL-002 | Model Resolver | providers | [x] |
+| MODEL-003 | Model Routing | providers | [x] |
+| MODEL-004 | Model normalization | providers | [x] |
+| MODEL-005 | Model tags | providers | [x] |
+| MODEL-006 | Available models | providers | [x] |
+| MODEL-007 | Composer model persistence | providers | [x] |
+| MODEL-008 | Thinking capability | providers | [x] |
+| MODEL-009 | Tier-based turns | providers | [x] |
+| MODEL-010 | Provider order | providers | [x] |
+| MODEL-011 | Model context info | providers | [x] |
+| CFG-008 | Provider configuration | providers | [x] |
+| UXPROV-001 | Connection test | providers (+ chat-ui picker) | [x] |
+| UXPROV-002 | Auto-refresh models | providers (+ chat-ui picker) | [x] |
+| UXPROV-003 | Searchable model picker | providers (+ chat-ui picker) | [x] |
+| UXPROV-004 | Saved connections | providers (+ chat-ui picker) | [x] |
 | UXPROV-005 | Provider order | providers (+ chat-ui picker) | [ ] |
 | UXPROV-006 | Local-first auto resolve | providers (+ chat-ui picker) | [ ] |
 

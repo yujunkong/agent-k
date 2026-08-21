@@ -2,22 +2,24 @@
  * @agent-k/providers — Provider/Model layer (R-001: Composer ≠ ModelRouter).
  *
  * Feature IDs (this transplant):
- * - PROVIDER-001 detectProviderType
- * - PROVIDER-002 ProviderRegistry
- * - PROVIDER-003 ProviderConnections (+ custom OpenAI Compatible)
- * - PROVIDER-004 ProviderProfiles
- * - PROVIDER-005 providerPresets
- * - PROVIDER-006 providerFields
- * - PROVIDER-007 providerStatus
- * - PROVIDER-008 HealthCheck
- * - PROVIDER-009 providerProbe (domain; host keeps vscode bridge)
- * - PROVIDER-010 LiteLLMProvider (OpenAI Compatible wire client)
- * - PROVIDER-011 OpenAI (type + preset + fields)
- * - PROVIDER-012 Anthropic (type + preset + fields)
- * - PROVIDER-013 Ollama (type + detect + fields)
- * - PROVIDER-014 LM Studio (type + detect + fields)
+ * - PROVIDER-001…014 (prior)
+ * - MODEL-001 ModelRegistry
+ * - MODEL-002 ModelResolver (UXPROV-006 local-first)
+ * - MODEL-003 ModelRouter + ModelRouting
+ * - MODEL-004 normalizeModelId
+ * - MODEL-005 modelTags
+ * - MODEL-006 / 007 availableModels + persistSelectedModel
+ * - MODEL-008 thinkingEffort capability
+ * - MODEL-009 ModelTiers (maxTurns)
+ * - MODEL-010 preferUserOrder (ProviderConnections)
+ * - MODEL-011 modelContextInfo
+ * - CFG-008 providerConfig keys / snapshot
+ * - UXPROV-001 testProviderConnection
+ * - UXPROV-002 refreshAvailableModels
+ * - UXPROV-003 modelPicker filter helpers
+ * - UXPROV-004 saved connections (ProviderConnections)
  *
- * Skipped: PROVIDER-015…018 (OpenCode / DGX / SecretManager / ToolResultFormatter).
+ * Skipped: PROVIDER-015…018; UXPROV-005/006 UI wiring (resolver local-first is domain-ready).
  */
 
 export * from './types';
@@ -34,3 +36,13 @@ export * from './ProviderRegistry';
 export * from './ProviderProfiles';
 export * from './ProviderConnections';
 export * from './providerProbe';
+export * from './modelTags';
+export * from './ModelRegistry';
+export * from './ModelResolver';
+export * from './ModelRouter';
+export * from './ModelRouting';
+export * from './ModelTiers';
+export * from './availableModels';
+export * from './modelPicker';
+export * from './modelContextInfo';
+export * from './providerConfig';
