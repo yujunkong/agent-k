@@ -1894,7 +1894,7 @@ VS Code Extension
 
 ## Phase 0 — 뼈대
 - [x] EXT-001~005
-- [ ] HOST-001~015
+- [x] HOST-001~015
 - [ ] CFG-001~003
 
 ## Phase 1 — Provider abstraction을 먼저 고정

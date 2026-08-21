@@ -1,12 +1,20 @@
 /**
- * EXT-001 / EXT-003 — Extension Host activation wiring.
- * Register webview provider first (v2.1 pattern) so the sidebar never deadlocks,
- * then register the EXT-003 command catalog.
+ * EXT-001 / HOST-* — Extension Host activation wiring.
+ * Register webview provider first, then commands + config bridges.
  */
 
 import * as vscode from 'vscode';
 import { ChatViewProvider } from './ChatViewProvider';
+import {
+  bindAgentKConfigBridge,
+  bindProjectConfig,
+  setProjectConfigPostToWebview,
+} from './configBridge';
 import { registerCommands } from './registerCommands';
+import {
+  setUsageStatusBarItem,
+  updateUsageStatusBar,
+} from './runtimeSingletons';
 
 let provider: ChatViewProvider | undefined;
 
@@ -29,13 +37,43 @@ export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvid
     }),
   );
 
-  // EXT-003 — command catalog (stubs until HOST-*/PLAN-*/MCP-* land).
+  // EXT-003 — command catalog.
   context.subscriptions.push(...registerCommands(provider));
+
+  // HOST-004 / HOST-005 — config bridges.
+  setProjectConfigPostToWebview((msg) => {
+    void provider?.postMessage(msg);
+  });
+  bindAgentKConfigBridge(context);
+  bindProjectConfig(context);
+
+  // HOST-006 — usage status bar (best-effort).
+  try {
+    const item = vscode.window.createStatusBarItem(
+      'agent-k.usage',
+      vscode.StatusBarAlignment.Right,
+      100,
+    );
+    setUsageStatusBarItem(item);
+    context.subscriptions.push(item);
+    updateUsageStatusBar();
+    context.subscriptions.push(
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('agent-k.telemetry.statusBarEnabled')) {
+          updateUsageStatusBar();
+        }
+      }),
+    );
+  } catch {
+    /* non-fatal */
+  }
 
   return provider;
 }
 
-/** Clear host singletons on deactivate (EXT-001: provider reference only). */
+/** Clear host singletons on deactivate. */
 export function deactivateAgentK(): void {
+  setProjectConfigPostToWebview(undefined);
+  setUsageStatusBarItem(undefined);
   provider = undefined;
 }

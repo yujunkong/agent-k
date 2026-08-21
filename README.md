@@ -28,7 +28,8 @@ docs/                   # Master + monorepo + work order
 - **EXT-001:** Activity Bar + `agent-k.chat` + hello handshake.
 - **EXT-002:** React Chat shell (`packages/chat-ui`) → `extensions/agent-k/media/chat.js`.
 - **EXT-003~005:** commands (19) + CSP/nonce webview HTML + workspace path abstraction.
-- **Next Feature:** `HOST-001` / `CHAT-001` / `CFG-001` — see Work Order Phase 0.
+- **HOST-001~015:** ChatViewProvider router + bridges (chatSend/composer/config/session/plan/probe/subagent/worktree/timeline). Agent loop / plan execute bodies deferred to AGENT-*/PLAN-*.
+- **Next Feature:** `CFG-001` / `CHAT-001` / `PROVIDER-001` — see Work Order Phase 0.
 
 ## Commands
 

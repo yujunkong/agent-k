@@ -43,7 +43,7 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **`HOST-001`** / **CHAT-001** / **CFG-001** — EXT-001~005 OK.
+**바로 다음:** **`CFG-001`** / **CHAT-001** / **PROVIDER-001** — EXT + HOST Phase 0 OK.
 
 ---
 
@@ -64,21 +64,21 @@ Phase 0 시작 전/병행: shared 계약.
 | EXT-003 | Command registration | extensions/agent-k + host | [x] |
 | EXT-004 | CSP / nonce / Webview security | extensions/agent-k + host | [x] |
 | EXT-005 | Workspace path abstraction | extensions/agent-k + host | [x] |
-| HOST-001 | ChatViewProvider | host | [ ] |
-| HOST-002 | Chat send bridge | host | [ ] |
-| HOST-003 | Composer host | host | [ ] |
-| HOST-004 | Config bridge | host | [ ] |
-| HOST-005 | Project config bridge | host | [ ] |
-| HOST-006 | Runtime singletons | host | [ ] |
-| HOST-007 | Session host | host | [ ] |
-| HOST-008 | Plan host | host | [ ] |
-| HOST-009 | Workspace index host | host | [ ] |
-| HOST-010 | Provider probe host | host | [ ] |
-| HOST-011 | Subagent host | host | [ ] |
-| HOST-012 | Subagent worktree bridge | host | [ ] |
-| HOST-013 | Subagent worktree registry | host | [ ] |
-| HOST-014 | Timeline labels | host | [ ] |
-| HOST-015 | Worktree manager (host) | host | [ ] |
+| HOST-001 | ChatViewProvider | host | [x] |
+| HOST-002 | Chat send bridge | host | [x] |
+| HOST-003 | Composer host | host | [x] |
+| HOST-004 | Config bridge | host | [x] |
+| HOST-005 | Project config bridge | host | [x] |
+| HOST-006 | Runtime singletons | host | [x] |
+| HOST-007 | Session host | host | [x] |
+| HOST-008 | Plan host | host | [x] |
+| HOST-009 | Workspace index host | host | [x] |
+| HOST-010 | Provider probe host | host | [x] |
+| HOST-011 | Subagent host | host | [x] |
+| HOST-012 | Subagent worktree bridge | host | [x] |
+| HOST-013 | Subagent worktree registry | host | [x] |
+| HOST-014 | Timeline labels | host | [x] |
+| HOST-015 | Worktree manager (host) | host | [x] |
 | CFG-001 | ConfigManager | core | [ ] |
 | CFG-002 | ProjectConfig | core | [ ] |
 | CFG-003 | Permission configuration | core | [ ] |
@@ -508,7 +508,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 ## 다음으로 할 일
 
-1. **HOST-001** — ChatViewProvider lifecycle 보강 (`packages/host`)
-2. **CHAT-001** / **CFG-001~003** 순차 이식
-3. EXT-003~005 완료: commands + CSP/nonce + workspacePaths
+1. **CFG-001~003** — ConfigManager / ProjectConfig (`packages/core`)
+2. **CHAT-001** / **PROVIDER-001+** 순차 이식
+3. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
 

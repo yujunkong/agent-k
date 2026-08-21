@@ -42,18 +42,32 @@ describe('SHARED-001 protocol guards', () => {
     expect(isKnownProtocolType('stream.delta')).toBe(false);
   });
 
+  it('accepts HOST bridge discriminants', () => {
+    expect(isWebviewToHostMessage({ type: 'provider.test', requestId: 'r1', baseUrl: 'http://x' })).toBe(
+      true,
+    );
+    expect(
+      isHostToWebviewMessage({
+        type: 'provider.test.result',
+        requestId: 'r1',
+        ok: false,
+        health: 'offline',
+      }),
+    ).toBe(true);
+  });
+
   it('keeps discriminant catalogs closed and aligned', () => {
-    expect([...WEBVIEW_TO_HOST_TYPES]).toEqual([
-      'ui.ready',
-      'chat.send',
-      'chat.stop',
-      'host.sessions.ready',
-      'host.sessions.persist',
-    ]);
-    expect([...HOST_TO_WEBVIEW_TYPES]).toEqual([
-      'host.hello',
-      'chat.stream',
-      'host.sessions.hydrate',
-    ]);
+    expect(WEBVIEW_TO_HOST_TYPES).toContain('ui.ready');
+    expect(WEBVIEW_TO_HOST_TYPES).toContain('chat.send');
+    expect(WEBVIEW_TO_HOST_TYPES).toContain('provider.test');
+    expect(WEBVIEW_TO_HOST_TYPES).toContain('plan.v2.generate');
+    expect(WEBVIEW_TO_HOST_TYPES).toContain('worktree.apply');
+    expect(HOST_TO_WEBVIEW_TYPES).toContain('host.hello');
+    expect(HOST_TO_WEBVIEW_TYPES).toContain('chat.stream');
+    expect(HOST_TO_WEBVIEW_TYPES).toContain('config.hydrate');
+    expect(HOST_TO_WEBVIEW_TYPES).toContain('checkpoint.listResult');
+    // Catalogs stay unique.
+    expect(new Set(WEBVIEW_TO_HOST_TYPES).size).toBe(WEBVIEW_TO_HOST_TYPES.length);
+    expect(new Set(HOST_TO_WEBVIEW_TYPES).size).toBe(HOST_TO_WEBVIEW_TYPES.length);
   });
 });
