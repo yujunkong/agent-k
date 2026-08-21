@@ -1,21 +1,15 @@
-# Agent-K Mode Auto Classifier
+# Agent-K v3.0
 
-Canonical module: `src/mode/` (`classifyMode`, `resolveSendMode`, `lastConversationTurn`).
+Clean transplant line. **Not** a refactor of the v2.1 tree.
 
-Do not add a second copy under `src/agent/`. Loop `Mode` lives in `src/agent/types.ts`.
+| Role | Branch / doc |
+|------|----------------|
+| Reference (read-only) | `v2.1-PRODUCTION-MODE` |
+| Write target | **`v3.0`** (this branch) |
+| What to transplant | `docs/AGENT-K-FEATURE-MASTER-v2.1-PRODUCTION-MODE-FINAL.md` |
+| Where to put it | `docs/AGENT-K-MONOREPO-FINAL.md` |
+| How we work | `docs/V3_WORK_PLAN.md` |
+| What order | `docs/V3_WORK_ORDER.md` |
 
-## Wiring
-
-Composer Mode picker:
-
-- **Auto** (default on a new chat) — `handleSend` calls `resolveSendMode` → heuristic classifier
-- **Ask / Plan / Debug / Agent** — locked; classifier is skipped (`source: 'manual'`)
-- Plan→Agent handoff uses `modeOverride: 'agent'`
-
-`ConversationTurn` is derived from the last user/assistant pair for sticky `previousWasActive`.
-
-## Sticky
-
-- agent/debug keep the mode while the previous turn ran tools, unless the user says plan only / ask only / stop / …
-- an in-flight Plan V2 session (research / planning / review) stays on plan
-- weak signal → previous turn mode, or **ask** on the first Auto message
+Until Feature Master is committed here, work order uses ID ranges from the Monorepo Final map.
+Code / packages arrive only when skeleton Phase starts — this branch starts **docs only**.

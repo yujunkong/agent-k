@@ -1,26 +1,10 @@
-out
-dist
-node_modules
+# Ignore local leftovers on clean v3.0 (docs-first)
+node_modules/
+dist/
+out/
 .vscode-test/
 *.vsix
-!agent-k.vsix
-.agent-k-index/
-# Project settings may contain secrets — commit example only
-.agentk/settings.json
-!.agentk/settings.example.json
-# Legacy hyphenated root (do not use; kept ignored if leftover)
-.agent-k/
-# Local scratch / screenshots (DLP / enterprise scanners)
-PLAN.md
-스크린샷*.png
-*.local.json
 .env
 .env.*
-# Harness acceptance test temp dirs (mkdtemp under cwd)
-.harb-ac*/
-# Plan drafts (project-root temp). Keep folder visible; ignore file contents.
-.agentk/plans/tmp/*
-!.agentk/plans/tmp/.gitkeep
-# Debug session drafts
-.agentk/debug/tmp/*
-!.agentk/debug/tmp/.gitkeep
+.DS_Store
+*.local.json
