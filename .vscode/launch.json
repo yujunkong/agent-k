@@ -6,8 +6,7 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}/extensions/agent-k",
-        "${workspaceFolder}"
+        "--extensionDevelopmentPath=${workspaceFolder}/extensions/agent-k"
       ],
       "outFiles": ["${workspaceFolder}/extensions/agent-k/dist/**/*.js"],
       "preLaunchTask": "build-extension"
