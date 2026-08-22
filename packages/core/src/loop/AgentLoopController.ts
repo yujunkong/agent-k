@@ -16,6 +16,7 @@ import type {
 } from '../types';
 import { ClassifierDiagnostics } from './ClassifierDiagnostics';
 import { DoomLoopDetector } from './DoomLoopDetector';
+import { DoomLoopHandler } from './DoomLoopHandler';
 import { classifyError, ErrorRecovery } from './ErrorRecovery';
 import { isParallelSafeTool, ParallelExecutor } from './ParallelExecutor';
 import { StreamingToolExecutor } from './StreamingToolExecutor';
@@ -89,6 +90,8 @@ export class AgentLoopController {
   private messages: AgentMessage[] = [];
   private status: AgentLoopStatus = 'idle';
   private readonly doom: DoomLoopDetector;
+  /** AGENT-010 — formats doom-loop stop messages + suggestions. */
+  private readonly doomHandler = new DoomLoopHandler();
   private readonly diagnostics = new ClassifierDiagnostics();
   private readonly recovery = new ErrorRecovery({ maxRetries: 2 });
   private readonly assembler: ContextAssembler;
@@ -238,8 +241,15 @@ export class AgentLoopController {
         );
         if (toolOutcome === 'doom_loop') {
           reason = 'doom_loop';
-          finalContent =
-            content || 'Stopped: repeated identical tool calls detected.';
+          // Prefer handler message (suggestions) over generic stop text.
+          const loopInfo = this.doom.getLoopInfo();
+          if (loopInfo) {
+            const alert = this.doomHandler.handleLoopInfo(loopInfo, this.doom);
+            finalContent = this.doomHandler.formatAlertMessage(alert);
+          } else {
+            finalContent =
+              content || 'Stopped: repeated identical tool calls detected.';
+          }
           this.emit({ type: 'turn_end', turn: turns });
           break;
         }

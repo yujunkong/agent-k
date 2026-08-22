@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-extension",
+      "dependsOrder": "sequence",
+      "dependsOn": ["npm: build:webview", "npm: build:extension"],
+      "problemMatcher": []
+    },
+    {
+      "type": "npm",
+      "script": "build:webview",
+      "group": "build",
+      "problemMatcher": [],
+      "label": "npm: build:webview"
+    },
+    {
+      "type": "npm",
+      "script": "build:extension",
+      "group": "build",
+      "problemMatcher": [],
+      "label": "npm: build:extension"
+    }
+  ]
+}

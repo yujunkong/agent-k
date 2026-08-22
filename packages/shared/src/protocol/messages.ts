@@ -80,6 +80,7 @@ export const HOST_TO_WEBVIEW_TYPES = [
   'chat.stream',
   'host.sessions.hydrate',
   'config.hydrate',
+  'settings.open',
   'config.project.result',
   'config.project.saved',
   'attachments.resolve.result',

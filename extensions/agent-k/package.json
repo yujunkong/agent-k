@@ -1,15 +1,19 @@
 {
   "name": "agent-k",
   "displayName": "Agent K",
-  "description": "Agent-K v3.0 assembler — activation, Chat View, commands (EXT-001~005)",
+  "description": "Agent-K v3.0 assembler \u2014 activation, Chat View, commands (EXT-001~005)",
   "version": "0.0.0",
   "private": true,
   "publisher": "agent-k",
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["AI", "Machine Learning"],
+  "categories": [
+    "AI",
+    "Machine Learning"
+  ],
   "activationEvents": [
+    "onStartupFinished",
     "onView:agent-k.chat",
     "onCommand:agent-k.chat.new",
     "onCommand:agent-k.openSettings",
@@ -31,7 +35,7 @@
     "onCommand:agent-k.mcp.disconnect",
     "onCommand:agent-k.bestOfN.run"
   ],
-  "main": "./src/extension.ts",
+  "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -247,9 +251,42 @@
         "mac": "cmd+shift+l",
         "when": "editorHasSelection"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Agent K",
+      "properties": {
+        "agent-k.provider.type": {
+          "type": "string",
+          "default": "litellm",
+          "enum": [
+            "litellm",
+            "openai",
+            "anthropic",
+            "ollama",
+            "lmstudio"
+          ],
+          "description": "Default provider type for chat."
+        },
+        "agent-k.provider.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:4000",
+          "description": "OpenAI-compatible provider base URL."
+        },
+        "agent-k.provider.model": {
+          "type": "string",
+          "default": "mlx-community/Qwen3.6-35B-A3B-4bit",
+          "description": "Default chat model id."
+        },
+        "agent-k.provider.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Provider API key (optional for local servers)."
+        }
+      }
+    }
   },
   "scripts": {
+    "build": "node esbuild.mjs",
     "check": "node -e \"console.log('@agent-k EXT-001~005 assembler OK')\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -259,6 +296,7 @@
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
+    "esbuild": "^0.25.0",
     "typescript": "^5.8.2"
   }
 }

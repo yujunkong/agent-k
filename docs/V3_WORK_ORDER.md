@@ -3,10 +3,11 @@
 **참조 브랜치:** `v2.1-PRODUCTION-MODE` (읽기 전용)  
 **쓰기 브랜치:** `v3.0`  
 **패키지 정의:** `docs/AGENT-K-MONOREPO-FINAL.md`  
-**작업 방식:** `docs/V3_WORK_PLAN.md`  
+**작업 방식:** `docs/V3_WORK_PLAN.md` (**§3 / §3.1: v2.1에서 최대한 이식 · 스텁 완료 금지**)  
 **Feature 권위:** `docs/AGENT-K-FEATURE-MASTER-v2.1-PRODUCTION-MODE-FINAL.md`
 
-체크: `[ ]` 미착수 · `[~]` 진행 중 · `[x]` 8항목 통과 완료
+체크: `[ ]` 미착수 · `[~]` 진행 중 · `[x]` 8항목 통과 완료  
+이식: Feature ID 단위로 v2.1 검증 로직을 **최대한 가져오되**, 패키지 경계에 맞게 재배치. `src/` 통째 복붙 금지.
 
 이식 순서 = Feature Master **§38**. 패키지 열 = Monorepo Final 매핑.
 **한 세션 = Feature ID 하나.**
@@ -43,7 +44,7 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **CHAT-001** — Phase 0–2 도메인 OK (SHARED…SAFE/MODE/AGENT/TOOL/CTX/REL/CFG + UXPROV-001~006 domain).
+**바로 다음:** **CHAT-003** Searchable Model Picker — Phase 0–2 도메인 + CHAT-001/002 shell·composer OK.
 
 ---
 
@@ -65,7 +66,7 @@ Phase 0 시작 전/병행: shared 계약.
 | EXT-004 | CSP / nonce / Webview security | extensions/agent-k + host | [x] |
 | EXT-005 | Workspace path abstraction | extensions/agent-k + host | [x] |
 | HOST-001 | ChatViewProvider | host | [x] |
-| HOST-002 | Chat send bridge | host | [x] |
+| HOST-002 | Chat send bridge | host | [~] AgentLoop wired (providers/tools); timeline/subagent still PARTIAL |
 | HOST-003 | Composer host | host | [x] |
 | HOST-004 | Config bridge | host | [x] |
 | HOST-005 | Project config bridge | host | [x] |
@@ -137,7 +138,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| AGENT-001 | AgentLoopController | core | [x] |
+| AGENT-001 | AgentLoopController | core | [~] SOLID core loop; doom handler added; host-wired |
 | AGENT-002 | Multi-turn execution | core | [x] |
 | AGENT-003 | Tool loop | core | [x] |
 | AGENT-004 | Tool execution | core | [x] |
@@ -167,10 +168,10 @@ Phase 0 시작 전/병행: shared 계약.
 | TOOL-009 | Executor abstraction | tools | [x] |
 | TOOL-010 | Write executor | tools | [x] |
 | TOOL-011 | TodoWriteTool | tools | [x] |
-| TOOL-012 | TaskTool / SubAgent orchestration | tools | [x] |
-| TOOL-013 | SkillTool | tools | [x] |
-| TOOL-014 | Browser tool group | tools | [x] |
-| TOOL-015 | Debug tools | tools | [x] |
+| TOOL-012 | TaskTool / SubAgent orchestration | tools | [~] descriptor only; host spawn PENDING |
+| TOOL-013 | SkillTool | tools | [~] loads skills/*.md from workspace |
+| TOOL-014 | Browser tool group | tools | [~] in-memory session (no Playwright yet) |
+| TOOL-015 | Debug tools | tools | [~] real DEBUG_INSTRUMENT disk write/remove |
 | TOOL-016 | Tool registry | tools | [x] |
 | TOOL-017 | Parallel search | tools | [x] |
 | CTX-001 | Context budget | core | [x] |
@@ -186,7 +187,7 @@ Phase 0 시작 전/병행: shared 계약.
 | SAFE-006 | Checkpoint | safety | [x] |
 | SAFE-007 | Verification-first | safety | [x] |
 | SAFE-008 | Verification micro-loop | safety | [x] |
-| SAFE-009 | Related test execution | safety | [x] |
+| SAFE-009 | Related test execution | safety | [~] NodeRelatedTestRunner (vitest) + stub |
 | SAFE-010 | Hooks system | safety | [x] |
 | MODE-001 | Ask Mode | core | [x] |
 | MODE-002 | Agent Mode | core | [x] |
@@ -230,8 +231,8 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| CHAT-001 | Chat application shell | chat-ui | [ ] |
-| CHAT-002 | Composer | chat-ui | [ ] |
+| CHAT-001 | Chat application shell | chat-ui | [x] v2.1 chrome (header/thread/empty composer) |
+| CHAT-002 | Composer | chat-ui | [x] cursor box + mode pill + model input |
 | CHAT-003 | Searchable Model Picker | chat-ui | [ ] |
 | CHAT-004 | Mode selector | chat-ui | [ ] |
 | CHAT-005 | File/selection attachment | chat-ui | [ ] |
@@ -444,27 +445,27 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| SET-001 | Settings shell | chat-ui (UI) | [ ] |
-| SET-002 | Models tab | chat-ui (UI) | [ ] |
-| SET-003 | Context tab | chat-ui (UI) | [ ] |
-| SET-004 | Features tab | chat-ui (UI) | [ ] |
-| SET-005 | Harness tab | chat-ui (UI) | [ ] |
-| SET-006 | MCP tab | chat-ui (UI) | [ ] |
-| SET-007 | Permission tab | chat-ui (UI) | [ ] |
-| SET-008 | Privacy tab | chat-ui (UI) | [ ] |
-| SET-009 | Queue tab | chat-ui (UI) | [ ] |
-| SET-010 | Review tab | chat-ui (UI) | [ ] |
-| SET-011 | Rules tab | chat-ui (UI) | [ ] |
-| SET-012 | Terminal tab | chat-ui (UI) | [ ] |
-| SET-013 | JSON config tab | chat-ui (UI) | [ ] |
-| UI-001~023 | Presentation components (AgentTurn, Timeline, Cards, …) | chat-ui | [ ] |
-| UI-024 | StreamingMarkdown / Mermaid / VirtualList / extras | chat-ui | [ ] |
-| CURSOR-001 | Cursor UI base | chat-ui | [ ] |
-| CURSOR-002 | Conversation layout | chat-ui | [ ] |
-| CURSOR-003 | Conversation tabs | chat-ui | [ ] |
-| CURSOR-004 | Composer polish | chat-ui | [ ] |
-| CURSOR-005 | Workspace polish | chat-ui | [ ] |
-| CURSOR-006 | Conversation variants CSS | chat-ui | [ ] |
+| SET-001 | Settings shell | chat-ui (UI) | [x] v2.1 hub overlay + search + grouped nav |
+| SET-002 | Models tab | chat-ui (UI) | [x] providers form + presets + config.update |
+| SET-003 | Context tab | chat-ui (UI) | [x] UI shell (local store + host persist) |
+| SET-004 | Features tab | chat-ui (UI) | [x] UI shell (feature toggles) |
+| SET-005 | Harness tab | chat-ui (UI) | [x] UI shell |
+| SET-006 | MCP tab | chat-ui (UI) | [x] UI shell (server list form) |
+| SET-007 | Permission tab | chat-ui (UI) | [x] UI shell |
+| SET-008 | Privacy tab | chat-ui (UI) | [x] UI shell |
+| SET-009 | Queue tab | chat-ui (UI) | [x] UI shell |
+| SET-010 | Review tab | chat-ui (UI) | [x] UI shell |
+| SET-011 | Rules tab | chat-ui (UI) | [x] UI shell (editor chrome; host IO later) |
+| SET-012 | Terminal tab | chat-ui (UI) | [x] UI shell |
+| SET-013 | JSON config tab | chat-ui (UI) | [x] UI shell (editor + project file msgs) |
+| UI-001~023 | Presentation components (AgentTurn, Timeline, Cards, …) | chat-ui | [x] presentational shells under `src/components` |
+| UI-024 | StreamingMarkdown / Mermaid / VirtualList / extras | chat-ui | [~] Mermaid/VirtualList/CodeBlock chrome; shiki/md later |
+| CURSOR-001 | Cursor UI base | chat-ui | [x] tokens + composer box + chrome |
+| CURSOR-002 | Conversation layout | chat-ui | [x] empty/active main + thread inset |
+| CURSOR-003 | Conversation tabs | chat-ui | [x] ChatSessionTabs chrome |
+| CURSOR-004 | Composer polish | chat-ui | [x] ModeSelector + ModelSelector + palette |
+| CURSOR-005 | Workspace polish | chat-ui | [~] ChangedFilesBar / History chrome (host later) |
+| CURSOR-006 | Conversation variants CSS | chat-ui | [x] `styles/conversation-variants.css` |
 
 ---
 
@@ -509,7 +510,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 ## 다음으로 할 일
 
-1. **CHAT-001** — Chat shell / timeline 뼈대 (`packages/chat-ui`)
+1. **CHAT-003** — Searchable Model Picker (`packages/chat-ui`)
 2. Phase 1 잔여: **MODEL-*** / **CFG-008** / **UXPROV-*** (`packages/providers`)
 3. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
 

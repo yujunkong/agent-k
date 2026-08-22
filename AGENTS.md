@@ -7,14 +7,16 @@ Canonical docs:
 
 **Reference branch (read-only):** `v2.1-PRODUCTION-MODE`  
 **Write branch:** `v3.0`  
-**원칙:** published npm lib보다 모노레포 패키지 경계 + 경로별 가드레일.
+**원칙:** published npm lib보다 모노레포 패키지 경계 + 경로별 가드레일.  
+**이식:** v2.1에서 **해당 Feature 로직을 최대한 가져온다** (스텁으로 완료 금지). 통째 `src/` 복붙은 금지. 상세: `docs/V3_WORK_PLAN.md` §3 / §3.1.
 
 ## B-0. 최상위 원칙
 
 1. **한 세션 = 한 도메인** — 가능하면 `packages/<one>` 또는 `extensions/agent-k` 하나만 수정
 2. **Feature ID 기준** — 작업 시작 시 ID 명시 (예: AGENT-010, CHAT-002)
 3. **경계 존중** — 경계를 넘으면 먼저 `packages/shared` 타입/프로토콜
-4. **복사 이식 금지** — 파일 단위 복사가 아니라 Feature ID 단위 이식
+4. **v2.1 충실 이식** — Feature 범위의 검증된 구현을 `git show` / worktree로 확인 후 패키지 경계에 맞게 가져온다. 빈 스텁 `[x]` 금지
+5. **맹목 파일 복사 금지** — 트리 통째 move/copy가 아니라 Feature ID 단위로 **동작 동등** 이식
 
 ## B-1. 패키지 경계 요약
 
@@ -44,12 +46,14 @@ Canonical docs:
 ## B-3. 작업 시작 체크리스트
 
 ```text
-[ ] 관련 Feature ID 확인
+[ ] 관련 Feature ID 확인 (V3_WORK_ORDER + Feature Master)
+[ ] v2.1-PRODUCTION-MODE에서 대응 구현 경로 확인 (git show / worktree)
 [ ] 수정할 packages/* 하나만 선택
 [ ] 해당 패키지 rule 확인
 [ ] shared 변경 필요 시 먼저 shared
+[ ] 스텁이 아니라 v2.1 동작 동등 수준으로 이식
 [ ] 테스트 경로 확인
-[ ] 8항목 체크
+[ ] 8항목 체크 (UI Feature면 화면 확인 포함)
 ```
 
 ## B-4. Feature ID → 패키지 빠른 참조

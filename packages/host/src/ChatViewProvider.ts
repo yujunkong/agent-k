@@ -91,8 +91,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     void this.focusChatView();
   }
 
-  public openSettings(_tab?: string): void {
+  public openSettings(tab?: string): void {
     void this.focusChatView();
+    // SET-001 — open Models panel in the chat webview.
+    void this.view?.webview.postMessage({
+      type: 'settings.open',
+      tab: tab || 'models',
+    });
   }
 
   public openProjectConfig(): void {
@@ -171,9 +176,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     void vscode.window.showInformationMessage('[Agent K] Best-of-N (BON-* pending)');
   }
 
-  /** Reveal the Agent-K Activity Bar container + chat webview. */
+  /**
+   * Reveal Agent K Activity Bar (public helper for commands).
+   * Matches v2.1 revealChat: container only — focus.input is separate.
+   */
+  public async revealChatView(): Promise<void> {
+    await this.focusChatView();
+  }
+
+  /** Reveal the Agent-K Activity Bar container (v2.1: workbench.view.extension.agent-k). */
   private async focusChatView(): Promise<void> {
-    await vscode.commands.executeCommand('workbench.view.extension.agent-k');
+    try {
+      await vscode.commands.executeCommand('workbench.view.extension.agent-k');
+    } catch {
+      /* container may already be visible */
+    }
   }
 
   private getHtml(webview: vscode.Webview): string {

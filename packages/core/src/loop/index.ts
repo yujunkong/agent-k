@@ -32,6 +32,11 @@ export {
 export { DoomLoopDetector, type DoomLoopInfo } from './DoomLoopDetector';
 
 export {
+  DoomLoopHandler,
+  type DoomLoopAlert,
+} from './DoomLoopHandler';
+
+export {
   classifyError,
   ErrorRecovery,
   type ClassifiedError,

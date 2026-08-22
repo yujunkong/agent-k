@@ -15,7 +15,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@agent-k/shared": "*"
+    "@agent-k/shared": "*",
+    "@agent-k/core": "*",
+    "@agent-k/providers": "*",
+    "@agent-k/tools": "*",
+    "@agent-k/safety": "*"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

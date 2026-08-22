@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Agent K Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/extensions/agent-k",
+        "${workspaceFolder}"
+      ],
+      "outFiles": ["${workspaceFolder}/extensions/agent-k/dist/**/*.js"],
+      "preLaunchTask": "build-extension"
+    }
+  ]
+}

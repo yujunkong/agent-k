@@ -68,6 +68,13 @@ export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvid
     /* non-fatal */
   }
 
+  // EXT-001 — match v2.1: after layout settles, open Agent K Activity Bar container.
+  // Only `workbench.view.extension.agent-k` (no extra .focus / view.show).
+  const t = setTimeout(() => {
+    void vscode.commands.executeCommand('workbench.view.extension.agent-k');
+  }, 100);
+  context.subscriptions.push({ dispose: () => clearTimeout(t) });
+
   return provider;
 }
 

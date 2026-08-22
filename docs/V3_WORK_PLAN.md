@@ -34,9 +34,21 @@ Feature Master가 아직 없으면 Work Order의 ID 범위만으로 Phase를 진
 
 1. **한 세션 / 한 PR = Feature ID 하나** (또는 명시된 아주 작은 ID 묶음).
 2. **한 패키지**만 수정 (`packages/<one>` 또는 `extensions/agent-k`). 경계 넘으면 먼저 `packages/shared`.
-3. **파일 단위 복사 이식 금지** — Feature Master ID 단위로 동작을 재구현·이식.
-4. **published npm lib 금지** (재사용·semver가 명확해질 때까지).
-5. “고쳤다”의 정의 = **diff가 허용 경로에만 있고** + **8항목 체크 통과**.
+3. **v2.1에서 최대한 가져온다** — 해당 Feature의 검증된 동작·로직·엣지케이스를 `v2.1-PRODUCTION-MODE`에서 찾아 **충실히 이식**한다. 빈 스텁·축소 API로 “완료” 처리하지 않는다.  
+   - **허용:** Feature 범위의 모듈을 읽고, 패키지 경계에 맞게 옮기거나 재구성하며 가져오기 (`git show` / worktree).  
+   - **금지:** `src/` 트리 통째 move/copy, Feature ID 무시 대량 복붙, UI/host/core를 한 덩어리로 이식.
+4. **파일 단위 맹목 복사 금지** — 복붙이 목적이 아니라 Feature Master ID 단위로 **동작 동등**을 맞춘다 (경로·패키지는 Monorepo Final을 따른다).
+5. **published npm lib 금지** (재사용·semver가 명확해질 때까지).
+6. “고쳤다”의 정의 = **diff가 허용 경로에만 있고** + **8항목 체크 통과** (+ 가능하면 v2.1과 동작 동등).
+
+### 3.1 v2.1 이식 품질 기준 (다음 에이전트 필수)
+
+| 해야 함 | 하면 안 됨 |
+|---------|------------|
+| Feature Master ID에 대응하는 v2.1 경로를 `git show` / worktree로 **먼저** 확인 | 문서만 보고 추측 구현 |
+| 핵심 로직·가드·에러/cancel·테스트를 **최대한 보존**하며 패키지에 맞게 재배치 | “API 시그니처만 있는 스텁”으로 `[x]` |
+| UI Feature면 chat-ui까지 붙여 **화면에서 확인 가능**하게 | domain API만 두고 UX를 완료 처리 |
+| 경계를 넘기면 shared 계약 먼저 | host에 React, chat-ui에 vscode/fs |
 
 ---
 
@@ -46,9 +58,9 @@ Feature Master가 아직 없으면 Work Order의 ID 범위만으로 Phase를 진
 1. V3_WORK_ORDER에서 다음 미완료 티켓 선택
 2. Feature Master에서 해당 ID 요구사항 확인
 3. MONOREPO 표로 패키지 결정 (chat-ui / host / core / …)
-4. v2.1-PRODUCTION-MODE에서 그 동작만 참고 (읽기)
-5. v3.0의 해당 패키지에만 구현
-6. 8항목 체크리스트 통과
+4. v2.1-PRODUCTION-MODE에서 해당 Feature 구현 경로를 찾아 **최대한 가져올 내용**을 확정 (읽기)
+5. v3.0의 해당 패키지에 이식(경계에 맞게 재배치). 스텁으로 끝내지 말 것
+6. 8항목 체크리스트 통과 (UI Feature면 화면 확인 포함)
 7. Feature Master [x] + Work Order 체크
 8. 커밋 메시지: feat(<pkg>): <ID> <요약>
 ```
@@ -76,9 +88,9 @@ Feature Master가 아직 없으면 Work Order의 ID 범위만으로 Phase를 진
 Branch: v3.0 only (do not edit v2.1)
 Feature ID: <e.g. EXT-001>
 Allowed paths: packages/<one>/…  (or extensions/agent-k/…)
-Forbidden: other packages, drive-by refactors
-Reference: git show v2.1-PRODUCTION-MODE:<path> if needed
-Done when: 8-item checklist + tests; summarize files touched
+Forbidden: other packages, drive-by refactors, stub-only “done”
+Reference: git show v2.1-PRODUCTION-MODE:<path> — port as much real logic as fits the package boundary
+Done when: behavior parity with v2.1 for this Feature + 8-item checklist + tests; summarize files touched
 ```
 
 규칙 파일은 Monorepo Final Part C를 `.cursor/rules/*.mdc`로 넣을 때(스켈레톤 Phase) 활성화한다.
@@ -107,7 +119,7 @@ Done when: 8-item checklist + tests; summarize files touched
 | P0… | Work Order Phase 0 Feature 이식 | **완료** — SHARED + EXT + HOST + CFG-001~003 |
 | P1 | Phase 1 Providers/Models + UXPROV domain | **완료** — PROVIDER/MODEL/CFG-008/UXPROV-001~006 domain (picker UI → CHAT-003) |
 | P2 | Phase 2 Agent/Tools/Safety/Modes | **완료** — AGENT/TOOL/CTX/SAFE/MODE/DEBUG(domain)/REL/CFG 잔여 (host·chat-ui 배선 → Phase 3+) |
-| P3… | Chat / Streaming | **다음** — `CHAT-001` |
+| P3… | Chat / Streaming | **다음** — `CHAT-003` (CHAT-001/002 shell·composer OK) |
 
 ---
 

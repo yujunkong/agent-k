@@ -11,3 +11,4 @@ alwaysApply: true
 - Do not publish npm libs unless reuse across apps is explicit.
 - Enforce R-001…R-005. No cycles.
 - Reference code: read `v2.1-PRODUCTION-MODE` only; write only on `v3.0`.
+- **Port maximally from v2.1** for the Feature (`git show` / worktree): real logic, guards, tests — not stub-only `[x]`. No whole-tree `src/` copy. Details: `docs/V3_WORK_PLAN.md` §3 / §3.1.

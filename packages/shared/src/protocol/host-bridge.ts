@@ -87,6 +87,7 @@ export type HostBridgeWebviewMessage =
 /** Host → Webview messages for HOST bridge features. */
 export type HostBridgeHostMessage =
   | { type: 'config.hydrate'; values: Record<string, unknown> }
+  | { type: 'settings.open'; tab?: string }
   | {
       type: 'config.project.result';
       exists: boolean;

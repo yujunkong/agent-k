@@ -1,33 +1,5 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "skipLibCheck": true,
-    "noEmit": true,
-    "baseUrl": ".",
-    "paths": {
-      "@agent-k/shared": ["packages/shared/src/index.ts"],
-      "@agent-k/shared/*": ["packages/shared/src/*"],
-      "@agent-k/host": ["packages/host/src/index.ts"],
-      "@agent-k/host/*": ["packages/host/src/*"],
-      "@agent-k/chat-ui": ["packages/chat-ui/src/index.ts"],
-      "@agent-k/chat-ui/*": ["packages/chat-ui/src/*"],
-      "@agent-k/core": ["packages/core/src/index.ts"],
-      "@agent-k/core/*": ["packages/core/src/*"],
-      "@agent-k/tools": ["packages/tools/src/index.ts"],
-      "@agent-k/tools/*": ["packages/tools/src/*"],
-      "@agent-k/providers": ["packages/providers/src/index.ts"],
-      "@agent-k/providers/*": ["packages/providers/src/*"],
-      "@agent-k/plan": ["packages/plan/src/index.ts"],
-      "@agent-k/plan/*": ["packages/plan/src/*"],
-      "@agent-k/worktree": ["packages/worktree/src/index.ts"],
-      "@agent-k/worktree/*": ["packages/worktree/src/*"],
-      "@agent-k/safety": ["packages/safety/src/index.ts"],
-      "@agent-k/safety/*": ["packages/safety/src/*"]
-    }
-  },
-  "include": ["packages/**/*", "extensions/**/*"],
-  "exclude": ["node_modules", "dist", "out"]
+  "extends": "./tsconfig.base.json",
+  "include": ["packages/*/src/**/*", "extensions/*/src/**/*"],
+  "exclude": ["node_modules", "dist", "out", "**/*.test.ts", "**/*.test.tsx"]
 }
