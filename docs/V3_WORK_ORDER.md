@@ -231,7 +231,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| CHAT-001 | Chat application shell | chat-ui | [x] v2.1 chrome (header/thread/empty composer) |
+| CHAT-001 | Chat application shell | chat-ui | [x] v2.1 ChatApp + full chat.css / ui/*.css |
 | CHAT-002 | Composer | chat-ui | [x] cursor box + mode pill + model input |
 | CHAT-003 | Searchable Model Picker | chat-ui | [ ] |
 | CHAT-004 | Mode selector | chat-ui | [ ] |
@@ -445,7 +445,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| SET-001 | Settings shell | chat-ui (UI) | [x] v2.1 hub overlay + search + grouped nav |
+| SET-001 | Settings shell | chat-ui (UI) | [x] v2.1 SettingsPanel + tabs + CSS |
 | SET-002 | Models tab | chat-ui (UI) | [x] providers form + presets + config.update |
 | SET-003 | Context tab | chat-ui (UI) | [x] UI shell (local store + host persist) |
 | SET-004 | Features tab | chat-ui (UI) | [x] UI shell (feature toggles) |

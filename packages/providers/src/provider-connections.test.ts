@@ -165,3 +165,23 @@ describe('PROVIDER-009 providerProbe', () => {
     expect(result.health).toBe('auth_failed');
   });
 });
+
+describe('migrateFlatSettingsToConnections', () => {
+  it('lifts flat settings into a connection when connections empty', async () => {
+    const { resetProviderConfigStore, setProviderConfigStore, MemoryProviderConfigStore } = await import('./configStore');
+    const { getProviderConnections, migrateFlatSettingsToConnections } = await import('./ProviderConnections');
+    const store = resetProviderConfigStore();
+    store.update({
+      'agent-k.provider.type': 'litellm',
+      'agent-k.provider.baseUrl': 'https://example.test',
+      'agent-k.provider.model': 'hy3-free',
+      'agent-k.provider.availableModels': ['big-pickle', 'hy3-free'],
+    });
+    migrateFlatSettingsToConnections();
+    const list = getProviderConnections();
+    expect(list.length).toBe(1);
+    expect(list[0].id).toBe('pc-settings-active');
+    expect(list[0].baseUrl).toBe('https://example.test');
+    expect(list[0].discoveredModels).toEqual(expect.arrayContaining(['big-pickle', 'hy3-free']));
+  });
+});

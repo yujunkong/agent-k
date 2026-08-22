@@ -18,8 +18,8 @@ export const PROVIDER_FIELDS: Record<ProviderType, ProviderFieldMeta> = {
     needsBaseUrl: true,
     needsApiKey: true,
     apiKeyOptional: true,
-    defaultBaseUrl: 'http://127.0.0.1:4000',
-    defaultModel: 'mlx-community/Qwen3.6-35B-A3B-4bit',
+    defaultBaseUrl: '',
+    defaultModel: '',
     hint:
       'OpenAI Compatible endpoint (LiteLLM, vLLM, local proxy, OpenRouter-style gateways). Local servers often need no key. Enter any custom base URL.',
   },

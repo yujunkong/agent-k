@@ -75,7 +75,9 @@ describe('PROVIDER-005 / 006 presets and fields', () => {
     expect(PROVIDER_PRESETS.some((p) => p.id === 'openai')).toBe(true);
     expect(isProviderType('litellm')).toBe(true);
     expect(isProviderType('opencode-zen')).toBe(false);
-    expect(manualModelPresetsForType('openai').length).toBeGreaterThan(0);
+    // Model catalogs are discovered — no hard-coded model presets.
+    expect(manualModelPresetsForType('openai')).toEqual([]);
+    expect(manualModelPresetsForType('litellm')).toEqual([]);
   });
 });
 

@@ -94,11 +94,22 @@ export async function runHostChatSend(
   const mode = (payload.mode || 'agent') as AgentMode;
   const cfg = vscode.workspace.getConfiguration('agent-k');
   const baseUrl = String(
-    payload.baseUrl || cfg.get('provider.baseUrl') || 'http://127.0.0.1:4000',
+    payload.baseUrl || cfg.get('provider.baseUrl') || '',
   ).replace(/\/$/, '');
-  const model = String(
-    payload.model || cfg.get('provider.model') || 'gpt-4o-mini',
-  );
+  const model = String(payload.model || cfg.get('provider.model') || '');
+  if (!baseUrl || !model) {
+    void webview.postMessage({
+      type: 'chat.stream',
+      payload: {
+        requestId,
+        event: 'error',
+        error:
+          'No provider configured. Open Settings → AI Providers and add a connection.',
+      },
+    });
+    ctx.setHostLoopRequestId(undefined);
+    return;
+  }
   const apiKey =
     payload.apiKey != null
       ? String(payload.apiKey)

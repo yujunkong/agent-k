@@ -17,13 +17,14 @@ import {
   pickAttachmentUris,
   resolveAttachmentUris,
 } from './composerHost';
-import { sendConfigHydrate } from './configProject';
 import {
   handleConfigUpdate,
+  handleConfigUpdateBatch,
   handleProjectConfigCreateExample,
   handleProjectConfigGet,
   handleProjectConfigOpen,
   handleProjectConfigSave,
+  sendConfigHydrate,
 } from './configProject';
 import { runHostPlanExecute } from './planExecute';
 import {
@@ -105,10 +106,16 @@ async function dispatch(
       persistSessionsToHost(msg.payload as HostSessionsPersistPayload);
       return;
 
-    case 'config.update':
-      await handleConfigUpdate(msg.key, msg.value);
+    case 'config.update': {
+      const batch = (msg as { values?: Record<string, unknown> }).values;
+      if (batch && typeof batch === 'object') {
+        await handleConfigUpdateBatch(batch);
+      } else if (typeof msg.key === 'string') {
+        await handleConfigUpdate(msg.key, msg.value);
+      }
       sendConfigHydrate(webview);
       return;
+    }
 
     case 'config.project.get':
       await handleProjectConfigGet(webview);

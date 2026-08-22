@@ -42,6 +42,7 @@ export interface CheckpointListItem {
 /** Webview → Host messages beyond Phase 0 hello/chat/session core. */
 export type HostBridgeWebviewMessage =
   | { type: 'config.update'; key: string; value: unknown }
+  | { type: 'config.update'; values: Record<string, unknown> }
   | { type: 'config.project.get' }
   | { type: 'config.project.save'; text: string }
   | { type: 'config.project.open' }

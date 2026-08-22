@@ -98,6 +98,7 @@ export function connectionModelIds(
 
 export function getProviderConnections(): ProviderConnection[] {
   migrateProfilesToConnections();
+  migrateFlatSettingsToConnections();
   return [...readConnections()].sort(
     (a, b) => a.priority - b.priority || a.name.localeCompare(b.name),
   );
@@ -378,6 +379,70 @@ export function migrateProfilesToConnections(): void {
   for (const id of oldIds) {
     if (!id.startsWith('conn-')) removeProviderProfile(id);
   }
+}
+
+/**
+ * Lift flat VS Code settings (`agent-k.provider.*`) into a connection so
+ * Settings → AI Providers shows what settings.json already has.
+ * Stable id `pc-settings-active` — re-hydrate updates the same row.
+ */
+export function migrateFlatSettingsToConnections(): void {
+  if (readConnections().length > 0) return;
+  const store = getProviderConfigStore();
+  const baseUrl = String(store.get('agent-k.provider.baseUrl') || '')
+    .trim()
+    .replace(/\/$/, '');
+  const rawType = String(store.get('agent-k.provider.type') || '').trim();
+  const apiKey = String(store.get('agent-k.provider.apiKey') || '').trim() || undefined;
+  const activeModel = String(store.get('agent-k.provider.model') || '').trim();
+  const available = store.get('agent-k.provider.availableModels');
+  const legacy = store.get('agent-k.provider.models');
+  const models = [
+    ...(Array.isArray(available) ? available : []),
+    ...(Array.isArray(legacy) ? legacy : []),
+    ...(activeModel ? [activeModel] : []),
+  ].filter((m): m is string => typeof m === 'string' && !!m.trim());
+  const uniq = [...new Set(models)];
+
+  // Nothing useful in flat settings → leave empty (true "No providers yet").
+  if (!baseUrl && uniq.length === 0 && !apiKey && !rawType) return;
+
+  const detected = baseUrl ? detectProviderType(baseUrl).type : 'litellm';
+  const type: ProviderType =
+    rawType === 'openai' ||
+    rawType === 'anthropic' ||
+    rawType === 'ollama' ||
+    rawType === 'lmstudio' ||
+    rawType === 'litellm'
+      ? rawType
+      : detected;
+
+  const now = Date.now();
+  const name =
+    rawType && rawType !== 'litellm'
+      ? rawType
+      : baseUrl
+        ? baseUrl.replace(/^https?:\/\//, '').split('/')[0] || 'Saved provider'
+        : 'Saved provider';
+
+  const conn: ProviderConnection = {
+    id: 'pc-settings-active',
+    name,
+    type,
+    typeSource: 'manual',
+    baseUrl: baseUrl || '',
+    apiKey,
+    discoveredModels: uniq,
+    manualModels: [],
+    status: uniq.length > 0 ? 'connected' : 'unknown',
+    lastCheckedAt: now,
+    modelsFetchedAt: now,
+    priority: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+  writeConnections([conn]);
+  syncProfilesForConnection(conn);
 }
 
 export function connectionHealth(

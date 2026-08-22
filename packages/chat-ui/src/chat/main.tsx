@@ -1,0 +1,26 @@
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { ErrorBoundary } from './ErrorBoundary';
+import { ChatApp } from './ChatApp';
+import './chat.css';
+import './ui/cursor-ui.css';
+import './ui/composer-polish.css';
+import './ui/conversation-layout.css';
+import './ui/conversation-tabs.css';
+import './ui/workspace-polish.css';
+import './components/conversation-variants.css';
+
+const el = document.getElementById('chat-root');
+if (!el) {
+  document.body.innerHTML =
+    '<p style="padding:12px;color:#f87171">#chat-root missing — rebuild extension.</p>';
+} else {
+  const root = ReactDOM.createRoot(el);
+  root.render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <ChatApp />
+      </ErrorBoundary>
+    </React.StrictMode>
+  );
+}

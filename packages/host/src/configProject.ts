@@ -130,6 +130,15 @@ export async function handleConfigUpdate(key: string, value: unknown): Promise<v
     .update(agentKSubKeySafe(fullKey), value, vscode.ConfigurationTarget.Global);
 }
 
+/** Batch config.update `{ values }` from Settings / Composer (v2.1 shape). */
+export async function handleConfigUpdateBatch(
+  values: Record<string, unknown>,
+): Promise<void> {
+  for (const [key, value] of Object.entries(values)) {
+    await handleConfigUpdate(key, value);
+  }
+}
+
 function agentKSubKeySafe(fullKey: string): string {
   return fullKey.replace(/^agent-k\./, '');
 }

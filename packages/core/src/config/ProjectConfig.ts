@@ -178,7 +178,7 @@ export function exampleProjectConfig(): Record<string, unknown> {
   return {
     provider: {
       type: 'litellm',
-      baseUrl: 'http://127.0.0.1:52415',
+      baseUrl: '',
       model: '',
     },
     thinking: {

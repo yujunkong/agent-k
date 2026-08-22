@@ -1,6 +1,7 @@
 /**
  * EXT-002 — build chat-ui as a single IIFE for the webview.
- * Output: dist/chat.js + dist/chat.css, then copy into extensions/agent-k/media.
+ * Mirrors v2.1 vite aliases: vscode / Node builtins → chat shims.
+ * Output: dist/chat.js + dist/chat.css → extensions/agent-k/media.
  */
 
 import * as esbuild from 'esbuild';
@@ -11,9 +12,12 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const distDir = join(here, 'dist');
 const mediaDir = join(here, '../../extensions/agent-k/media');
+const chatDir = join(here, 'src/chat');
+const vscodeShim = join(chatDir, 'vscode-shim.ts');
+const nodeShims = join(chatDir, 'node-shims.ts');
 
 await esbuild.build({
-  entryPoints: [join(here, 'src/main.tsx')],
+  entryPoints: [join(chatDir, 'main.tsx')],
   bundle: true,
   outfile: join(distDir, 'chat.js'),
   format: 'iife',
@@ -21,7 +25,23 @@ await esbuild.build({
   target: ['es2020'],
   jsx: 'automatic',
   minify: true,
-  loader: { '.css': 'css' },
+  loader: { '.css': 'css', '.png': 'dataurl', '.svg': 'dataurl' },
+  // v2.1 vite parity — webview cannot load real vscode / Node builtins
+  alias: {
+    vscode: vscodeShim,
+    child_process: nodeShims,
+    fs: nodeShims,
+    path: nodeShims,
+    os: nodeShims,
+    crypto: nodeShims,
+  },
+  define: {
+    'import.meta.env.DEV': 'false',
+    'import.meta.env.PROD': 'true',
+    'import.meta.env.MODE': '"production"',
+    'import.meta.url': '""',
+    'process.env.NODE_ENV': '"production"',
+  },
   logLevel: 'info',
 });
 

@@ -68,8 +68,8 @@ export function exampleProjectConfig(): string {
     {
       provider: {
         type: 'litellm',
-        baseUrl: 'http://127.0.0.1:52415',
-        model: 'default-model',
+        baseUrl: '',
+        model: '',
       },
       permission: {
         level: 'accept_edits',

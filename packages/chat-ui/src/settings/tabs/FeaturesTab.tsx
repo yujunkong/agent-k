@@ -1,65 +1,200 @@
 /**
- * SET-004 — Features tab (v2.1 UI port).
+ * FeaturesTab — feature toggles (C7-T46)
+ * Shared SettingsToggle UI; persist ConfigManager + host.
  */
-import { useState, type JSX } from 'react';
-import { configStore, persistToHost } from '../configStore';
-import { SettingsActions, SettingsSection, SettingsStatus, SettingsToggle } from '../SettingsUI';
+import React, { useEffect, useState } from 'react';
+import { configManager } from '../../core/ConfigManager';
+import {
+  SettingsActions,
+  SettingsSection,
+  SettingsStatus,
+  SettingsToggle,
+  persistToHost,
+} from '../components/SettingsUI';
 
-type Feature = { id: string; label: string; description: string; defaultOn: boolean };
-
-const FEATURES: Feature[] = [
-  { id: 'browser', label: 'Browser Tools', description: 'Playwright browser automation', defaultOn: true },
-  { id: 'design-mode', label: 'Design Mode', description: 'Screenshot overlay + annotations', defaultOn: true },
-  { id: 'worktree', label: 'Worktree & Best-of-N', description: 'git worktree parallel runs', defaultOn: true },
-  { id: 'agent-review', label: 'Agent Review Loop', description: 'Automatic review + fix suggestions', defaultOn: true },
-  { id: 'mcp', label: 'MCP Client', description: 'MCP server tool integration', defaultOn: true },
-  { id: 'skills', label: 'Skills System', description: 'Pinned skills auto-injection', defaultOn: true },
-  { id: 'sub-agents', label: 'Sub-Agents (Task)', description: 'Parallel sub-agent execution', defaultOn: true },
-  { id: 'memories', label: 'Memories', description: 'Long-term memory store', defaultOn: true },
-  { id: 'inline-completion', label: 'Inline Completion', description: 'Autocomplete while typing', defaultOn: false },
-  { id: 'github', label: 'GitHub Agent', description: 'gh CLI PR / issue workflows', defaultOn: true },
-  { id: 'codebase-index', label: 'Codebase Indexing', description: 'Local index + @codebase search', defaultOn: true },
-];
-
-function readEnabled(id: string, defaultOn: boolean): boolean {
-  const v = configStore.get(`agent-k.features.${id}`);
-  if (typeof v === 'boolean') return v;
-  return defaultOn;
+interface FeatureToggle {
+  id: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  tier: string;
 }
 
-export function FeaturesTab(): JSX.Element {
-  const [flags, setFlags] = useState(() =>
-    Object.fromEntries(FEATURES.map((f) => [f.id, readEnabled(f.id, f.defaultOn)])),
-  );
+const DEFAULT_FEATURES: FeatureToggle[] = [
+  {
+    id: 'browser',
+    label: 'Browser Tools',
+    description: 'Playwright-based browser automation',
+    enabled: true,
+    tier: 'B',
+  },
+  {
+    id: 'design-mode',
+    label: 'Design Mode',
+    description: 'Screenshot overlay + annotations',
+    enabled: true,
+    tier: 'B',
+  },
+  {
+    id: 'worktree',
+    label: 'Worktree & Best-of-N',
+    description: 'git worktree parallel agent runs',
+    enabled: true,
+    tier: 'B',
+  },
+  {
+    id: 'agent-review',
+    label: 'Agent Review Loop',
+    description: 'Automatic code review + fix suggestions',
+    enabled: true,
+    tier: 'B',
+  },
+  {
+    id: 'mcp',
+    label: 'MCP Client',
+    description: 'MCP server tool integration',
+    enabled: true,
+    tier: 'B',
+  },
+  {
+    id: 'skills',
+    label: 'Skills System',
+    description: 'Pinned skills auto-injection',
+    enabled: true,
+    tier: 'A',
+  },
+  {
+    id: 'sub-agents',
+    label: 'Sub-Agents (Task)',
+    description: 'Parallel sub-agent execution',
+    enabled: true,
+    tier: 'B',
+  },
+  {
+    id: 'memories',
+    label: 'Memories',
+    description: 'SecretStorage-backed long-term memory',
+    enabled: true,
+    tier: 'A',
+  },
+  {
+    id: 'inline-completion',
+    label: 'Inline Completion',
+    description: 'Autocomplete while typing code',
+    enabled: false,
+    tier: 'A',
+  },
+  {
+    id: 'github',
+    label: 'GitHub Agent',
+    description: 'gh CLI PR / issue workflows',
+    enabled: true,
+    tier: 'B',
+  },
+  {
+    id: 'codebase-index',
+    label: 'Codebase Indexing',
+    description: 'Local index + @codebase search',
+    enabled: true,
+    tier: 'B',
+  },
+];
+
+export function FeaturesTab() {
+  const [features, setFeatures] = useState<FeatureToggle[]>(DEFAULT_FEATURES);
+  const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saved'>('idle');
 
-  const handleSave = () => {
-    const values: Record<string, unknown> = {};
-    for (const [id, on] of Object.entries(flags)) values[`agent-k.features.${id}`] = on;
-    persistToHost(values);
+  useEffect(() => {
+    setFeatures(
+      DEFAULT_FEATURES.map((f) => ({
+        ...f,
+        enabled: configManager.get(`agent-k.features.${f.id}`) ?? f.enabled,
+      }))
+    );
+  }, []);
+
+  const toggleFeature = (id: string, next: boolean) => {
+    setFeatures((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, enabled: next } : f))
+    );
+    setDirty(true);
+    setStatus('idle');
+  };
+
+  const saveSettings = () => {
+    const updates: Record<string, boolean> = {};
+    for (const f of features) {
+      updates[`agent-k.features.${f.id}`] = f.enabled;
+    }
+    configManager.update(updates);
+    persistToHost(updates);
+    setDirty(false);
     setStatus('saved');
   };
 
+  const exportSchema = () => {
+    const schema = {
+      type: 'object',
+      properties: Object.fromEntries(
+        features.map((f) => [
+          `agent-k.features.${f.id}`,
+          {
+            type: 'boolean',
+            default: f.enabled,
+            description: `${f.label} — ${f.description}`,
+          },
+        ])
+      ),
+    };
+    const text = JSON.stringify(schema, null, 2);
+    try {
+      void navigator.clipboard?.writeText(text);
+    } catch {
+      /* ignore */
+    }
+    // Fallback: log for host / devtools
+    console.info('[Agent K] features schema', schema);
+  };
+
+  const tierA = features.filter((f) => f.tier === 'A');
+  const tierB = features.filter((f) => f.tier === 'B');
+
+  const renderGroup = (title: string, list: FeatureToggle[]) => (
+    <SettingsSection title={title}>
+      {list.map((f) => (
+        <SettingsToggle
+          key={f.id}
+          label={`${f.label} · Tier ${f.tier}`}
+          description={f.description}
+          checked={f.enabled}
+          onChange={(next) => toggleFeature(f.id, next)}
+        />
+      ))}
+    </SettingsSection>
+  );
+
   return (
-    <div className="settings-tab-content" data-testid="settings-features-tab">
-      <SettingsSection title="Features" description="Toggle optional Agent K capabilities.">
-        {FEATURES.map((f) => (
-          <SettingsToggle
-            key={f.id}
-            label={f.label}
-            description={f.description}
-            checked={Boolean(flags[f.id])}
-            onChange={(v) => {
-              setFlags((prev) => ({ ...prev, [f.id]: v }));
-              setStatus('idle');
-            }}
-          />
-        ))}
-      </SettingsSection>
+    <div className="settings-tab-content">
+      {renderGroup('Core (Tier A)', tierA)}
+      {renderGroup('Product (Tier B)', tierB)}
+
       <SettingsActions>
-        <button type="button" className="settings-btn primary" onClick={handleSave}>Save</button>
+        <button type="button" className="settings-btn secondary" onClick={exportSchema}>
+          Export schema
+        </button>
+        <button
+          type="button"
+          className="settings-btn primary"
+          onClick={saveSettings}
+          disabled={!dirty}
+        >
+          {dirty ? 'Save changes' : 'Saved'}
+        </button>
       </SettingsActions>
-      {status === 'saved' ? <SettingsStatus kind="success">Feature flags saved.</SettingsStatus> : null}
+      {status === 'saved' ? (
+        <SettingsStatus kind="success">Feature flags saved.</SettingsStatus>
+      ) : null}
     </div>
   );
 }

@@ -22,22 +22,22 @@ export function getWebviewHtml(options: WebviewHtmlOptions): string {
   const csp = buildWebviewCsp({ nonce, cspSource });
 
   // Boot loader surfaces a friendly failure if React never mounts (CSP/404).
-  // EXT-002 Shell mounts with class "ak-shell" inside #chat-root.
+  // v2.1 ChatApp mounts `.chat-container` / `.chat-shell` (legacy: .ak-shell / .ak-app).
   const boot = `
     (function(){
       var el = document.getElementById('chat-root');
       if (!el) return;
+      var MOUNTED = '.chat-shell, .chat-container, .ak-shell, .ak-app, [data-testid="chat-app"]';
       el.innerHTML = '<p style="padding:12px;opacity:.7;font-family:var(--vscode-font-family)">Loading Agent K UI…</p>';
       window.__akShowUiFail = function(detail){
-        // Mount markers: legacy .ak-app/.ak-shell, or chat-ui root [data-testid=chat-app].
-        if (!el || el.querySelector('.ak-shell, .ak-app, [data-testid="chat-app"]') || el.querySelector('[data-ak-error]')) return;
+        if (!el || el.querySelector(MOUNTED) || el.querySelector('[data-ak-error]')) return;
         el.innerHTML = '<div data-ak-error style="padding:12px;color:var(--vscode-errorForeground)">' +
           '<p><b>Chat UI failed to load.</b></p>' +
           '<p style="opacity:.85">' + (detail || '') + '</p>' +
           '<p>Run <code>npm run build:webview</code> then reload the window.</p></div>';
       };
       setTimeout(function(){
-        if (el && !el.querySelector('.ak-shell, .ak-app, [data-testid="chat-app"]') && !el.querySelector('[data-ak-error]')) {
+        if (el && !el.querySelector(MOUNTED) && !el.querySelector('[data-ak-error]')) {
           window.__akShowUiFail('Timed out waiting for React mount (check Webview Developer Tools console).');
         }
       }, 15000);

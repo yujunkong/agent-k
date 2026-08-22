@@ -92,7 +92,7 @@ export type ConfigStorage = {
 export function createDefaultConfig(): Record<string, unknown> {
   return {
     'agent-k.provider.type': 'litellm',
-    'agent-k.provider.baseUrl': 'http://127.0.0.1:52415',
+    'agent-k.provider.baseUrl': '',
     'agent-k.provider.model': '',
     'agent-k.provider.models': [],
     'agent-k.provider.availableModels': [],

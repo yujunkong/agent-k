@@ -82,9 +82,17 @@ export async function refreshModelContext(
     message.providerType || cfg.get('provider.type') || 'litellm',
   );
   const baseUrl = String(
-    message.baseUrl || cfg.get('provider.baseUrl') || 'http://127.0.0.1:52415',
+    message.baseUrl || cfg.get('provider.baseUrl') || '',
   ).replace(/\/$/, '');
-  const model = String(message.model || cfg.get('provider.model') || 'default-model');
+  const model = String(message.model || cfg.get('provider.model') || '');
+  if (!baseUrl) {
+    void webview.postMessage({
+      type: 'provider.probe.result',
+      ok: false,
+      error: 'No provider base URL configured.',
+    });
+    return;
+  }
   const fallbackBudget = Number(cfg.get('context.budget')) || 100000;
 
   // HOST-010 interim: probe /v1/models existence; token resolve waits MODEL-011.

@@ -1,6 +1,7 @@
 /**
- * PROVIDER-005 — Common provider / model presets for Add Provider UI.
- * OpenAI Compatible is first-class for custom base URL endpoints.
+ * PROVIDER-005 — Provider endpoint presets for Add Provider UI.
+ * Model ids are NOT preset — they come from /v1/models discovery only
+ * (models change too often for a hard-coded catalog).
  */
 import type { ProviderType } from './types';
 
@@ -11,7 +12,7 @@ export interface ProviderPreset {
   baseUrl: string;
 }
 
-/** Standard presets — Add Provider chips */
+/** Endpoint chips only (stable URLs) — never invent model ids. */
 export const PROVIDER_PRESETS: ProviderPreset[] = [
   { id: 'openai', name: 'OpenAI', type: 'openai', baseUrl: 'https://api.openai.com' },
   { id: 'claude', name: 'Claude', type: 'anthropic', baseUrl: 'https://api.anthropic.com' },
@@ -19,7 +20,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     id: 'openai-compatible',
     name: 'OpenAI Compatible',
     type: 'litellm',
-    baseUrl: 'http://127.0.0.1:4000',
+    baseUrl: '',
   },
   { id: 'openrouter', name: 'OpenRouter', type: 'litellm', baseUrl: 'https://openrouter.ai/api' },
   { id: 'ollama', name: 'Ollama', type: 'ollama', baseUrl: 'http://127.0.0.1:11434' },
@@ -28,21 +29,15 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   { id: 'together', name: 'Together', type: 'litellm', baseUrl: 'https://api.together.xyz' },
 ];
 
-/** Manual model candidates when /v1/models is empty or unsupported */
-export const MANUAL_MODEL_PRESETS: Record<string, string[]> = {
-  openai: ['gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'],
-  anthropic: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-5-haiku-latest'],
-  qwen: ['qwen3-coder', 'qwen3.6-35b-a3b', 'mlx-community/Qwen3.6-35B-A3B-4bit'],
-  deepseek: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4'],
-};
+/**
+ * @deprecated Model presets removed — use /v1/models or a single manual name field.
+ * Kept as empty for call-site compatibility.
+ */
+export const MANUAL_MODEL_PRESETS: Record<string, string[]> = {};
 
-export function manualModelPresetsForType(type: ProviderType): string[] {
-  if (type === 'openai') return MANUAL_MODEL_PRESETS.openai;
-  if (type === 'anthropic') return MANUAL_MODEL_PRESETS.anthropic;
-  if (type === 'ollama' || type === 'lmstudio' || type === 'litellm') {
-    return [...MANUAL_MODEL_PRESETS.qwen, ...MANUAL_MODEL_PRESETS.deepseek];
-  }
-  return [...MANUAL_MODEL_PRESETS.openai, ...MANUAL_MODEL_PRESETS.anthropic];
+/** Always empty — models are discovered, not preset. */
+export function manualModelPresetsForType(_type: ProviderType): string[] {
+  return [];
 }
 
 /** Preset id for the custom OpenAI Compatible chip */

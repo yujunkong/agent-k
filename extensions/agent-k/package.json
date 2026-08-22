@@ -257,30 +257,85 @@
       "properties": {
         "agent-k.provider.type": {
           "type": "string",
-          "default": "litellm",
+          "default": "",
           "enum": [
+            "",
             "litellm",
             "openai",
             "anthropic",
             "ollama",
-            "lmstudio"
+            "lmstudio",
+            "opencode-zen",
+            "opencode-go"
           ],
-          "description": "Default provider type for chat."
+          "description": "Active provider type (set via Settings → AI Providers)."
         },
         "agent-k.provider.baseUrl": {
           "type": "string",
-          "default": "http://127.0.0.1:4000",
-          "description": "OpenAI-compatible provider base URL."
+          "default": "",
+          "description": "OpenAI-compatible provider base URL (set in Settings)."
         },
         "agent-k.provider.model": {
           "type": "string",
-          "default": "mlx-community/Qwen3.6-35B-A3B-4bit",
-          "description": "Default chat model id."
+          "default": "",
+          "description": "Active chat model id (from discovery / connection)."
         },
         "agent-k.provider.apiKey": {
           "type": "string",
           "default": "",
           "description": "Provider API key (optional for local servers)."
+        },
+        "agent-k.provider.apiKeys": {
+          "type": "object",
+          "default": {},
+          "description": "Per-provider API keys map."
+        },
+        "agent-k.provider.models": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Legacy model id list (synced with availableModels)."
+        },
+        "agent-k.provider.availableModels": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Discovered / registered model ids for Composer."
+        },
+        "agent-k.provider.connections": {
+          "type": "array",
+          "default": [],
+          "description": "Saved provider connections (Settings → AI Providers)."
+        },
+        "agent-k.provider.profiles": {
+          "type": "array",
+          "default": [],
+          "description": "Provider profiles."
+        },
+        "agent-k.provider.activeProfileId": {
+          "type": "string",
+          "default": "",
+          "description": "Active provider profile id."
+        },
+        "agent-k.provider.preferUserOrder": {
+          "type": "boolean",
+          "default": false,
+          "description": "Prefer user connection order when resolving models."
+        },
+        "agent-k.context.budget": {
+          "type": "number",
+          "default": 100000,
+          "description": "Context token budget fallback."
+        },
+        "agent-k.permission.level": {
+          "type": "string",
+          "default": "accept_edits",
+          "description": "Permission gate level."
+        },
+        "agent-k.telemetry.statusBarEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show usage on the status bar."
         }
       }
     }
