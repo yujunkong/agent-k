@@ -1,13 +1,20 @@
 /**
- * Shared assistant stream handlers for send + regenerate.
- * Keep ONE copy of delta/complete/error so the two call sites cannot drift.
+ * STREAM-001 — Assistant stream session (chat-ui / 표시).
+ *
+ * Shared onDelta / onComplete / onError for send + regenerate so call sites
+ * cannot drift. Routes all transcript mutations to **ownerSessionId** via
+ * `updateSessionMessages` (CHAT-007 tab isolation): background tabs keep
+ * receiving tokens; complete/error always settle the owner bubble.
+ *
+ * Runtime LLM/HTTP streaming lives elsewhere (`useChatStream` + core REL).
+ * This module is the webview session adapter only — do not move into core.
  */
 import type { Dispatch, SetStateAction } from 'react';
 import type { ChatMessage, Mode, StreamDelta } from './types';
 import type { DebugStage } from '../debug/DebugModeController';
 import type { PendingQuestion } from '../tools/session/AskQuestionTool';
 import { normalizeMcqQuestion } from './normalizeAskQuestion';
-import { sealBodyBeforeTools, resolveSealTurn } from './sealTurnProse';
+import { sealBodyBeforeTools, resolveSealTurn, summarizeMidReplySeal } from './sealTurnProse';
 import { stripFakeToolMarkup } from './displaySanitize';
 import {
   extractPlanMarkdownFromMessage,
@@ -19,10 +26,12 @@ import {
   settleWorkEvents,
   applyWorkEvent,
   beginWorkEvent,
+  sealStaleThoughtsBeforeTools,
   type ConversationWorkEvent
 } from './conversation/conversationWorkEvent';
 import { linkPreviewToWorkEvents } from './conversation/workEventDetails';
 import { debugError, debugLog } from './debugLog';
+import type { SessionStepStartMap, SessionTurnMap } from './sendEpoch';
 
 export const STREAM_TOOL_KINDS = new Set([
   'searching',
@@ -32,6 +41,31 @@ export const STREAM_TOOL_KINDS = new Set([
   'browsing',
   'asking'
 ]);
+
+/** Mark running Thought rows done so the next segment can start mid-timeline. */
+function sealRunningThoughtSteps(
+  msg: ChatMessage,
+  now = Date.now()
+): ChatMessage {
+  const steps = (msg.steps || []).map((s) =>
+    s.kind === 'thinking' && s.itemStatus === 'running'
+      ? { ...s, itemStatus: 'done' as const }
+      : s
+  );
+  const workItems = sealStaleThoughtsBeforeTools(
+    (msg.workItems || []).map((e) =>
+      e.type === 'thinking' && (e.status === 'running' || e.status === 'pending')
+        ? { ...e, status: 'complete' as const, completedAt: e.completedAt ?? now }
+        : e
+    ),
+    now
+  );
+  return { ...msg, steps, workItems };
+}
+
+function thoughtIdForSeg(turn: number, seg: number): string {
+  return seg <= 0 ? `tl_thinking_${turn}` : `tl_thinking_${turn}_s${seg}`;
+}
 
 function normalizeProse(text: string): string {
   return text
@@ -82,9 +116,22 @@ export function dedupeAssistantBody(msg: ChatMessage): ChatMessage {
       .filter(Boolean)
       .join('\n\n');
     if (looksLikeDuplicateProse(body, sealed)) {
+      debugLog('timeline-order', 'mid-reply.dedupe-wipe', {
+        reason: 'turnProse duplicates final body',
+        proseCount: prose.length,
+        bodyLen: body.length,
+        prosePreview: sealed.slice(0, 80)
+      });
       return { ...msg, turnProse: [] };
     }
     return msg;
+  }
+  if (kept.length < prose.length) {
+    debugLog('timeline-order', 'mid-reply.dedupe-trim', {
+      before: prose.length,
+      after: kept.length,
+      dropped: prose.length - kept.length
+    });
   }
   return { ...msg, turnProse: kept };
 }
@@ -92,8 +139,10 @@ export function dedupeAssistantBody(msg: ChatMessage): ChatMessage {
 export interface AssistantStreamCtx {
   isStale?: () => boolean;
   mode: Mode;
-  stepStartRef: { current: Record<string, number> };
-  turnNumberRef: { current: number };
+  /** Per-tab step clocks — bag(ownerId) only. */
+  stepStartRef: { current: SessionStepStartMap };
+  /** Per-tab agent-loop turn — get/bump(ownerId). */
+  turnNumberRef: { current: SessionTurnMap };
   sessionIdRef: { current: string };
   loopSessionIdRef: { current: string | null };
   parkedAwaitingRef: {
@@ -136,17 +185,83 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
   onError: (err: string) => void;
 } {
   let planPinned = false;
-  const getOwnerSessionId = () =>
-    ctx.ownerSessionId || ctx.loopSessionIdRef.current || ctx.sessionIdRef.current;
+  /**
+   * Cursor-style Thought segments — scoped to THIS stream session instance
+   * (one send / one owner tab). Never share across parallel tab streams.
+   */
+  let thoughtSeg = 0;
+  let thoughtOpen = false;
+  let thoughtBlocked = false;
+
+  /** Freeze owner at create — tab switch must not retarget this stream. */
+  const ownerIdFrozen = String(
+    ctx.ownerSessionId ||
+      ctx.loopSessionIdRef.current ||
+      ctx.sessionIdRef.current ||
+      ''
+  );
+
+  const getOwnerSessionId = () => ownerIdFrozen || ctx.sessionIdRef.current;
+
+  const stepStarts = (): Record<string, number> =>
+    ctx.stepStartRef.current.bag(getOwnerSessionId());
+
+  const streamTurn = (): number =>
+    Math.max(1, ctx.turnNumberRef.current.get(getOwnerSessionId()) || 1);
+
   const applyOwnerMessages = (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
     ctx.updateSessionMessages(getOwnerSessionId(), updater);
   };
 
+  debugLog('timeline-order', 'stream.session.create', {
+    ownerId: getOwnerSessionId(),
+    turn: streamTurn(),
+    activeTab: ctx.sessionIdRef.current,
+    thoughtSeg: 0
+  });
+
+  const closeThoughtSegment = (reason: string) => {
+    debugLog('timeline-order', 'thought.seal', {
+      ownerId: getOwnerSessionId(),
+      reason,
+      seg: thoughtSeg,
+      wasOpen: thoughtOpen,
+      blocked: thoughtBlocked
+    });
+    if (thoughtOpen) {
+      thoughtSeg += 1;
+      thoughtOpen = false;
+    }
+    thoughtBlocked = true;
+  };
+
   const sealLeadFromMessage = (
     msg: ChatMessage,
-    explicitTurn?: number | null
+    explicitTurn?: number | null,
+    reason = 'seal'
   ): ChatMessage => {
-    const sealed = sealBodyBeforeTools(msg, resolveSealTurn(msg, explicitTurn));
+    const turn = resolveSealTurn(msg, explicitTurn);
+    const beforeLen = String(msg.content || '').trim().length;
+    const beforeLead = String(msg.openingLead || '').trim().length;
+    const beforeProse = msg.turnProse?.length ?? 0;
+    const sealed = sealBodyBeforeTools(msg, turn);
+    const snap = summarizeMidReplySeal(msg, sealed);
+    // Always log clearContent / tool seals so missing mid-reply is diagnosable.
+    debugLog('timeline-order', 'mid-reply.seal', {
+      ownerId: getOwnerSessionId(),
+      reason,
+      turn,
+      dest: snap.dest,
+      contentLenBefore: snap.contentLenBefore || beforeLen,
+      contentLenAfter: snap.contentLenAfter,
+      leadLenBefore: snap.leadLenBefore || beforeLead,
+      turnProseBefore: snap.turnProseBefore || beforeProse,
+      turnProseAfter: snap.turnProseAfter,
+      sealedPreview: snap.sealedPreview,
+      lastProsePreview: snap.lastProsePreview,
+      thoughtDetailLen: snap.thoughtDetailLen,
+      hadSource: beforeLen > 0 || beforeLead > 0
+    });
     if (ctx.mode === 'plan' && !planPinned) {
       const md = extractPlanMarkdownFromMessage(sealed);
       if (looksLikePlanDocument(md) || looksLikePlanDraft(md)) {
@@ -244,13 +359,18 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       return;
     }
 
-    if (delta.clearContent) {
+    // Comment: tool.start packs clearContent + timeline(detail) together.
+    // Early-return here used to skip the timeline upsert → bare "Read"/"Grepped".
+    if (delta.clearContent && !delta.timeline) {
+      closeThoughtSegment('clearContent');
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         const newMsgs = [...prev];
         newMsgs[hit.lastIdx] = withWorkEvent(
-          sealLeadFromMessage(hit.msg, delta.sealTurn),
+          sealRunningThoughtSteps(
+            sealLeadFromMessage(hit.msg, delta.sealTurn, 'clearContent')
+          ),
           delta.workEvent
         );
         return newMsgs;
@@ -264,7 +384,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         id:
           delta.fileEdit.id ||
           `fe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        turn: delta.fileEdit.turn || ctx.turnNumberRef.current || 1
+        turn: delta.fileEdit.turn || streamTurn()
       };
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
@@ -301,7 +421,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         const msg = hit.msg;
         const runs = [...(msg.terminalRuns || [])];
         const idx = runs.findIndex((r) => r.id === ev.id);
-        const turn = ev.turn || ctx.turnNumberRef.current || 1;
+        const turn = ev.turn || streamTurn();
         if (ev.phase === 'start' || idx < 0) {
           const next = {
             id: ev.id,
@@ -374,17 +494,21 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         tl.id ||
         `step_${tl.kind}_${tl.turn}_${tl.toolName || 'x'}_${Date.now()}`;
       const now = Date.now();
-      if (!ctx.stepStartRef.current[id]) ctx.stepStartRef.current[id] = now;
+      const starts = stepStarts();
+      if (!starts[id]) starts[id] = now;
       const durationMs =
         tl.itemStatus === 'done' || tl.itemStatus === 'error'
-          ? now - ctx.stepStartRef.current[id]
+          ? now - starts[id]
           : undefined;
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         let msg = hit.msg;
         if (STREAM_TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running' && !tl.subagentId) {
-          msg = sealLeadFromMessage(msg, tl.turn);
+          closeThoughtSegment('timeline.tool');
+          msg = sealRunningThoughtSteps(
+            sealLeadFromMessage(msg, tl.turn, `timeline.tool:${tl.kind}`)
+          );
         }
         msg = withWorkEvent(msg, delta.workEvent);
         if (tl.subagentId) {
@@ -398,8 +522,16 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
           id,
           kind: tl.kind,
           label: tl.label,
-          detail: tl.detail !== undefined ? tl.detail : steps[idx]?.detail,
-          toolName: tl.toolName,
+          // Comment: never blank Grepped/Read — keep prior detail unless end sends a real one
+          detail:
+            tl.detail != null && String(tl.detail).trim()
+              ? String(tl.detail)
+              : steps[idx]?.detail,
+          toolName: tl.toolName ?? steps[idx]?.toolName,
+          openPath:
+            tl.openPath != null && String(tl.openPath).trim()
+              ? String(tl.openPath)
+              : steps[idx]?.openPath,
           turn: tl.turn,
           thoughtRole:
             tl.thoughtRole ??
@@ -411,6 +543,17 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         };
         if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
         else steps.push(nextStep);
+        debugLog('timeline-order', 'stream.timeline', {
+          ownerId: getOwnerSessionId(),
+          delta: `${id}|${tl.kind}|${tl.itemStatus}|t${tl.turn ?? '?'}${tl.subagentId ? `@${tl.subagentId}` : ''}`,
+          upsert: idx >= 0 ? 'patch' : 'append',
+          at: idx >= 0 ? idx : steps.length - 1,
+          thoughtSeg,
+          order: steps.map(
+            (s, i) =>
+              `${i}:${s.id}|${s.kind}|${s.itemStatus}|t${s.turn ?? '?'}`
+          )
+        });
         const copy = [...prev];
         copy[hit.lastIdx] = { ...msg, steps };
         return copy;
@@ -430,13 +573,31 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
     }
 
     if (delta.reasoning) {
-      const id = `tl_thinking_${ctx.turnNumberRef.current || 1}`;
+      // After tools: first reasoning opens a new Thought segment (mid-timeline).
+      if (thoughtBlocked) {
+        thoughtBlocked = false;
+        debugLog('timeline-order', 'thought.reopen', {
+          ownerId: getOwnerSessionId(),
+          seg: thoughtSeg
+        });
+      }
+      if (!thoughtOpen) {
+        thoughtOpen = true;
+      }
+      const turn = streamTurn();
+      const id = thoughtIdForSeg(turn, thoughtSeg);
       const now = Date.now();
-      if (!ctx.stepStartRef.current[id]) ctx.stepStartRef.current[id] = now;
+      const starts = stepStarts();
+      if (!starts[id]) starts[id] = now;
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
-        const msg = hit.msg;
+        // If tools already landed under a still-running older Thought, seal them first.
+        let msg = sealRunningThoughtSteps(hit.msg);
+        msg = {
+          ...msg,
+          workItems: sealStaleThoughtsBeforeTools(msg.workItems || [], now)
+        };
         const prevEvent = (msg.workItems || []).find((event) => event.id === id);
         const prevDetail = prevEvent?.detail || '';
         const thinkingEvent: ConversationWorkEvent = {
@@ -444,14 +605,14 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
             beginWorkEvent({
               id,
               timelineKind: 'thinking',
-              now: ctx.stepStartRef.current[id]
+              now: starts[id]
             })!),
           id,
           type: 'thinking',
           status: 'running',
           label: 'Thought',
           detail: prevDetail + delta.reasoning,
-          startedAt: prevEvent?.startedAt ?? ctx.stepStartRef.current[id]
+          startedAt: prevEvent?.startedAt ?? starts[id]
         };
         const msgWithWork = withWorkEvent(msg, thinkingEvent);
         const steps = [...(msgWithWork.steps || [])];
@@ -462,12 +623,18 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
           kind: 'thinking',
           label: 'Thought',
           detail: prevStepDetail + delta.reasoning,
-          turn: ctx.turnNumberRef.current || 1,
+          turn,
           thoughtRole: 'opening' as const,
           itemStatus: 'running' as const
         };
         if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
         else steps.push(nextStep);
+        debugLog('timeline-order', 'thought.append', {
+          ownerId: getOwnerSessionId(),
+          id,
+          seg: thoughtSeg,
+          detailLen: (prevStepDetail + delta.reasoning).length
+        });
         const copy = [...prev];
         copy[hit.lastIdx] = { ...msgWithWork, steps };
         return copy;
@@ -503,9 +670,23 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         const cur = hit.msg.content || '';
         // Never shrink a longer in-UI body (out-of-order catch-up).
         if (finalText.length < cur.length && cur.startsWith(finalText)) {
+          debugLog('timeline-order', 'mid-reply.replace-skip', {
+            ownerId: getOwnerSessionId(),
+            reason: 'would shrink longer UI body',
+            curLen: cur.length,
+            finalLen: finalText.length
+          });
           return prev;
         }
         if (finalText === cur) return prev;
+        debugLog('timeline-order', 'mid-reply.replaceContent', {
+          ownerId: getOwnerSessionId(),
+          curLen: cur.length,
+          finalLen: finalText.length,
+          turnProse: hit.msg.turnProse?.length ?? 0,
+          curPreview: cur.trim().slice(0, 80),
+          finalPreview: finalText.trim().slice(0, 80)
+        });
         if (finalText.length > cur.length) {
           debugLog('parallel tab stream catch-up', {
             owner: getOwnerSessionId(),
@@ -527,15 +708,33 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
 
     if (delta.content) {
       if (planPinned) return;
+      // Answer tokens close Thought chrome (Cursor: Thought settles before prose).
+      if (thoughtOpen) {
+        closeThoughtSegment('content');
+      }
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
+        const sealed = sealRunningThoughtSteps(hit.msg);
+        const nextContent = (sealed.content || '') + delta.content!;
+        const prevLen = (sealed.content || '').length;
+        // Fingerprint mid-reply growth (skip pure 1–2 char token spam).
+        if (
+          nextContent.trim().length >= 8 &&
+          (nextContent.length - prevLen >= 12 || /[。.!?…]\s*$/.test(nextContent))
+        ) {
+          debugLog('timeline-order', 'mid-reply.content', {
+            ownerId: getOwnerSessionId(),
+            contentLen: nextContent.length,
+            preview: nextContent.trim().slice(0, 100)
+          });
+        }
         const newMsgs = [...prev];
         newMsgs[hit.lastIdx] = {
-          ...hit.msg,
+          ...sealed,
           toolStatus: undefined,
           openingLead: undefined,
-          content: (hit.msg.content || '') + delta.content!
+          content: nextContent
         };
         return newMsgs;
       });

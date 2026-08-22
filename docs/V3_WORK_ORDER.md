@@ -44,7 +44,23 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **CHAT-006** Message queue — CHAT-003…005 picker·mode·attachment OK.
+**바로 다음:** **2026-08-23** — final-answer 중도 끊김 **원인 분석** (HOST-002; `finishReason`/`complete diag` 로그로 확정). 이어쓰기 추측 패치 금지.  
+그 다음: **Phase 4** Worktree / Patch (WT-001).
+
+---
+
+## Session WIP — 2026-08-22 (진행 중, 원인분석은 다음날)
+
+| Feature ID | 오늘 한 일 | 상태 | 내일 |
+|------------|------------|------|------|
+| HOST-002 | empty-reply 오탐 완화(tool activity); `finishReason`+tail/`complete diag` 로그만; **length 단정·1회 이어쓰기 철회** | [~] | final 답 끊김 **RCA** |
+| HOST-014 | Read detail `dir/file` short path | [x] | — |
+| CONV-013 | liveProse / Worked flush-left | [~] | dig 점프·Explored 갭 **화면 재검증** |
+| CONV-014…019 | **카드류** (step / ChangedFiles / ChangeSummary / Terminal / FileEdit) | [~] | 메인 경로 **화면 확인** ([x] 금지 until verified) |
+| HARNESS-007 | search-before-read nudge (no read fail) | [~] | 효과 확인 |
+| providers | `finishReason` yield; maxTokens 32k | [~] | Zen finish_reason 실측 |
+
+**메모:** `Worked for`는 경과시간(제한 아님). Grep=TOOL-004 기존재. Phase 3은 **CONV-013 + 카드류(014/016–019)** 화면 확인 전까지 미완료.
 
 ---
 
@@ -66,7 +82,7 @@ Phase 0 시작 전/병행: shared 계약.
 | EXT-004 | CSP / nonce / Webview security | extensions/agent-k + host | [x] |
 | EXT-005 | Workspace path abstraction | extensions/agent-k + host | [x] |
 | HOST-001 | ChatViewProvider | host | [x] |
-| HOST-002 | Chat send bridge | host | [~] AgentLoop wired (providers/tools); timeline/subagent still PARTIAL |
+| HOST-002 | Chat send bridge | host | [~] AgentLoop wired; **2026-08-22** empty-reply/tool diag; final-cut **RCA → 08-23** (이어쓰기 추측 패치 철회) |
 | HOST-003 | Composer host | host | [x] |
 | HOST-004 | Config bridge | host | [x] |
 | HOST-005 | Project config bridge | host | [x] |
@@ -78,7 +94,7 @@ Phase 0 시작 전/병행: shared 계약.
 | HOST-011 | Subagent host | host | [x] |
 | HOST-012 | Subagent worktree bridge | host | [x] |
 | HOST-013 | Subagent worktree registry | host | [x] |
-| HOST-014 | Timeline labels | host | [x] |
+| HOST-014 | Timeline labels | host | [x] + Read `dir/file` short path (2026-08-22) |
 | HOST-015 | Worktree manager (host) | host | [x] |
 | CFG-001 | ConfigManager | core | [x] |
 | CFG-002 | ProjectConfig | core | [x] |
@@ -236,43 +252,42 @@ Phase 0 시작 전/병행: shared 계약.
 | CHAT-003 | Searchable Model Picker | chat-ui | [x] v2.1 ModelSelector + UXPROV-003 filter/catalog wiring |
 | CHAT-004 | Mode selector | chat-ui | [x] v2.1 ModeSelector (Auto/Agent/Plan/Debug/Ask) + Composer wiring |
 | CHAT-005 | File/selection attachment | chat-ui (+ host bridge) | [x] Composer chips + attachmentFormat; host `attachments.add` selection |
-| CHAT-006 | Message queue | chat-ui | [ ] |
-| CHAT-007 | Chat sessions | chat-ui | [ ] |
-| CHAT-008 | Chat history | chat-ui | [ ] |
-| CHAT-009 | New Chat | chat-ui | [ ] |
-| CHAT-010 | Side Chat | chat-ui | [ ] |
-| CHAT-011 | Composer palette | chat-ui | [ ] |
-| STREAM-001 | Assistant stream session | core (runtime) / chat-ui (표시) | [ ] |
-| STREAM-002 | Turn state | core (runtime) / chat-ui (표시) | [ ] |
-| STREAM-003 | Send epoch | core (runtime) / chat-ui (표시) | [ ] |
-| STREAM-004 | Streaming buffer stabilization | core (runtime) / chat-ui (표시) | [ ] |
-| STREAM-005 | Prose sealing | core (runtime) / chat-ui (표시) | [ ] |
-| STREAM-006 | Regenerate turn | core (runtime) / chat-ui (표시) | [ ] |
-| STREAM-007 | Stop / cancellation | core (runtime) / chat-ui (표시) | [ ] |
-| STREAM-008 | Plan V2 generation watchdog | core (runtime) / chat-ui (표시) | [ ] |
-| STREAM-009 | Understanding lead | core (runtime) / chat-ui (표시) | [ ] |
-| STREAM-010 | Opening lead | core (runtime) / chat-ui (표시) | [ ] |
-| CONV-001 | ConversationTurn | chat-ui | [ ] |
-| CONV-002 | Work Event model | shared (+ chat-ui consumers) | [ ] |
-| CONV-003 | Work event normalization | chat-ui | [ ] |
-| CONV-004 | Work event details | chat-ui | [ ] |
-| CONV-005 | Work item grouping | chat-ui | [ ] |
-| CONV-006 | Timeline presentation | chat-ui | [ ] |
-| CONV-007 | Conversation variants | chat-ui | [ ] |
-| CONV-008 | Agent turn adapter | chat-ui | [ ] |
-| CONV-009 | Subagent result presentation | chat-ui | [ ] |
-| CONV-010 | Subagent group presentation | chat-ui | [ ] |
-| CONV-011 | Worktree diff presentation | chat-ui | [ ] |
-| CONV-012 | Change summary normalization | chat-ui | [ ] |
-| CONV-013 | Work timeline | chat-ui | [ ] |
-| CONV-014 | Timeline step card | chat-ui | [ ] |
-| CONV-015 | Explore Chrome | chat-ui | [ ] |
-| CONV-016 | Changed Files bar | chat-ui | [ ] |
-| CONV-017 | Change Summary card | chat-ui | [ ] |
-| CONV-018 | Terminal Run Card | chat-ui | [ ] |
-| CONV-019 | File Edit Card | chat-ui | [ ] |
-| CONV-020 | Conversation tabs | chat-ui | [ ] |
-
+| CHAT-006 | Message queue | chat-ui | [x] MessageQueue + QueueUI + send-flow (Enter queue / Ctrl+Enter resynth / Alt+Enter); Stop onStop keep|discard; unit tests |
+| CHAT-007 | Chat sessions | chat-ui | [x] ChatSessionStore + useChatSessions + ChatSessionTabs; tab isolation / modeAuto / queue park; provider+subagent unit tests |
+| CHAT-008 | Chat history | chat-ui | [x] HistoryPanel + rail toggle; open/delete/new from history; UI unit tests |
+| CHAT-009 | New Chat | chat-ui | [x] handleNewChat always forks tab (empty OK); tabs/history/host `session.new`/slash `/new`; unit tests |
+| CHAT-010 | Side Chat | chat-ui | [ ] skipped — v2.1도 unsupported stub(ADDON-T16); 코드 미이식 |
+| CHAT-011 | Composer palette | chat-ui | [x] composerPalette + ComposerPalette + Composer/@·slash wiring; unit tests |
+| STREAM-001 | Assistant stream session | chat-ui (표시) | [x] createAssistantStreamSession + ownerSessionId routing; tab settle/error; unit tests. core runtime → REL/useChatStream 별도 |
+| STREAM-002 | Turn state | chat-ui (표시) | [~] deriveTurnStatus kept unused; MessageBubble = pre-phase (no rail/label). REL-004 core [x] |
+| STREAM-003 | Send epoch | chat-ui (표시) | [x] SendEpochMap per-tab; wired in send/stop/resynth. Runtime = REL-005 [x] |
+| STREAM-004 | Streaming buffer stabilization | chat-ui (표시) | [x] single-buffer contract (dedupe + sealBodyBeforeTools); REL-003 debounce core [x] |
+| STREAM-005 | Prose sealing | chat-ui | [x] sealTurnProse.ts (=v2.1) + STREAM-004 seal contract tests |
+| STREAM-006 | Regenerate turn | chat-ui | [x] regenerateTurn moveUserTurnToEnd (edit=regen); unit tests; REL-006 core [x] |
+| STREAM-007 | Stop / cancellation | chat-ui | [x] StopHandler keep\|discard + send-flow; unit tests. cancelInFlight → loop/core later |
+| STREAM-008 | Plan V2 generation watchdog | chat-ui | [x] planGenerateWatchdog (v3 rename); useChatPlanMode; unit tests |
+| STREAM-009 | Understanding lead | chat-ui | [x] understandingLead + MessageBubble box; unit tests |
+| STREAM-010 | Opening lead | chat-ui | [x] openingLead helpers (legacy field sanitize); unit tests |
+| CONV-001 | ConversationTurn | chat-ui | [x] ConversationTurn.tsx wired |
+| CONV-002 | Work Event model | shared (+ chat-ui) | [x] SHARED-002 + conversationWorkEvent (+ tests) |
+| CONV-003 | Work event normalization | chat-ui | [x] normalizeWorkItems (+ tests) |
+| CONV-004 | Work event details | chat-ui | [x] workEventDetails (+ tests) |
+| CONV-005 | Work item grouping | chat-ui | [x] groupWorkTimelineItems (+ tests) |
+| CONV-006 | Timeline presentation | chat-ui | [x] timelinePresentation (+ tests) |
+| CONV-007 | Conversation variants | chat-ui | [x] conversationVariants (+ tests); regen no longer stacks variants |
+| CONV-008 | Agent turn adapter | chat-ui | [x] agentTurnAdapter (+ tests) |
+| CONV-009 | Subagent result presentation | chat-ui | [x] subagentResult (+ tests) |
+| CONV-010 | Subagent group presentation | chat-ui | [x] subagentGroupPresentation (+ tests) |
+| CONV-011 | Worktree diff presentation | chat-ui | [x] DiffReviewPanel (=v2.1) + ChangedFilesBar; smoke test. WT apply → Phase 4 |
+| CONV-012 | Change summary normalization | chat-ui | [x] normalizeChangeSummary (+ unit tests) |
+| CONV-013 | Work timeline | chat-ui | [~] MessageSteps sequential; **2026-08-22** liveProse under Explored / Worked flush-left — 화면 재검증 남음 |
+| CONV-014 | Timeline step card | chat-ui | [~] 코드+unit — **메인/서브에이전트 카드 chrome 화면 확인 남음** |
+| CONV-015 | Explore Chrome | chat-ui | [x] ExploreChrome kept for subagent detail; main = MessageSteps Exploring |
+| CONV-016 | Changed Files bar | chat-ui | [~] 이식됨 — **footer ChangedFiles 바 화면 확인 남음** |
+| CONV-017 | Change Summary card | chat-ui | [~] smoke test만 — **AgentTurn ChangeSummary 화면 확인 남음** |
+| CONV-018 | Terminal Run Card | chat-ui | [~] MessageSteps 경로 — **Ran/터미널 카드 화면 확인 남음** |
+| CONV-019 | File Edit Card | chat-ui | [~] MessageSteps 경로 — **Edit/diff 카드 화면 확인 남음** |
+| CONV-020 | Conversation tabs | chat-ui | [x] ChatSessionTabs (CHAT-007) |
 ---
 
 ## Phase 4 — Worktree / Patch (R-003)
@@ -403,7 +418,7 @@ Phase 0 시작 전/병행: shared 계약.
 | HARNESS-004 | Verification micro-loop | core | [ ] |
 | HARNESS-005 | Project rules loader | core | [ ] |
 | HARNESS-006 | Routing heuristics | core | [ ] |
-| HARNESS-007 | Context rules / Cursor pattern / UX helpers | core | [ ] |
+| HARNESS-007 | Context rules / Cursor pattern / UX helpers | core | [~] **2026-08-22** search-before-read nudge (no read fail); CursorPattern 강화는 chat-ui harness |
 | BROWSER-001 | Browser session | core (+ chat-ui preview) | [ ] |
 | BROWSER-002 | Browser automation | core (+ chat-ui preview) | [ ] |
 | BROWSER-003 | Browser evidence | core (+ chat-ui preview) | [ ] |
@@ -510,7 +525,9 @@ Phase 0 시작 전/병행: shared 계약.
 
 ## 다음으로 할 일
 
-1. **CHAT-006** — Message queue (`packages/chat-ui`)
-2. Phase 1 잔여: **MODEL-*** / **CFG-008** / **UXPROV-*** (`packages/providers`)
-3. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
+1. **2026-08-23** — HOST-002 final-answer 중도 끊김 **원인 분석** (`finishReason` / `complete diag` / `streamedChars` vs `finalBodyLen`). 확정 전 이어쓰기·휴리스틱 패치 금지.
+2. Phase 3 잔여 화면 확인: **CONV-013** + **카드류 CONV-014 / 016 / 017 / 018 / 019** (Terminal·FileEdit·ChangeSummary·ChangedFiles·step card)
+3. STREAM-002 정리(스킵 확정 또는 배선) + HARNESS-007 nudge 효과 확인
+4. **Phase 4** — WT-001 Worktree manager (`packages/worktree`)
+5. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
 

@@ -8,12 +8,6 @@ import { FileTypeIcon } from './FileTypeIcon';
 import { Composer, type ComposerChromeProps } from './Composer';
 import { visiblePlanProseFromMessage } from '../planPromote';
 import type { Attachment, FileEditPreview } from '../types';
-import {
-  deriveTurnStatus,
-  TURN_STATUS_LABEL,
-  type TurnStatus
-} from '../turnState';
-import { extractUnderstandingLead } from '../understandingLead';
 
 interface MessageBubbleProps {
   message: any;
@@ -130,17 +124,8 @@ export function MessageBubble({
   const fileEdits = Array.isArray(message.fileEdits) ? message.fileEdits : [];
   const turnProse = Array.isArray(message.turnProse) ? message.turnProse : [];
 
-  /**
-   * Phase 3 — live ack sentence from message.content (openingLead is never
-   * populated). Only before any tool step; body then shows `rest` so the
-   * lead is not duplicated, and the box disappears the instant hasSteps.
-   */
-  const understanding =
-    isAssistant && streamBody && !hasTimelineChrome
-      ? extractUnderstandingLead(stripped)
-      : { lead: '', rest: '' };
-  const showUnderstandingBox = Boolean(understanding.lead);
-  const bodyContent = showUnderstandingBox ? understanding.rest : displayContent;
+  const suppressStreamingBody = isAssistant && streamBody;
+  const bodyContent = displayContent;
 
   const [nowTick, setNowTick] = useState(() => Date.now());
 
@@ -169,16 +154,18 @@ export function MessageBubble({
 
   /**
    * Final answer under the timeline. Mid-dig self-talk lives in WorkTimeline Thought.
+   * While streaming, body is MessageSteps liveProse — do not duplicate here.
    */
   const sealedProseFallback = turnProse
     .map((p: { content: string }) => String(p.content || '').trim())
     .filter(Boolean)
     .join('\n\n');
   const planBody = visiblePlanProseFromMessage(message);
-  const assistantBodyText =
-    bodyContent.trim() ||
-    planBody ||
-    (!streamBody && !hasTimelineChrome ? sealedProseFallback : '');
+  const assistantBodyText = suppressStreamingBody
+    ? ''
+    : bodyContent.trim() ||
+      planBody ||
+      (!streamBody && !hasTimelineChrome ? sealedProseFallback : '');
   const showAssistantBody = Boolean(isAssistant && assistantBodyText);
   const missionAborted =
     isAssistant &&
@@ -188,13 +175,8 @@ export function MessageBubble({
       assistantBodyText
     );
 
-  /**
-   * Live phase label while streaming (progress rail removed — status will
-   * later land as attachment-like chrome). Understanding box stays for now.
-   */
-  const turnStatus: TurnStatus | null =
-    isAssistant && streamBody ? deriveTurnStatus(message, true) : null;
-  const showPhaseChrome = Boolean(turnStatus);
+  // No Cursor-style turn-phase chrome (understanding|planning|… rail/label).
+  // Pre-22c2cf3 / pre-STREAM-002: timeline + body only; optional understanding box stays (STREAM-009).
 
   const showFooter =
     message.role !== 'system' &&
@@ -210,8 +192,7 @@ export function MessageBubble({
         'message-bubble',
         message.role,
         showUserStop ? 'message-bubble--running' : '',
-        isLastAssistant ? 'message-bubble--latest' : '',
-        showPhaseChrome ? 'message-bubble--live-phase' : ''
+        isLastAssistant ? 'message-bubble--latest' : ''
       ]
         .filter(Boolean)
         .join(' ')}
@@ -237,34 +218,7 @@ export function MessageBubble({
         </div>
       ) : null}
 
-      {/*
-        Live phase label + optional understanding card while streaming.
-        Progress rail removed (status will attach like chips later).
-      */}
-      {showPhaseChrome && turnStatus ? (
-        <div
-          className="ak-phase-chrome"
-          data-status={turnStatus}
-          aria-live="polite"
-        >
-          <div className="ak-turn-status" data-status={turnStatus}>
-            <span className="ak-turn-status__dot" aria-hidden>
-              ●
-            </span>
-            <span className="ak-turn-status__label">
-              {TURN_STATUS_LABEL[turnStatus]}
-            </span>
-          </div>
-          {showUnderstandingBox ? (
-            <div className="ak-understanding-box">
-              <div className="ak-understanding-box__label">Understanding</div>
-              <div className="ak-understanding-box__text">
-                {understanding.lead}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      {/* STREAM-009 understanding box removed — dig streams in MessageSteps liveProse */}
 
       {/* File edits only when WorkTimeline has no work items (legacy). */}
       {!hasWorkTimeline && fileEdits.length > 0 ? (
@@ -390,8 +344,6 @@ export function MessageBubble({
                 content={assistantBodyText}
                 isStreaming={streamBody}
               />
-            ) : streamBody && !hasTimelineChrome && !showUnderstandingBox ? (
-              <span className="message-streaming-ellipsis">…</span>
             ) : null}
           </div>
 

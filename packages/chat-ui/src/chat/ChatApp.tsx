@@ -21,7 +21,7 @@ import {
 } from './components/SubagentDetailView';
 import { useChatStream } from './hooks/useChatStream';
 import { useChatSessions, sessionStore } from './hooks/useChatSessions';
-import { SendEpochMap } from './sendEpoch';
+import { SendEpochMap, SessionTurnMap, SessionStepStartMap } from './sendEpoch';
 import { getVsCodeApi } from './host/vscodeApi';
 import type { InlineEditContext } from './inlineEdit';
 import {
@@ -87,6 +87,8 @@ export function ChatApp() {
   const [error, setError] = useState<string | null>(null);
   const [awaitingUser, setAwaitingUser] = useState(false);
   const [composerSeed, setComposerSeed] = useState<{ text: string; nonce: number } | null>(null);
+  /** Session tab click → focus footer composer (includes same-tab re-click) */
+  const [composerFocusNonce, setComposerFocusNonce] = useState(0);
   /** Only one user bubble may be in pencil-edit at a time */
   const [editingUser, setEditingUser] = useState<{
     id: string;
@@ -117,11 +119,11 @@ export function ChatApp() {
   // ─── 공유 핵심 refs ────────────────────────────────────────
   const sessionIdRef = useRef(sessionStore.loadActive().id);
   const sendEpochRef = useRef(new SendEpochMap());
-  const turnNumberRef = useRef(0);
+  const turnNumberRef = useRef(new SessionTurnMap());
   const loopSessionIdRef = useRef<string | null>(null);
   const parkedAwaitingRef = useRef<{ sessionId: string; questions: any[] } | null>(null);
   const stopHandlerRef = useRef<StopHandler | null>(null);
-  const stepStartRef = useRef<Record<string, number>>({});
+  const stepStartRef = useRef(new SessionStepStartMap());
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
@@ -561,6 +563,8 @@ export function ChatApp() {
     (id: string) => {
       setActiveSubagentId(null);
       handleOpenSession(id);
+      // Comment: always focus composer on tab click (even when already active)
+      setComposerFocusNonce((n) => n + 1);
     },
     [handleOpenSession]
   );
@@ -896,6 +900,7 @@ export function ChatApp() {
             disabled={streaming || plan.generatingPlan}
           seedText={composerSeed?.text ?? null}
           seedNonce={composerSeed?.nonce ?? 0}
+          focusNonce={composerFocusNonce}
           inlineEdit={inlineEditSeed}
           onClearInlineEdit={() => setInlineEditSeed(null)}
             onSlashCommand={sendFlow.runSlashCommand}

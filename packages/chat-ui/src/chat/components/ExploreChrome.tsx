@@ -229,14 +229,18 @@ function useExploringRollingStatus(children: TimelineStep[], active: boolean): s
     }
     return undefined;
   }, [children]);
-  const runningToolCount = useMemo(
-    () => children.filter((s) => s.kind !== 'reasoning' && s.status === 'running').length,
-    [children]
-  );
   const thinkingLive = useMemo(
     () => children.some((s) => s.kind === 'reasoning' && s.status === 'running'),
     [children]
   );
+  const runningTool = useMemo(() => {
+    for (let i = children.length - 1; i >= 0; i--) {
+      if (children[i].kind !== 'reasoning' && children[i].status === 'running') {
+        return children[i];
+      }
+    }
+    return undefined;
+  }, [children]);
 
   useEffect(() => {
     if (!active) {
@@ -256,9 +260,10 @@ function useExploringRollingStatus(children: TimelineStep[], active: boolean): s
   }, [active, lastTool?.id]);
 
   if (!active) return undefined;
-  if (flash?.label) return flash.label;
-  if (runningToolCount > 0) return 'Planning next moves';
+  // Comment: one status slot under Exploring — Thinking | tool | Planning
   if (thinkingLive) return 'Thinking';
+  if (flash?.label) return flash.label;
+  if (runningTool) return formatRollingTool(runningTool);
   return 'Planning next moves';
 }
 

@@ -61,6 +61,8 @@
 .ak-agent-turn { padding: 14px 0 20px; }
 .ak-agent-turn__lead { margin-bottom: 10px; }
 .ak-agent-turn__response { margin-top: 10px; }
+/* Streaming body lives in MessageSteps liveProse — don't reserve gap under Explored */
+.conversation-turn[data-streaming] .ak-agent-turn__response { margin-top: 0; }
 /*
  * WorkTimeline / Explore / Worked chrome lives in chat.css only.
  * Do NOT reintroduce .ak-work-timeline__items { border-left } here —

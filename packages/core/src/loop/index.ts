@@ -51,6 +51,20 @@ export {
 } from './ParallelExecutor';
 
 export {
+  SEARCH_BEFORE_READ_MESSAGE,
+  SEARCH_BEFORE_READ_NUDGE,
+  SEARCH_TOOL_NAMES,
+  READ_TOOL_NAMES,
+  batchHasBlindRead,
+  batchHasSearchTool,
+  isBlindReadWithoutSearch,
+  isReadTool,
+  isSearchTool,
+  shouldBlockBlindRead,
+  userMessageHintsPath,
+} from './searchBeforeRead';
+
+export {
   StreamingToolExecutor,
   type StreamingToolRequest,
   type ToolChunkHandler,

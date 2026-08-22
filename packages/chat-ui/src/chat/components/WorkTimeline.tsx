@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   buildTimelinePresentation,
   collapseExploreSteps,
@@ -17,6 +17,13 @@ import { isPlanGenerateStep, PLAN_GENERATE_STEP_ID } from '../planGenerateStep';
 import { isPendingInlineEdit } from '../inlineEditReview';
 import { FileEditPreviewView } from './FileEditPreviewView';
 import { TerminalRunCard } from './TerminalRunCard';
+import {
+  MessageSteps,
+  type MessageStep
+} from './MessageSteps';
+import { workEventsToMessageSteps } from '../conversation/workEventsToMessageSteps';
+import { isSubagentHeaderEvent } from '../conversation/conversationWorkEvent';
+import { logTimelineInputOrder } from '../conversation/timelineOrderLog';
 
 export type { ConversationWorkEvent } from '../conversation/conversationWorkEvent';
 import type { ConversationWorkEvent } from '../conversation/conversationWorkEvent';
@@ -28,12 +35,25 @@ export type WorkItemStatus = ConversationWorkEvent['status'];
 
 export interface WorkTimelineProps {
   items: ConversationWorkEvent[];
+  /**
+   * Parallel host timeline rows (message.steps). Preferred for MessageSteps chrome
+   * when present — same sequential Curiosity phases as pre-WorkTimeline.
+   */
+  steps?: MessageStep[];
   fileEdits?: FileEditPreview[];
   terminalRuns?: TerminalRunPreview[];
+  /** Mid-turn sealed prose — MessageSteps folds into Thought / lead / after. */
+  turnProse?: Array<{ id: string; turn: number; content: string; afterStepId?: string }>;
+  /**
+   * Live dig / answer body — MessageSteps slot under Explored (avoids bubble gap jump).
+   */
+  liveProse?: string;
   defaultOpen?: boolean;
   title?: string;
   /** Turn still streaming — show Planning tail when idle between tools */
   isStreaming?: boolean;
+  /** Answer body tokens flowing — hide Planning / settle Exploring */
+  hasLiveAnswer?: boolean;
   /** Elapsed work ms for settled "Worked for Xs" label */
   workedDurationMs?: number;
   /**
@@ -190,7 +210,6 @@ function SubagentTimelineGroup({
           childrenSteps={visibleChildren}
           onOpen={() => onOpenSubagent?.(subagentId, progressTitle)}
         />
-        {/* Completed changes stay one click away in the detail tab */}
       </div>
     );
   }
@@ -211,7 +230,6 @@ function SubagentTimelineGroup({
       />
     ) : null;
 
-  // Detail tab: same progress surface as main chat — header + child steps.
   return (
     <div
       className={`ak-work-subagent ak-work-subagent--detail ak-work-subagent--${stepStatusClass(node.step.status)}`}
@@ -263,7 +281,6 @@ function renderTimelineNode(
   compactFileEdit?: boolean,
   expandSubagentInline?: boolean,
   onOpenSubagent?: (subagentId: string, title: string) => void,
-  /** Subagent detail: collapse settled Thought rows (Cursor sequential chrome). */
   preferCollapsedThought = false
 ): React.ReactNode {
   if (node.kind === 'group') {
@@ -285,7 +302,6 @@ function renderTimelineNode(
   }
 
   if (node.kind === 'explore') {
-    // Exploring/Explored 묶음 — 카드가 아니라 MessageSteps식 chevron 행
     const live = node.step.status === 'running' || node.children.some((c) => c.status === 'running');
     const hasError =
       node.step.status === 'failed' || node.children.some((c) => c.status === 'failed');
@@ -323,14 +339,22 @@ function renderTimelineNode(
   );
 }
 
-/** Compact Cursor-style activity timeline — event store → presentation model → UI. */
+/**
+ * WorkTimeline = mount + workItems store.
+ * Main chat chrome = MessageSteps (sequential Curiosity phases + FileEdit/Terminal cards).
+ * Subagent detail tab keeps ExploreChrome / TimelineStepCard presentation.
+ */
 export function WorkTimeline({
   items,
+  steps: stepsProp,
   fileEdits = [],
   terminalRuns = [],
+  turnProse = [],
+  liveProse,
   defaultOpen = false,
   title,
   isStreaming = false,
+  hasLiveAnswer = false,
   workedDurationMs,
   subagentDetail = false,
   onOpenSubagent,
@@ -341,38 +365,247 @@ export function WorkTimeline({
   onWorktreeApply,
   onWorktreeReject
 }: WorkTimelineProps) {
-  if (!items.length) return null;
-  const presentation = buildTimelinePresentation(
-    items,
-    { fileEdits, terminalRuns },
-    { sequential: subagentDetail }
+  const hasAny =
+    items.length > 0 ||
+    (stepsProp?.length ?? 0) > 0 ||
+    fileEdits.length > 0 ||
+    terminalRuns.length > 0 ||
+    Boolean(liveProse?.trim()) ||
+    turnProse.length > 0;
+
+  const presentation = useMemo(
+    () =>
+      buildTimelinePresentation(
+        items,
+        { fileEdits, terminalRuns },
+        { sequential: subagentDetail }
+      ),
+    [items, fileEdits, terminalRuns, subagentDetail]
   );
   const { summary: timelineSummary } = presentation;
   const pendingInline = fileEdits.some(isPendingInlineEdit);
-  const live = timelineSummary.hasActive || isStreaming;
-  const settled = !timelineSummary.hasActive && !isStreaming;
-  const [workedOpen, setWorkedOpen] = useState(defaultOpen || timelineSummary.hasActive || pendingInline);
+  // Prefer host `message.steps`; enrich empty Grepped/Read detail from workItems.
+  const messageSteps = useMemo((): MessageStep[] => {
+    const base =
+      stepsProp && stepsProp.length > 0
+        ? stepsProp
+        : workEventsToMessageSteps(items);
+    if (!items.length) return base;
+    const byId = new Map(items.map((e) => [e.id, e]));
+    return base.map((s) => {
+      const w = byId.get(s.id);
+      if (!w) return s;
+      const detail = (s.detail && s.detail.trim()) || w.detail;
+      const openPath = s.openPath || w.openPath;
+      const toolName = s.toolName || w.toolName;
+      if (detail === s.detail && openPath === s.openPath && toolName === s.toolName) {
+        return s;
+      }
+      return { ...s, detail, openPath, toolName };
+    });
+  }, [stepsProp, items]);
+
+  const stepsLive = messageSteps.some((s) => s.itemStatus === 'running');
+  const live = timelineSummary.hasActive || isStreaming || stepsLive;
+  const settled = !timelineSummary.hasActive && !isStreaming && !stepsLive;
+  const [workedOpen, setWorkedOpen] = useState(
+    defaultOpen || timelineSummary.hasActive || pendingInline || stepsLive
+  );
 
   useEffect(() => {
-    if (isStreaming || timelineSummary.hasActive || pendingInline) {
+    if (isStreaming || timelineSummary.hasActive || pendingInline || stepsLive) {
       setWorkedOpen(true);
     } else if (settled && !subagentDetail) {
       setWorkedOpen(false);
     }
-  }, [isStreaming, timelineSummary.hasActive, pendingInline, settled, subagentDetail]);
+  }, [
+    isStreaming,
+    timelineSummary.hasActive,
+    pendingInline,
+    settled,
+    subagentDetail,
+    stepsLive
+  ]);
 
-  // Idle between tool rounds — same tail as legacy MessageSteps
-  const showPlanningTail = isStreaming && !timelineSummary.hasActive;
+  const workedLabel = title || formatWorkedLabel(resolveWorkedMs(items, workedDurationMs));
+  const showItems = subagentDetail || !settled || workedOpen;
+
+  const subagentGroupNodes = useMemo(
+    () => presentation.nodes.filter((n) => n.kind === 'group'),
+    [presentation.nodes]
+  );
+
+  const hasSubagentHeaders = items.some(isSubagentHeaderEvent);
+
+  // Order diagnostics — Webview DevTools: filter `timeline-order`
+  useEffect(() => {
+    if (subagentDetail) return;
+    const fromSteps = Boolean(stepsProp && stepsProp.length > 0);
+    logTimelineInputOrder({
+      source: fromSteps ? 'steps' : 'workItems-mapped',
+      streaming: isStreaming,
+      steps: messageSteps.map((s) => ({
+        id: s.id,
+        kind: s.kind,
+        tool: s.toolName,
+        status: s.itemStatus,
+        turn: s.turn,
+        thoughtRole: s.thoughtRole
+      })),
+      workItemIds: items.map((e) => `${e.id}:${e.type}:${e.status}${e.subagentId ? `@${e.subagentId}` : ''}`),
+      fileEditIds: fileEdits.map((f) => `${f.id}|t${f.turn ?? '?'}|${f.path}`),
+      terminalIds: terminalRuns.map((t) => `${t.id}|t${t.turn ?? '?'}`),
+      turnProse: turnProse.map((p) => ({
+        id: p.id,
+        turn: p.turn,
+        len: String(p.content || '').length
+      }))
+    });
+  }, [
+    subagentDetail,
+    stepsProp,
+    messageSteps,
+    items,
+    fileEdits,
+    terminalRuns,
+    turnProse,
+    isStreaming
+  ]);
+
+  if (!hasAny) return null;
+
+  const hasExploreToolSteps = messageSteps.some(
+    (s) =>
+      s.kind === 'reading' ||
+      s.kind === 'searching' ||
+      s.kind === 'browsing' ||
+      s.toolName === 'read_file' ||
+      s.toolName === 'read_files' ||
+      s.toolName === 'grep' ||
+      s.toolName === 'glob' ||
+      s.toolName === 'file_search' ||
+      s.toolName === 'codebase_search' ||
+      s.toolName === 'list_dir'
+  );
+
+  // —— Main chat: MessageSteps sequential chrome (CONV-013) ——
+  if (!subagentDetail) {
+    // Comment: Planning idle only — never while dig/answer liveProse streams
+    const showPlanningTail =
+      isStreaming &&
+      !hasLiveAnswer &&
+      !stepsLive &&
+      !timelineSummary.hasActive &&
+      !hasExploreToolSteps &&
+      !hasSubagentHeaders;
+    const planGenRunning = items.some(
+      (e) => e.id === PLAN_GENERATE_STEP_ID && e.status === 'running'
+    );
+    const planningTailTitle = planGenRunning ? 'Creating plan' : 'Planning next moves';
+
+    // Comment: show shell while streaming dig (no steps yet) so prose isn't in bubble below
+    const showMessageSteps =
+      messageSteps.length > 0 ||
+      turnProse.length > 0 ||
+      Boolean(isStreaming && liveProse?.trim()) ||
+      showPlanningTail;
+
+    const itemNodes = (
+      <>
+        {showMessageSteps ? (
+          <MessageSteps
+            steps={messageSteps}
+            fileEdits={fileEdits}
+            terminalRuns={terminalRuns}
+            turnProse={turnProse}
+            liveProse={liveProse}
+            liveProseStreaming={Boolean(isStreaming && liveProse?.trim())}
+            isStreaming={isStreaming}
+            hasLiveAnswer={hasLiveAnswer}
+            showPlanningTail={showPlanningTail}
+            planningTailTitle={planningTailTitle}
+            onOpenFile={onOpenFile}
+            onAcceptFile={onAcceptFile}
+            onRejectFile={onRejectFile}
+          />
+        ) : null}
+        {/* Orphan previews when no steps/phases yet to attach MessageSteps cards */}
+        {!showMessageSteps && fileEdits.length > 0 ? (
+          <div className="ak-file-edits-inline ak-cards-under-action">
+            {fileEdits.map((fe) => (
+              <FileEditPreviewView
+                key={fe.id}
+                file={fe}
+                onOpenFile={onOpenFile}
+                onAccept={onAcceptFile}
+                onReject={onRejectFile}
+              />
+            ))}
+          </div>
+        ) : null}
+        {!showMessageSteps && terminalRuns.length > 0 ? (
+          <div className="ak-terminal-runs-inline ak-cards-under-action">
+            {terminalRuns.map((tr) => (
+              <TerminalRunCard key={tr.id} {...tr} />
+            ))}
+          </div>
+        ) : null}
+        {subagentGroupNodes.map((node) =>
+          renderTimelineNode(
+            node,
+            presentation.activeStepId,
+            onOpenFile,
+            onAcceptFile,
+            onRejectFile,
+            onWorktreeReview,
+            onWorktreeApply,
+            onWorktreeReject,
+            undefined,
+            false,
+            onOpenSubagent,
+            false
+          )
+        )}
+      </>
+    );
+
+    return (
+      <div
+        className={[
+          'ak-work-timeline',
+          'ak-work-timeline--message-steps',
+          settled ? 'ak-work-timeline--settled' : live ? 'ak-work-timeline--live' : '',
+          timelineSummary.hasError ? 'ak-work-timeline--error' : ''
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {settled ? (
+          <button
+            type="button"
+            className="ak-worked__toggle"
+            onClick={() => setWorkedOpen((v) => !v)}
+            aria-expanded={workedOpen}
+          >
+            <span className="ak-worked__chevron" aria-hidden>
+              {workedOpen ? '▾' : '▸'}
+            </span>
+            <span className="ak-worked__label">{workedLabel}</span>
+          </button>
+        ) : null}
+        {showItems ? <div className="ak-work-timeline__items">{itemNodes}</div> : null}
+      </div>
+    );
+  }
+
+  // —— Subagent detail: existing ExploreChrome / card presentation ——
+  // Comment: Planning only when idle — not while answer streams
+  const showPlanningTail =
+    isStreaming && !hasLiveAnswer && !timelineSummary.hasActive;
   const planGenRunning = items.some(
     (e) => e.id === PLAN_GENERATE_STEP_ID && e.status === 'running'
   );
   const planningTailTitle = planGenRunning ? 'Creating plan' : 'Planning next moves';
-
-  const workedLabel = title || formatWorkedLabel(resolveWorkedMs(items, workedDurationMs));
-
-  // Live + settled share one item column; settled only adds the "Worked for Xs" header.
-  // Subagent detail stays open — no Worked collapse (tab title is the chrome).
-  const showItems = subagentDetail || !settled || workedOpen;
 
   const itemNodes = (
     <>
@@ -387,9 +620,9 @@ export function WorkTimeline({
           onWorktreeApply,
           onWorktreeReject,
           undefined,
-          subagentDetail,
+          true,
           onOpenSubagent,
-          subagentDetail
+          true
         )
       )}
       {showPlanningTail ? <PlanningTailRow title={planningTailTitle} /> : null}
@@ -402,24 +635,11 @@ export function WorkTimeline({
         'ak-work-timeline',
         settled ? 'ak-work-timeline--settled' : live ? 'ak-work-timeline--live' : '',
         timelineSummary.hasError ? 'ak-work-timeline--error' : '',
-        subagentDetail ? 'ak-work-timeline--subagent-detail' : ''
+        'ak-work-timeline--subagent-detail'
       ]
         .filter(Boolean)
         .join(' ')}
     >
-      {settled && !subagentDetail ? (
-        <button
-          type="button"
-          className="ak-worked__toggle"
-          onClick={() => setWorkedOpen((v) => !v)}
-          aria-expanded={workedOpen}
-        >
-          <span className="ak-worked__chevron" aria-hidden>
-            {workedOpen ? '▾' : '▸'}
-          </span>
-          <span className="ak-worked__label">{workedLabel}</span>
-        </button>
-      ) : null}
       {showItems ? <div className="ak-work-timeline__items">{itemNodes}</div> : null}
     </div>
   );

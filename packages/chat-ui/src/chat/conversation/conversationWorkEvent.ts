@@ -36,6 +36,8 @@ export type ConversationWorkEvent = {
   /** Host tool name — Grepped vs Searched, line-range read detail, etc. */
   toolName?: string;
   detail?: string;
+  /** Workspace path for clickable Read / Grepped detail */
+  openPath?: string;
   startedAt?: number;
   completedAt?: number;
   /** Child preview: FileEditCard or TerminalRunCard under this row. */
@@ -255,6 +257,7 @@ export function upsertWorkEvents(
     label: incoming.label || prev.label,
     toolName: incoming.toolName ?? prev.toolName,
     detail: incoming.detail ?? prev.detail,
+    openPath: incoming.openPath ?? prev.openPath,
     description: incoming.description ?? prev.description,
     startedAt: prev.startedAt ?? incoming.startedAt,
     completedAt:
@@ -322,6 +325,7 @@ export type HostWorkPayload = {
   toolName?: string;
   kind?: string;
   detail?: string;
+  openPath?: string;
   status?: string;
   error?: string;
   turn?: number;
@@ -543,6 +547,10 @@ export function workEventFromHostPayload(
     label: WORK_TYPE_LABEL[type],
     toolName,
     detail: rawDetail,
+    openPath:
+      data.openPath != null && String(data.openPath).trim()
+        ? String(data.openPath).trim()
+        : undefined,
     startedAt: status === 'complete' || status === 'error' ? undefined : now,
     completedAt: status === 'complete' || status === 'error' ? now : undefined,
     subagentId,

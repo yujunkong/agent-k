@@ -13,6 +13,7 @@ export {
   workEventFromSubagentHostEvent,
   flattenSubagentWorkItems
 } from './conversationWorkEvent';
+export { workEventsToMessageSteps } from './workEventsToMessageSteps';
 export { normalizeWorkItems } from './normalizeWorkItems';
 export { groupWorkTimelineItems } from './groupWorkTimelineItems';
 export {

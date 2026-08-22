@@ -99,8 +99,39 @@ describe('HOST-014 timelineLabels', () => {
     expect(toolKind('read_file')).toBe('reading');
     expect(toolKind('run_terminal_cmd')).toBe('running');
     expect(kindVerb('searching')).toBe('Searching');
-    expect(formatReadLineWindow('a/b.ts', { offset: 10, limit: 20 })).toBe('b.ts L10-29');
+    expect(formatReadLineWindow('a/b.ts', { offset: 10, limit: 20 })).toBe('a/b.ts L10-29');
+    expect(formatReadLineWindow('crates/app/Cargo.toml', {})).toBe('app/Cargo.toml L1-250');
     expect(shortDetail('grep', { pattern: 'foo', path: 'src' })).toBe('foo in src');
+  });
+});
+
+describe('HOST-002 isTrueEmptyModelReply', () => {
+  it('flags truly empty turns only', async () => {
+    const { isTrueEmptyModelReply } = await import('./chatSendEmpty');
+    expect(
+      isTrueEmptyModelReply({
+        finalBody: '',
+        streamedChars: 0,
+        reasoningChars: 0,
+        toolEvents: 0,
+      }),
+    ).toBe(true);
+    expect(
+      isTrueEmptyModelReply({
+        finalBody: '',
+        streamedChars: 0,
+        reasoningChars: 0,
+        toolEvents: 1,
+      }),
+    ).toBe(false);
+    expect(
+      isTrueEmptyModelReply({
+        finalBody: '',
+        streamedChars: 0,
+        reasoningChars: 263,
+        toolEvents: 0,
+      }),
+    ).toBe(false);
   });
 });
 

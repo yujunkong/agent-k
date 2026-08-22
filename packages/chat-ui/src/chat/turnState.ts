@@ -1,21 +1,11 @@
 /**
- * Phase 2 — Turn State derivation (UX roadmap, corrected plan).
+ * STREAM-002 — Turn status derivation (chat-ui).
  *
- * Grok's original AgentTurn proposal invented a whole parallel state object
- * fed straight from the model. That's the thing Kong flagged as risky —
- * small/medium local models can't reliably narrate "지금 이해 중입니다" /
- * "지금 탐색 중입니다" on cue, and the earlier Thought/Exploring/Answer
- * interleaving mess was a direct result of trusting the model to say what
- * phase it's in.
+ * Currently **not wired** into MessageBubble (user preference: pre-phase UI —
+ * no understanding|planning|exploring|… rail/label). Logic + unit tests kept
+ * for optional later re-enable; do not import from MessageBubble until then.
  *
- * This version derives TurnStatus purely from data the host ALREADY sends
- * (ChatMessage.status + ChatMessage.steps, populated by
- * assistantStreamSession.ts from StreamDelta.timeline). No new wire
- * protocol, no AgentLoopController changes, no model cooperation required —
- * the Host/webview decides the phase, same principle as sealBodyBeforeTools.
- *
- * Phase 3 (opening understanding box) and Phase 5 (full Cursor-style layout)
- * consume this; they are not part of this phase.
+ * Runtime turn SM remains `packages/core` REL-004 (`TurnStateMachine`).
  */
 
 export type TurnStatus =

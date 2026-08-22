@@ -1,6 +1,8 @@
 /**
  * Subagent detail pane — same WorkTimeline progress as the main chat,
  * without a composer / chat input (Cursor-style agent tab).
+ *
+ * CONV-009/010 presentation of tool-spawned subagent runs (SUB-*).
  */
 import React, { useMemo } from 'react';
 import { WorkTimeline } from './WorkTimeline';

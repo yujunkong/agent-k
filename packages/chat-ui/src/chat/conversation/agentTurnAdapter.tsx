@@ -1,6 +1,6 @@
 import React from 'react';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
-import { AgentTurn } from '../components/AgentTurn';
+import { AgentTurn, type AgentTurnProps } from '../components/AgentTurn';
 import type { ConversationWorkEvent } from './conversationWorkEvent';
 import type { ChangeSummaryItem } from '../components/ChangeSummary';
 
@@ -37,24 +37,39 @@ export function AgentTurnAdapter({
   const candidate = message as {
     role?: string;
     title?: unknown;
+    content?: unknown;
+    status?: string;
+    steps?: AgentTurnProps['steps'];
     fileEdits?: FileEditPreview[];
     terminalRuns?: TerminalRunPreview[];
+    turnProse?: AgentTurnProps['turnProse'];
     workedDurationMs?: number;
   } | null;
   const lead = candidate?.role === 'assistant' && typeof candidate.title === 'string'
     ? candidate.title
     : undefined;
+  const steps = Array.isArray(candidate?.steps) ? candidate.steps : [];
   const fileEdits = Array.isArray(candidate?.fileEdits) ? candidate.fileEdits : [];
   const terminalRuns = Array.isArray(candidate?.terminalRuns) ? candidate.terminalRuns : [];
+  const turnProse = Array.isArray(candidate?.turnProse) ? candidate.turnProse : [];
+  const content =
+    typeof candidate?.content === 'string' ? candidate.content : '';
+  // Comment: stream dig + final answer inside MessageSteps (under Explored), not bubble gap
+  const liveProse = isStreaming && content.trim() ? content : undefined;
+  const hasLiveAnswer = Boolean(liveProse);
 
   return (
     <AgentTurn
       lead={lead}
       workItems={workItems}
+      steps={steps}
       fileEdits={fileEdits}
       terminalRuns={terminalRuns}
+      turnProse={turnProse}
+      liveProse={liveProse}
       changes={changes}
       isStreaming={isStreaming}
+      hasLiveAnswer={hasLiveAnswer}
       workedDurationMs={candidate?.workedDurationMs}
       onOpenSubagent={onOpenSubagent}
       onOpenFile={onOpenFile}

@@ -18,7 +18,23 @@ function fileBasename(path: string): string {
 }
 
 /**
- * Cursor-style read window: "WorkTimeline.tsx L1-80".
+ * Cursor-style short path for timeline: prefer `dir/file` so many Cargo.toml
+ * reads are distinguishable (not five identical "Cargo.toml L1-250").
+ */
+export function shortDisplayPath(filePath: string): string {
+  const norm = String(filePath || '')
+    .replace(/\\/g, '/')
+    .replace(/^\.\//, '');
+  const parts = norm.split('/').filter(Boolean);
+  if (parts.length >= 2) {
+    const pair = `${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
+    return pair.length > 48 ? `${pair.slice(0, 45)}…` : pair;
+  }
+  return fileBasename(norm || 'file');
+}
+
+/**
+ * Cursor-style read window: "chat/WorkTimeline.tsx L1-80".
  * Args (offset/limit) or result (startLine/endLine). Offset omitted → L1 + default window.
  */
 export function formatReadLineWindow(
@@ -26,7 +42,7 @@ export function formatReadLineWindow(
   src: Record<string, unknown> | undefined,
   fallbackLimit = DEFAULT_READ_LINES
 ): string {
-  const base = fileBasename(filePath || 'file');
+  const base = shortDisplayPath(filePath || 'file');
   const start =
     asFiniteNumber(src?.startLine) ??
     asFiniteNumber(src?.start_line) ??
@@ -115,17 +131,31 @@ export const kindVerb = (kind: string): string => {
 };
 
 // Short path/pattern only — never dump full tool JSON (PRD-C0 §5.3)
-// Cursor-style: "Grepped pattern in path", "Read file.ts L10-50"
+// Cursor-style: "Grepped pattern in path", "Read file.ts L10-50", "Searched query"
 export const shortDetail = (
   name: string,
   args: Record<string, unknown> | undefined
 ): string | undefined => {
   if (!args) return undefined;
 
+  // Comment: some providers park the JSON string on `raw` when parse fails mid-stream
+  let a = args;
+  if (typeof a.raw === 'string' && a.raw.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(String(a.raw)) as Record<string, unknown>;
+      a = { ...parsed, ...a };
+    } catch {
+      /* keep a */
+    }
+  }
+
   if (name === 'grep') {
-    const pattern = String(args.pattern ?? args.query ?? '').trim();
+    const rawPat = a.pattern ?? a.query ?? a.search_query ?? a.regex ?? '';
+    const pattern = Array.isArray(rawPat)
+      ? rawPat.map(String).filter(Boolean).join('|')
+      : String(rawPat).trim();
     const path = String(
-      args.path ?? args.target ?? args.glob ?? args.glob_pattern ?? ''
+      a.path ?? a.target ?? a.glob ?? a.glob_pattern ?? a.target_directory ?? ''
     ).trim();
     const scope =
       !path || path === '.' || path === './'
@@ -142,22 +172,121 @@ export const shortDetail = (
 
   if (name === 'glob' || name === 'file_search') {
     const pattern = String(
-      args.glob_pattern ?? args.pattern ?? args.query ?? ''
+      a.glob_pattern ?? a.pattern ?? a.query ?? a.search_query ?? ''
     ).trim();
-    const path = String(args.path ?? '').trim();
+    const path = String(a.path ?? a.target_directory ?? '').trim();
     if (pattern && path && path !== '.' && path !== './') {
       return `${pattern} in ${path}`;
     }
     if (pattern) return pattern.length > 80 ? `${pattern.slice(0, 77)}…` : pattern;
   }
 
+  // Comment: Cursor "Searched …" — natural-language codebase query
+  if (name === 'codebase_search') {
+    const q = String(
+      a.query ?? a.search_query ?? a.question ?? a.pattern ?? a.q ?? ''
+    ).trim();
+    if (q) return q.length > 80 ? `${q.slice(0, 77)}…` : q;
+    const dirs = a.target_directories ?? a.paths;
+    if (Array.isArray(dirs) && dirs.length) {
+      return String(dirs[0]).slice(0, 80);
+    }
+  }
+
+  if (name === 'list_dir') {
+    const path = String(a.path ?? a.target_directory ?? a.directory ?? '.').trim();
+    return path.length > 80 ? `${path.slice(0, 77)}…` : path || '.';
+  }
+
   if (name === 'read_file' || name === 'read_files') {
-    if (name === 'read_files' && Array.isArray(args.paths) && args.paths.length) {
-      const n = args.paths.length;
-      const first = String(args.paths[0] ?? '');
-      const window = formatReadLineWindow(first, args);
+    if (name === 'read_files' && Array.isArray(a.paths) && a.paths.length) {
+      const n = a.paths.length;
+      const first = String(a.paths[0] ?? '');
+      const window = formatReadLineWindow(first, a);
       return n === 1 ? window : `${n} files · ${window}`;
     }
+    const file = String(
+      a.path ??
+        a.target_file ??
+        a.file_path ??
+        a.filepath ??
+        a.file ??
+        ''
+    ).trim();
+    if (!file) return undefined;
+    // Always show the window — executor defaults to ~250 lines even without offset.
+    return formatReadLineWindow(file, a);
+  }
+
+  if (name === 'run_terminal_cmd' || name === 'terminal_output') {
+    const cmd = String(
+      a.command ?? a.cmd ?? a.shell ?? a.description ?? ''
+    ).trim();
+    if (!cmd) return undefined;
+    // CSS ellipsis on the card subtitle; keep enough of long Windows paths.
+    return cmd.length > 160 ? `${cmd.slice(0, 157)}…` : cmd;
+  }
+
+  if (name === 'todo_write') {
+    if (Array.isArray(a.todos)) return `${a.todos.length} todo(s)`;
+    const text = String(a.text ?? a.content ?? '').trim();
+    if (text) return text.length > 60 ? `${text.slice(0, 57)}…` : text;
+    return 'todos';
+  }
+
+  // ADDON-T09: task_run running badge — show the sub-agent's task description
+  if (name === 'task_run') {
+    const label = String(a.description ?? a.task ?? '').trim();
+    return label ? (label.length > 60 ? `${label.slice(0, 57)}…` : label) : 'running';
+  }
+
+  if (Array.isArray(a.paths) && a.paths.length) {
+    const n = a.paths.length;
+    const first = String(a.paths[0] ?? '');
+    const base = first.replace(/\\/g, '/').split('/').pop() || first;
+    return n === 1 ? base.slice(0, 80) : `${n} files · ${base.slice(0, 40)}`;
+  }
+  const pick =
+    a.path ??
+    a.target_file ??
+    a.file_path ??
+    a.filepath ??
+    a.file ??
+    a.target ??
+    a.glob_pattern ??
+    a.pattern ??
+    a.query ??
+    a.search_query ??
+    a.command ??
+    a.url ??
+    a.uri;
+  if (pick == null) return undefined;
+  const s = String(pick);
+  return s.length > 80 ? `${s.slice(0, 77)}…` : s;
+};
+
+/**
+ * Workspace path for timeline file links (Read / Grepped / Edit).
+ * Prefer full path from tool args — display detail stays basename + Lrange.
+ */
+export function openPathFromToolArgs(
+  toolName: string,
+  args: Record<string, unknown> | undefined
+): string | undefined {
+  if (!args) return undefined;
+  const name = (toolName || '').toLowerCase();
+  if (name === 'read_files' && Array.isArray(args.paths) && args.paths.length) {
+    const first = String(args.paths[0] ?? '').trim();
+    return first || undefined;
+  }
+  if (
+    name === 'read_file' ||
+    name === 'read_files' ||
+    name === 'edit_file' ||
+    name === 'write_file' ||
+    name === 'delete_file' ||
+    name === 'read_lints'
+  ) {
     const file = String(
       args.path ??
         args.target_file ??
@@ -166,56 +295,46 @@ export const shortDetail = (
         args.file ??
         ''
     ).trim();
-    if (!file) return undefined;
-    // Always show the window — executor defaults to ~250 lines even without offset.
-    return formatReadLineWindow(file, args);
+    return file || undefined;
   }
-
-  if (name === 'run_terminal_cmd' || name === 'terminal_output') {
-    const cmd = String(
-      args.command ?? args.cmd ?? args.shell ?? args.description ?? ''
+  if (
+    name === 'grep' ||
+    name === 'glob' ||
+    name === 'file_search' ||
+    name === 'codebase_search' ||
+    name === 'list_dir'
+  ) {
+    const scope = String(
+      args.path ??
+        args.target_directory ??
+        args.directory ??
+        args.target ??
+        ''
     ).trim();
-    if (!cmd) return undefined;
-    // CSS ellipsis on the card subtitle; keep enough of long Windows paths.
-    return cmd.length > 160 ? `${cmd.slice(0, 157)}…` : cmd;
+    if (scope && scope !== '.' && scope !== './') return scope;
   }
+  return undefined;
+}
 
-  if (name === 'todo_write') {
-    if (Array.isArray(args.todos)) return `${args.todos.length} todo(s)`;
-    const text = String(args.text ?? args.content ?? '').trim();
-    if (text) return text.length > 60 ? `${text.slice(0, 57)}…` : text;
-    return 'todos';
+/** Fallback when openPath was not stored — parse Cursor-style detail strings. */
+export function openPathFromExploreDetail(detail?: string): string | undefined {
+  const d = String(detail || '').trim();
+  if (!d) return undefined;
+  // "file.ts L10-20" or "3 files · file.ts L1-250"
+  const read = d.match(/(?:^|·\s)([^\s]+)\s+L\d+(?:-\d+)?$/);
+  if (read?.[1]) return read[1];
+  // "pattern in packages/chat-ui/src/…"
+  const grepped = d.match(/\sin\s+(.+)$/);
+  if (grepped?.[1]) {
+    const p = grepped[1].trim();
+    if (p && p !== '.' && p !== './') return p;
   }
-
-  // ADDON-T09: task_run running badge — show the sub-agent's task description
-  if (name === 'task_run') {
-    const label = String(args.description ?? args.task ?? '').trim();
-    return label ? (label.length > 60 ? `${label.slice(0, 57)}…` : label) : 'running';
+  if (/[/\\]/.test(d) && !/\s{2,}/.test(d) && d.length < 260) {
+    const first = d.split(/\s+/)[0];
+    if (first && /[/\\]/.test(first)) return first;
   }
-
-  if (Array.isArray(args.paths) && args.paths.length) {
-    const n = args.paths.length;
-    const first = String(args.paths[0] ?? '');
-    const base = first.replace(/\\/g, '/').split('/').pop() || first;
-    return n === 1 ? base.slice(0, 80) : `${n} files · ${base.slice(0, 40)}`;
-  }
-  const pick =
-    args.path ??
-    args.target_file ??
-    args.file_path ??
-    args.filepath ??
-    args.file ??
-    args.target ??
-    args.glob_pattern ??
-    args.pattern ??
-    args.query ??
-    args.command ??
-    args.url ??
-    args.uri;
-  if (pick == null) return undefined;
-  const s = String(pick);
-  return s.length > 80 ? `${s.slice(0, 77)}…` : s;
-};
+  return undefined;
+}
 
 export const resultDetail = (
   kind: string,

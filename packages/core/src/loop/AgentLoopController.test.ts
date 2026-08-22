@@ -92,4 +92,46 @@ describe('AgentLoopController (AGENT-001…004)', () => {
     expect(result.reason).toBe('completed');
     expect(result.messages.length).toBeGreaterThanOrEqual(4);
   });
+
+  it('nudges after blind read but still executes the tool (HARNESS-007)', async () => {
+    let turn = 0;
+    let executed = 0;
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          turn++;
+          if (turn === 1) {
+            return {
+              content: '',
+              toolCalls: [
+                {
+                  id: 'c1',
+                  name: 'read_file',
+                  arguments: { path: 'crates/app/Cargo.toml' },
+                },
+              ],
+            } satisfies ModelTurnResult;
+          }
+          return {
+            content: '## Done\n\nWorkspace layout summarized after read.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async () => {
+          executed += 1;
+          return { success: true, data: '[workspace]' };
+        },
+      },
+      { maxTurns: 5, parallelTools: false }
+    );
+
+    const result = await controller.run({ prompt: '프로젝트 구조 파악해줘' });
+    expect(executed).toBe(1);
+    expect(result.reason).toBe('completed');
+    expect(
+      result.messages.some(
+        (m) =>
+          m.role === 'system' && String(m.content).includes('prefer grep')
+      )
+    ).toBe(true);
+  });
 });

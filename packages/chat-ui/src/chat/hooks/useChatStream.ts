@@ -1,12 +1,68 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatMessage, Mode, Attachment, StreamDelta } from '../types';
 import { apiHistoryForRegenerate } from '../regenerateTurn';
-import { workEventFromHostPayload, workEventFromSubagentHostEvent } from '../conversation/conversationWorkEvent';
+import {
+  workEventFromHostPayload,
+  workEventFromSubagentHostEvent,
+  classifyWorkType
+} from '../conversation/conversationWorkEvent';
 import { fileEditPreviewFromHost } from '../inlineEditReview';
 import type { InlineEditAgentRequest } from '../inlineEdit';
 /** Cached acquire — never double-call acquireVsCodeApi in this webview. */
 import { getVsCodeApi } from '../vscodeApi';
 import { debugError, debugLog, debugWarn } from '../debugLog';
+import { shortDetail, toolKind, openPathFromToolArgs } from '../../host/timelineLabels';
+
+/** Prefer host kind; else map toolName → MessageSteps kind (reading/searching/…). */
+function timelineKindFromToolName(toolName: string, hostKind?: string): string {
+  if (hostKind && hostKind !== 'generic' && hostKind !== 'working') {
+    return hostKind;
+  }
+  const fromLabels = toolKind(toolName);
+  if (fromLabels) return fromLabels;
+  const type = classifyWorkType(toolName);
+  switch (type) {
+    case 'read':
+      return 'reading';
+    case 'search':
+      return 'searching';
+    case 'edit':
+      return 'editing';
+    case 'terminal':
+      return 'running';
+    case 'verify':
+      return 'reading';
+    case 'subagent':
+      return 'task';
+    default:
+      return 'browsing';
+  }
+}
+
+function parseToolArgs(toolArgs: unknown): Record<string, unknown> | undefined {
+  if (toolArgs == null) return undefined;
+  if (typeof toolArgs === 'string') {
+    try {
+      return JSON.parse(toolArgs) as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
+  }
+  if (typeof toolArgs === 'object') {
+    return toolArgs as Record<string, unknown>;
+  }
+  return undefined;
+}
+
+function detailFromToolArgs(toolName: string, toolArgs: unknown): string | undefined {
+  const args = parseToolArgs(toolArgs);
+  if (args) return shortDetail(toolName, args);
+  if (typeof toolArgs === 'string') {
+    const raw = toolArgs.trim();
+    return raw.length > 120 ? `${raw.slice(0, 118)}…` : raw || undefined;
+  }
+  return undefined;
+}
 
 type SendMessageOpts = {
   planStageOverride?: string;
@@ -272,6 +328,9 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         fn();
       };
 
+      /** Correlate tool.end when host omits id (match last start by toolName). */
+      const openToolIdsByName = new Map<string, string>();
+
       const onMsg = (event: MessageEvent) => {
         const data = event.data;
         // SHARED-001: host posts { type:'chat.stream', payload:{ requestId, event, ... } }
@@ -292,40 +351,119 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             // Host posts reasoning on the same event — was dropped → Thought empty + (no response).
             if (stream.reasoning) onDelta({ reasoning: String(stream.reasoning) });
             break;
-          case 'tool.start':
-            // Seal in-progress self-talk into Thought; clear body
+          case 'tool.start': {
+            // Prefer host id/kind/detail (shortDetail: "file.ts L410-439", "pat in path").
+            const toolName = String(stream.toolName || '');
+            const turn =
+              stream.turn != null && Number.isFinite(Number(stream.turn))
+                ? Number(stream.turn)
+                : 1;
+            const id = String(
+              stream.id ||
+                stream.callId ||
+                `tl_tool_${toolName || 'x'}_${turn}_${Date.now()}`
+            );
+            const kind = timelineKindFromToolName(
+              toolName,
+              stream.kind != null ? String(stream.kind) : undefined
+            );
+            const detail =
+              (stream.detail != null && String(stream.detail).trim()) ||
+              detailFromToolArgs(toolName, stream.toolArgs) ||
+              undefined;
+            // Comment: full path for clickable Read / Grepped links (detail is basename).
+            const openPath =
+              openPathFromToolArgs(toolName, parseToolArgs(stream.toolArgs)) ||
+              undefined;
+            openToolIdsByName.set(toolName, id);
+            debugLog('timeline-order', 'tool.start', {
+              runtimeKey,
+              id,
+              toolName,
+              kind,
+              turn,
+              detail,
+              openPath
+            });
             onDelta({
               clearContent: true,
-              sealTurn:
-                stream.turn != null && Number.isFinite(Number(stream.turn))
-                  ? Number(stream.turn)
-                  : undefined,
+              sealTurn: turn,
               workEvent:
                 workEventFromHostPayload(
                   {
-                    id: stream.id,
-                    toolName: stream.toolName,
-                    kind: stream.kind,
-                    detail: stream.detail,
+                    id,
+                    toolName,
+                    kind,
+                    detail,
+                    openPath,
                     status: 'running'
                   },
                   'running'
-                ) || undefined
+                ) || undefined,
+              timeline: {
+                kind: kind as NonNullable<StreamDelta['timeline']>['kind'],
+                turn,
+                label: toolName || kind,
+                detail,
+                openPath,
+                toolName: toolName || undefined,
+                itemStatus: 'running',
+                id
+              }
             });
             break;
+          }
           case 'tool.end': {
+            const toolName = String(stream.toolName || '');
+            const id = String(
+              stream.id ||
+                stream.callId ||
+                openToolIdsByName.get(toolName) ||
+                `tl_tool_${toolName || 'x'}_end`
+            );
+            openToolIdsByName.delete(toolName);
+            const kind = timelineKindFromToolName(
+              toolName,
+              stream.kind != null ? String(stream.kind) : undefined
+            );
+            const itemStatus = stream.error ? 'error' : 'done';
+            // Comment: end must refill detail — host may omit it on start race; Cursor shows Grepped/Read paths
+            const detail =
+              (stream.detail != null && String(stream.detail).trim()) ||
+              detailFromToolArgs(toolName, stream.toolArgs) ||
+              undefined;
+            const openPath =
+              openPathFromToolArgs(toolName, parseToolArgs(stream.toolArgs)) ||
+              undefined;
             const workEvent = workEventFromHostPayload(
               {
-                id: stream.id,
-                toolName: stream.toolName,
-                kind: stream.kind,
-                detail: stream.detail,
+                id,
+                toolName,
+                kind,
+                detail,
+                openPath,
                 error: stream.error,
                 status: stream.error ? 'error' : 'complete'
               },
               stream.error ? 'error' : 'complete'
             );
-            if (workEvent) onDelta({ workEvent });
+            onDelta({
+              workEvent: workEvent || undefined,
+              timeline: {
+                kind: kind as NonNullable<StreamDelta['timeline']>['kind'],
+                turn:
+                  stream.turn != null && Number.isFinite(Number(stream.turn))
+                    ? Number(stream.turn)
+                    : 1,
+                label: toolName || kind,
+                toolName: toolName || undefined,
+                itemStatus,
+                id,
+                // Only set when present — never wipe start detail with undefined
+                ...(detail ? { detail } : {}),
+                ...(openPath ? { openPath } : {})
+              }
+            });
             break;
           }
           case 'file.edit': {

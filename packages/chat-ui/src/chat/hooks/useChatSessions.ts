@@ -21,7 +21,7 @@ import { getVsCodeApi } from '../host/vscodeApi';
 import { debugWarn } from '../debugLog';
 import type { ChatMessage, Mode } from '../types';
 import type { PendingQuestion } from '../../tools/session/AskQuestionTool';
-import type { SendEpochMap } from '../sendEpoch';
+import type { SendEpochMap, SessionStepStartMap } from '../sendEpoch';
 
 export const sessionStore = new ChatSessionStore();
 
@@ -48,7 +48,7 @@ export interface UseChatSessionsParams {
   sendEpochRef: MutableRefObject<SendEpochMap>;
   loopSessionIdRef: MutableRefObject<string | null>;
   stopHandlerRef: { readonly current: { stop: (reason: 'user_stop') => unknown } | null };
-  stepStartRef: MutableRefObject<Record<string, number>>;
+  stepStartRef: MutableRefObject<SessionStepStartMap>;
   parkedAwaitingRef: MutableRefObject<{
     sessionId: string;
     questions: PendingQuestion[];
@@ -362,7 +362,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
       setSessionId(loaded.id);
       setMessages(nextMessages);
       restoreComposerChrome(fresh);
-      stepStartRef.current = {};
+      // Keep per-tab step clocks — parallel streams must not wipe each other.
       setSessionList(sessionStore.list());
       setOpenTabIds((prev) =>
         prev.includes(id) ? prev : [id, ...prev.filter((x) => x !== id)]
@@ -456,7 +456,6 @@ export function useChatSessions(params: UseChatSessionsParams) {
           setSessionId(loaded.id);
           setMessages(nextMessages);
           restoreComposerChrome(fresh);
-          stepStartRef.current = {};
           setSessionList(sessionStore.list());
           setOpenTabIds(
             remaining.includes(neighborId) ? remaining : [neighborId, ...remaining]
@@ -484,7 +483,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
       sessionIdRef.current = fresh.id;
       setSessionId(fresh.id);
       setMessages([]);
-      stepStartRef.current = {};
+      stepStartRef.current.reset(fresh.id);
       setSessionList(sessionStore.list());
       setOpenTabIds([fresh.id]);
       resetPlanChrome();
@@ -533,6 +532,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
       sendEpochRef.current.clear(id);
       onDeletePlanSnap(id);
       const next = sessionStore.delete(id);
+      stepStartRef.current.clear(id);
       setSessionList(sessionStore.list());
       setOpenTabIds((prev) => prev.filter((x) => x !== id));
       if (!next) return;
@@ -543,7 +543,6 @@ export function useChatSessions(params: UseChatSessionsParams) {
         setSessionId(next.id);
         setMessages(nextMessages);
         restoreComposerChrome(next);
-        stepStartRef.current = {};
         setOpenTabIds((prev) =>
           prev.includes(next.id) ? prev : [next.id, ...prev]
         );

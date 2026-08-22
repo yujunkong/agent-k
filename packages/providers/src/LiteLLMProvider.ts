@@ -41,7 +41,8 @@ export class LiteLLMProvider implements LLMProviderInterface {
       messages,
       model,
       temperature = 0.7,
-      maxTokens = 16384,
+      // Reasoning models (hy3) burn completion budget on thinking — keep headroom for final prose.
+      maxTokens = 32768,
       signal,
       tools,
       responseFormat,
@@ -147,7 +148,8 @@ export class LiteLLMProvider implements LLMProviderInterface {
                 yield { reasoning_content: String(delta.reasoning) };
               }
               if (delta?.tool_calls) yield { toolCalls: delta.tool_calls };
-              if (finishReason === 'length') yield { finishReason: 'length' };
+              // Comment: surface any finish_reason (stop/length/tool_calls) — Zen often omits length
+              if (finishReason) yield { finishReason: String(finishReason) };
               if (usage) {
                 yield {
                   usage: {

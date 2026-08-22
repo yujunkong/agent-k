@@ -3,14 +3,25 @@ import { WorkTimeline } from './WorkTimeline';
 import type { ConversationWorkEvent } from '../conversation/conversationWorkEvent';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 import { ChangeSummary, type ChangeSummaryItem } from './ChangeSummary';
+import type { MessageStep } from './MessageSteps';
 
 export interface AgentTurnProps {
   lead?: React.ReactNode;
   workItems?: ConversationWorkEvent[];
+  /** Host timeline rows — MessageSteps sequential chrome (via WorkTimeline). */
+  steps?: MessageStep[];
   fileEdits?: FileEditPreview[];
   terminalRuns?: TerminalRunPreview[];
+  turnProse?: Array<{ id: string; turn: number; content: string; afterStepId?: string }>;
+  /**
+   * Streaming assistant body — rendered inside MessageSteps under Explored
+   * (not below Planning / bubble gap).
+   */
+  liveProse?: string;
   changes?: ChangeSummaryItem[];
   isStreaming?: boolean;
+  /** Assistant answer body is streaming — suppress Planning next moves */
+  hasLiveAnswer?: boolean;
   workedDurationMs?: number;
   children?: React.ReactNode;
   onOpenSubagent?: (subagentId: string, title: string) => void;
@@ -26,10 +37,14 @@ export interface AgentTurnProps {
 export function AgentTurn({
   lead,
   workItems = [],
+  steps = [],
   fileEdits = [],
   terminalRuns = [],
+  turnProse = [],
+  liveProse,
   changes = [],
   isStreaming = false,
+  hasLiveAnswer = false,
   workedDurationMs,
   children,
   onOpenSubagent,
@@ -45,9 +60,13 @@ export function AgentTurn({
       {lead ? <div className="ak-agent-turn__lead">{lead}</div> : null}
       <WorkTimeline
         items={workItems}
+        steps={steps}
         fileEdits={fileEdits}
         terminalRuns={terminalRuns}
+        turnProse={turnProse}
+        liveProse={liveProse}
         isStreaming={isStreaming}
+        hasLiveAnswer={hasLiveAnswer}
         workedDurationMs={workedDurationMs}
         onOpenSubagent={onOpenSubagent}
         onOpenFile={onOpenFile}

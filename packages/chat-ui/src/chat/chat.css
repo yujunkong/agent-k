@@ -1295,6 +1295,27 @@ body {
   opacity: 0.75;
 }
 
+/* Clickable Read / Grepped / Edit path (Cursor-style file link) */
+.ak-explore-file-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: left;
+}
+
+.ak-explore-file-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+  color: var(--vscode-textLink-foreground, #3794ff);
+}
+
 /* Prose inside explore rail — don't re-apply thread inset */
 .ak-explore-scroll .ak-explore-inline-prose,
 .ak-explore-scroll .message-turn-prose {
@@ -1867,7 +1888,8 @@ body {
   gap: 6px;
   width: 100%;
   margin: 0;
-  padding: 2px 0 2px var(--ak-thread-inset, 12px);
+  /* Comment: flush with turn prose — was inset 12px and sat right of the answer column */
+  padding: 2px 0;
   border: none;
   background: none;
   color: var(--vscode-descriptionForeground, #9d9d9d);

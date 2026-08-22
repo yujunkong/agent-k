@@ -1,11 +1,13 @@
 /**
  * When tools start again, preserve mid-turn assistant prose.
  *
- * - First seal of a dig (no explore tools yet this turn) → visible turnProse lead
- * - Later seals while Exploring already has tools → fold into Thought (self-talk)
+ * - Dig bridge / visible mid ack → turnProse (outside Exploring chrome)
+ * - Anchor with afterStepId so MessageSteps can cut Exploring between batches
+ * - Long mid-dig self-talk while Exploring → Thought only
  */
 import type { ChatMessage } from './types';
 import { looksLikeVisibleTurnProse } from './planPromote';
+import { looksLikeVisibleMidReply } from './exploreProseHints';
 
 const TOOL_KINDS = new Set([
   'searching',
@@ -19,14 +21,34 @@ const TOOL_KINDS = new Set([
 /** Explore tools — presence means a dig already started this turn */
 const EXPLORE_KINDS = new Set(['searching', 'reading', 'browsing']);
 
+/** Edit / Command — also valid Exploring cut anchors */
+const ACTION_KINDS = new Set(['editing', 'running']);
+
 export function hasToolSteps(msg: ChatMessage): boolean {
   return (msg.steps || []).some((s) => TOOL_KINDS.has(s.kind));
+}
+
+/** Last explore/edit/shell step on this turn — prose seals after it. */
+export function lastBoundaryStepId(
+  msg: ChatMessage,
+  turn: number
+): string | undefined {
+  const steps = msg.steps || [];
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const s = steps[i];
+    if ((s.turn ?? 1) !== turn) continue;
+    if (EXPLORE_KINDS.has(s.kind) || ACTION_KINDS.has(s.kind)) {
+      return s.id;
+    }
+  }
+  return undefined;
 }
 
 function pushProse(
   prev: NonNullable<ChatMessage['turnProse']>,
   turn: number,
-  content: string
+  content: string,
+  afterStepId?: string
 ): NonNullable<ChatMessage['turnProse']> {
   const text = content.trim();
   if (!text) return prev;
@@ -37,7 +59,9 @@ function pushProse(
     {
       id: `prose_${turn}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       turn,
-      content: text
+      content: text,
+      // Comment: MessageSteps flushes this note after the anchored step (Exploring cut).
+      ...(afterStepId ? { afterStepId } : {})
     }
   ];
 }
@@ -115,8 +139,9 @@ function hasExploreToolsThisTurn(msg: ChatMessage, turn: number): boolean {
 
 /**
  * Seal body before tools:
- * - No explore tools yet this turn → visible lead (turnProse)
- * - Already exploring this turn → Thought (mid-dig self-talk)
+ * - Dig bridge / visible mid ack → turnProse (Cursor: outside Exploring chrome)
+ * - afterStepId anchors cut at last Read/Edit/Command (no top hoist)
+ * - Long mid-dig self-talk while Exploring → Thought only
  */
 export function sealBodyBeforeTools(
   msg: ChatMessage,
@@ -131,22 +156,114 @@ export function sealBodyBeforeTools(
   }
 
   const sealTurn = Math.max(1, currentTurn || 1);
+  const anchor = lastBoundaryStepId(msg, sealTurn);
 
-  // Plan (re)drafts must stay in the bubble — not vanish into collapsed Thought
-  // just because search tools follow in the same turn.
+  // Keep visible mid replies (and plan docs) out of collapsed Thought.
+  // First seal before any tool: still turnProse, but without afterStepId —
+  // MessageSteps places it chronologically before the first explore batch
+  // (not a special "lift to absolute top" path).
   if (
     looksLikeVisibleTurnProse(coalesced) ||
+    looksLikeVisibleMidReply(coalesced) ||
     !hasExploreToolsThisTurn(msg, sealTurn)
   ) {
     return {
       ...msg,
       openingLead: undefined,
       content: '',
-      turnProse: pushProse(msg.turnProse || [], sealTurn, coalesced)
+      turnProse: pushProse(msg.turnProse || [], sealTurn, coalesced, anchor)
     };
   }
 
   return foldTextIntoThought(msg, coalesced, sealTurn);
+}
+
+/** Where mid-turn bubble text went during seal — for timeline-order diagnostics. */
+export type MidReplySealDest = 'empty' | 'turnProse' | 'thought' | 'cleared-no-source';
+
+export function summarizeMidReplySeal(
+  before: ChatMessage,
+  after: ChatMessage
+): {
+  dest: MidReplySealDest;
+  contentLenBefore: number;
+  contentLenAfter: number;
+  leadLenBefore: number;
+  turnProseBefore: number;
+  turnProseAfter: number;
+  /** First ~80 chars of what left the answer bubble */
+  sealedPreview: string;
+  /** Last turnProse entry preview (if dest=turnProse) */
+  lastProsePreview?: string;
+  thoughtDetailLen?: number;
+} {
+  const contentBefore = String(before.content || '').trim();
+  const leadBefore = String(before.openingLead || '').trim();
+  const coalesced = coalesceLeadBody(leadBefore, contentBefore);
+  const proseBefore = before.turnProse?.length ?? 0;
+  const proseAfter = after.turnProse?.length ?? 0;
+  const contentAfter = String(after.content || '').trim();
+
+  const preview = coalesced.slice(0, 80);
+  if (!coalesced) {
+    return {
+      dest: 'cleared-no-source',
+      contentLenBefore: contentBefore.length,
+      contentLenAfter: contentAfter.length,
+      leadLenBefore: leadBefore.length,
+      turnProseBefore: proseBefore,
+      turnProseAfter: proseAfter,
+      sealedPreview: ''
+    };
+  }
+
+  if (proseAfter > proseBefore) {
+    const last = after.turnProse?.[after.turnProse.length - 1];
+    return {
+      dest: 'turnProse',
+      contentLenBefore: contentBefore.length,
+      contentLenAfter: contentAfter.length,
+      leadLenBefore: leadBefore.length,
+      turnProseBefore: proseBefore,
+      turnProseAfter: proseAfter,
+      sealedPreview: preview,
+      lastProsePreview: String(last?.content || '')
+        .trim()
+        .slice(0, 80)
+    };
+  }
+
+  const beforeThought = (before.steps || [])
+    .filter((s) => s.kind === 'thinking')
+    .map((s) => String(s.detail || '').length)
+    .reduce((a, b) => a + b, 0);
+  const afterThought = (after.steps || [])
+    .filter((s) => s.kind === 'thinking')
+    .map((s) => String(s.detail || '').length)
+    .reduce((a, b) => a + b, 0);
+
+  if (afterThought > beforeThought || contentAfter.length < contentBefore.length) {
+    return {
+      dest: afterThought > beforeThought ? 'thought' : 'empty',
+      contentLenBefore: contentBefore.length,
+      contentLenAfter: contentAfter.length,
+      leadLenBefore: leadBefore.length,
+      turnProseBefore: proseBefore,
+      turnProseAfter: proseAfter,
+      sealedPreview: preview,
+      thoughtDetailLen: afterThought
+    };
+  }
+
+  return {
+    dest: contentAfter ? 'empty' : 'empty',
+    contentLenBefore: contentBefore.length,
+    contentLenAfter: contentAfter.length,
+    leadLenBefore: leadBefore.length,
+    turnProseBefore: proseBefore,
+    turnProseAfter: proseAfter,
+    sealedPreview: preview
+  };
 }
 
 /** Prefer explicit turn; else max turn already on steps (agent loop). */

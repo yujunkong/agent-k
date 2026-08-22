@@ -78,6 +78,8 @@ interface ComposerProps {
   /** Prefill composer (e.g. Stop on user bubble → same text for resend) */
   seedText?: string | null;
   seedNonce?: number;
+  /** Bump to focus the textarea (session tab click, even same tab) */
+  focusNonce?: number;
   /** Seed attachments with seedText (pencil edit) */
   seedAttachments?: Attachment[] | null;
   /** Inline Edit selection chip — instruction stays in the textarea */
@@ -212,6 +214,7 @@ export function Composer({
   contextUsageTitle,
   seedText = null,
   seedNonce = 0,
+  focusNonce = 0,
   seedAttachments = null,
   inlineEdit = null,
   onClearInlineEdit,
@@ -271,7 +274,19 @@ export function Composer({
     setAttachments(parked?.attachments ?? []);
     setPaletteTrigger(null);
     setMentionHits([]);
+    // Comment: tab switch → focus input after draft paint
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
   }, [sessionId]);
+
+  // Comment: same-tab re-click (and explicit focus requests) still focus the input
+  useEffect(() => {
+    if (!focusNonce || isInlineEdit) return;
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+  }, [focusNonce, isInlineEdit]);
 
   useEffect(() => {
     if (seedNonce <= 0 || seedText == null) return;

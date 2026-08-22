@@ -16,6 +16,7 @@ export * from './Timeline';
 export * from './TimelineStepCard';
 export * from './TimelineGroup';
 export * from './TimelineCheckpoint';
+export * from './MessageSteps';
 export * from './WorkTimeline';
 export * from './FileEditCard';
 export * from './TerminalRunCard';

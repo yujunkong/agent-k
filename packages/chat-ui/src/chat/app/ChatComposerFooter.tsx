@@ -54,6 +54,8 @@ export interface ChatComposerFooterProps {
   disabled: boolean;
   seedText: string | null;
   seedNonce: number;
+  /** Session tab click → focus composer textarea */
+  focusNonce?: number;
   inlineEdit: InlineEditContext | null;
   onClearInlineEdit: () => void;
   onSlashCommand: (cmd: SlashCommand) => void;
@@ -93,7 +95,7 @@ export function ChatComposerFooter(props: ChatComposerFooterProps) {
     sessionFileEdits, onOpenFile, onUndoAll, onReview, isStreaming, onStop,
     checkpoints, onListCheckpoints, onRestoreCheckpoint, onAcceptFile, onRejectFile,
     sessionId,
-    onSend, disabled, seedText, seedNonce,
+    onSend, disabled, seedText, seedNonce, focusNonce = 0,
     inlineEdit, onClearInlineEdit, onSlashCommand, onRegenerate,
     onQueueMessage, onResynthesize,
     isAwaitingUser, isGeneratingPlan,
@@ -167,6 +169,7 @@ export function ChatComposerFooter(props: ChatComposerFooterProps) {
           onStop={onStop}
           seedText={seedText}
           seedNonce={seedNonce}
+          focusNonce={focusNonce}
           inlineEdit={inlineEdit}
           onClearInlineEdit={onClearInlineEdit}
           onSlashCommand={onSlashCommand}

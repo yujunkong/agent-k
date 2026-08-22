@@ -23,6 +23,8 @@ export interface ChatMessage {
     label: string;
     detail?: string;
     toolName?: string;
+    /** Workspace path for clickable Read/Grep/Edit detail links */
+    openPath?: string;
     turn?: number;
     thoughtRole?: 'opening' | 'mid';
     itemStatus: 'running' | 'done' | 'error';
@@ -37,6 +39,11 @@ export interface ChatMessage {
     id: string;
     turn: number;
     content: string;
+    /**
+     * Timeline cut anchor: prose renders after this step id.
+     * Absent → before explore/action tools of the turn (chronological, not a top hoist).
+     */
+    afterStepId?: string;
   }>;
   metadata?: {
     model?: string;
@@ -129,6 +136,8 @@ export interface TimelineDelta {
   label: string;
   detail?: string;
   toolName?: string;
+  /** Full path for explore file links (display detail may be basename only) */
+  openPath?: string;
   thoughtRole?: 'opening' | 'mid';
   itemStatus: 'running' | 'done' | 'error';
   id?: string;

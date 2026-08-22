@@ -45,7 +45,7 @@ import {
   startPlanExecution
 } from '../../plan/execution/planExecutionPersistence';
 import type { ChatMessage, Mode, Attachment, ModePicker } from '../types';
-import type { SendEpochMap } from '../sendEpoch';
+import type { SendEpochMap, SessionTurnMap, SessionStepStartMap } from '../sendEpoch';
 import type { PlanModeController } from '../../plan/PlanModeController';
 import type { PlanModeControllerAdapter } from '../../plan/session';
 import type { HarnessUXState, UXEventType } from '../../harness/UXForMedium';
@@ -96,9 +96,9 @@ export interface UseChatSendFlowParams {
   setQueueTick: Dispatch<SetStateAction<number>>;
   stopHandlerRef: MutableRefObject<StopHandler | null>;
   sendEpochRef: MutableRefObject<SendEpochMap>;
-  turnNumberRef: MutableRefObject<number>;
+  turnNumberRef: MutableRefObject<SessionTurnMap>;
   loopSessionIdRef: MutableRefObject<string | null>;
-  stepStartRef: MutableRefObject<Record<string, number>>;
+  stepStartRef: MutableRefObject<SessionStepStartMap>;
   parkedAwaitingRef: MutableRefObject<{ sessionId: string; questions: any[] } | null>;
   streaming: boolean;
   uxState: HarnessUXState;
@@ -473,8 +473,8 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
           setCurrent: false
         });
       }
-      stepStartRef.current = {};
-      turnNumberRef.current += 1;
+      stepStartRef.current.reset(ownerId);
+      turnNumberRef.current.bump(ownerId);
 
       const stream = makeAssistantStream(
         effectiveMode,
@@ -498,9 +498,11 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
 
       debugLog('chat.send empty reply', 'send start', {
         ownerId,
+        epoch,
+        turn: turnNumberRef.current.get(ownerId),
         mode: effectiveMode,
-        model: creds.model,
-        baseUrl: String(creds.baseUrl).slice(0, 48),
+        model: creds.model || '(empty)',
+        baseUrl: String(creds.baseUrl || '').slice(0, 48) || '(empty)',
         msgs: apiMessages.length
       });
       sendMessage(
@@ -638,7 +640,12 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
           : [])
       ];
 
-      const rebuilt = buildResynthesizeMessages(agentMsgs, instruction, turnNumberRef.current, mode);
+      const rebuilt = buildResynthesizeMessages(
+        agentMsgs,
+        instruction,
+        turnNumberRef.current.get(sessionIdRef.current),
+        mode
+      );
       const synthesisText = rebuilt[rebuilt.length - 1]?.content || instruction;
 
       const ownerId = sessionIdRef.current;
@@ -771,7 +778,7 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
       setMessages(nextMessages);
       setMode(mode);
       setModeAuto(false);
-      stepStartRef.current = {};
+      stepStartRef.current.reset(forked.id);
       setSessionList(sessionStore.list());
       setOpenTabIds((prev) => [forked.id, ...prev.filter((id) => id !== forked.id)]);
       resetPlanChrome();
@@ -908,7 +915,7 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
                 type: 'plan.execute',
                 requestId,
                 sessionId: sid,
-                parentTurnId: `turn-${turnNumberRef.current}`,
+                parentTurnId: `turn-${turnNumberRef.current.get(sid)}`,
                 executionPlan: executionSnapshot,
                 repoRoot: structuredPlan.repoRoot ?? executionSnapshot.repoRoot,
                 model: creds.model,

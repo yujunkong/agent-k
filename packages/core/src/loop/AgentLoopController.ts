@@ -19,6 +19,11 @@ import { DoomLoopDetector } from './DoomLoopDetector';
 import { DoomLoopHandler } from './DoomLoopHandler';
 import { classifyError, ErrorRecovery } from './ErrorRecovery';
 import { isParallelSafeTool, ParallelExecutor } from './ParallelExecutor';
+import {
+  batchHasBlindRead,
+  isSearchTool,
+  SEARCH_BEFORE_READ_NUDGE,
+} from './searchBeforeRead';
 import { StreamingToolExecutor } from './StreamingToolExecutor';
 import { resolveTurnTimeoutMs, RunTimeoutGuard } from './turnTimeout';
 
@@ -99,6 +104,12 @@ export class AgentLoopController {
   private readonly parallel: ParallelExecutor;
   private readonly timeout = new RunTimeoutGuard();
   private abortFromTimeout = false;
+  /** HARNESS-007 — set after any locate tool runs this `run()`. */
+  private searchSatisfied = false;
+  /** One-shot nudge after blind reads — never fails the read itself. */
+  private searchNudgeSent = false;
+  /** Latest user prompt for path-hint skip. */
+  private lastUserPrompt = '';
 
   constructor(deps: AgentLoopDeps, config: AgentLoopConfig = {}) {
     this.deps = deps;
@@ -134,11 +145,20 @@ export class AgentLoopController {
   /** AGENT-001 — Drive turns until model stops calling tools or a guard fires. */
   async run(input: AgentLoopRunInput): Promise<AgentLoopRunResult> {
     this.abortFromTimeout = false;
+    this.searchSatisfied = false;
+    this.searchNudgeSent = false;
+    this.lastUserPrompt = String(input.prompt || '');
     this.status = 'running';
     this.doom.reset();
     this.emit({ type: 'status', status: 'running' });
 
-    if (input.messages?.length) this.messages = [...input.messages];
+    if (input.messages?.length) {
+      this.messages = [...input.messages];
+      // Prior turn in same session already searched — skip nudge noise.
+      this.searchSatisfied = input.messages.some(
+        (m) => m.role === 'tool' && isSearchTool(String(m.name || ''))
+      );
+    }
     this.messages.push({ role: 'user', content: input.prompt });
 
     const runAbort = new AbortController();
@@ -303,6 +323,14 @@ export class AgentLoopController {
     turn: number
   ): Promise<'ok' | 'doom_loop' | 'aborted' | 'permission_denied'> {
     const streaming = new StreamingToolExecutor(this.deps.executeTool);
+    // Comment: detect blind reads up front — still execute; nudge once after batch
+    const blindBatch =
+      !this.searchNudgeSent &&
+      batchHasBlindRead({
+        batch: toolCalls,
+        searchSatisfied: this.searchSatisfied,
+        userText: this.lastUserPrompt,
+      });
 
     const runOne = async (
       call: ToolCallRequest
@@ -339,6 +367,10 @@ export class AgentLoopController {
         signal,
       });
 
+      if (isSearchTool(call.name)) {
+        this.searchSatisfied = true;
+      }
+
       const outcome = result.success ? 'ok' : result.error || 'error';
       this.doom.recordCall(call.name, call.arguments, outcome);
 
@@ -372,6 +404,9 @@ export class AgentLoopController {
       toolCalls.length > 1 &&
       toolCalls.every((c) => isParallelSafeTool(c.name));
 
+    let batchOutcome: 'ok' | 'doom_loop' | 'aborted' | 'permission_denied' =
+      'ok';
+
     if (canParallel) {
       const map = await this.parallel.map(
         toolCalls.map((call) => ({
@@ -386,23 +421,48 @@ export class AgentLoopController {
       );
       for (const v of map.values()) {
         if (typeof v === 'object' && v && 'error' in v) {
-          if (/abort/i.test(v.error)) return 'aborted';
+          if (/abort/i.test(v.error)) {
+            batchOutcome = 'aborted';
+            break;
+          }
           continue;
         }
-        if (v === 'doom_loop') return 'doom_loop';
-        if (v === 'permission_denied') return 'permission_denied';
+        if (v === 'doom_loop') {
+          batchOutcome = 'doom_loop';
+          break;
+        }
+        if (v === 'permission_denied') {
+          batchOutcome = 'permission_denied';
+          break;
+        }
       }
-      if (signal.aborted) return 'aborted';
-      return 'ok';
+      if (signal.aborted) batchOutcome = 'aborted';
+    } else {
+      for (const call of toolCalls) {
+        if (signal.aborted) {
+          batchOutcome = 'aborted';
+          break;
+        }
+        this.timeout.bump();
+        const r = await runOne(call);
+        if (r !== 'ok') {
+          batchOutcome = r;
+          break;
+        }
+      }
     }
 
-    for (const call of toolCalls) {
-      if (signal.aborted) return 'aborted';
-      this.timeout.bump();
-      const r = await runOne(call);
-      if (r !== 'ok') return r;
+    // Soft semi-force: reads already succeeded; remind once for the next round.
+    if (blindBatch && batchOutcome === 'ok' && !this.searchNudgeSent) {
+      this.searchNudgeSent = true;
+      this.messages.push({
+        role: 'system',
+        content: SEARCH_BEFORE_READ_NUDGE,
+        metadata: { type: 'search_before_read_nudge', turn },
+      });
     }
-    return 'ok';
+
+    return batchOutcome;
   }
 
   private emit(event: AgentLoopEvent): void {
