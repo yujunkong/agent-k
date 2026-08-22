@@ -10,6 +10,7 @@
  */
 import React from 'react';
 import { Composer } from '../components/Composer';
+import type { ModelSelectorOption } from '../components/ModelSelector';
 import { ChangedFilesBar } from '../components/ChangedFilesBar';
 import type { CheckpointSummary } from '../components/ChangedFilesBar';
 import { QueueUI } from '../components/MessageQueueUI';
@@ -67,11 +68,12 @@ export interface ChatComposerFooterProps {
   modeTooltips: Record<string, string>;
   modelLabel: string;
   modelId: string;
-  modelOptions: string[] | { id: string; [key: string]: unknown }[];
+  modelOptions: Array<string | ModelSelectorOption>;
   onModelChange: (next: string) => void;
   thinkingEffort: ThinkingEffort;
   onThinkingEffortChange: ((next: ThinkingEffort) => void) | undefined;
-  thinkingOptions: { value: ThinkingEffort; label: string }[];
+  /** Matches Composer — title is used for the select tooltip. */
+  thinkingOptions: Array<{ value: ThinkingEffort; label: string; title: string }>;
   contextUsagePercent: number;
   contextUsageLabel: string;
   /** Hover tooltip — may include budget; visible label stays used-only */
