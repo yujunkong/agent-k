@@ -11,7 +11,12 @@ import {
   type AgentMessage,
   type ModelTurnResult,
 } from '@agent-k/core';
-import { LiteLLMProvider } from '@agent-k/providers';
+import {
+  LiteLLMProvider,
+  clampThinkingEffort,
+  parseThinkingEffort,
+  resolveThinkingCapability,
+} from '@agent-k/providers';
 import { PermissionGate } from '@agent-k/safety';
 import type {
   AgentMode,
@@ -26,6 +31,7 @@ import {
   type ToolContext,
 } from '@agent-k/tools';
 import * as vscode from 'vscode';
+import { hostLog, hostLogError } from './hostLog';
 
 /** In-flight loop runtime keyed by requestId. */
 export type HostLoopRuntime = {
@@ -75,16 +81,38 @@ export async function runHostChatSend(
   payload: ChatSendPayload,
 ): Promise<void> {
   const webview = ctx.webview;
-  if (!webview) return;
+  if (!webview) {
+    hostLogError('chat.send empty reply', 'aborted: webview undefined');
+    return;
+  }
 
   const requestId = String(payload.requestId) as RequestId;
   const abort = new AbortController();
   ctx.setHostLoopRequestId(requestId);
+  hostLog('chat.send empty reply', `chatSend start requestId=${requestId}`);
 
   const isActive = () => ctx.hostLoops.has(requestId);
+  // Chars posted as delta — logged on complete; also used if complete omits content.
+  let streamedChars = 0;
+  let reasoningChars = 0;
 
   const postStream = (event: Record<string, unknown>) => {
     if (!isActive()) return;
+    const ev = String(event.event || '');
+    if (ev === 'delta' && event.content != null) {
+      streamedChars += String(event.content).length;
+    }
+    if (ev === 'delta' && event.reasoning != null) {
+      reasoningChars += String(event.reasoning).length;
+    }
+    if (ev === 'error' || ev === 'complete' || ev === 'stopped') {
+      const contentLen =
+        event.content != null ? String(event.content).length : streamedChars;
+      hostLog(
+        'chat.send empty reply',
+        `chat.stream → ${ev} requestId=${requestId} contentLen=${contentLen} reasoningLen=${reasoningChars}${ev === 'error' ? ` ${String(event.error || '')}` : ''}`,
+      );
+    }
     void webview.postMessage({
       type: 'chat.stream',
       payload: { requestId, ...event },
@@ -98,6 +126,10 @@ export async function runHostChatSend(
   ).replace(/\/$/, '');
   const model = String(payload.model || cfg.get('provider.model') || '');
   if (!baseUrl || !model) {
+    hostLogError(
+      'chat.send missing credentials',
+      `requestId=${requestId} baseUrl=${baseUrl || '(empty)'} model=${model || '(empty)'}`,
+    );
     void webview.postMessage({
       type: 'chat.stream',
       payload: {
@@ -114,6 +146,14 @@ export async function runHostChatSend(
     payload.apiKey != null
       ? String(payload.apiKey)
       : cfg.get<string>('provider.apiKey') || undefined;
+
+  // Clamp thinking to what this model supports — unsupported + enable_thinking
+  // caused Zen free models to finish with contentLen=0 under parallel load.
+  const thinkingCap = resolveThinkingCapability(model);
+  const thinkingEffort = clampThinkingEffort(
+    parseThinkingEffort(payload.thinkingEffort),
+    thinkingCap,
+  );
 
   const modeConfig = modeRegistry.getModeConfig(mode);
   const maxTurns = Math.min(
@@ -185,6 +225,7 @@ export async function runHostChatSend(
           model,
           signal,
           tools: toolSchemas,
+          thinkingEffort,
         })) {
           if (chunk.error) {
             throw new Error(chunk.error);
@@ -200,6 +241,16 @@ export async function runHostChatSend(
           if (chunk.toolCalls?.length) {
             mergeToolCallDeltas(toolAcc, chunk.toolCalls);
           }
+        }
+
+        // Some Zen models put the whole answer in reasoning_content with empty content.
+        if (!content.trim() && reasoning.trim()) {
+          content = reasoning;
+          postStream({ event: 'delta', content: reasoning });
+          hostLog(
+            'chat.send empty reply',
+            `promoted reasoning→content requestId=${requestId} len=${reasoning.length}`,
+          );
         }
 
         const toolCalls: NonNullable<ModelTurnResult['toolCalls']> = [];
@@ -310,10 +361,27 @@ export async function runHostChatSend(
     } else if (result.reason === 'aborted' || result.reason === 'timeout') {
       postStream({ event: 'stopped' });
     } else {
-      postStream({ event: 'complete' });
+      // Parallel tabs: webview may drop deltas under load — send final body on complete.
+      const finalBody =
+        lastAssistantContent(result.messages) ||
+        String(result.content || '') ||
+        '';
+      if (!finalBody.trim() && streamedChars === 0 && reasoningChars === 0) {
+        postStream({
+          event: 'error',
+          error:
+            'Model returned an empty response (no content). Try again or pick another model.',
+        });
+      } else {
+        postStream({
+          event: 'complete',
+          ...(finalBody ? { content: finalBody } : {}),
+        });
+      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    hostLogError('chat.send empty reply', `chatSend threw requestId=${requestId}`, err);
     postStream({ event: 'error', error: message });
   } finally {
     ctx.hostLoops.delete(requestId);
@@ -321,6 +389,20 @@ export async function runHostChatSend(
       ctx.setHostLoopRequestId(undefined);
     }
   }
+}
+
+/** Last non-empty assistant text from the loop transcript (complete catch-up). */
+function lastAssistantContent(
+  messages: AgentMessage[] | undefined,
+): string {
+  if (!messages?.length) return '';
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === 'assistant' && String(m.content || '').trim()) {
+      return String(m.content);
+    }
+  }
+  return '';
 }
 
 /** Map AgentLoopController events → chat.stream envelope events. */

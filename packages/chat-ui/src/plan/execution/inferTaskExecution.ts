@@ -1,4 +1,4 @@
-import type { PlanTask } from '../v2/schema';
+import type { PlanTask } from '../session/schema';
 import type { TaskExecutionDelegate } from './types';
 
 const VERIFICATION_TITLE = /\b(verify|verification|validate|run tests?|test suite|smoke test)\b/i;

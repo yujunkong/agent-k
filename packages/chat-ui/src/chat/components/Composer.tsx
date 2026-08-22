@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, KeyboardEvent, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, KeyboardEvent, useCallback } from 'react';
 import type { Attachment, ModePicker } from '../types';
 import {
   inlineEditFileLabel,
@@ -67,7 +67,10 @@ interface ComposerProps {
   thinkingOptions?: Array<{ value: ThinkingEffort; label: string; title: string }>;
   /** 0–100 estimated context fill */
   contextUsagePercent?: number;
+  /** Visible footer text — used tokens/percent only (no provider/source) */
   contextUsageLabel?: string;
+  /** Optional hover title; may include budget hint */
+  contextUsageTitle?: string;
   /** Prefill composer (e.g. Stop on user bubble → same text for resend) */
   seedText?: string | null;
   seedNonce?: number;
@@ -76,6 +79,8 @@ interface ComposerProps {
   onClearInlineEdit?: () => void;
   /** Slash command actions (/new, /agent, /compact, /cost, /model, /permissions, /help, …) */
   onSlashCommand?: (cmd: SlashCommand) => void;
+  /** CHAT-007 — park/restore draft text + attachments when switching chat tabs */
+  sessionId?: string;
 }
 
 function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
@@ -174,11 +179,13 @@ export function Composer({
   thinkingOptions,
   contextUsagePercent = 0,
   contextUsageLabel,
+  contextUsageTitle,
   seedText = null,
   seedNonce = 0,
   inlineEdit = null,
   onClearInlineEdit,
-  onSlashCommand
+  onSlashCommand,
+  sessionId
 }: ComposerProps) {
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -190,6 +197,16 @@ export function Composer({
   const lastSubmitRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
   const dragDepthRef = useRef(0);
 
+  // Per-tab draft while Composer stays mounted across session switches
+  const draftBySessionRef = useRef(
+    new Map<string, { text: string; attachments: Attachment[] }>()
+  );
+  const draftSessionIdRef = useRef<string | undefined>(sessionId);
+  const textRef = useRef(text);
+  const attachmentsRef = useRef(attachments);
+  textRef.current = text;
+  attachmentsRef.current = attachments;
+
   const [paletteTrigger, setPaletteTrigger] = useState<ActiveTrigger | null>(
     null
   );
@@ -200,9 +217,39 @@ export function Composer({
   const paletteTriggerRef = useRef<ActiveTrigger | null>(null);
   paletteTriggerRef.current = paletteTrigger;
 
+  // CHAT-007: swap draft before paint so the wrong tab's text never flashes
+  useLayoutEffect(() => {
+    const prev = draftSessionIdRef.current;
+    const next = sessionId;
+    if (!next || prev === next) {
+      if (next) draftSessionIdRef.current = next;
+      return;
+    }
+    if (prev) {
+      draftBySessionRef.current.set(prev, {
+        text: textRef.current,
+        attachments: attachmentsRef.current
+      });
+    }
+    draftSessionIdRef.current = next;
+    const parked = draftBySessionRef.current.get(next);
+    setText(parked?.text ?? '');
+    setAttachments(parked?.attachments ?? []);
+    setPaletteTrigger(null);
+    setMentionHits([]);
+  }, [sessionId]);
+
   useEffect(() => {
     if (seedNonce <= 0 || seedText == null) return;
     setText(seedText);
+    // Seed belongs to the active session draft
+    const id = draftSessionIdRef.current || sessionId;
+    if (id) {
+      draftBySessionRef.current.set(id, {
+        text: seedText,
+        attachments: attachmentsRef.current
+      });
+    }
     window.requestAnimationFrame(() => {
       const el = textareaRef.current;
       if (!el) return;
@@ -214,7 +261,7 @@ export function Composer({
         /* ignore */
       }
     });
-  }, [seedNonce, seedText]);
+  }, [seedNonce, seedText, sessionId]);
 
   const syncPalette = useCallback((nextText: string, cursor: number) => {
     const trigger = detectComposerTrigger(nextText, cursor);
@@ -371,6 +418,11 @@ export function Composer({
     suppressCommitRef.current = true;
     setText('');
     setAttachments([]);
+    // Keep parked draft in sync so tab switch does not revive sent text
+    const id = draftSessionIdRef.current || sessionId;
+    if (id) {
+      draftBySessionRef.current.set(id, { text: '', attachments: [] });
+    }
     closePalette();
     window.setTimeout(() => {
       suppressCommitRef.current = false;
@@ -977,12 +1029,16 @@ export function Composer({
         </div>
       </div>
 
-      <div className="composer-usage" title={contextUsageLabel || 'Context usage'}>
+      {/* 패널 하단 고정 사용량 바 — 표시 문구는 used만 (title에 예산 가능) */}
+      <div
+        className="composer-usage"
+        title={contextUsageTitle || contextUsageLabel || 'Context usage'}
+      >
         <span className="composer-usage__icon" aria-hidden>
           ◔
         </span>
         <span className="composer-usage__text">
-          {contextUsageLabel || `Context: ${usagePct}% used`}
+          {contextUsageLabel || (usagePct > 0 ? `Context: ${usagePct}% used` : 'Context: —')}
         </span>
         <button
           type="button"

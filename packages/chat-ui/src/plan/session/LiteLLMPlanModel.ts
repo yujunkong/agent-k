@@ -1,7 +1,7 @@
 /**
  * LiteLLMPlanModel — adapts the project's existing LLMProviderInterface
  * (LiteLLMProvider, DGXProvider-backed endpoints, etc.) to the minimal
- * PlanGenerationModel interface PlanV2Generator depends on.
+ * PlanGenerationModel interface PlanSchemaGenerator depends on.
  *
  * Requests constrained JSON decoding via `responseFormat` (see
  * providers/types.ts + LiteLLMProvider.ts). On a vLLM/SGLang endpoint this
@@ -16,12 +16,12 @@
  * response_format: json_schema there isn't a real generation failure, so a
  * single param-scoped retry without response_format follows before giving
  * up (see complete() below). The Planner system prompt already embeds the
- * full JSON schema as text (PlanV2Generator.buildPlannerSystemPrompt), so
+ * full JSON schema as text (PlanSchemaGenerator.buildPlannerSystemPrompt), so
  * the retry still has real odds of producing schema-shaped output even
  * without guided decoding; SchemaValidator still checks it either way.
  */
 import type { LLMProviderInterface } from '../../providers/types';
-import type { PlanGenerationMessage, PlanGenerationModel } from './PlanV2Generator';
+import type { PlanGenerationMessage, PlanGenerationModel } from './PlanSchemaGenerator';
 import { PLAN_JSON_SCHEMA } from './schema';
 
 /** 4xx-shaped error text from LiteLLMProvider ("API Error (400): ...") that

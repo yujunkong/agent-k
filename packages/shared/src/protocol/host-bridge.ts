@@ -72,12 +72,12 @@ export type HostBridgeWebviewMessage =
       providerType?: string;
     }
   | {
-      type: 'plan.v2.generate';
+      type: 'plan.generate';
       requestId: RequestId;
       sessionId?: string;
       [key: string]: unknown;
     }
-  | { type: 'plan.v2.cancel'; requestId?: RequestId }
+  | { type: 'plan.cancel'; requestId?: RequestId }
   | { type: 'plan.execute'; requestId: RequestId; [key: string]: unknown }
   | { type: 'worktree.review'; requestId?: RequestId; subagentId: string }
   | { type: 'worktree.apply'; requestId?: RequestId; subagentId: string }
@@ -101,6 +101,19 @@ export type HostBridgeHostMessage =
       type: 'attachments.resolve.result';
       requestId: RequestId;
       results: AttachmentResolveRow[];
+    }
+  /** CHAT-005 — host pushes editor selection / files into Composer chips. */
+  | {
+      type: 'attachments.add';
+      items: Array<{
+        id?: string;
+        type?: string;
+        path?: string;
+        label?: string;
+        content?: string;
+        startLine?: number;
+        endLine?: number;
+      }>;
     }
   | {
       type: 'composer.search.result';
@@ -128,7 +141,7 @@ export type HostBridgeHostMessage =
       error?: string;
     }
   | {
-      type: 'plan.v2.generate.result';
+      type: 'plan.generate.result';
       requestId: RequestId;
       sessionId?: string;
       error?: string;

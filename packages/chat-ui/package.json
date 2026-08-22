@@ -14,6 +14,9 @@
   ],
   "scripts": {
     "build": "node esbuild.mjs",
+    "build:single": "AK_WEBVIEW_BUILD=single node esbuild.mjs",
+    "build:chunks": "AK_WEBVIEW_BUILD=chunks node esbuild.mjs",
+    "analyze": "node scripts/analyze-bundle.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

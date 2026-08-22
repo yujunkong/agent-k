@@ -50,7 +50,11 @@ export class LiteLLMProvider implements LLMProviderInterface {
     const effort = parseThinkingEffort(options.thinkingEffort);
     const mapped = thinkingEffortToProviderOpts(effort);
     const enableThinking =
-      options.enableThinking !== undefined ? options.enableThinking : mapped.enableThinking;
+      options.enableThinking !== undefined
+        ? options.enableThinking
+        : options.thinkingEffort !== undefined
+          ? mapped.enableThinking
+          : false;
 
     try {
       const response = await fetch(`${this.config.baseUrl}/v1/chat/completions`, {
@@ -65,10 +69,19 @@ export class LiteLLMProvider implements LLMProviderInterface {
           stream: true,
           temperature,
           max_tokens: maxTokens,
-          enable_thinking: enableThinking,
-          ...(mapped.reasoningEffort ? { reasoning_effort: mapped.reasoningEffort } : {}),
-          ...(mapped.thinkingBudget != null && enableThinking
-            ? { thinking_budget: mapped.thinkingBudget }
+          // Only send thinking flags when explicitly requested — defaulting to
+          // enable_thinking:true made some Zen free models return contentLen=0.
+          ...(options.thinkingEffort !== undefined ||
+          options.enableThinking !== undefined
+            ? {
+                enable_thinking: enableThinking,
+                ...(mapped.reasoningEffort
+                  ? { reasoning_effort: mapped.reasoningEffort }
+                  : {}),
+                ...(mapped.thinkingBudget != null && enableThinking
+                  ? { thinking_budget: mapped.thinkingBudget }
+                  : {}),
+              }
             : {}),
           ...(tools && tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
           ...(responseFormat ? { response_format: responseFormat } : {}),

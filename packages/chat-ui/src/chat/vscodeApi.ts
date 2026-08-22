@@ -23,32 +23,41 @@ declare global {
 }
 
 /** Cached API handle — never call acquireVsCodeApi more than once. */
-let cached: VsCodeApi | undefined;
+let cached: VsCodeApi | null | undefined;
 
 /**
- * Return the webview vscode API.
+ * Return the webview vscode API (or null outside a VS Code webview).
  * Prefers the host-injected `__vscodeApi` so we never double-acquire.
  * Tests can inject a mock via `setVsCodeApiForTests`.
  */
-export function getVsCodeApi(): VsCodeApi {
-  if (cached) return cached;
+export function getVsCodeApi(): VsCodeApi | null {
+  if (cached !== undefined) return cached;
 
-  // Host HTML boot already acquired — reuse it (avoids fatal double-acquire).
-  if (typeof window !== 'undefined' && window.__vscodeApi) {
-    cached = window.__vscodeApi;
-    return cached;
+  try {
+    // Host HTML boot already acquired — reuse it (avoids fatal double-acquire).
+    if (typeof window !== 'undefined' && window.__vscodeApi) {
+      cached = window.__vscodeApi;
+      return cached;
+    }
+
+    if (typeof acquireVsCodeApi === 'function') {
+      cached = acquireVsCodeApi();
+      if (typeof window !== 'undefined') {
+        window.__vscodeApi = cached;
+      }
+      return cached;
+    }
+  } catch {
+    /* double-acquire or missing runtime */
   }
 
-  cached = acquireVsCodeApi();
-  if (typeof window !== 'undefined') {
-    window.__vscodeApi = cached;
-  }
-  return cached;
+  cached = null;
+  return null;
 }
 
 /** Test-only: inject a fake API (clears previous cache). */
 export function setVsCodeApiForTests(api: VsCodeApi | undefined): void {
-  cached = api;
+  cached = api ?? null;
   if (typeof window !== 'undefined') {
     window.__vscodeApi = api;
   }

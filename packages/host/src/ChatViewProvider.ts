@@ -8,7 +8,7 @@ import type { ChatSendContext, HostLoopRuntime } from './chatSend';
 import { handleWebviewMessage } from './handleWebviewMessage';
 import { getNonce } from './nonce';
 import {
-  abortPlanV2Generate,
+  abortPlanGenerate,
   type PlanGenerateContext,
 } from './planGenerate';
 import { getWebviewHtml } from './webviewHtml';
@@ -24,11 +24,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private hostLoopRequestId: string | undefined;
 
   /** HOST-008 — Plan V2 generate abort tracking. */
-  private readonly planV2Aborts = new Map<
+  private readonly planGenerateAborts = new Map<
     string,
     { abort: AbortController; sessionId: string }
   >();
-  private readonly planV2CancelledIds = new Set<string>();
+  private readonly planGenerateCancelledIds = new Set<string>();
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -72,10 +72,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     };
     const planGenerate: PlanGenerateContext = {
       webview: this.view?.webview,
-      planV2Aborts: this.planV2Aborts,
-      planV2CancelledIds: this.planV2CancelledIds,
-      abortPlanV2Generate: (requestId) =>
-        abortPlanV2Generate(planGenerate, requestId),
+      planGenerateAborts: this.planGenerateAborts,
+      planGenerateCancelledIds: this.planGenerateCancelledIds,
+      abortPlanGenerate: (requestId) =>
+        abortPlanGenerate(planGenerate, requestId),
     };
     return {
       webview: this.view?.webview,
@@ -111,21 +111,44 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   public focusInput(): void {
     void this.focusChatView();
+    // CHAT-005 / Composer — focus the textarea after reveal
+    void this.view?.webview.postMessage({ type: 'focus.input' });
   }
 
+  /** CHAT-005 — attach current editor selection (line range) as a Composer chip. */
   public attachEditorSelection(): void {
-    void this.focusChatView();
     const editor = vscode.window.activeTextEditor;
-    if (!editor || editor.selection.isEmpty) {
-      void vscode.window.showInformationMessage(
-        '[Agent K] Select text in the editor to attach.',
+    if (!editor) {
+      void vscode.window.showWarningMessage(
+        '[Agent K] Select text in the editor, then try again.',
       );
       return;
     }
-    // HOST-002 attachment payload wiring lands with composer UI (CHAT-*).
-    void vscode.window.showInformationMessage(
-      `[Agent K] Selection ready (${editor.selection.end.line - editor.selection.start.line + 1} line(s)).`,
-    );
+    const { document, selection } = editor;
+    const text = document.getText(selection);
+    if (!text.trim()) {
+      void vscode.window.showWarningMessage('[Agent K] No text is selected.');
+      return;
+    }
+    const startLine = selection.start.line + 1;
+    const endLine = selection.end.line + 1;
+    const path = document.uri.fsPath;
+    const label = path.replace(/\\/g, '/').split('/').pop() || path;
+    void this.focusInput();
+    void this.view?.webview.postMessage({
+      type: 'attachments.add',
+      items: [
+        {
+          type: 'snippet',
+          path,
+          label,
+          content: text,
+          startLine,
+          endLine,
+          id: `sel_${Date.now().toString(36)}`,
+        },
+      ],
+    });
   }
 
   public requestInlineEdit(): void {

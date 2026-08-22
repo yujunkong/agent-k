@@ -1,3 +1,7 @@
+/**
+ * CHAT-003 — Searchable Model Picker (v2.1 ModelSelector + UXPROV-003 helpers).
+ * Filter/catalog logic stays in @agent-k/providers (R-001); this file is React only.
+ */
 import React, {
   useCallback,
   useEffect,
@@ -8,13 +12,14 @@ import React, {
 } from 'react';
 import { IconCheck, IconChevronDown } from './Icons';
 import { MODEL_TAG_LABELS, type ModelTag } from '../../providers/modelTags';
+import {
+  asModelPickerOption,
+  matchesModelPickerFilter,
+  type ModelPickerOption
+} from '../../providers/modelPicker';
 
-export interface ModelSelectorOption {
-  id: string;
-  label: string;
-  providerName?: string;
-  tags?: ModelTag[];
-}
+/** Alias kept for Composer / ChatApp consumers (same DTO as UXPROV-003). */
+export type ModelSelectorOption = ModelPickerOption;
 
 interface ModelSelectorProps {
   value: string;
@@ -28,24 +33,6 @@ interface ModelSelectorProps {
 function shortModelName(id: string): string {
   const short = id.split('/').pop() || id;
   return short.length > 32 ? `${short.slice(0, 30)}…` : short;
-}
-
-function asOption(item: string | ModelSelectorOption): ModelSelectorOption {
-  if (typeof item === 'string') {
-    return { id: item, label: shortModelName(item) };
-  }
-  return item;
-}
-
-function matchesFilter(opt: ModelSelectorOption, query: string, tag: ModelTag | 'all'): boolean {
-  if (tag !== 'all' && !(opt.tags || []).includes(tag)) return false;
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  const hay = [opt.id, opt.label, opt.providerName, ...(opt.tags || [])]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  return hay.includes(q);
 }
 
 /**
@@ -68,7 +55,7 @@ export function ModelSelector({
   const listId = useId();
 
   const allOptions = useMemo(() => {
-    const mapped = options.map(asOption);
+    const mapped = options.map(asModelPickerOption);
     if (value && !mapped.some((o) => o.id === value)) {
       return [{ id: value, label: shortModelName(value) }, ...mapped];
     }
@@ -81,8 +68,9 @@ export function ModelSelector({
     return [...set];
   }, [allOptions]);
 
+  // UXPROV-003 — same filter as providers domain (query + tag)
   const filtered = useMemo(
-    () => allOptions.filter((opt) => matchesFilter(opt, filter, tagFilter)),
+    () => allOptions.filter((opt) => matchesModelPickerFilter(opt, filter, tagFilter)),
     [allOptions, filter, tagFilter]
   );
 
@@ -129,7 +117,8 @@ export function ModelSelector({
     const el = listRef.current?.querySelector(
       `[data-model-idx="${highlight}"]`
     ) as HTMLElement | null;
-    el?.scrollIntoView({ block: 'nearest' });
+    // jsdom may omit scrollIntoView — optional chain keeps CHAT-003 tests stable
+    el?.scrollIntoView?.({ block: 'nearest' });
   }, [highlight, open, filtered]);
 
   const pick = (id: string) => {

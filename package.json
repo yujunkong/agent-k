@@ -10,6 +10,7 @@
   "scripts": {
     "check": "npm run test",
     "build:webview": "npm run build -w @agent-k/chat-ui",
+    "build:webview:chunks": "npm run build:chunks -w @agent-k/chat-ui",
     "build:extension": "npm run build -w agent-k",
     "build": "npm run build:webview && npm run build:extension",
     "test": "npm run test -w @agent-k/shared && npm run test -w @agent-k/host && npm run test -w @agent-k/chat-ui && npm run test -w @agent-k/providers && npm run test -w @agent-k/core && npm run test -w @agent-k/safety && npm run test -w @agent-k/tools",

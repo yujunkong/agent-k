@@ -35,6 +35,8 @@ export interface ChatSession extends ChatSessionMeta {
    * Persisted per-session (not global) so tab switch / reload keeps UX.
    */
   activeVariants?: Record<string, number>;
+  /** Composer Auto mode — sticky per tab (CHAT-007). */
+  modeAuto?: boolean;
   /** Tab-scoped provider selection (model / thinking / connection). */
   provider?: {
     model?: string;
@@ -183,6 +185,7 @@ export class ChatSessionStore {
       id: makeId(),
       title: 'New chat',
       mode,
+      modeAuto: true,
       messageCount: 0,
       createdAt: now,
       updatedAt: now,
@@ -244,6 +247,7 @@ export class ChatSessionStore {
       id,
       title: titleFromMessages(messages) || prev?.title || 'New chat',
       mode: mode || prev?.mode || 'agent',
+      modeAuto: prev?.modeAuto,
       messageCount: messages.length,
       createdAt: prev?.createdAt || now,
       updatedAt: now,
@@ -318,6 +322,23 @@ export class ChatSessionStore {
     const session: ChatSession = {
       ...prev,
       provider: { ...prev.provider, ...provider },
+      updatedAt: Date.now(),
+      messageCount: prev.messages.length
+    };
+    this.writeSession(session);
+  }
+
+  /**
+   * Persist Composer mode (+ optional Auto) without requiring a message save.
+   * Needed for empty tabs — debounce persist often skips them on switch.
+   */
+  setMode(id: string, mode: Mode, opts?: { modeAuto?: boolean }): void {
+    const prev = this.readSession(id);
+    if (!prev) return;
+    const session: ChatSession = {
+      ...prev,
+      mode,
+      modeAuto: opts?.modeAuto !== undefined ? opts.modeAuto : prev.modeAuto,
       updatedAt: Date.now(),
       messageCount: prev.messages.length
     };

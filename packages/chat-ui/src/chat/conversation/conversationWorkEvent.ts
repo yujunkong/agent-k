@@ -9,7 +9,7 @@ import {
   mergeSubagentResult,
   parseSubagentResult
 } from './subagentResult';
-import { PLAN_V2_GENERATE_STEP_ID } from '../planGenerateStep';
+import { PLAN_GENERATE_STEP_ID } from '../planGenerateStep';
 import { shortDetail } from '../../host/timelineLabels';
 
 export type { SubagentResult } from './subagentResult';
@@ -575,10 +575,10 @@ export function workEventsFromLegacySteps(
   const out: ConversationWorkEvent[] = [];
   for (const [index, step] of steps.entries()) {
     const kind = String(step.kind || '');
-    if (step.id === PLAN_V2_GENERATE_STEP_ID) {
+    if (step.id === PLAN_GENERATE_STEP_ID) {
       const status = workStatusFromHost(step.status || step.itemStatus);
       out.push({
-        id: PLAN_V2_GENERATE_STEP_ID,
+        id: PLAN_GENERATE_STEP_ID,
         type: 'plan',
         status,
         label: step.label || WORK_TYPE_LABEL.plan

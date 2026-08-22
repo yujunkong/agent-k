@@ -13,7 +13,7 @@ import { TimelineStepCard } from './TimelineStepCard';
 import { SubagentChangesCard } from './SubagentChangesCard';
 import { ExploreRunRow, PlanningTailRow, ThoughtRow } from './ExploreChrome';
 import { SubagentRunRow } from './SubagentRunRow';
-import { isPlanGenerateStep, PLAN_V2_GENERATE_STEP_ID } from '../planGenerateStep';
+import { isPlanGenerateStep, PLAN_GENERATE_STEP_ID } from '../planGenerateStep';
 import { isPendingInlineEdit } from '../inlineEditReview';
 import { FileEditPreviewView } from './FileEditPreviewView';
 import { TerminalRunCard } from './TerminalRunCard';
@@ -364,7 +364,7 @@ export function WorkTimeline({
   // Idle between tool rounds — same tail as legacy MessageSteps
   const showPlanningTail = isStreaming && !timelineSummary.hasActive;
   const planGenRunning = items.some(
-    (e) => e.id === PLAN_V2_GENERATE_STEP_ID && e.status === 'running'
+    (e) => e.id === PLAN_GENERATE_STEP_ID && e.status === 'running'
   );
   const planningTailTitle = planGenRunning ? 'Creating plan' : 'Planning next moves';
 

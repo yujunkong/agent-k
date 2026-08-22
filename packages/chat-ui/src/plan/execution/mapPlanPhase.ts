@@ -1,4 +1,4 @@
-import type { PlanPhase } from '../v2/PlanSession';
+import type { PlanPhase } from '../session/PlanSession';
 import type { PlanExecutionStatus } from './types';
 
 /** Map PlanSession FSM phase → execution-plan lifecycle status. */

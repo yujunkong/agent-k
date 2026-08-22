@@ -155,7 +155,7 @@ export class StickyModeStore {
 }
 
 /** MODE-007 — Plan V2 sticky stages keep Plan mode while researching/planning/reviewing. */
-export type PlanV2StickyStage =
+export type PlanSchemaStickyStage =
   | 'idle'
   | 'research'
   | 'planning'
@@ -163,14 +163,14 @@ export type PlanV2StickyStage =
   | 'approved'
   | 'building';
 
-export class PlanV2StickyState {
-  private stage: PlanV2StickyStage = 'idle';
+export class PlanSchemaStickyState {
+  private stage: PlanSchemaStickyStage = 'idle';
 
-  getStage(): PlanV2StickyStage {
+  getStage(): PlanSchemaStickyStage {
     return this.stage;
   }
 
-  setStage(stage: PlanV2StickyStage): void {
+  setStage(stage: PlanSchemaStickyStage): void {
     this.stage = stage;
   }
 
@@ -208,7 +208,7 @@ export class ManualModeOverride {
   resolve(
     prompt: string,
     sticky: StickyModeStore,
-    planSticky: PlanV2StickyState
+    planSticky: PlanSchemaStickyState
   ): AgentMode {
     if (this.override) return this.override;
     if (planSticky.shouldForcePlanMode()) return 'plan';

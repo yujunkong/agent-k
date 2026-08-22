@@ -1,18 +1,6 @@
 /**
- * VS Code webview API accessor — one place for ChatApp host postMessage.
+ * VS Code webview API accessor — re-exports the cached chat/vscodeApi getter.
+ * NEVER call acquireVsCodeApi more than once (fatal in VS Code webviews).
  */
-export interface VsCodeApi {
-  postMessage: (msg: unknown) => void;
-}
-
-export function getVsCodeApi(): VsCodeApi | null {
-  try {
-    const api =
-      (window as unknown as { __vscodeApi?: VsCodeApi; acquireVsCodeApi?: () => VsCodeApi })
-        .__vscodeApi ||
-      (window as unknown as { acquireVsCodeApi?: () => VsCodeApi }).acquireVsCodeApi?.();
-    return api?.postMessage ? api : null;
-  } catch {
-    return null;
-  }
-}
+export type { VsCodeApi } from '../vscodeApi';
+export { getVsCodeApi, setVsCodeApiForTests } from '../vscodeApi';

@@ -16,10 +16,10 @@ export {
   ModeRegistry,
   modeRegistry,
   PLAN_ALLOWED_TOOLS,
-  PlanV2StickyState,
+  PlanSchemaStickyState,
   StickyModeStore,
   type ModeConfig,
   type PlanToAgentHandoffInput,
   type PlanToAgentHandoffResult,
-  type PlanV2StickyStage,
+  type PlanSchemaStickyStage,
 } from './ModeRegistry';

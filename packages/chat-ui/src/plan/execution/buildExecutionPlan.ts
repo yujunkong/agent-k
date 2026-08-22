@@ -1,4 +1,4 @@
-import type { PlanDocument, PlanTask } from '../v2/schema';
+import type { PlanDocument, PlanTask } from '../session/schema';
 import { inferTaskExecution } from './inferTaskExecution';
 import type {
   ExecutionPlan,

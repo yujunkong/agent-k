@@ -228,6 +228,12 @@ export function MessageBubble({
           <span className="error-indicator">✗</span>
         </div>
       ) : null}
+      {isAssistant && message.status === 'error' ? (
+        <div className="message-header message-header--error">
+          <span className="error-indicator">✗</span>
+          <span className="message-role">Error</span>
+        </div>
+      ) : null}
 
       {/*
         Phase 5 unified live header:

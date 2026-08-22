@@ -1,5 +1,5 @@
 import type { ExecutionPlan, ExecutionPlanTask } from './types';
-import { formatTaskFileTargets } from '../v2/workspaceContext';
+import { formatTaskFileTargets } from '../session/workspaceContext';
 
 /** Prompt passed to the existing SubagentHost.create() path. */
 export function buildPlanTaskSubagentPrompt(

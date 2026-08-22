@@ -2,7 +2,7 @@
 
 Two independent implementations of "Plan V2" were produced for this
 refactor. This document compares them and records what was merged into
-this module (`src/plan/v2/`, the implementation kept as the base).
+this module (`src/plan/session/`, the implementation kept as the base).
 
 ## Side-by-side
 
@@ -10,7 +10,7 @@ this module (`src/plan/v2/`, the implementation kept as the base).
 |---|---|---|
 | Source of truth | `PlanTask[]` via `PlanDocument` | `PlanTask[]` via `PlanSession.tasks` — same idea |
 | Markdown | `renderPlanMarkdown()`, render-only | `PlanRenderer.renderPlanMarkdown()`, render-only — same idea |
-| **LLM → structured plan** | `PlanV2Generator` + `LiteLLMPlanModel`: constrained decoding (`response_format: json_schema`) wired to the real provider layer, schema+semantic validation, bounded retry (max 3) with `FailureContext` fed back into the prompt | **Missing.** No generator, no LLM call, no retry loop. `formatValidationFailureContext()` exists but nothing calls it — it's inert without a generator. |
+| **LLM → structured plan** | `PlanSchemaGenerator` + `LiteLLMPlanModel`: constrained decoding (`response_format: json_schema`) wired to the real provider layer, schema+semantic validation, bounded retry (max 3) with `FailureContext` fed back into the prompt | **Missing.** No generator, no LLM call, no retry loop. `formatValidationFailureContext()` exists but nothing calls it — it's inert without a generator. |
 | Schema validation | zod + hand-mirrored JSON Schema | ad-hoc field checks (no schema library) — works, but more error-prone to extend |
 | File existence check | **Intent-aware**: `files: {path, intent: 'read'\|'modify'\|'create'}` — only checks existence for `read`/`modify` | **Not intent-aware**: `files: string[]`, checks *every* listed file unconditionally. A task that legitimately creates a new file will spuriously fail `FILE_NOT_FOUND` unless the caller remembers to leave new files out of the list. |
 | Task execution status | `EvidenceEngine`: derives status from *observed* tool calls (file touched, verification command run) — no order enforced, multiple tasks can be "in progress" at once | **Missing** (explicitly listed as future work). Instead: single enforced `active` task, explicit `startTask`/`finishTask` calls required, no correlation to actual tool activity. Reintroduces the "enforced step order" pattern the wider design discussion agreed to avoid. |
@@ -140,9 +140,9 @@ after the Grok P0 pass:
 
    Fix: `PlanReview.tsx` now renders a "수동 확인 필요" section listing
    tasks in `awaiting_verification` with a 확인 완료 button per task, wired
-   in `ChatApp.tsx` to `planV2Adapter.verifyTaskManually(taskId)`. Also
-   added `PlanSession.onEvent()` → a `planV2Tick` state counter in
+   in `ChatApp.tsx` to `planAdapter.verifyTaskManually(taskId)`. Also
+   added `PlanSession.onEvent()` → a `planTick` state counter in
    `ChatApp.tsx` so the component actually re-renders when task status
    changes — previously nothing subscribed to `onEvent` even though it
-   existed, so reads of `planV2Adapter.session.*` in JSX were only
+   existed, so reads of `planAdapter.session.*` in JSX were only
    opportunistically fresh.

@@ -33,7 +33,7 @@ export type ExecutionTaskStatus =
   | 'failed'
   | 'blocked';
 
-import type { PlanFileTarget } from '../v2/schema';
+import type { PlanFileTarget } from '../session/schema';
 
 /** One runnable unit derived from an approved PlanTask. */
 export interface ExecutionPlanTask {

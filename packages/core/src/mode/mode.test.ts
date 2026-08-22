@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ManualModeOverride,
-  PlanV2StickyState,
+  PlanSchemaStickyState,
   StickyModeStore,
   buildPlanToAgentHandoff,
   classifyAutoMode,
@@ -30,7 +30,7 @@ describe('mode domain (MODE-001…009)', () => {
   it('Manual override beats sticky and auto', () => {
     const sticky = new StickyModeStore();
     sticky.set('agent');
-    const planSticky = new PlanV2StickyState();
+    const planSticky = new PlanSchemaStickyState();
     const manual = new ManualModeOverride();
     manual.set('ask');
     expect(manual.resolve('implement something', sticky, planSticky)).toBe('ask');
@@ -38,7 +38,7 @@ describe('mode domain (MODE-001…009)', () => {
 
   it('Plan V2 sticky forces plan mode while researching', () => {
     const sticky = new StickyModeStore();
-    const planSticky = new PlanV2StickyState();
+    const planSticky = new PlanSchemaStickyState();
     planSticky.setStage('research');
     const manual = new ManualModeOverride();
     expect(manual.resolve('hello', sticky, planSticky)).toBe('plan');

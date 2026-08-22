@@ -195,7 +195,7 @@ export class PlanSession {
 
       case 'plan.generation.failed':
         // Stay in 'planning' — the caller is expected to retry or give up
-        // (see PlanV2Generator's maxAttempts). We don't move to 'failed'
+        // (see PlanSchemaGenerator's maxAttempts). We don't move to 'failed'
         // here because a retry is still in flight.
         break;
 

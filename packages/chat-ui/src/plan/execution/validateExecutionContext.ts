@@ -3,8 +3,8 @@ import * as fs from 'fs';
 import {
   assertMatchingRepoRoot,
   formatTaskFileTargets,
-} from '../v2/workspaceContext';
-import type { PlanFileTarget } from '../v2/schema';
+} from '../session/workspaceContext';
+import type { PlanFileTarget } from '../session/schema';
 import type { ExecutionPlan, ExecutionPlanTask } from './types';
 
 export type ExecutionContextIssueCode =

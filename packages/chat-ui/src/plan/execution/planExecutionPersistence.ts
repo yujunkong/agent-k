@@ -1,7 +1,7 @@
 /**
  * Persist ExecutionPlan snapshots and task-level audit events on PlanSession.
  */
-import type { PlanSession } from '../v2/PlanSession';
+import type { PlanSession } from '../session/PlanSession';
 import type { ExecutionPlan, ExecutionPlanTask, TaskExecutionDelegate } from './types';
 
 export function getPersistedExecutionPlan(session: PlanSession): ExecutionPlan | null {

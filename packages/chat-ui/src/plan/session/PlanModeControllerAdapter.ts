@@ -3,7 +3,7 @@
  *
  * Per the migration plan agreed on for this refactor: don't delete
  * PlanModeController, PlanGenerator, PlanReview.tsx, or PlanEditor.tsx.
- * Instead, run PlanSession / PlanV2Generator / EvidenceEngine underneath,
+ * Instead, run PlanSession / PlanSchemaGenerator / EvidenceEngine underneath,
  * and mirror their state into the shapes the existing UI already expects.
  */
 import { PlanModeController } from '../PlanModeController';
@@ -11,7 +11,7 @@ import type { PlanDocument as LegacyPlanDocument } from '../PlanGenerator';
 import { PlanSession } from './PlanSession';
 import type { PlanDocument as PlanDocumentV2, TaskStatus } from './schema';
 import { renderPlanMarkdown } from './renderPlanMarkdown';
-import { PlanV2Generator, type PlanGenerationModel } from './PlanV2Generator';
+import { PlanSchemaGenerator, type PlanGenerationModel } from './PlanSchemaGenerator';
 import type { FileExistenceChecker } from './validators/SemanticValidator';
 import { deriveTaskUpdates, type ObservedToolCall } from './EvidenceEngine';
 import type { FailureContext } from './FailureContext';
@@ -109,7 +109,7 @@ export class PlanModeControllerAdapter {
 
     const state = this.session.getState();
     const legacyState = this.legacy.getState();
-    const generator = new PlanV2Generator(model, fileExists);
+    const generator = new PlanSchemaGenerator(model, fileExists);
     const result = await generator.generate({
       goal: state.goal || legacyState.researchResults || 'Plan',
       researchContext: state.researchFindings || legacyState.researchResults || '',
@@ -141,7 +141,7 @@ export class PlanModeControllerAdapter {
     options: { attempts?: number; failures?: Array<FailureLike>; researchContext?: string } = {}
   ): Promise<void> {
     // Same self-heal as completeResearch(): ChatApp.tsx calls this directly
-    // in a couple of places (commitPlanV2Result, handlePlanReject) rather than
+    // in a couple of places (commitPlanResult, handlePlanReject) rather than
     // through generatePlan()'s ensureGenerationPhase(). If a discard() reset
     // the session to idle while a generation request was in flight, the first
     // event below ('plan.generation.attempt' -> 'planning') would otherwise

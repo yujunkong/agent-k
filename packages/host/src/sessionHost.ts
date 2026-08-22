@@ -8,6 +8,7 @@ import type {
   HostSessionsPersistPayload,
 } from '@agent-k/shared';
 import * as vscode from 'vscode';
+import { hostLog } from './hostLog';
 
 /** In-memory session bag (workspaceState persistence deferred to SessionManager). */
 class HostSessionStore {
@@ -58,8 +59,18 @@ export function sendSessionHydration(webview: vscode.Webview | undefined): void 
 
 /** Persist webview session metas into host store. */
 export function persistSessionsToHost(
-  payload: HostSessionsPersistPayload,
+  payload: HostSessionsPersistPayload | undefined | null,
 ): void {
+  // Tolerate flat legacy messages and missing payload — never throw into the router
+  // (that aborted the whole webview message pump → chat.send looked dead).
+  if (!payload || !Array.isArray(payload.sessions)) {
+    hostLog(
+      'sessions.persist crash guard',
+      `skipped bad payload hasPayload=${Boolean(payload)} sessionsType=${payload ? typeof (payload as { sessions?: unknown }).sessions : 'n/a'}`,
+      true,
+    );
+    return;
+  }
   sessionStore.hydrateFrom(payload.sessions, payload.currentId);
 }
 

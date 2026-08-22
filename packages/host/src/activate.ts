@@ -15,6 +15,7 @@ import {
   setUsageStatusBarItem,
   updateUsageStatusBar,
 } from './runtimeSingletons';
+import { getHostLog, hostLog } from './hostLog';
 
 let provider: ChatViewProvider | undefined;
 
@@ -23,6 +24,10 @@ let provider: ChatViewProvider | undefined;
  * Called from extensions/agent-k thin assembler only.
  */
 export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvider {
+  // Keep Output channel alive for the session
+  context.subscriptions.push(getHostLog());
+  hostLog('host activate', `version=${context.extension.packageJSON?.version ?? '?'}`);
+
   const extensionVersion =
     typeof context.extension.packageJSON?.version === 'string'
       ? context.extension.packageJSON.version

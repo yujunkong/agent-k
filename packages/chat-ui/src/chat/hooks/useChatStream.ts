@@ -4,11 +4,18 @@ import { apiHistoryForRegenerate } from '../regenerateTurn';
 import { workEventFromHostPayload, workEventFromSubagentHostEvent } from '../conversation/conversationWorkEvent';
 import { fileEditPreviewFromHost } from '../inlineEditReview';
 import type { InlineEditAgentRequest } from '../inlineEdit';
+/** Cached acquire — never double-call acquireVsCodeApi in this webview. */
+import { getVsCodeApi } from '../vscodeApi';
+import { debugError, debugLog, debugWarn } from '../debugLog';
 
 type SendMessageOpts = {
   planStageOverride?: string;
   runtimeKey?: string;
   inlineEdit?: InlineEditAgentRequest;
+  /** Per-send credentials (tab-scoped); fall back to hook options */
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
 };
 
 /** No-token idle timeout — Ask path default */
@@ -58,15 +65,6 @@ interface UseChatStreamReturn {
   sendWorktreeReview: (subagentId: string) => string | undefined;
   sendWorktreeApply: (subagentId: string) => string | undefined;
   sendWorktreeReject: (subagentId: string) => string | undefined;
-}
-
-function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
-  try {
-    const api = (window as any).__vscodeApi || (window as any).acquireVsCodeApi?.();
-    return api?.postMessage ? api : null;
-  } catch {
-    return null;
-  }
 }
 
 /** All modes run through Extension Host AgentLoop (Ask = read-only tools). */
@@ -178,7 +176,8 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
     for (const requestId of requestIds) {
       abortByRequestRef.current.get(requestId)?.abort();
       if (api) {
-        api.postMessage({ type: 'chat.stop', requestId });
+        // SHARED-001 — nested stop payload (matches host handleWebviewMessage)
+        api.postMessage({ type: 'chat.stop', payload: { requestId } });
       }
       if (runtimeKey) {
         detachRequest(runtimeKey, requestId);
@@ -212,6 +211,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
     ) => {
       const api = getVsCodeApi();
       if (!api) {
+        debugError('chat.send empty reply', 'blocked: no vscode API');
         onError(
           'Agent mode needs the Extension Host (open Agent K chat in VS Code / Extension Development Host).'
         );
@@ -221,6 +221,24 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       const requestId = ++requestSeqRef.current;
       const runtimeKey = opts?.runtimeKey || options.activeRuntimeKey || 'global';
       const hostRequestId = `host_${runtimeKey}_${requestId}_${Date.now()}`;
+      // Prefer per-send (tab) credentials — Composer model change must not rely on stale hook opts.
+      const sendBaseUrl = String(opts?.baseUrl ?? options.baseUrl ?? '').replace(/\/$/, '');
+      const sendModel = String(opts?.model ?? options.model ?? '').trim();
+      const sendApiKey =
+        opts?.apiKey !== undefined ? opts.apiKey : options.apiKey;
+
+      if (!sendBaseUrl || !sendModel) {
+        debugWarn('chat.send missing credentials', {
+          runtimeKey,
+          baseUrl: sendBaseUrl || '(empty)',
+          model: sendModel || '(empty)'
+        });
+        onError(
+          'No provider endpoint for this tab. Pick a model that belongs to a saved AI Provider connection.'
+        );
+        return;
+      }
+
       const controller = new AbortController();
       attachRequest(runtimeKey, hostRequestId, controller);
 
@@ -240,7 +258,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         idleTimer = setTimeout(() => {
           timedOut = true;
           controller.abort();
-          api.postMessage({ type: 'chat.stop', requestId: hostRequestId });
+          api.postMessage({ type: 'chat.stop', payload: { requestId: hostRequestId } });
         }, hostIdleMs);
       };
       bumpIdle();
@@ -256,36 +274,39 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
 
       const onMsg = (event: MessageEvent) => {
         const data = event.data;
-        if (!data || data.type !== 'chat.stream' || data.requestId !== hostRequestId) {
-          return;
-        }
+        // SHARED-001: host posts { type:'chat.stream', payload:{ requestId, event, ... } }
+        if (!data || data.type !== 'chat.stream') return;
+        const stream = (data.payload ?? data) as any;
+        if (stream.requestId !== hostRequestId) return;
         bumpIdle();
 
-        switch (data.event) {
+        switch (stream.event) {
           case 'heartbeat':
             // Host keepalive while waiting on LLM / tools — reset idle only
             break;
           case 'status':
-            if (data.status) onDelta({ status: String(data.status) });
+            if (stream.status) onDelta({ status: String(stream.status) });
             break;
           case 'delta':
-            if (data.content) onDelta({ content: String(data.content) });
+            if (stream.content) onDelta({ content: String(stream.content) });
+            // Host posts reasoning on the same event — was dropped → Thought empty + (no response).
+            if (stream.reasoning) onDelta({ reasoning: String(stream.reasoning) });
             break;
           case 'tool.start':
             // Seal in-progress self-talk into Thought; clear body
             onDelta({
               clearContent: true,
               sealTurn:
-                data.turn != null && Number.isFinite(Number(data.turn))
-                  ? Number(data.turn)
+                stream.turn != null && Number.isFinite(Number(stream.turn))
+                  ? Number(stream.turn)
                   : undefined,
               workEvent:
                 workEventFromHostPayload(
                   {
-                    id: data.id,
-                    toolName: data.toolName,
-                    kind: data.kind,
-                    detail: data.detail,
+                    id: stream.id,
+                    toolName: stream.toolName,
+                    kind: stream.kind,
+                    detail: stream.detail,
                     status: 'running'
                   },
                   'running'
@@ -295,14 +316,14 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
           case 'tool.end': {
             const workEvent = workEventFromHostPayload(
               {
-                id: data.id,
-                toolName: data.toolName,
-                kind: data.kind,
-                detail: data.detail,
-                error: data.error,
-                status: data.error ? 'error' : 'complete'
+                id: stream.id,
+                toolName: stream.toolName,
+                kind: stream.kind,
+                detail: stream.detail,
+                error: stream.error,
+                status: stream.error ? 'error' : 'complete'
               },
-              data.error ? 'error' : 'complete'
+              stream.error ? 'error' : 'complete'
             );
             if (workEvent) onDelta({ workEvent });
             break;
@@ -316,88 +337,88 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
           case 'terminal.run': {
             onDelta({
               terminalRun: {
-                id: String(data.id || `term_${Date.now()}`),
+                id: String(stream.id || `term_${Date.now()}`),
                 phase:
-                  data.phase === 'chunk' || data.phase === 'end'
-                    ? data.phase
+                  stream.phase === 'chunk' || stream.phase === 'end'
+                    ? stream.phase
                     : 'start',
-                command: data.command != null ? String(data.command) : undefined,
+                command: stream.command != null ? String(stream.command) : undefined,
                 description:
-                  data.description != null ? String(data.description) : undefined,
-                cwd: data.cwd != null ? String(data.cwd) : undefined,
-                chunk: data.chunk != null ? String(data.chunk) : undefined,
+                  stream.description != null ? String(stream.description) : undefined,
+                cwd: stream.cwd != null ? String(stream.cwd) : undefined,
+                chunk: stream.chunk != null ? String(stream.chunk) : undefined,
                 stream:
-                  data.stream === 'stderr' || data.stream === 'stdout'
-                    ? data.stream
+                  stream.stream === 'stderr' || stream.stream === 'stdout'
+                    ? stream.stream
                     : undefined,
                 exitCode:
-                  data.exitCode === null
+                  stream.exitCode === null
                     ? null
-                    : data.exitCode != null
-                      ? Number(data.exitCode)
+                    : stream.exitCode != null
+                      ? Number(stream.exitCode)
                       : undefined,
-                error: data.error != null ? String(data.error) : undefined,
+                error: stream.error != null ? String(stream.error) : undefined,
                 durationMs:
-                  data.durationMs != null ? Number(data.durationMs) : undefined,
-                turn: data.turn != null ? Number(data.turn) : undefined,
+                  stream.durationMs != null ? Number(stream.durationMs) : undefined,
+                turn: stream.turn != null ? Number(stream.turn) : undefined,
                 status:
-                  data.status === 'done' ||
-                  data.status === 'error' ||
-                  data.status === 'running'
-                    ? data.status
+                  stream.status === 'done' ||
+                  stream.status === 'error' ||
+                  stream.status === 'running'
+                    ? stream.status
                     : undefined,
-                toolId: data.toolId != null ? String(data.toolId) : undefined
+                toolId: stream.toolId != null ? String(stream.toolId) : undefined
               }
             });
             break;
           }
           // PRD-C0 §5.3 / PRD-Harness-13: forward turn timeline to ChatApp
           case 'timeline': {
-            const kind = String(data.kind || 'thinking') as NonNullable<
+            const kind = String(stream.kind || 'thinking') as NonNullable<
               StreamDelta['timeline']
             >['kind'];
-            const itemStatus = (data.status === 'done' || data.status === 'error'
-              ? data.status
+            const itemStatus = (stream.status === 'done' || stream.status === 'error'
+              ? stream.status
               : 'running') as 'running' | 'done' | 'error';
             onDelta({
               timeline: {
                 kind,
-                turn: Number(data.turn) || 1,
-                label: String(data.label || kind),
-                detail: data.detail != null ? String(data.detail) : undefined,
-                toolName: data.toolName != null ? String(data.toolName) : undefined,
+                turn: Number(stream.turn) || 1,
+                label: String(stream.label || kind),
+                detail: stream.detail != null ? String(stream.detail) : undefined,
+                toolName: stream.toolName != null ? String(stream.toolName) : undefined,
                 thoughtRole:
-                  data.thoughtRole === 'opening' || data.thoughtRole === 'mid'
-                    ? data.thoughtRole
+                  stream.thoughtRole === 'opening' || stream.thoughtRole === 'mid'
+                    ? stream.thoughtRole
                     : undefined,
                 itemStatus,
-                id: data.id != null ? String(data.id) : undefined,
+                id: stream.id != null ? String(stream.id) : undefined,
                 subagentId:
-                  data.subagentId != null ? String(data.subagentId) : undefined,
+                  stream.subagentId != null ? String(stream.subagentId) : undefined,
                 parentTurnId:
-                  data.parentTurnId != null
-                    ? String(data.parentTurnId)
+                  stream.parentTurnId != null
+                    ? String(stream.parentTurnId)
                     : undefined
               },
               workEvent:
                 workEventFromHostPayload(
                   {
-                    id: data.id,
-                    toolName: data.toolName,
-                    kind: data.kind,
-                    detail: data.detail,
+                    id: stream.id,
+                    toolName: stream.toolName,
+                    kind: stream.kind,
+                    detail: stream.detail,
                     status: itemStatus === 'done' ? 'complete' : itemStatus,
                     error:
-                      itemStatus === 'error' && data.error
-                        ? String(data.error)
+                      itemStatus === 'error' && stream.error
+                        ? String(stream.error)
                         : undefined,
                     subagentId:
-                      data.subagentId != null
-                        ? String(data.subagentId)
+                      stream.subagentId != null
+                        ? String(stream.subagentId)
                         : undefined,
                     parentTurnId:
-                      data.parentTurnId != null
-                        ? String(data.parentTurnId)
+                      stream.parentTurnId != null
+                        ? String(stream.parentTurnId)
                         : undefined
                   },
                   itemStatus === 'done' ? 'complete' : itemStatus
@@ -419,36 +440,52 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             onDelta({
               status: 'asking',
               askQuestion: {
-                id: String(data.qid || ''),
-                question: String(data.question || ''),
-                options: Array.isArray(data.options)
-                  ? data.options.map((o: unknown) => String(o))
+                id: String(stream.qid || ''),
+                question: String(stream.question || ''),
+                options: Array.isArray(stream.options)
+                  ? stream.options.map((o: unknown) => String(o))
                   : undefined,
-                required: data.required !== false,
+                required: stream.required !== false,
                 allowMultiple: Boolean(
-                  data.allowMultiple ?? data.allow_multiple
+                  stream.allowMultiple ?? stream.allow_multiple
                 )
               },
             });
             break;
           case 'debug.stage':
             onDelta({
-              debugStage: data.stage != null ? String(data.stage) : undefined,
+              debugStage: stream.stage != null ? String(stream.stage) : undefined,
             });
             break;
           case 'complete':
-            finish(() => onComplete());
+            debugLog('chat.send empty reply', '← chat.stream complete', hostRequestId, {
+              contentLen: stream.content != null ? String(stream.content).length : 0
+            });
+            finish(() => {
+              // Parallel-tab catch-up: host final body heals dropped deltas.
+              if (stream.content != null && String(stream.content).length > 0) {
+                onDelta({ replaceContent: String(stream.content) });
+              }
+              onComplete();
+            });
             break;
           case 'stopped':
+            debugLog('chat.send empty reply', '← chat.stream stopped', hostRequestId);
             finish(() => onComplete());
             break;
           case 'error':
+            debugError(
+              'chat.send empty reply',
+              '← chat.stream error',
+              hostRequestId,
+              stream.error || stream.message
+            );
             finish(() =>
               onError(
                 String(
-                  data.error ||
-                    data.message ||
-                    data.detail ||
+                  stream.error ||
+                    stream.message ||
+                    stream.detail ||
                     'Host tool loop error'
                 )
               )
@@ -475,23 +512,34 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         }
       });
 
-      api.postMessage({
-        type: 'chat.send',
+      // SHARED-001 nested payload — host reads msg.payload (flat send crashed → Streaming stuck)
+      debugLog('chat.send empty reply', '→ chat.send', {
         requestId: hostRequestId,
-        // Parallel tabs: host aborts only this session's in-flight Plan V2 generate.
         sessionId: runtimeKey,
         mode,
-        planStage: opts?.planStageOverride || planStageRef.current,
-        debugStage: debugStageRef.current,
-        thinkingEffort: thinkingEffortRef.current || 'medium',
-        messages: messages.map((m) => ({
-          role: m.role,
-          content: m.content
-        })),
-        baseUrl: options.baseUrl,
-        apiKey: options.apiKey,
-        model: options.model,
-        ...(opts?.inlineEdit ? { inlineEdit: opts.inlineEdit } : {})
+        model: sendModel,
+        baseUrl: sendBaseUrl.slice(0, 48),
+        msgs: messages.length
+      });
+      api.postMessage({
+        type: 'chat.send',
+        payload: {
+          requestId: hostRequestId,
+          // Parallel tabs: host aborts only this session's in-flight Plan V2 generate.
+          sessionId: runtimeKey,
+          mode,
+          planStage: opts?.planStageOverride || planStageRef.current,
+          debugStage: debugStageRef.current,
+          thinkingEffort: thinkingEffortRef.current || 'medium',
+          messages: messages.map((m) => ({
+            role: m.role,
+            content: m.content
+          })),
+          baseUrl: sendBaseUrl,
+          apiKey: sendApiKey,
+          model: sendModel,
+          ...(opts?.inlineEdit ? { inlineEdit: opts.inlineEdit } : {})
+        }
       });
     },
     [options.baseUrl, options.apiKey, options.model, idleTimeoutMs]

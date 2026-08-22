@@ -44,7 +44,7 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **CHAT-003** Searchable Model Picker — Phase 0–2 도메인 + CHAT-001/002 shell·composer OK.
+**바로 다음:** **CHAT-006** Message queue — CHAT-003…005 picker·mode·attachment OK.
 
 ---
 
@@ -231,11 +231,11 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| CHAT-001 | Chat application shell | chat-ui | [x] v2.1 ChatApp + full chat.css / ui/*.css |
+| CHAT-001 | Chat application shell | chat-ui | [x] v2.1 ChatApp + full chat.css / ui/*.css; split → `chat/app/*` hooks |
 | CHAT-002 | Composer | chat-ui | [x] cursor box + mode pill + model input |
-| CHAT-003 | Searchable Model Picker | chat-ui | [ ] |
-| CHAT-004 | Mode selector | chat-ui | [ ] |
-| CHAT-005 | File/selection attachment | chat-ui | [ ] |
+| CHAT-003 | Searchable Model Picker | chat-ui | [x] v2.1 ModelSelector + UXPROV-003 filter/catalog wiring |
+| CHAT-004 | Mode selector | chat-ui | [x] v2.1 ModeSelector (Auto/Agent/Plan/Debug/Ask) + Composer wiring |
+| CHAT-005 | File/selection attachment | chat-ui (+ host bridge) | [x] Composer chips + attachmentFormat; host `attachments.add` selection |
 | CHAT-006 | Message queue | chat-ui | [ ] |
 | CHAT-007 | Chat sessions | chat-ui | [ ] |
 | CHAT-008 | Chat history | chat-ui | [ ] |
@@ -510,7 +510,7 @@ Phase 0 시작 전/병행: shared 계약.
 
 ## 다음으로 할 일
 
-1. **CHAT-003** — Searchable Model Picker (`packages/chat-ui`)
+1. **CHAT-006** — Message queue (`packages/chat-ui`)
 2. Phase 1 잔여: **MODEL-*** / **CFG-008** / **UXPROV-*** (`packages/providers`)
 3. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
 

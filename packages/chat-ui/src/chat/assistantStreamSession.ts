@@ -22,6 +22,7 @@ import {
   type ConversationWorkEvent
 } from './conversation/conversationWorkEvent';
 import { linkPreviewToWorkEvents } from './conversation/workEventDetails';
+import { debugError, debugLog } from './debugLog';
 
 export const STREAM_TOOL_KINDS = new Set([
   'searching',
@@ -113,7 +114,7 @@ export interface AssistantStreamCtx {
     addHypothesis: (title: string, description: string, files: string[]) => void;
     syncStageFromHost: (stage: DebugStage) => void;
   };
-  planV2HasPlan: () => boolean;
+  planSessionHasPlan: () => boolean;
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   updateSessionMessages: (
     sessionId: string,
@@ -171,6 +172,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
   };
 
   const onDelta = (delta: StreamDelta) => {
+    // Superseded turn only — tab switch must still apply tokens to the owner session.
     if (ctx.isStale?.()) return;
 
     if (delta.askQuestion?.id) {
@@ -493,6 +495,36 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       return;
     }
 
+    if (delta.replaceContent != null) {
+      const finalText = String(delta.replaceContent);
+      applyOwnerMessages((prev) => {
+        const hit = lastStreaming(prev);
+        if (!hit) return prev;
+        const cur = hit.msg.content || '';
+        // Never shrink a longer in-UI body (out-of-order catch-up).
+        if (finalText.length < cur.length && cur.startsWith(finalText)) {
+          return prev;
+        }
+        if (finalText === cur) return prev;
+        if (finalText.length > cur.length) {
+          debugLog('parallel tab stream catch-up', {
+            owner: getOwnerSessionId(),
+            from: cur.length,
+            to: finalText.length
+          });
+        }
+        const newMsgs = [...prev];
+        newMsgs[hit.lastIdx] = {
+          ...hit.msg,
+          toolStatus: undefined,
+          openingLead: undefined,
+          content: finalText
+        };
+        return newMsgs;
+      });
+      return;
+    }
+
     if (delta.content) {
       if (planPinned) return;
       applyOwnerMessages((prev) => {
@@ -511,9 +543,12 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
   };
 
   const onComplete = () => {
-    if (ctx.isStale?.()) return;
+    // Always settle the owner transcript — isStale must not leave a forever-
+    // streaming bubble (tab switch / superseded turn still owns this request).
     const ownerId = getOwnerSessionId();
-    if (ownerId === ctx.sessionIdRef.current) {
+    const stale = Boolean(ctx.isStale?.());
+    debugLog('CHAT-007 tab stream settle', 'stream.onComplete', { ownerId, stale });
+    if (!stale && ownerId === ctx.sessionIdRef.current) {
       ctx.setAwaitingUser(false);
     }
     let completedAssistant: ChatMessage | undefined;
@@ -565,13 +600,20 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         content: hasBody ? draft.content : hasOther ? '' : '(no response)'
       };
       completedAssistant = newMsgs[lastIdx];
+      debugLog('CHAT-007 tab stream settle', 'stream.onComplete settled', {
+        ownerId,
+        stale,
+        status: newMsgs[lastIdx].status,
+        contentLen: (newMsgs[lastIdx].content || '').length,
+        hasOther
+      });
       return newMsgs;
     });
 
     const stageNow = ctx.planStageRef.current;
     const shouldPromotePlan =
       ctx.mode === 'plan' &&
-      !ctx.planV2HasPlan() &&
+      !ctx.planSessionHasPlan() &&
       (ctx.promotePlanOnCompleteRef.current ||
         stageNow === 'planning' ||
         stageNow === 'questions' ||
@@ -601,20 +643,52 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       ctx.planController.getQuestions().length > 0 &&
       ctx.pendingQuestionsRef.current.length > 0
     ) {
-      ctx.setShowClarifying(true);
+      // Clarifying chrome is global — only open it for the active owner tab.
+      if (ownerId === ctx.sessionIdRef.current) {
+        ctx.setShowClarifying(true);
+      } else {
+        ctx.parkedAwaitingRef.current = {
+          sessionId: ownerId,
+          questions: ctx.pendingQuestionsRef.current.map((q) => ({ ...q }))
+        };
+      }
     }
   };
 
   const onError = (err: string) => {
-    if (ctx.isStale?.()) return;
+    // Always paint error UI — even when isStale (superseded turn). Dropping
+    // onError left empty streaming assistants that finalizeStreamingAssistant
+    // later deleted → "user bubble only, no error".
     const ownerId = getOwnerSessionId();
+    const stale = Boolean(ctx.isStale?.());
+    debugError('chat.send empty reply', 'stream.onError', {
+      ownerId,
+      stale,
+      err: String(err || '').slice(0, 200)
+    });
     if (ownerId === ctx.sessionIdRef.current) {
       ctx.setAwaitingUser(false);
       ctx.setError(err);
     }
     applyOwnerMessages((prev) => {
       const hit = lastStreaming(prev);
-      if (!hit) return prev;
+      if (!hit) {
+        // Early onError before paint / ref race — still show a visible error turn.
+        const last = prev[prev.length - 1];
+        if (last?.role === 'assistant' && last.status === 'error') {
+          return prev;
+        }
+        return [
+          ...prev,
+          {
+            id: `err_${Date.now()}`,
+            role: 'assistant' as const,
+            content: err,
+            timestamp: Date.now(),
+            status: 'error' as const
+          }
+        ];
+      }
       const newMsgs = [...prev];
       const prevSteps = hit.msg.steps || [];
       const steps = prevSteps.map((s) =>

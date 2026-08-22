@@ -64,7 +64,11 @@ export function collectSessionFileEdits(messages: ChatMessage[]): FileEditPrevie
   return [...map.values()];
 }
 
-/** Finalize or drop a streaming assistant (shared by tab switch / reload). */
+/**
+ * Finalize a streaming assistant (tab switch / reload / stop cleanup).
+ * Never drop an empty streaming turn silently — that left "user bubble only"
+ * with no error after early onError / aborted sends (STREAM / CHAT-007).
+ */
 export function finalizeStreamingAssistant(m: ChatMessage): ChatMessage | null {
   if (m.role !== 'assistant' || m.status !== 'streaming') return m;
   const hasBody = Boolean(m.content?.trim());
@@ -73,15 +77,24 @@ export function finalizeStreamingAssistant(m: ChatMessage): ChatMessage | null {
     Boolean(m.openingLead?.trim()) || (m.turnProse?.length ?? 0) > 0;
   const hasCards =
     (m.fileEdits?.length ?? 0) > 0 || (m.terminalRuns?.length ?? 0) > 0;
-  if (!hasBody && !hasSteps && !hasProse && !hasCards) return null;
+  const workedDurationMs =
+    typeof m.workedDurationMs === 'number'
+      ? m.workedDurationMs
+      : Math.max(0, Date.now() - (m.timestamp || Date.now()));
+  // Empty in-flight turn → visible error, not disappearance.
+  if (!hasBody && !hasSteps && !hasProse && !hasCards) {
+    return {
+      ...m,
+      status: 'error',
+      content: '(no response)',
+      workedDurationMs
+    };
+  }
   return {
     ...m,
     status: 'complete',
-    content: hasBody ? m.content : m.content,
-    workedDurationMs:
-      typeof m.workedDurationMs === 'number'
-        ? m.workedDurationMs
-        : Math.max(0, Date.now() - (m.timestamp || Date.now()))
+    content: m.content,
+    workedDurationMs
   };
 }
 
@@ -98,25 +111,28 @@ export function finalizeStreamingMessages(prev: ChatMessage[]): ChatMessage[] {
   return out;
 }
 
+/**
+ * Display sanitize for persisted / parked transcripts.
+ * IMPORTANT: do NOT finalize `status:'streaming'` here — background-tab
+ * deltas and tab-switch restore call this on every update. Finalizing an
+ * empty in-flight turn to `(no response)` killed lastStreaming() and dropped
+ * all subsequent tokens (CHAT-007).
+ * Orphan streaming is settled only via finalizeStreamingMessages on cold load
+ * or explicit cleanup (new send / stop).
+ */
 export function sanitizeLoadedMessages(parsed: ChatMessage[]): ChatMessage[] {
-  return parsed
-    .map((m) => {
-      if (m.role === 'user') {
-        let content = stripHarnessForDisplay(m.content);
-        content = stripResynthForDisplay(content);
-        return { ...m, content };
-      }
-      if (m.role === 'assistant') {
-        return dedupeAssistantBody({
-          ...m,
-          content: stripFakeToolMarkup(m.content)
-        });
-      }
-      return m;
-    })
-    .map((m) => {
-      if (m.role !== 'assistant' || m.status !== 'streaming') return m;
-      return finalizeStreamingAssistant(m);
-    })
-    .filter((m): m is ChatMessage => m != null);
+  return parsed.map((m) => {
+    if (m.role === 'user') {
+      let content = stripHarnessForDisplay(m.content);
+      content = stripResynthForDisplay(content);
+      return { ...m, content };
+    }
+    if (m.role === 'assistant') {
+      return dedupeAssistantBody({
+        ...m,
+        content: stripFakeToolMarkup(m.content)
+      });
+    }
+    return m;
+  });
 }

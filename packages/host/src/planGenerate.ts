@@ -8,9 +8,9 @@ import * as vscode from 'vscode';
 export type PlanGenerateContext = {
   webview: vscode.Webview | undefined;
   /** requestId → abort + owning session (parallel-tab isolation) */
-  planV2Aborts: Map<string, { abort: AbortController; sessionId: string }>;
-  planV2CancelledIds: Set<string>;
-  abortPlanV2Generate: (requestId?: string) => void;
+  planGenerateAborts: Map<string, { abort: AbortController; sessionId: string }>;
+  planGenerateCancelledIds: Set<string>;
+  abortPlanGenerate: (requestId?: string) => void;
 };
 
 export function isAbortError(error: unknown): boolean {
@@ -24,30 +24,30 @@ export function isAbortError(error: unknown): boolean {
 }
 
 /** Cancel one or all in-flight Plan V2 generates. */
-export function abortPlanV2Generate(
+export function abortPlanGenerate(
   ctx: PlanGenerateContext,
   requestId?: string,
 ): void {
   if (requestId) {
-    const entry = ctx.planV2Aborts.get(requestId);
+    const entry = ctx.planGenerateAborts.get(requestId);
     if (entry) {
       entry.abort.abort();
-      ctx.planV2Aborts.delete(requestId);
-      ctx.planV2CancelledIds.add(requestId);
+      ctx.planGenerateAborts.delete(requestId);
+      ctx.planGenerateCancelledIds.add(requestId);
     }
     return;
   }
-  for (const [id, entry] of ctx.planV2Aborts) {
+  for (const [id, entry] of ctx.planGenerateAborts) {
     entry.abort.abort();
-    ctx.planV2CancelledIds.add(id);
+    ctx.planGenerateCancelledIds.add(id);
   }
-  ctx.planV2Aborts.clear();
+  ctx.planGenerateAborts.clear();
 }
 
 /**
  * Plan V2 LLM generation stub — acknowledges cancel / reports plan package pending.
  */
-export async function runPlanV2Generate(
+export async function runPlanGenerate(
   ctx: PlanGenerateContext,
   message: { requestId: RequestId; sessionId?: string },
 ): Promise<void> {
@@ -55,22 +55,22 @@ export async function runPlanV2Generate(
   const sessionId = String(message.sessionId || '').trim() || undefined;
   const post = (payload: Record<string, unknown>) =>
     void ctx.webview?.postMessage({
-      type: 'plan.v2.generate.result',
+      type: 'plan.generate.result',
       requestId,
       sessionId,
       ...payload,
     });
 
-  if (ctx.planV2CancelledIds.has(requestId)) {
-    ctx.planV2CancelledIds.delete(requestId);
+  if (ctx.planGenerateCancelledIds.has(requestId)) {
+    ctx.planGenerateCancelledIds.delete(requestId);
     post({ error: 'Plan generation cancelled.', aborted: true });
     return;
   }
 
-  abortPlanV2Generate(ctx, requestId);
-  ctx.planV2CancelledIds.delete(requestId);
+  abortPlanGenerate(ctx, requestId);
+  ctx.planGenerateCancelledIds.delete(requestId);
   const abort = new AbortController();
-  ctx.planV2Aborts.set(requestId, { abort, sessionId: sessionId || '' });
+  ctx.planGenerateAborts.set(requestId, { abort, sessionId: sessionId || '' });
 
   try {
     if (abort.signal.aborted) {
@@ -81,6 +81,6 @@ export async function runPlanV2Generate(
       error: 'Plan generate not wired yet (packages/plan / PLAN-* pending).',
     });
   } finally {
-    ctx.planV2Aborts.delete(requestId);
+    ctx.planGenerateAborts.delete(requestId);
   }
 }

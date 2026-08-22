@@ -1,5 +1,5 @@
 /**
- * PlanV2Generator — the actual "make a plan" pipeline:
+ * PlanSchemaGenerator — the actual "make a plan" pipeline:
  *
  *   Planner LLM (constrained decoding)
  *        -> SchemaValidator   (deterministic, no LLM)
@@ -26,7 +26,7 @@ export interface PlanGenerationMessage {
   content: string;
 }
 
-/** Minimal model interface PlanV2Generator depends on — deliberately not
+/** Minimal model interface PlanSchemaGenerator depends on — deliberately not
  *  LLMProviderInterface directly, so this stays unit-testable with a fake
  *  and reusable if the provider layer changes shape later. */
 export interface PlanGenerationModel {
@@ -35,7 +35,7 @@ export interface PlanGenerationModel {
   complete(messages: PlanGenerationMessage[]): Promise<string>;
 }
 
-export interface PlanV2GenerationParams {
+export interface PlanGenerationParams {
   goal: string;
   researchContext: string;
   rejectionFeedback?: string;
@@ -43,7 +43,7 @@ export interface PlanV2GenerationParams {
   repoRoot?: string;
 }
 
-export interface PlanV2GenerationResult {
+export interface PlanGenerationResult {
   ok: boolean;
   plan?: PlanDocument;
   attempts: number;
@@ -62,13 +62,13 @@ function isAbortError(error: unknown): boolean {
   return /aborted|AbortError/i.test(message);
 }
 
-export class PlanV2Generator {
+export class PlanSchemaGenerator {
   constructor(
     private readonly model: PlanGenerationModel,
     private readonly fileExists: FileExistenceChecker
   ) {}
 
-  async generate(params: PlanV2GenerationParams): Promise<PlanV2GenerationResult> {
+  async generate(params: PlanGenerationParams): Promise<PlanGenerationResult> {
     const maxAttempts = Math.max(1, Math.min(params.maxAttempts ?? DEFAULT_MAX_ATTEMPTS, MAX_ALLOWED_ATTEMPTS));
     const failures: FailureContext[] = [];
 
@@ -151,7 +151,7 @@ function buildPlannerSystemPrompt(): string {
   ].join('\n');
 }
 
-function buildPlannerUserPrompt(params: PlanV2GenerationParams): string {
+function buildPlannerUserPrompt(params: PlanGenerationParams): string {
   const lines = [`Goal: ${params.goal}`, '', 'Research findings:', params.researchContext || '(none)'];
   if (params.rejectionFeedback) {
     lines.push('', 'The user previously rejected a plan for this goal with this feedback:', `"${params.rejectionFeedback}"`, 'Address it explicitly.');

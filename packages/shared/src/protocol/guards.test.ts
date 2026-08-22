@@ -60,7 +60,7 @@ describe('SHARED-001 protocol guards', () => {
     expect(WEBVIEW_TO_HOST_TYPES).toContain('ui.ready');
     expect(WEBVIEW_TO_HOST_TYPES).toContain('chat.send');
     expect(WEBVIEW_TO_HOST_TYPES).toContain('provider.test');
-    expect(WEBVIEW_TO_HOST_TYPES).toContain('plan.v2.generate');
+    expect(WEBVIEW_TO_HOST_TYPES).toContain('plan.generate');
     expect(WEBVIEW_TO_HOST_TYPES).toContain('worktree.apply');
     expect(HOST_TO_WEBVIEW_TYPES).toContain('host.hello');
     expect(HOST_TO_WEBVIEW_TYPES).toContain('chat.stream');

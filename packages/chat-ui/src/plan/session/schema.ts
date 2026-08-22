@@ -16,7 +16,7 @@
  * required fields, types, enums). It does NOT guarantee the content is
  * correct (real files, real deps, sane verification). That's what
  * SemanticValidator.ts is for. Never treat "schema passed" as "plan is
- * usable" — see FailureContext.ts / PlanV2Generator.ts.
+ * usable" — see FailureContext.ts / PlanSchemaGenerator.ts.
  */
 import { z } from 'zod';
 

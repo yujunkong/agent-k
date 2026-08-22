@@ -139,6 +139,8 @@ export interface TimelineDelta {
 export interface StreamDelta {
   content?: string;
   reasoning?: string;
+  /** Host complete catch-up — replace bubble body if deltas were dropped (parallel tabs). */
+  replaceContent?: string;
   status?: string;
   clearContent?: boolean;
   sealTurn?: number;

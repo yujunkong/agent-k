@@ -119,7 +119,7 @@ Done when: behavior parity with v2.1 for this Feature + 8-item checklist + tests
 | P0… | Work Order Phase 0 Feature 이식 | **완료** — SHARED + EXT + HOST + CFG-001~003 |
 | P1 | Phase 1 Providers/Models + UXPROV domain | **완료** — PROVIDER/MODEL/CFG-008/UXPROV-001~006 domain (picker UI → CHAT-003) |
 | P2 | Phase 2 Agent/Tools/Safety/Modes | **완료** — AGENT/TOOL/CTX/SAFE/MODE/DEBUG(domain)/REL/CFG 잔여 (host·chat-ui 배선 → Phase 3+) |
-| P3… | Chat / Streaming | **다음** — `CHAT-003` (CHAT-001/002 shell·composer OK) |
+| P3… | Chat / Streaming | **다음** — `CHAT-006` (CHAT-001…005 shell·composer·picker·mode·attach OK) |
 
 ---
 

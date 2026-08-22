@@ -205,6 +205,30 @@ export class MessageQueue {
     this.notify();
   }
 
+  /** Snapshot queued items for per-tab park (CHAT-007). */
+  snapshotQueued(): QueuedMessage[] {
+    return this.getQueued().map((m) => ({ ...m }));
+  }
+
+  /** Restore parked queue for a tab (replaces current queued entries). */
+  restoreQueued(items: QueuedMessage[]): void {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    this.queue = (items || [])
+      .filter((m) => m && m.status === 'queued' && String(m.text || '').trim())
+      .map((m) => ({
+        id: m.id || `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        text: m.text,
+        action: m.action === 'resynthesize' ? 'resynthesize' : 'queue_only',
+        timestamp: m.timestamp || Date.now(),
+        status: 'queued' as const
+      }));
+    this._isInterrupted = false;
+    this.notify();
+  }
+
   private notify(): void {
     const state = this.state;
     this.listeners.forEach(l => l(state));

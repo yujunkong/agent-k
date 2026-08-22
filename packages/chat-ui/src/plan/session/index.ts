@@ -1,5 +1,5 @@
 /**
- * Plan V2 — public entry points.
+ * Plan session — public entry points.
  *
  * See PlanModeControllerAdapter.ts for how this coexists with the existing
  * PlanModeController / PlanGenerator / PlanReview.tsx / PlanEditor.tsx
@@ -12,7 +12,7 @@ export * from './PlanPhaseTransitions';
 export * from './FailureContext';
 export * from './EvidenceEngine';
 export * from './renderPlanMarkdown';
-export { PlanV2Generator, type PlanGenerationModel, type PlanGenerationMessage } from './PlanV2Generator';
+export { PlanSchemaGenerator, type PlanGenerationModel, type PlanGenerationMessage } from './PlanSchemaGenerator';
 export { LiteLLMPlanModel } from './LiteLLMPlanModel';
 export { PlanModeControllerAdapter } from './PlanModeControllerAdapter';
 export { toObservedToolCall } from './toObservedToolCall';

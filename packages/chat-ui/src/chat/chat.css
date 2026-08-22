@@ -3118,7 +3118,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .chat-footer {
-  padding: 8px 12px 12px;
+  padding: 8px 12px 8px;
   /* Same surface as thread — no hard split between chat / composer panes */
   border-top: none;
   background: var(--vscode-editor-background, #1e1e1e);
@@ -3146,7 +3146,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 /*
  * Cursor-like shell (after base list/footer rules so these win):
- * - empty: composer under tabs (top); empty background fills the rest — no scroll
+ * - empty: composer under tabs; footer fills height so usage sits at panel bottom
  * - active: thread scrolls; queue / changed-files / composer stay pinned bottom
  */
 .chat-main--empty > .chat-footer {
@@ -3154,14 +3154,29 @@ body.vscode-high-contrast .ak-code__cursor {
   border-top: none;
   padding: 16px 14px 8px;
   background: transparent;
+  /* Fill panel height so .composer-usage can sit at the very bottom */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .chat-main--empty > .message-list {
   order: 2;
-  flex: 1 1 auto;
+  /* Empty thread has no content — footer owns the vertical space */
+  flex: 0 0 0;
   overflow: hidden;
   overflow-y: hidden;
-  padding-top: 4px;
+  padding: 0;
+  min-height: 0;
+}
+
+/* Empty: composer box under tabs; usage row pinned to panel bottom */
+.chat-main--empty .composer {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.chat-main--empty .composer-usage {
+  margin-top: auto;
 }
 
 .chat-main--active > .message-list {
@@ -4463,9 +4478,15 @@ body.vscode-high-contrast .ak-code__cursor {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 6px 2px;
+  /* Stick to bottom of footer / chat panel (active: footer already bottom) */
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  flex-shrink: 0;
+  padding: 4px 6px 2px;
   font-size: 11px;
   color: var(--vscode-descriptionForeground, #9d9d9d);
+  background: var(--vscode-editor-background, #1e1e1e);
 }
 
 .composer-usage__icon {

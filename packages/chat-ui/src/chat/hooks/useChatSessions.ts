@@ -12,12 +12,13 @@ import {
 } from 'react';
 import { ChatSessionStore } from '../ChatSessionStore';
 import type { ChatSessionMeta } from '../ChatSessionStore';
-import { sanitizeLoadedMessages } from '../chatAppHelpers';
+import { sanitizeLoadedMessages, finalizeStreamingMessages } from '../chatAppHelpers';
 import {
   hydrateActiveVariants,
   setActiveVariantChangeHandler
 } from '../conversation/conversationVariants';
 import { getVsCodeApi } from '../host/vscodeApi';
+import { debugWarn } from '../debugLog';
 import type { ChatMessage, Mode } from '../types';
 import type { PendingQuestion } from '../../tools/session/AskQuestionTool';
 import type { SendEpochMap } from '../sendEpoch';
@@ -38,6 +39,7 @@ export interface ChatSessionLifecycle {
 
 export interface UseChatSessionsParams {
   mode: Mode;
+  modeAuto: boolean;
   setMode: Dispatch<SetStateAction<Mode>>;
   setModeAuto: Dispatch<SetStateAction<boolean>>;
   streaming: boolean;
@@ -57,11 +59,23 @@ export interface UseChatSessionsParams {
   setAwaitingUser: Dispatch<SetStateAction<boolean>>;
   setPendingQuestions: Dispatch<SetStateAction<PendingQuestion[]>>;
   lifecycle: ChatSessionLifecycle;
+  /**
+   * CHAT-007 — single shared ref from ChatApp. Updated synchronously in tab
+   * switch handlers *before* switchTo, so stream deltas never race a stale id.
+   */
+  sessionIdRef: MutableRefObject<string>;
+  /** Park/restore Alt+Enter queue per tab. */
+  parkQueueForSession?: (id: string) => void;
+  restoreQueueForSession?: (id: string) => void;
+  /** Park/restore inline-edit chip per tab. */
+  parkInlineEditForSession?: (id: string) => void;
+  restoreInlineEditForSession?: (id: string) => void;
 }
 
 export function useChatSessions(params: UseChatSessionsParams) {
   const {
     mode,
+    modeAuto,
     setMode,
     setModeAuto,
     streaming,
@@ -77,7 +91,12 @@ export function useChatSessions(params: UseChatSessionsParams) {
     setShowClarifying,
     setAwaitingUser,
     setPendingQuestions,
-    lifecycle
+    lifecycle,
+    sessionIdRef,
+    parkQueueForSession,
+    restoreQueueForSession,
+    parkInlineEditForSession,
+    restoreInlineEditForSession
   } = params;
   const {
     parkPlanForSession,
@@ -90,24 +109,43 @@ export function useChatSessions(params: UseChatSessionsParams) {
   } = lifecycle;
 
   const [sessionId, setSessionId] = useState(() => sessionStore.loadActive().id);
-  const sessionIdRef = useRef(sessionId);
   const [sessionList, setSessionList] = useState<ChatSessionMeta[]>(() =>
     sessionStore.list()
   );
   const [openTabIds, setOpenTabIds] = useState<string[]>(() =>
     sessionStore.getOpenTabIds()
   );
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+  const [messages, setMessagesState] = useState<ChatMessage[]>(() => {
     const active = sessionStore.loadActive();
-    return sanitizeLoadedMessages(active.messages || []);
+    // Cold load only: settle orphan streaming left from a previous crash/reload.
+    return finalizeStreamingMessages(
+      sanitizeLoadedMessages(active.messages || [])
+    );
   });
   const messagesRef = useRef(messages);
-  messagesRef.current = messages;
+  // Do NOT assign messagesRef.current = messages on every render: stream deltas
+  // update the ref synchronously before React commits, and a render mid-flight
+  // would wipe those tokens → "no response" on the active tab.
+  const setMessages = useCallback<Dispatch<SetStateAction<ChatMessage[]>>>(
+    (action) => {
+      // Sync ref immediately for non-function updates so early onError (same
+      // tick as handleSend paint) can find the streaming assistant bubble.
+      if (typeof action !== 'function') {
+        messagesRef.current = action;
+      }
+      setMessagesState((prev) => {
+        const next = typeof action === 'function' ? action(prev) : action;
+        messagesRef.current = next;
+        return next;
+      });
+    },
+    []
+  );
 
-  // Keep an always-current ref for persistence callbacks.
-  useEffect(() => {
-    sessionIdRef.current = sessionId;
-  }, [sessionId]);
+  // CHAT-007: sync during render (not useEffect). Stream deltas for a previous
+  // tab can arrive before paint effects run; a stale ref would apply them to the
+  // newly active React messages and then persist → duplicate titles / shared transcript.
+  sessionIdRef.current = sessionId;
 
   // Hydrate active variant selection whenever we switch sessions/tabs.
   useEffect(() => {
@@ -143,21 +181,33 @@ export function useChatSessions(params: UseChatSessionsParams) {
 
   useEffect(() => {
     const delay = streaming ? 400 : 0;
+    const ownerId = sessionId;
+    const ownerMode = mode;
     const t = window.setTimeout(() => {
-      sessionStore.saveMessages(sessionId, messages, mode);
+      // If the user already switched tabs, skip — leave handler already snapshotted.
+      if (ownerId !== sessionIdRef.current) return;
+      // Never steal currentId — tab switch already called switchTo.
+      sessionStore.saveMessages(ownerId, messagesRef.current, ownerMode, {
+        setCurrent: false
+      });
       setSessionList(sessionStore.list());
       try {
+        const sessions = sessionStore.exportMetasForHost();
+        const currentId = sessionStore.getCurrentId();
         getVsCodeApi()?.postMessage({
           type: 'host.sessions.persist',
-          sessions: sessionStore.exportMetasForHost(),
-          currentId: sessionStore.getCurrentId()
+          // SHARED-001 — nested payload (host used to crash on flat msg.payload === undefined)
+          payload: {
+            sessions,
+            currentId
+          }
         });
-      } catch {
-        /* no host bridge (browser preview) */
+      } catch (err) {
+        debugWarn('sessions.persist crash guard', 'post failed', err);
       }
     }, delay);
     return () => window.clearTimeout(t);
-  }, [messages, sessionId, mode, streaming]);
+  }, [messages, sessionId, mode, streaming, sessionIdRef]);
 
   const applyHostHydration = useCallback((metas: ChatSessionMeta[]) => {
     sessionStore.applyHostHydration(metas);
@@ -173,22 +223,50 @@ export function useChatSessions(params: UseChatSessionsParams) {
   const updateSessionMessages = useCallback(
     (id: string, updater: (prev: ChatMessage[]) => ChatMessage[]) => {
       if (!id) return;
-      if (id === sessionIdRef.current) {
-        setMessages((prev) => {
-          const next = updater(prev);
-          messagesRef.current = next;
-          return next;
-        });
+      // Capture target at schedule time — React may flush after a tab switch.
+      const targetId = id;
+      if (targetId === sessionIdRef.current) {
+        // Apply updater against the live ref synchronously so early onError /
+        // same-tick stream events never miss the streaming assistant.
+        const next = updater(messagesRef.current);
+        messagesRef.current = next;
+        setMessagesState(next);
         return;
       }
-      const loaded = sessionStore.get(id);
+      const loaded = sessionStore.get(targetId);
       if (!loaded) return;
       const base = sanitizeLoadedMessages(loaded.messages || []);
       const next = updater(base);
-      sessionStore.saveMessages(id, next, loaded.mode, { setCurrent: false });
+      sessionStore.saveMessages(targetId, next, loaded.mode, { setCurrent: false });
       setSessionList(sessionStore.list());
     },
-    []
+    [sessionIdRef]
+  );
+
+  /** Park Composer chrome (mode/auto/queue/inline) for the leaving tab. */
+  const parkLeavingComposer = useCallback(
+    (leavingId: string) => {
+      if (!leavingId) return;
+      sessionStore.setMode(leavingId, mode, { modeAuto });
+      parkQueueForSession?.(leavingId);
+      parkInlineEditForSession?.(leavingId);
+    },
+    [mode, modeAuto, parkQueueForSession, parkInlineEditForSession]
+  );
+
+  /** Restore Composer chrome for the tab being opened. */
+  const restoreComposerChrome = useCallback(
+    (loaded: { id: string; mode?: Mode; modeAuto?: boolean; messages?: ChatMessage[] }) => {
+      setMode(loaded.mode || 'agent');
+      setModeAuto(
+        loaded.modeAuto !== undefined
+          ? Boolean(loaded.modeAuto)
+          : (loaded.messages?.length ?? 0) === 0
+      );
+      restoreQueueForSession?.(loaded.id);
+      restoreInlineEditForSession?.(loaded.id);
+    },
+    [setMode, setModeAuto, restoreQueueForSession, restoreInlineEditForSession]
   );
 
   const handleNewChat = useCallback(() => {
@@ -203,31 +281,33 @@ export function useChatSessions(params: UseChatSessionsParams) {
       sessionStore.saveMessages(sessionId, snap, mode, { setCurrent: false });
     }
     const snap = messagesRef.current.length ? messagesRef.current : messages;
-    if (snap.length === 0) {
-      parkPlanForSession(sessionId);
-      parkProviderForSession?.(sessionId);
-      resetPlanChrome();
-      setShowHistory(false);
-      setError(null);
-      setOpenTabIds((prev) =>
-        prev.includes(sessionId) ? prev : [sessionId, ...prev]
-      );
-      setModeAuto(true);
-      return;
-    }
+    // CHAT-007 / CHAT-009: always open a new tab — even from an empty "New chat"
+    // (previous early-return made + feel broken on empty sessions).
+    parkLeavingComposer(sessionId);
     parkPlanForSession(sessionId);
     parkProviderForSession?.(sessionId);
-    sessionStore.saveMessages(sessionId, snap, mode, { setCurrent: false });
+    if (snap.length > 0) {
+      sessionStore.saveMessages(sessionId, snap, mode, { setCurrent: false });
+    } else {
+      // Persist empty leaving tab so it stays a real session in the strip.
+      sessionStore.saveMessages(sessionId, [], mode, { setCurrent: false });
+    }
     const next = sessionStore.createEmpty(mode);
+    // Seed active transcript + id before paint so stream/plan never race the old tab.
+    messagesRef.current = [];
+    sessionIdRef.current = next.id;
     setSessionId(next.id);
     setMessages([]);
     setSessionList(sessionStore.list());
-    setOpenTabIds((prev) => [next.id, ...prev.filter((id) => id !== next.id)]);
+    setOpenTabIds((prev) => {
+      const withLeaving = prev.includes(sessionId) ? prev : [sessionId, ...prev];
+      return [next.id, ...withLeaving.filter((id) => id !== next.id)];
+    });
     resetPlanChrome();
     restoreProviderForSession?.(next.id);
+    restoreComposerChrome(next);
     setError(null);
     setShowHistory(false);
-    setModeAuto(true);
   }, [
     streaming,
     awaitingUser,
@@ -235,17 +315,19 @@ export function useChatSessions(params: UseChatSessionsParams) {
     messages,
     sessionId,
     mode,
+    sessionIdRef,
+    parkLeavingComposer,
     parkPlanForSession,
     parkProviderForSession,
     restoreProviderForSession,
+    restoreComposerChrome,
     resetPlanChrome,
     parkedAwaitingRef,
     messagesRef,
     setShowClarifying,
     setAwaitingUser,
     setShowHistory,
-    setError,
-    setModeAuto
+    setError
   ]);
 
   const handleOpenSession = useCallback(
@@ -264,16 +346,22 @@ export function useChatSessions(params: UseChatSessionsParams) {
         const snap = messagesRef.current.length ? messagesRef.current : messages;
         sessionStore.saveMessages(sessionId, snap, mode, { setCurrent: false });
       } else if (messages.length > 0) {
-        sessionStore.saveMessages(sessionId, messages, mode);
+        sessionStore.saveMessages(sessionId, messages, mode, { setCurrent: false });
       }
+      parkLeavingComposer(sessionId);
       parkPlanForSession(sessionId);
       parkProviderForSession?.(sessionId);
       const loaded = sessionStore.switchTo(id);
       if (!loaded) return;
+      // Re-read after switchTo so any store-only deltas during park are included.
+      const fresh = sessionStore.get(id) || loaded;
+      const nextMessages = sanitizeLoadedMessages(fresh.messages || []);
+      // Seed ref + messagesRef *before* setState so concurrent updaters chain correctly.
+      messagesRef.current = nextMessages;
+      sessionIdRef.current = loaded.id;
       setSessionId(loaded.id);
-      setMessages(sanitizeLoadedMessages(loaded.messages || []));
-      setMode(loaded.mode || 'agent');
-      setModeAuto((loaded.messages?.length ?? 0) === 0);
+      setMessages(nextMessages);
+      restoreComposerChrome(fresh);
       stepStartRef.current = {};
       setSessionList(sessionStore.list());
       setOpenTabIds((prev) =>
@@ -301,10 +389,13 @@ export function useChatSessions(params: UseChatSessionsParams) {
       messages,
       mode,
       pendingQuestions,
+      sessionIdRef,
+      parkLeavingComposer,
       parkPlanForSession,
       parkProviderForSession,
       restorePlanForSession,
       restoreProviderForSession,
+      restoreComposerChrome,
       hasPlanSnap,
       parkedAwaitingRef,
       messagesRef,
@@ -316,8 +407,6 @@ export function useChatSessions(params: UseChatSessionsParams) {
       setShowClarifying,
       setAwaitingUser,
       setPendingQuestions,
-      setMode,
-      setModeAuto,
       setError
     ]
   );
@@ -344,8 +433,9 @@ export function useChatSessions(params: UseChatSessionsParams) {
 
       const snap = messagesRef.current.length ? messagesRef.current : messages;
       if (snap.length > 0) {
-        sessionStore.saveMessages(sessionId, snap, mode);
+        sessionStore.saveMessages(sessionId, snap, mode, { setCurrent: false });
       }
+      parkLeavingComposer(sessionId);
       parkPlanForSession(sessionId);
       parkProviderForSession?.(sessionId);
 
@@ -359,10 +449,13 @@ export function useChatSessions(params: UseChatSessionsParams) {
       if (neighborId && neighborId !== id) {
         const loaded = sessionStore.switchTo(neighborId);
         if (loaded) {
+          const fresh = sessionStore.get(neighborId) || loaded;
+          const nextMessages = sanitizeLoadedMessages(fresh.messages || []);
+          messagesRef.current = nextMessages;
+          sessionIdRef.current = loaded.id;
           setSessionId(loaded.id);
-          setMessages(sanitizeLoadedMessages(loaded.messages || []));
-          setMode(loaded.mode || 'agent');
-          setModeAuto((loaded.messages?.length ?? 0) === 0);
+          setMessages(nextMessages);
+          restoreComposerChrome(fresh);
           stepStartRef.current = {};
           setSessionList(sessionStore.list());
           setOpenTabIds(
@@ -387,6 +480,8 @@ export function useChatSessions(params: UseChatSessionsParams) {
       }
 
       const fresh = sessionStore.createEmpty(mode);
+      messagesRef.current = [];
+      sessionIdRef.current = fresh.id;
       setSessionId(fresh.id);
       setMessages([]);
       stepStartRef.current = {};
@@ -394,6 +489,7 @@ export function useChatSessions(params: UseChatSessionsParams) {
       setOpenTabIds([fresh.id]);
       resetPlanChrome();
       restoreProviderForSession?.(fresh.id);
+      restoreComposerChrome(fresh);
       setError(null);
       setShowHistory(false);
     },
@@ -405,10 +501,13 @@ export function useChatSessions(params: UseChatSessionsParams) {
       messages,
       mode,
       pendingQuestions,
+      sessionIdRef,
+      parkLeavingComposer,
       parkPlanForSession,
       parkProviderForSession,
       restorePlanForSession,
       restoreProviderForSession,
+      restoreComposerChrome,
       resetPlanChrome,
       hasPlanSnap,
       parkedAwaitingRef,
@@ -420,8 +519,6 @@ export function useChatSessions(params: UseChatSessionsParams) {
       setShowClarifying,
       setAwaitingUser,
       setPendingQuestions,
-      setMode,
-      setModeAuto,
       setError,
       setShowHistory
     ]
@@ -440,10 +537,12 @@ export function useChatSessions(params: UseChatSessionsParams) {
       setOpenTabIds((prev) => prev.filter((x) => x !== id));
       if (!next) return;
       if (id === sessionId) {
+        const nextMessages = sanitizeLoadedMessages(next.messages || []);
+        messagesRef.current = nextMessages;
+        sessionIdRef.current = next.id;
         setSessionId(next.id);
-        setMessages(sanitizeLoadedMessages(next.messages || []));
-        setMode(next.mode || 'agent');
-        setModeAuto((next.messages?.length ?? 0) === 0);
+        setMessages(nextMessages);
+        restoreComposerChrome(next);
         stepStartRef.current = {};
         setOpenTabIds((prev) =>
           prev.includes(next.id) ? prev : [next.id, ...prev]
@@ -456,14 +555,14 @@ export function useChatSessions(params: UseChatSessionsParams) {
     [
       streaming,
       sessionId,
+      sessionIdRef,
       restorePlanForSession,
       restoreProviderForSession,
+      restoreComposerChrome,
       onDeletePlanSnap,
       stopHandlerRef,
       sendEpochRef,
       stepStartRef,
-      setMode,
-      setModeAuto,
       setError
     ]
   );
