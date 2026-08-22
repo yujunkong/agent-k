@@ -55,4 +55,15 @@ describe('CHAT-003 ModelSelector', () => {
     });
     expect(screen.getByText('No matches')).toBeTruthy();
   });
+
+  it('pins the current model at the top with a current marker', () => {
+    render(
+      <ModelSelector value="claude-sonnet" options={OPTIONS} onChange={() => undefined} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Model:/i }));
+    const options = screen.getAllByRole('option');
+    expect(options[0].textContent).toMatch(/claude-sonnet/i);
+    expect(options[0].textContent).toMatch(/current/i);
+    expect(options[0].getAttribute('aria-selected')).toBe('true');
+  });
 });

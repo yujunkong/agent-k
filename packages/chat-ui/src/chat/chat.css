@@ -1469,6 +1469,19 @@ body {
   color: var(--vscode-foreground, #e8e8e8);
 }
 
+/* Pencil edit embeds the real Composer component */
+.user-turn--editing {
+  padding: 0;
+  background: transparent;
+  border: none;
+  gap: 6px;
+}
+
+.user-turn--editing .user-turn-composer {
+  width: 100%;
+  margin: 0;
+}
+
 .message-bubble.assistant {
   max-width: 100%;
   width: 100%;
@@ -4132,6 +4145,21 @@ body.vscode-high-contrast .ak-code__cursor {
   opacity: 1;
 }
 
+/* Portaled menu — escapes chat-root / message-list overflow clipping */
+.model-selector__menu--fixed {
+  position: fixed !important;
+  left: auto;
+  right: auto;
+  top: auto;
+  bottom: auto;
+  width: auto;
+  min-width: 16rem;
+  max-width: none;
+  max-height: none; /* height from inline style = remaining panel space */
+  z-index: 2147483000;
+  overflow: hidden;
+}
+
 .model-selector__filter {
   flex-shrink: 0;
   padding: 2px 2px 6px;
@@ -4159,9 +4187,11 @@ body.vscode-high-contrast .ak-code__cursor {
   margin: 0;
   padding: 0;
   list-style: none;
+  overflow-x: hidden;
   overflow-y: auto;
   min-height: 0;
   flex: 1 1 auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .model-selector__item {
@@ -4188,6 +4218,17 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .model-selector__item.is-selected {
   background: var(--ak-panel-selected);
+  outline: 1px solid color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 55%, transparent);
+}
+
+.model-selector__item-current {
+  color: var(--vscode-descriptionForeground, #999);
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.model-selector__item.is-selected .model-selector__item-check {
+  color: var(--vscode-textLink-foreground, var(--vscode-focusBorder, #3794ff));
 }
 
 .model-selector__item-label {
@@ -4284,6 +4325,7 @@ body.vscode-high-contrast .ak-code__cursor {
   flex-wrap: wrap;
   gap: 4px;
   padding: 0 2px 6px;
+  flex-shrink: 0;
 }
 
 .model-tag {
@@ -4499,33 +4541,6 @@ body.vscode-high-contrast .ak-code__cursor {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.composer-usage__regen {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  opacity: 0.55;
-  font-size: 13px;
-  padding: 0;
-  flex-shrink: 0;
-}
-
-.composer-usage__regen:hover:not(:disabled) {
-  opacity: 1;
-  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
-}
-
-.composer-usage__regen:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
 }
 
 .message-continue-banner {

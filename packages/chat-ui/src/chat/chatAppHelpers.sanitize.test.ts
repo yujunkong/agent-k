@@ -45,4 +45,48 @@ describe('finalizeStreamingAssistant', () => {
     expect(out[0].status).toBe('error');
     expect(out[0].content).toBe('(no response)');
   });
+
+  it('Stop settles running Thinking workItems so shimmer ends', () => {
+    const out = finalizeStreamingAssistant({
+      ...streaming('partial'),
+      workItems: [
+        {
+          id: 't1',
+          kind: 'thought',
+          title: 'Thinking',
+          status: 'running',
+          startedAt: 1
+        } as any
+      ],
+      steps: [{ id: 's1', itemStatus: 'running', label: 'Thinking' } as any]
+    });
+    expect(out?.status).toBe('complete');
+    expect(out?.workItems?.[0].status).toBe('complete');
+    expect(out?.steps?.[0].itemStatus).toBe('done');
+  });
+});
+
+describe('sanitizeLoadedMessages stale Thinking', () => {
+  it('settles running workItems on already-complete assistants', () => {
+    const out = sanitizeLoadedMessages([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'done',
+        timestamp: 1,
+        status: 'complete',
+        workItems: [
+          {
+            id: 't1',
+            kind: 'thought',
+            title: 'Thinking',
+            status: 'running',
+            startedAt: 1
+          } as any
+        ]
+      }
+    ]);
+    expect(out[0].status).toBe('complete');
+    expect(out[0].workItems?.[0].status).toBe('complete');
+  });
 });

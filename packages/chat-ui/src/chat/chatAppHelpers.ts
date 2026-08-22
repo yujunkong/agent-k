@@ -6,6 +6,7 @@ import { stripResynthForDisplay } from '../loop/synthesizeInstructions';
 import { stripFakeToolMarkup } from './displaySanitize';
 import { stripHarnessForDisplay } from './harnessBridge';
 import { dedupeAssistantBody } from './assistantStreamSession';
+import { settleWorkEvents } from './conversation/conversationWorkEvent';
 import type { ChatMessage, FileEditPreview, ModePicker } from './types';
 
 export const MODE_LABELS: Record<ModePicker, string> = {
@@ -49,6 +50,22 @@ export function shortModelName(raw: string): string {
   return base.length > 32 ? `${base.slice(0, 30)}…` : base;
 }
 
+/** Rough token estimate for Composer context footer (~4 chars/token). */
+export function estimateMessagesTokens(
+  messages: Array<{ content?: string; attachments?: Array<{ content?: string; path?: string }> }>
+): number {
+  let chars = 0;
+  for (const m of messages) {
+    chars += String(m.content || '').length;
+    if (Array.isArray(m.attachments)) {
+      for (const a of m.attachments) {
+        chars += String(a.content || a.path || '').length;
+      }
+    }
+  }
+  return Math.ceil(chars / 4);
+}
+
 /** Dedupe session file edits by path (latest wins) */
 export function collectSessionFileEdits(messages: ChatMessage[]): FileEditPreview[] {
   const map = new Map<string, FileEditPreview>();
@@ -68,11 +85,13 @@ export function collectSessionFileEdits(messages: ChatMessage[]): FileEditPrevie
  * Finalize a streaming assistant (tab switch / reload / stop cleanup).
  * Never drop an empty streaming turn silently — that left "user bubble only"
  * with no error after early onError / aborted sends (STREAM / CHAT-007).
+ * Also settle running workItems/steps so Thinking shimmer stops after Stop.
  */
 export function finalizeStreamingAssistant(m: ChatMessage): ChatMessage | null {
   if (m.role !== 'assistant' || m.status !== 'streaming') return m;
   const hasBody = Boolean(m.content?.trim());
   const hasSteps = (m.steps?.length ?? 0) > 0;
+  const hasWork = (m.workItems?.length ?? 0) > 0;
   const hasProse =
     Boolean(m.openingLead?.trim()) || (m.turnProse?.length ?? 0) > 0;
   const hasCards =
@@ -81,12 +100,18 @@ export function finalizeStreamingAssistant(m: ChatMessage): ChatMessage | null {
     typeof m.workedDurationMs === 'number'
       ? m.workedDurationMs
       : Math.max(0, Date.now() - (m.timestamp || Date.now()));
+  const steps = (m.steps || []).map((s) =>
+    s.itemStatus === 'running' ? { ...s, itemStatus: 'done' as const } : s
+  );
+  const workItems = settleWorkEvents(m.workItems);
   // Empty in-flight turn → visible error, not disappearance.
-  if (!hasBody && !hasSteps && !hasProse && !hasCards) {
+  if (!hasBody && !hasSteps && !hasWork && !hasProse && !hasCards) {
     return {
       ...m,
       status: 'error',
       content: '(no response)',
+      steps,
+      workItems,
       workedDurationMs
     };
   }
@@ -94,6 +119,8 @@ export function finalizeStreamingAssistant(m: ChatMessage): ChatMessage | null {
     ...m,
     status: 'complete',
     content: m.content,
+    steps,
+    workItems,
     workedDurationMs
   };
 }
@@ -104,6 +131,8 @@ export function finalizeStreamingMessages(prev: ChatMessage[]): ChatMessage[] {
     if (m.role === 'assistant' && m.status === 'streaming') {
       const next = finalizeStreamingAssistant(m);
       if (next) out.push(next);
+    } else if (m.role === 'assistant') {
+      out.push(settleSealedAssistantChrome(m));
     } else {
       out.push(m);
     }
@@ -119,6 +148,9 @@ export function finalizeStreamingMessages(prev: ChatMessage[]): ChatMessage[] {
  * all subsequent tokens (CHAT-007).
  * Orphan streaming is settled only via finalizeStreamingMessages on cold load
  * or explicit cleanup (new send / stop).
+ *
+ * Already-complete assistants may still have workItems stuck on `running`
+ * (old Stop bug) — settle those so Thinking shimmer does not stay forever.
  */
 export function sanitizeLoadedMessages(parsed: ChatMessage[]): ChatMessage[] {
   return parsed.map((m) => {
@@ -128,11 +160,31 @@ export function sanitizeLoadedMessages(parsed: ChatMessage[]): ChatMessage[] {
       return { ...m, content };
     }
     if (m.role === 'assistant') {
-      return dedupeAssistantBody({
+      const base = dedupeAssistantBody({
         ...m,
         content: stripFakeToolMarkup(m.content)
       });
+      // Keep true in-flight turns live; repair sealed turns with stale chrome.
+      if (base.status === 'streaming') return base;
+      return settleSealedAssistantChrome(base);
     }
     return m;
   });
+}
+
+/** Clear leftover running Thought/Explore chrome on sealed assistants. */
+export function settleSealedAssistantChrome(m: ChatMessage): ChatMessage {
+  if (m.role !== 'assistant' || m.status === 'streaming') return m;
+  const hasLiveWork = (m.workItems || []).some(
+    (w) => w.status === 'running' || w.status === 'pending'
+  );
+  const hasLiveSteps = (m.steps || []).some((s) => s.itemStatus === 'running');
+  if (!hasLiveWork && !hasLiveSteps) return m;
+  return {
+    ...m,
+    workItems: settleWorkEvents(m.workItems),
+    steps: (m.steps || []).map((s) =>
+      s.itemStatus === 'running' ? { ...s, itemStatus: 'done' as const } : s
+    )
+  };
 }

@@ -62,6 +62,11 @@ export interface ChatComposerFooterProps {
   onResynthesize: (text: string, opts?: { drainQueue?: boolean }) => void;
   isAwaitingUser: boolean;
   isGeneratingPlan: boolean;
+  /**
+   * Hide footer composer (e.g. subagent detail). Do NOT use for pencil edit —
+   * Cursor keeps the bottom "new message" composer while editing mid-thread.
+   */
+  composerHidden?: boolean;
   modeValue: Mode | 'auto';
   onModeChange: (newMode: ModePicker) => void;
   modeLabels: Record<string, string>;
@@ -92,6 +97,7 @@ export function ChatComposerFooter(props: ChatComposerFooterProps) {
     inlineEdit, onClearInlineEdit, onSlashCommand, onRegenerate,
     onQueueMessage, onResynthesize,
     isAwaitingUser, isGeneratingPlan,
+    composerHidden = false,
     modeValue, onModeChange, modeLabels, modeTooltips,
     modelLabel, modelId, modelOptions, onModelChange,
     thinkingEffort, onThinkingEffortChange, thinkingOptions,
@@ -148,11 +154,11 @@ export function ChatComposerFooter(props: ChatComposerFooterProps) {
       {/* Composer — subagent 탭 활성 중에도 마운트 유지 (모델·드래프트 상태 보존) */}
       <div
         className={
-          activeSubagentTab
+          activeSubagentTab || composerHidden
             ? 'ak-composer-host ak-composer-host--hidden'
             : 'ak-composer-host'
         }
-        aria-hidden={Boolean(activeSubagentTab)}
+        aria-hidden={Boolean(activeSubagentTab || composerHidden)}
       >
         <Composer
           sessionId={sessionId}

@@ -1,0 +1,17 @@
+---
+description: User persona — 15-year veteran Rust + VS Code extension developer
+alwaysApply: true
+---
+
+# Developer persona
+
+Treat the user as a **15-year veteran Rust engineer** who is **highly proficient at VS Code / Cursor extension development** (Extension Host, webview, activation, packaging, debugging).
+
+## How to work with them
+
+- Be concise and technical; skip beginner VS Code / TypeScript / Rust primers unless asked.
+- Prefer precise APIs, lifecycle edge cases, and failure modes over tutorial tone.
+- Call out extension pitfalls early: webview CSP, message protocol, dispose/leak, host vs webview boundary, `vscode` API only on host, activation events, `postMessage` races, rebuild/F5 reload.
+- When suggesting Rust or extension architecture, assume they know ownership, lifetimes, async, and packaging — discuss trade-offs, not basics.
+- Match their language preference: respond in Korean for chat; keep code, identifiers, and commit subjects in English unless they say otherwise.
+- Do not over-explain UI copy or “what a composer is”; focus on behavior, state, and wiring.

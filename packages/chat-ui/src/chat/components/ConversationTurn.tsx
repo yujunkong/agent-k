@@ -2,14 +2,14 @@ import React from 'react';
 import { MessageBubble } from './MessageBubble';
 import { AgentTurnAdapter } from '../conversation/agentTurnAdapter';
 import type { ChangeSummaryItem } from './ChangeSummary';
-import type { FileEditPreview } from '../types';
-import { getVariantMeta, setActiveVariant, useActiveVariant } from '../conversation/conversationVariants';
+import type { Attachment, FileEditPreview } from '../types';
+import type { ComposerChromeProps } from './Composer';
+import { getVariantMeta, useActiveVariant } from '../conversation/conversationVariants';
 import { normalizeWorkItems } from '../conversation/normalizeWorkItems';
 import {
   workEventsFromLegacySteps,
   type ConversationWorkEvent
 } from '../conversation/conversationWorkEvent';
-import './conversation-variants.css';
 
 export interface ConversationTurnProps {
   message: any;
@@ -17,7 +17,7 @@ export interface ConversationTurnProps {
   isAgentRunning?: boolean;
   isLastUser?: boolean;
   isLastAssistant?: boolean;
-  onEdit?: (id: string, content: string) => void;
+  onEdit?: (id: string, content: string, files?: Attachment[]) => void;
   onFork?: (id: string) => void;
   onCopy?: (content: string) => void;
   onStopAndPrefill?: (content: string) => void;
@@ -29,10 +29,19 @@ export interface ConversationTurnProps {
   onWorktreeApply?: (subagentId: string) => void;
   onWorktreeReject?: (subagentId: string) => void;
   onContinueMission?: () => void;
-  onRegenerate?: () => void;
+  /** Controlled inline edit (one at a time) */
+  isEditing?: boolean;
+  onBeginEdit?: (id: string) => void;
+  onCancelEdit?: () => void;
+  editSeedNonce?: number;
+  composerChrome?: ComposerChromeProps;
 }
 
-/** Conversation boundary + Cursor-style sibling assistant variants. */
+/**
+ * Conversation boundary.
+ * Legacy sibling variants (if any in stored history) still hide inactive
+ * assistants. Re-run is via user pencil (Save & Run), not a ↻ footer control.
+ */
 export function ConversationTurn(props: ConversationTurnProps) {
   const {
     message,
@@ -57,7 +66,6 @@ export function ConversationTurn(props: ConversationTurnProps) {
       : workEventsFromLegacySteps(message?.steps);
   const workItems = normalizeWorkItems(workEvents);
   // UI policy: show changed files only in the pinned bottom ChangedFilesBar.
-  // (Avoid duplicate per-turn ChangeSummary chips that confuse users.)
   const changes: ChangeSummaryItem[] = [];
 
   if (!isActiveVariant) return null;
@@ -87,32 +95,8 @@ export function ConversationTurn(props: ConversationTurnProps) {
         >
           {response}
         </AgentTurnAdapter>
-      ) : response}
-
-      {variantMeta && variantMeta.count > 1 && (
-        <div className="conversation-variants" role="group" aria-label="Assistant response variants">
-          <button
-            type="button"
-            className="conversation-variants__nav"
-            aria-label="Previous response variant"
-            disabled={variantMeta.index <= 0}
-            onClick={() => setActiveVariant(variantMeta.groupId, variantMeta.index - 1)}
-          >
-            ‹
-          </button>
-          <span className="conversation-variants__count" aria-live="polite">
-            {variantMeta.index + 1} / {variantMeta.count}
-          </span>
-          <button
-            type="button"
-            className="conversation-variants__nav"
-            aria-label="Next response variant"
-            disabled={variantMeta.index >= variantMeta.count - 1}
-            onClick={() => setActiveVariant(variantMeta.groupId, variantMeta.index + 1)}
-          >
-            ›
-          </button>
-        </div>
+      ) : (
+        response
       )}
     </section>
   );

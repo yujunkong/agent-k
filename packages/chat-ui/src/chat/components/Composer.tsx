@@ -34,7 +34,11 @@ interface ComposerProps {
   onSend: (text: string, files: Attachment[]) => void;
   disabled: boolean;
   onStop: () => void;
-  onRegenerate: () => void;
+  /**
+   * Optional fallback when streaming Enter has no onResynthesize.
+   * No dedicated ↻ UI — re-run is pencil Save & Run.
+   */
+  onRegenerate?: () => void;
   /** Alt+Enter: Queue-only without abort */
   onQueueMessage?: (text: string) => void;
   /**
@@ -74,6 +78,8 @@ interface ComposerProps {
   /** Prefill composer (e.g. Stop on user bubble → same text for resend) */
   seedText?: string | null;
   seedNonce?: number;
+  /** Seed attachments with seedText (pencil edit) */
+  seedAttachments?: Attachment[] | null;
   /** Inline Edit selection chip — instruction stays in the textarea */
   inlineEdit?: InlineEditContext | null;
   onClearInlineEdit?: () => void;
@@ -81,7 +87,31 @@ interface ComposerProps {
   onSlashCommand?: (cmd: SlashCommand) => void;
   /** CHAT-007 — park/restore draft text + attachments when switching chat tabs */
   sessionId?: string;
+  /**
+   * `inline-edit` — same Composer chrome inside a user bubble (pencil).
+   * Hides usage bar. Outside click / Esc dismiss via ChatApp + onDismiss.
+   */
+  variant?: 'default' | 'inline-edit';
+  /** inline-edit: leave edit mode without sending (Esc) */
+  onDismiss?: () => void;
 }
+
+/** Props shared by footer Composer and pencil inline-edit Composer */
+export type ComposerChromeProps = Pick<
+  ComposerProps,
+  | 'mode'
+  | 'onModeChange'
+  | 'modeLabels'
+  | 'modeTooltips'
+  | 'modelLabel'
+  | 'modelId'
+  | 'modelOptions'
+  | 'onModelChange'
+  | 'thinkingEffort'
+  | 'onThinkingEffortChange'
+  | 'thinkingOptions'
+  | 'onSlashCommand'
+>;
 
 function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
   try {
@@ -182,11 +212,15 @@ export function Composer({
   contextUsageTitle,
   seedText = null,
   seedNonce = 0,
+  seedAttachments = null,
   inlineEdit = null,
   onClearInlineEdit,
   onSlashCommand,
-  sessionId
+  sessionId,
+  variant = 'default',
+  onDismiss
 }: ComposerProps) {
+  const isInlineEdit = variant === 'inline-edit';
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
@@ -242,12 +276,17 @@ export function Composer({
   useEffect(() => {
     if (seedNonce <= 0 || seedText == null) return;
     setText(seedText);
+    if (seedAttachments) {
+      setAttachments([...seedAttachments]);
+    }
     // Seed belongs to the active session draft
     const id = draftSessionIdRef.current || sessionId;
     if (id) {
       draftBySessionRef.current.set(id, {
         text: seedText,
-        attachments: attachmentsRef.current
+        attachments: seedAttachments
+          ? [...seedAttachments]
+          : attachmentsRef.current
       });
     }
     window.requestAnimationFrame(() => {
@@ -261,7 +300,7 @@ export function Composer({
         /* ignore */
       }
     });
-  }, [seedNonce, seedText, sessionId]);
+  }, [seedNonce, seedText, seedAttachments, sessionId]);
 
   const syncPalette = useCallback((nextText: string, cursor: number) => {
     const trigger = detectComposerTrigger(nextText, cursor);
@@ -614,7 +653,7 @@ export function Composer({
       clearAfterSubmit(value || lastSubmitRef.current.text);
     } else {
       onStop();
-      setTimeout(() => onRegenerate(), 100);
+      setTimeout(() => onRegenerate?.(), 100);
     }
   };
 
@@ -659,6 +698,13 @@ export function Composer({
         if (item) selectPaletteItem(item);
         return;
       }
+    }
+
+    // Pencil inline-edit: Esc closes without sending
+    if (e.key === 'Escape' && isInlineEdit) {
+      e.preventDefault();
+      onDismiss?.();
+      return;
     }
 
     const isEnterKey = e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter';
@@ -782,7 +828,9 @@ export function Composer({
 
   return (
     <div
-      className={`composer composer--cursor${dragOver ? ' drag-over' : ''}`}
+      className={`composer composer--cursor${dragOver ? ' drag-over' : ''}${
+        isInlineEdit ? ' user-turn-composer' : ''
+      }`}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -937,6 +985,8 @@ export function Composer({
                   onChange={onModelChange}
                   disabled={isStreaming}
                   label={modelLabel}
+                  // Mid-thread pencil edit opens down; footer new-input opens up.
+                  menuPlacement={isInlineEdit ? 'down' : 'up'}
                 />
               ) : (
                 <span className="composer-model" title={modelLabel}>
@@ -1029,28 +1079,21 @@ export function Composer({
         </div>
       </div>
 
-      {/* 패널 하단 고정 사용량 바 — 표시 문구는 used만 (title에 예산 가능) */}
-      <div
-        className="composer-usage"
-        title={contextUsageTitle || contextUsageLabel || 'Context usage'}
-      >
-        <span className="composer-usage__icon" aria-hidden>
-          ◔
-        </span>
-        <span className="composer-usage__text">
-          {contextUsageLabel || (usagePct > 0 ? `Context: ${usagePct}% used` : 'Context: —')}
-        </span>
-        <button
-          type="button"
-          className="composer-usage__regen"
-          onClick={onRegenerate}
-          disabled={disabled || isStreaming}
-          title="Regenerate"
-          aria-label="Regenerate"
+      {/* Footer usage — hide when Composer is embedded in a user bubble */}
+      {!isInlineEdit ? (
+        <div
+          className="composer-usage"
+          title={contextUsageTitle || contextUsageLabel || 'Context usage'}
         >
-          <span aria-hidden>↻</span>
-        </button>
-      </div>
+          <span className="composer-usage__icon" aria-hidden>
+            ◔
+          </span>
+          <span className="composer-usage__text">
+            {contextUsageLabel ||
+              (usagePct > 0 ? `Context: ${usagePct}% used` : 'Context: —')}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -29,10 +29,7 @@ import type { AgentMessage } from '../../loop/AgentLoopController';
 import { MessageQueue } from '../../loop/MessageQueue';
 import { StopHandler } from '../../loop/StopHandler';
 import { createAssistantStreamSession } from '../assistantStreamSession';
-import {
-  appendRegenerateAssistantTurn,
-  createStreamingAssistantTurn
-} from '../regenerateTurn';
+import { lastUserIndex, moveUserTurnToEnd } from '../regenerateTurn';
 import { sanitizeLoadedMessages, finalizeStreamingMessages, shortModelName } from '../chatAppHelpers';
 import { lastConversationTurn, resolveSendMode } from '../../mode';
 import { PLAN_STICKY_PHASES } from '../chatAppHelpers';
@@ -73,15 +70,6 @@ type SendMessageFn = (
   }
 ) => Promise<void>;
 
-type RegenerateFn = (
-  messages: ChatMessage[],
-  mode: Mode,
-  onDelta: (...args: any[]) => void,
-  onComplete: () => void,
-  onError: (err: string) => void,
-  onRegenerateStart?: () => void
-) => Promise<void>;
-
 export interface UseChatSendFlowParams {
   mode: Mode;
   modeAuto: boolean;
@@ -97,7 +85,6 @@ export interface UseChatSendFlowParams {
   setOpenTabIds: Dispatch<SetStateAction<string[]>>;
   sendMessage: SendMessageFn;
   stop: () => void;
-  regenerate: RegenerateFn;
   planStage: string;
   planController: PlanModeController;
   planAdapter: PlanModeControllerAdapter;
@@ -144,7 +131,16 @@ export interface UseChatSendFlowParams {
   providerModel: string;
   /** handleSendRef — send flow 내부에서 self-reference (plan build callback 등) */
   handleSendRef: MutableRefObject<
-    | ((text: string, files: Attachment[], opts?: { apiUserContent?: string; modeOverride?: Mode; planStageOverride?: string }) => Promise<void>)
+    | ((
+        text: string,
+        files: Attachment[],
+        opts?: {
+          apiUserContent?: string;
+          modeOverride?: Mode;
+          planStageOverride?: string;
+          skipPaint?: boolean;
+        }
+      ) => Promise<void>)
     | null
   >;
   runSlashCommandRef: MutableRefObject<((cmd: SlashCommand) => void) | null>;
@@ -162,7 +158,16 @@ export interface UseChatSendFlowParams {
 }
 
 export interface UseChatSendFlowReturn {
-  handleSend: (text: string, files: Attachment[], opts?: { apiUserContent?: string; modeOverride?: Mode; planStageOverride?: string }) => Promise<void>;
+  handleSend: (
+    text: string,
+    files: Attachment[],
+    opts?: {
+      apiUserContent?: string;
+      modeOverride?: Mode;
+      planStageOverride?: string;
+      skipPaint?: boolean;
+    }
+  ) => Promise<void>;
   handleRegenerate: () => void;
   handleStop: () => void;
   handleStopAndPrefill: (content: string) => void;
@@ -170,7 +175,7 @@ export interface UseChatSendFlowReturn {
   handleQueueMessage: (text: string) => void;
   handleQueueApplyNow: (messageId: string) => void;
   handleQueueCancel: (messageId: string) => void;
-  handleEditMessage: (messageId: string, newContent: string) => void;
+  handleEditMessage: (messageId: string, newContent: string, files?: Attachment[]) => void;
   handleFork: (messageId: string) => void;
   handleModeChange: (newMode: ModePicker) => void;
   pushSystemNotice: (content: string) => void;
@@ -184,7 +189,7 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
     messages, messagesRef,
     sessionId, sessionIdRef,
     setMessages, setSessionId, setSessionList, setOpenTabIds,
-    sendMessage, stop, regenerate,
+    sendMessage, stop,
     planStage, planController, planAdapter,
     planGenerateActiveRequestRef, generatingPlan, endPlanGenerationUi,
     msgQueue, setQueueTick,
@@ -278,7 +283,13 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
     async (
       text: string,
       files: Attachment[],
-      opts?: { apiUserContent?: string; modeOverride?: Mode; planStageOverride?: string }
+      opts?: {
+        apiUserContent?: string;
+        modeOverride?: Mode;
+        planStageOverride?: string;
+        /** Edit/rework: transcript already has user + streaming assistant at end */
+        skipPaint?: boolean;
+      }
     ) => {
       if (!text.trim() && files.length === 0) return;
       setError(null);
@@ -382,25 +393,67 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
       }
 
       // UI: 사용자 입력만 표시 — harness/resynth wrapper는 API 전용
-      const userMsg: ChatMessage = {
-        id: uuidv4(),
-        role: 'user',
-        content: displayText,
-        timestamp: Date.now(),
-        attachments: files,
-        status: 'complete',
-        metadata: { mode: effectiveMode, modeDecision }
-      };
-      const assistantMsg: ChatMessage = {
-        id: uuidv4(),
-        role: 'assistant',
-        content: '',
-        timestamp: Date.now(),
-        status: 'streaming'
-      };
+      // skipPaint: ✎/↻ already ran moveUserTurnToEnd (no duplicate user bubble).
+      let userMsg: ChatMessage;
+      let assistantMsg: ChatMessage;
+      let nextMessages: ChatMessage[];
 
-      const cleaned = cleanupStreamingAssistants(messagesRef.current);
-      const nextMessages = [...cleaned, userMsg, assistantMsg];
+      if (opts?.skipPaint) {
+        // Do NOT finalizeStreaming here — that seals the prepared streaming
+        // assistant during await(prefetch) and this path then returns silently.
+        const prepared = messagesRef.current;
+        const maybeAssistant = prepared[prepared.length - 1];
+        const maybeUser = prepared[prepared.length - 2];
+        if (
+          !maybeAssistant ||
+          maybeAssistant.role !== 'assistant' ||
+          maybeAssistant.status !== 'streaming' ||
+          !maybeUser ||
+          maybeUser.role !== 'user'
+        ) {
+          debugWarn('chat.send skipPaint aborted', {
+            ownerId,
+            lastRole: maybeAssistant?.role || '(none)',
+            lastStatus: maybeAssistant?.status || '(none)',
+            prevRole: maybeUser?.role || '(none)',
+            len: prepared.length
+          });
+          return;
+        }
+        userMsg = {
+          ...maybeUser,
+          content: displayText,
+          attachments: files.length ? files : maybeUser.attachments,
+          status: 'complete',
+          metadata: {
+            ...(maybeUser.metadata || {}),
+            mode: effectiveMode,
+            modeDecision
+          }
+        };
+        assistantMsg = maybeAssistant;
+        nextMessages = prepared.map((m) => (m.id === userMsg.id ? userMsg : m));
+      } else {
+        userMsg = {
+          id: uuidv4(),
+          role: 'user',
+          content: displayText,
+          timestamp: Date.now(),
+          attachments: files,
+          status: 'complete',
+          metadata: { mode: effectiveMode, modeDecision }
+        };
+        assistantMsg = {
+          id: uuidv4(),
+          role: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+          status: 'streaming'
+        };
+        const cleaned = cleanupStreamingAssistants(messagesRef.current);
+        nextMessages = [...cleaned, userMsg, assistantMsg];
+      }
+
       const contextMessages = selectActiveConversationMessages(
         nextMessages.filter((m) => m.id !== assistantMsg.id)
       );
@@ -485,39 +538,36 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
 
   // ─── handleRegenerate ─────────────────────────────────────
 
+  /**
+   * ↻ regenerate: same rework path as pencil edit —
+   * moveUserTurnToEnd(last user) + handleSend(..., { skipPaint: true }).
+   * Selected conversation becomes the latest turn, then a new answer streams.
+   */
   const handleRegenerate = useCallback(() => {
-    const ownerId = sessionIdRef.current;
-    const epoch = sendEpochRef.current.bump(ownerId);
-    stepStartRef.current = {};
-    loopSessionIdRef.current = ownerId;
-    const snapshot = messagesRef.current;
-    const stream = makeAssistantStream(
-      mode,
-      () => sendEpochRef.current.isStale(ownerId, epoch),
-      ownerId
-    );
-    regenerate(
-      snapshot,
-      mode,
-      stream.onDelta,
-      stream.onComplete,
-      stream.onError,
-      () => {
-        // Regenerating for a background tab — do not paint onto the active transcript.
-        if (sessionIdRef.current !== ownerId) return;
-        const assistantMsg = createStreamingAssistantTurn(uuidv4());
-        const cleaned = cleanupStreamingAssistants(messagesRef.current);
-        const next = appendRegenerateAssistantTurn(cleaned, assistantMsg);
-        messagesRef.current = next;
-        setMessages(next);
-        stickToBottomRef.current = true;
-        scrollMessagesToBottom(true);
-        turnNumberRef.current += 1;
-      }
-    );
-  }, [mode, regenerate, makeAssistantStream, cleanupStreamingAssistants, scrollMessagesToBottom,
-    sessionIdRef, sendEpochRef, stepStartRef, loopSessionIdRef, messagesRef, setMessages,
-    stickToBottomRef, turnNumberRef]);
+    if (streaming) {
+      stopHandlerRef.current?.stop('user_stop');
+      sendEpochRef.current.bump(sessionIdRef.current);
+    }
+
+    const snap = cleanupStreamingAssistants(messagesRef.current);
+    const idx = lastUserIndex(snap);
+    if (idx < 0) return;
+
+    const content = snap[idx].content;
+    const prepared = moveUserTurnToEnd(snap, idx, content, uuidv4());
+    if (!prepared) return;
+
+    messagesRef.current = prepared.messages;
+    setMessages(prepared.messages);
+    stickToBottomRef.current = true;
+    scrollMessagesToBottom(true);
+
+    void handleSend(content, prepared.attachments, { skipPaint: true });
+  }, [
+    streaming, cleanupStreamingAssistants, messagesRef, setMessages,
+    stickToBottomRef, scrollMessagesToBottom, handleSend,
+    stopHandlerRef, sendEpochRef, sessionIdRef
+  ]);
 
   // ─── handleStop ───────────────────────────────────────────
 
@@ -649,18 +699,50 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
 
   // ─── handleEditMessage / handleFork ──────────────────────
 
-  const handleEditMessage = useCallback((messageId: string, newContent: string) => {
-    setMessages((prev) => {
-      const idx = prev.findIndex((m) => m.id === messageId);
-      if (idx === -1) return prev;
-      const newMessages = [...prev];
-      newMessages.splice(idx + 1);
-      newMessages[idx] = { ...newMessages[idx], content: newContent };
-      return newMessages;
-    });
-    const msg = messages.find((m) => m.id === messageId);
-    if (msg?.role === 'user') handleSend(newContent, msg.attachments || []);
-  }, [messages, handleSend, setMessages]);
+  /**
+   * ✎ pencil edit: same rework path as ↻ regenerate —
+   * moveUserTurnToEnd(selected user) + handleSend(..., { skipPaint: true }).
+   */
+  const handleEditMessage = useCallback((
+    messageId: string,
+    newContent: string,
+    files?: Attachment[]
+  ) => {
+    if (streaming) {
+      stopHandlerRef.current?.stop('user_stop');
+      sendEpochRef.current.bump(sessionIdRef.current);
+    }
+
+    const snap = cleanupStreamingAssistants(messagesRef.current);
+    const idx = snap.findIndex((m) => m.id === messageId);
+    if (idx < 0 || snap[idx].role !== 'user') return;
+
+    const prepared = moveUserTurnToEnd(snap, idx, newContent, uuidv4());
+    if (!prepared) return;
+
+    // Composer may change attachments while editing
+    const sendFiles = files ?? prepared.attachments;
+    if (files) {
+      const userIdx = prepared.messages.length - 2;
+      if (userIdx >= 0 && prepared.messages[userIdx]?.role === 'user') {
+        prepared.messages[userIdx] = {
+          ...prepared.messages[userIdx],
+          attachments: files
+        };
+      }
+    }
+
+    messagesRef.current = prepared.messages;
+    setMessages(prepared.messages);
+    stickToBottomRef.current = true;
+    scrollMessagesToBottom(true);
+
+    void handleSend(newContent, sendFiles, { skipPaint: true });
+  }, [
+    streaming, cleanupStreamingAssistants, messagesRef, setMessages,
+    stickToBottomRef, scrollMessagesToBottom, handleSend,
+    stopHandlerRef, sendEpochRef, sessionIdRef
+  ]);
 
   const handleFork = useCallback(
     (messageId: string) => {

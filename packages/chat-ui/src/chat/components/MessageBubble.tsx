@@ -5,22 +5,15 @@ import { attachmentDisplayLabel } from '../attachmentFormat';
 import { FileEditPreviewView } from './FileEditPreviewView';
 import { IconCopy, IconEdit, IconFork } from './Icons';
 import { FileTypeIcon } from './FileTypeIcon';
+import { Composer, type ComposerChromeProps } from './Composer';
 import { visiblePlanProseFromMessage } from '../planPromote';
-import type { FileEditPreview } from '../types';
+import type { Attachment, FileEditPreview } from '../types';
 import {
   deriveTurnStatus,
   TURN_STATUS_LABEL,
-  TURN_STATUS_ORDER,
   type TurnStatus
 } from '../turnState';
 import { extractUnderstandingLead } from '../understandingLead';
-
-/** Phase 5 — index of active status on the linear progress rail (excludes error). */
-function turnStatusRailIndex(status: TurnStatus | null): number {
-  if (!status || status === 'error') return -1;
-  const i = TURN_STATUS_ORDER.indexOf(status);
-  return i >= 0 ? i : -1;
-}
 
 interface MessageBubbleProps {
   message: any;
@@ -31,7 +24,16 @@ interface MessageBubbleProps {
   isLastUser?: boolean;
   /** Last assistant message — can show Continue when mission aborted */
   isLastAssistant?: boolean;
-  onEdit?: (id: string, content: string) => void;
+  /** Pencil confirm — move turn to end and re-run (optional new attachments) */
+  onEdit?: (id: string, content: string, files?: Attachment[]) => void;
+  /** Controlled: only one user message edits at a time (owned by ChatApp) */
+  isEditing?: boolean;
+  onBeginEdit?: (id: string) => void;
+  onCancelEdit?: () => void;
+  /** Bumps Composer seed when this bubble enters edit mode */
+  editSeedNonce?: number;
+  /** Shared mode/model chrome with the footer Composer */
+  composerChrome?: ComposerChromeProps;
   onFork?: (id: string) => void;
   onCopy?: (content: string) => void;
   /** Stop run and prefill composer with this user message */
@@ -41,8 +43,6 @@ interface MessageBubbleProps {
   onRejectFile?: (file: FileEditPreview) => void;
   /** Resume after mid-mission abort (send continue) */
   onContinueMission?: () => void;
-  /** Regenerate last assistant turn (same as Composer 다시 실행) */
-  onRegenerate?: () => void;
 }
 
 /** Fold legacy openingLead into body (no top-of-bubble lead slot). */
@@ -94,14 +94,18 @@ export function MessageBubble({
   isLastUser = false,
   isLastAssistant = false,
   onEdit,
+  isEditing = false,
+  onBeginEdit,
+  onCancelEdit,
+  editSeedNonce = 0,
+  composerChrome,
   onFork,
   onCopy,
   onStopAndPrefill,
   onOpenFile,
   onAcceptFile,
   onRejectFile,
-  onContinueMission,
-  onRegenerate
+  onContinueMission
 }: MessageBubbleProps) {
   const isAssistant = message.role === 'assistant';
   const isUser = message.role === 'user';
@@ -185,13 +189,11 @@ export function MessageBubble({
     );
 
   /**
-   * Phase 5 — Cursor-style live phase chrome.
-   * Progress rail + current label while streaming; "Worked for Xs" replaces
-   * this once the turn settles (badge would be redundant chrome).
+   * Live phase label while streaming (progress rail removed — status will
+   * later land as attachment-like chrome). Understanding box stays for now.
    */
   const turnStatus: TurnStatus | null =
     isAssistant && streamBody ? deriveTurnStatus(message, true) : null;
-  const railIndex = turnStatusRailIndex(turnStatus);
   const showPhaseChrome = Boolean(turnStatus);
 
   const showFooter =
@@ -236,11 +238,8 @@ export function MessageBubble({
       ) : null}
 
       {/*
-        Phase 5 unified live header:
-        - linear progress rail (TURN_STATUS_ORDER)
-        - current phase label
-        - understanding box as the first card under the rail
-        WorkTimeline owns Thought / Exploring / actions.
+        Live phase label + optional understanding card while streaming.
+        Progress rail removed (status will attach like chips later).
       */}
       {showPhaseChrome && turnStatus ? (
         <div
@@ -248,27 +247,6 @@ export function MessageBubble({
           data-status={turnStatus}
           aria-live="polite"
         >
-          <div className="ak-turn-rail" role="list" aria-label="Turn progress">
-            {TURN_STATUS_ORDER.map((s, i) => {
-              const done = railIndex >= 0 && i < railIndex;
-              const active = railIndex === i;
-              return (
-                <span
-                  key={s}
-                  role="listitem"
-                  className={[
-                    'ak-turn-rail__seg',
-                    done ? 'ak-turn-rail__seg--done' : '',
-                    active ? 'ak-turn-rail__seg--active' : ''
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  title={TURN_STATUS_LABEL[s]}
-                  data-status={s}
-                />
-              );
-            })}
-          </div>
           <div className="ak-turn-status" data-status={turnStatus}>
             <span className="ak-turn-status__dot" aria-hidden>
               ●
@@ -308,8 +286,10 @@ export function MessageBubble({
       ) : null}
 
       {isUser ? (
-        <div className="user-turn">
-          {attachments.length > 0 ? (
+        <div
+          className={isEditing ? 'user-turn user-turn--editing' : 'user-turn'}
+        >
+          {!isEditing && attachments.length > 0 ? (
             <div className="user-turn__chips" aria-label="Attached context">
               {attachments.map((att: any, i: number) => {
                 const isLog = att.type === 'log' || att.type === 'snippet';
@@ -339,10 +319,24 @@ export function MessageBubble({
               })}
             </div>
           ) : null}
-          {displayContent.trim() ? (
+          {isEditing && composerChrome ? (
+            <Composer
+              variant="inline-edit"
+              {...composerChrome}
+              seedText={rawContent}
+              seedNonce={editSeedNonce}
+              seedAttachments={attachments}
+              sessionId={`edit:${message.id}`}
+              onSend={(text, files) => onEdit?.(message.id, text, files)}
+              onStop={() => {}}
+              onDismiss={onCancelEdit}
+              disabled={false}
+              isStreaming={false}
+            />
+          ) : displayContent.trim() ? (
             <div className="user-turn__text">{displayContent}</div>
           ) : null}
-          {showFooter ? (
+          {showFooter && !isEditing ? (
             <div
               className="message-actions message-actions--user"
               role="group"
@@ -367,9 +361,9 @@ export function MessageBubble({
                   <button
                     type="button"
                     className="msg-action-btn"
-                    onClick={() => onEdit?.(message.id, message.content)}
-                    title="Edit"
-                    aria-label="Edit"
+                    onClick={() => onBeginEdit?.(message.id)}
+                    title="Edit & re-run"
+                    aria-label="Edit & re-run"
                   >
                     <IconEdit />
                   </button>
@@ -434,26 +428,18 @@ export function MessageBubble({
                   {relativeTime}
                 </span>
               ) : null}
+              {/* ↻ removed — re-run via user pencil (Save & Run) only */}
               {isLastAssistant &&
               !streamBody &&
-              (onRegenerate || onContinueMission) ? (
+              missionAborted &&
+              onContinueMission ? (
                 <button
                   type="button"
-                  className={
-                    missionAborted
-                      ? 'msg-action-btn msg-action-btn--regen msg-action-btn--regen-primary'
-                      : 'msg-action-btn msg-action-btn--regen'
-                  }
-                  onClick={() => {
-                    if (missionAborted && onContinueMission) {
-                      onContinueMission();
-                      return;
-                    }
-                    onRegenerate?.();
-                  }}
+                  className="msg-action-btn msg-action-btn--regen msg-action-btn--regen-primary"
+                  onClick={() => onContinueMission()}
                   disabled={!!isAgentRunning}
-                  title="Regenerate"
-                  aria-label="Regenerate"
+                  title="Continue"
+                  aria-label="Continue"
                 >
                   <span aria-hidden>↻</span>
                 </button>

@@ -27,6 +27,7 @@ import type { InlineEditContext } from './inlineEdit';
 import {
   MODE_LABELS,
   MODE_TOOLTIPS,
+  estimateMessagesTokens,
 } from './chatAppHelpers';
 import { configManager } from '../core/ConfigManager';
 import type { ChatMessage, Mode } from './types';
@@ -86,6 +87,11 @@ export function ChatApp() {
   const [error, setError] = useState<string | null>(null);
   const [awaitingUser, setAwaitingUser] = useState(false);
   const [composerSeed, setComposerSeed] = useState<{ text: string; nonce: number } | null>(null);
+  /** Only one user bubble may be in pencil-edit at a time */
+  const [editingUser, setEditingUser] = useState<{
+    id: string;
+    nonce: number;
+  } | null>(null);
   const [inlineEditSeed, setInlineEditSeed] = useState<InlineEditContext | null>(null);
   // Per-tab park maps for Composer chrome that is not in sessionStore
   const queueBySessionRef = useRef(new Map<string, import('../loop/MessageQueue').QueuedMessage[]>());
@@ -205,7 +211,6 @@ export function ChatApp() {
     streaming,
     sendMessage,
     stop,
-    regenerate,
     sendWorktreeReview,
     sendWorktreeApply,
     sendWorktreeReject
@@ -391,7 +396,6 @@ export function ChatApp() {
     setOpenTabIds,
     sendMessage,
     stop,
-    regenerate,
     planStage: plan.planStage,
     planController: plan.planController,
     planAdapter: plan.planAdapter,
@@ -452,6 +456,31 @@ export function ChatApp() {
   useEffect(() => {
     scrollMessagesToBottom(false);
   }, [messages, scrollMessagesToBottom]);
+
+  // Tab switch closes any open pencil editor
+  useEffect(() => {
+    setEditingUser(null);
+  }, [sessionId]);
+
+  // Pencil edit: click anywhere outside the inline composer (or its menus) closes it.
+  // Blur alone is unreliable — message bubbles aren't focusable.
+  useEffect(() => {
+    if (!editingUser) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (
+        t.closest(
+          '.user-turn-composer, .model-selector__menu, .mode-selector__menu'
+        )
+      ) {
+        return;
+      }
+      setEditingUser(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [editingUser]);
 
   // Tab switch: briefly ignore MutationObserver nudges so Mermaid/DOM remount
   // does not flood rAF scrollIntoView and freeze the UI.
@@ -572,32 +601,30 @@ export function ChatApp() {
   // ConfigManager 기본값이 'litellm'·modelContextSource='fallback'이라 예산 폴백 문구에
   // 넣으면 미연결 상태에서도 "litellm · host-fallback"처럼 보입니다.
   const contextBudget = provider.getContextBudget(mode);
-  const usedTokens = uxState.contextTokens || 0;
-  const contextUsagePercent = Math.min(
-    100,
-    Math.round((usedTokens / contextBudget) * 100)
+  // Live estimate from transcript — uxState.contextTokens only updates on send.
+  const estimatedTokens = useMemo(
+    () => estimateMessagesTokens(messages),
+    [messages]
   );
-  // 메인 라벨: 알려진 사용량만 (퍼센트 + used). 미측정 시 최소 표기.
-  const contextUsageLabel =
-    usedTokens > 0
-      ? `Context: ${contextUsagePercent}% · ~${usedTokens.toLocaleString()} used`
-      : 'Context: —';
-  // title 툴팁에만 예산 힌트 (디버그용 provider/source는 넣지 않음)
-  const contextUsageTitle =
-    usedTokens > 0
-      ? `~${usedTokens.toLocaleString()} / ${contextBudget.toLocaleString()} tokens`
-      : `Budget: ${contextBudget.toLocaleString()} tokens`;
+  const usedTokens = Math.max(uxState.contextTokens || 0, estimatedTokens);
+  const contextUsagePercent =
+    contextBudget > 0
+      ? Math.min(100, Math.round((usedTokens / contextBudget) * 100))
+      : 0;
+  // 메인 라벨: 추정/측정 used. 빈 세션도 0%로 표시 (예산은 title).
+  const contextUsageLabel = `Context: ${contextUsagePercent}% · ~${usedTokens.toLocaleString()} used`;
+  const contextUsageTitle = `~${usedTokens.toLocaleString()} / ${contextBudget.toLocaleString()} tokens`;
 
   // ─── Host 메시지 처리 ─────────────────────────────────────────
   useChatHostBridge({
-    sessionIdRef,
+        sessionIdRef,
     setMode,
-    setError,
+        setError,
     setInlineEditSeed,
     setComposerSeed,
     handleNewChat,
     applyHostHydration,
-    updateSessionMessages,
+      updateSessionMessages,
     panels,
     plan,
     debug,
@@ -633,57 +660,57 @@ export function ChatApp() {
           className={`chat-main${hasConversation ? ' chat-main--active' : ' chat-main--empty'}`}
         >
           {/* 탭 스트립 */}
-          <ChatSessionTabs
-            sessions={sessionList}
-            currentId={sessionId}
-            openTabIds={openTabIds}
-            onSelect={handleSelectSessionTab}
-            onCloseTab={handleCloseTab}
-            onNew={handleNewChat}
+      <ChatSessionTabs
+        sessions={sessionList}
+        currentId={sessionId}
+        openTabIds={openTabIds}
+        onSelect={handleSelectSessionTab}
+        onCloseTab={handleCloseTab}
+        onNew={handleNewChat}
             onHistory={panels.handleToggleHistory}
             onSettings={panels.handleToggleSettings}
             historyOpen={panels.showHistory}
-            subagentTabs={subagentTabs}
-            activeSubagentId={activeSubagentId}
-            onSelectSubagent={handleSelectSubagentTab}
-            onCloseSubagent={handleCloseSubagentTab}
-          />
+        subagentTabs={subagentTabs}
+        activeSubagentId={activeSubagentId}
+        onSelectSubagent={handleSelectSubagentTab}
+        onCloseSubagent={handleCloseSubagentTab}
+      />
 
           {/* 중급 모델 UX 상태바 */}
-          <UXForMediumPanel
-            uxState={uxState}
-            stuckEvent={stuckEvent}
-            onAction={(action) => {
+      <UXForMediumPanel
+        uxState={uxState}
+        stuckEvent={stuckEvent}
+        onAction={(action) => {
               if (action.toLowerCase().includes('stop')) setStuckEvent(null);
-            }}
-          />
+        }}
+      />
 
           {/* Design Mode 패널 */}
           {panels.showDesignMode && (
             <DesignModePanel onClose={() => panels.setShowDesignMode(false)} />
-          )}
+      )}
 
           {/* 코드 Review 패널 */}
           {panels.showReview && (
-            <div style={{ padding: 8, borderBottom: '1px solid var(--vscode-panel-border, #444)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <strong>Code Review</strong>
+        <div style={{ padding: 8, borderBottom: '1px solid var(--vscode-panel-border, #444)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <strong>Code Review</strong>
                 <button type="button" onClick={() => panels.setShowReview(false)}>Close</button>
-              </div>
-              <FindingList
+          </div>
+          <FindingList
                 findings={panels.reviewFindings}
                 onAccept={panels.handleAcceptFinding}
                 onDismiss={(id) => panels.setReviewFindings((prev) => prev.filter((f) => f.id !== id))}
-                onAcceptAll={() => {
+            onAcceptAll={() => {
                   panels.reviewFindings.forEach((f) => void panels.handleAcceptFinding(f.id));
-                }}
-              />
-            </div>
-          )}
+            }}
+          />
+        </div>
+      )}
 
           {/* Artifacts 갤러리 */}
           {panels.showArtifacts && (
-            <ArtifactGallery
+        <ArtifactGallery
               artifacts={panels.artifacts}
               onClose={() => panels.setShowArtifacts(false)}
             />
@@ -722,99 +749,123 @@ export function ChatApp() {
 
           {/* Settings 오버레이 */}
           {panels.showSettings && (
-            <div className="settings-overlay" role="dialog" aria-label="Settings">
-              <SettingsPanel
+        <div className="settings-overlay" role="dialog" aria-label="Settings">
+          <SettingsPanel
                 key={panels.settingsTab}
                 initialTab={panels.settingsTab}
                 onTabChange={(tab) => panels.rememberSettingsTab(tab as SettingsTabId)}
                 onClose={panels.handleCloseSettings}
-              />
-            </div>
-          )}
+          />
+        </div>
+      )}
 
           {/* 오류 배너 */}
-          {error && (
-            <div className="error-banner" role="alert">
-              <span>{error}</span>
-              <button onClick={() => setError(null)}>✕</button>
-            </div>
-          )}
+      {error && (
+        <div className="error-banner" role="alert">
+          <span>{error}</span>
+          <button onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
 
-          {/*
+      {/*
             모든 모드 공유: 하나의 메시지 리스트 + 하나의 Composer.
             모드는 tools/prompts만 바꿈 — 별도 채팅 창 없음.
-          */}
-          <div
-            ref={messageListRef}
-            className="message-list"
-            role="log"
-            aria-live="polite"
-            aria-relevant="additions"
-            onScroll={onMessageListScroll}
-          >
-            {activeSubagentTab && subagentDetailData ? (
-              <SubagentDetailView
-                title={activeSubagentTab.title}
-                items={subagentDetailData.items}
-                fileEdits={subagentDetailData.fileEdits}
-                terminalRuns={subagentDetailData.terminalRuns}
-                isStreaming={subagentDetailData.isStreaming}
-                workedDurationMs={subagentDetailData.workedDurationMs}
-                onBack={() => setActiveSubagentId(null)}
+      */}
+      <div
+        ref={messageListRef}
+        className="message-list"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        onScroll={onMessageListScroll}
+      >
+        {activeSubagentTab && subagentDetailData ? (
+          <SubagentDetailView
+            title={activeSubagentTab.title}
+            items={subagentDetailData.items}
+            fileEdits={subagentDetailData.fileEdits}
+            terminalRuns={subagentDetailData.terminalRuns}
+            isStreaming={subagentDetailData.isStreaming}
+            workedDurationMs={subagentDetailData.workedDurationMs}
+            onBack={() => setActiveSubagentId(null)}
                 onOpenFile={fileEdits.handleOpenFile}
                 onAcceptFile={fileEdits.handleAcceptFileEdit}
                 onRejectFile={fileEdits.handleRejectFileEdit}
                 onWorktreeReview={worktree.handleWorktreeReview}
                 onWorktreeApply={worktree.handleWorktreeApply}
                 onWorktreeReject={worktree.handleWorktreeReject}
-              />
-            ) : (
-              (() => {
+          />
+        ) : (
+        (() => {
                 const lastUserId = [...messages].reverse().find((m) => m.role === 'user')?.id;
                 const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id;
-                return messages.map((item) => (
-                  <ConversationTurn
-                    key={item.id}
-                    message={item}
-                    isStreaming={
+          return messages.map((item) => (
+            <ConversationTurn
+              key={item.id}
+              message={item}
+              isStreaming={
                       (streaming || plan.generatingPlan || plan.showPlanExecutionBar) &&
-                      messages[messages.length - 1]?.id === item.id
-                    }
+                messages[messages.length - 1]?.id === item.id
+              }
                     isAgentRunning={streaming || plan.generatingPlan || plan.showPlanExecutionBar}
-                    isLastUser={item.role === 'user' && item.id === lastUserId}
+              isLastUser={item.role === 'user' && item.id === lastUserId}
                     isLastAssistant={item.role === 'assistant' && item.id === lastAssistantId}
-                    onEdit={sendFlow.handleEditMessage}
+                    isEditing={
+                      item.role === 'user' && item.id === editingUser?.id
+                    }
+                    editSeedNonce={
+                      item.id === editingUser?.id ? editingUser.nonce : 0
+                    }
+                    composerChrome={{
+                      mode: modeAuto ? 'auto' : mode,
+                      onModeChange: sendFlow.handleModeChange,
+                      modeLabels: MODE_LABELS,
+                      modeTooltips: MODE_TOOLTIPS,
+                      modelLabel: provider.modelLabel,
+                      modelId: provider.modelCanonical || provider.providerModel,
+                      modelOptions: provider.composerModelOptions,
+                      onModelChange: provider.handleModelChange,
+                      thinkingEffort: provider.thinkingEffort,
+                      onThinkingEffortChange:
+                        provider.composerThinkingOptions.length > 0
+                          ? provider.handleThinkingEffortChange
+                          : undefined,
+                      thinkingOptions: provider.composerThinkingOptions,
+                      onSlashCommand: sendFlow.runSlashCommand
+                    }}
+                    onBeginEdit={(id) =>
+                      setEditingUser({ id, nonce: Date.now() })
+                    }
+                    onCancelEdit={() => setEditingUser(null)}
+                    onEdit={(id, content, files) => {
+                      setEditingUser(null);
+                      sendFlow.handleEditMessage(id, content, files);
+                    }}
                     onFork={sendFlow.handleFork}
                     onStopAndPrefill={sendFlow.handleStopAndPrefill}
-                    onCopy={(content) => navigator.clipboard.writeText(content)}
-                    onOpenSubagent={handleOpenSubagent}
+              onCopy={(content) => navigator.clipboard.writeText(content)}
+              onOpenSubagent={handleOpenSubagent}
                     onOpenFile={fileEdits.handleOpenFile}
                     onAcceptFile={fileEdits.handleAcceptFileEdit}
                     onRejectFile={fileEdits.handleRejectFileEdit}
                     onWorktreeReview={worktree.handleWorktreeReview}
                     onWorktreeApply={worktree.handleWorktreeApply}
                     onWorktreeReject={worktree.handleWorktreeReject}
-                    onContinueMission={() => {
-                      void handleSendRef.current?.(
-                        mode === 'plan'
-                          ? 'Please continue. If research is done, ask only when a decision is needed; otherwise write the plan document and show a summary + TODOs. Do not loop questions and planning by yourself.'
-                          : 'Continue. Do not stop — finish the task using the tool results above.',
-                        []
-                      );
-                    }}
-                    onRegenerate={() => {
-                      const btn = document.querySelector(
-                        '.composer-usage__regen'
-                      ) as HTMLButtonElement | null;
-                      if (btn && !btn.disabled) btn.click();
-                    }}
-                  />
-                ));
-              })()
-            )}
+              onContinueMission={() => {
+                void handleSendRef.current?.(
+                  mode === 'plan'
+                    ? 'Please continue. If research is done, ask only when a decision is needed; otherwise write the plan document and show a summary + TODOs. Do not loop questions and planning by yourself.'
+                    : 'Continue. Do not stop — finish the task using the tool results above.',
+                  []
+                );
+              }}
+            />
+          ));
+        })()
+        )}
             {/* 최신 성장을 항상 scrollHeight에 포함하는 앵커 */}
-            <div ref={messageEndRef} aria-hidden className="message-list-end" />
-          </div>
+        <div ref={messageEndRef} aria-hidden className="message-list-end" />
+      </div>
 
           {/* footer — Queue + Clarifying + ChangedFilesBar + Composer */}
           <ChatComposerFooter
@@ -843,35 +894,35 @@ export function ChatApp() {
             sessionId={sessionId}
             onSend={sendFlow.handleSend}
             disabled={streaming || plan.generatingPlan}
-            seedText={composerSeed?.text ?? null}
-            seedNonce={composerSeed?.nonce ?? 0}
-            inlineEdit={inlineEditSeed}
-            onClearInlineEdit={() => setInlineEditSeed(null)}
+          seedText={composerSeed?.text ?? null}
+          seedNonce={composerSeed?.nonce ?? 0}
+          inlineEdit={inlineEditSeed}
+          onClearInlineEdit={() => setInlineEditSeed(null)}
             onSlashCommand={sendFlow.runSlashCommand}
             onRegenerate={sendFlow.handleRegenerate}
             onQueueMessage={sendFlow.handleQueueMessage}
             onResynthesize={sendFlow.handleResynthesize}
-            isAwaitingUser={awaitingUser}
+          isAwaitingUser={awaitingUser}
             isGeneratingPlan={plan.generatingPlan}
             modeValue={modeAuto ? 'auto' : mode}
             onModeChange={sendFlow.handleModeChange}
-            modeLabels={MODE_LABELS}
-            modeTooltips={MODE_TOOLTIPS}
+          modeLabels={MODE_LABELS}
+          modeTooltips={MODE_TOOLTIPS}
             modelLabel={provider.modelLabel}
             modelId={provider.modelCanonical || provider.providerModel}
             modelOptions={provider.composerModelOptions}
             onModelChange={provider.handleModelChange}
             thinkingEffort={provider.thinkingEffort}
-            onThinkingEffortChange={
+          onThinkingEffortChange={
               provider.composerThinkingOptions.length > 0
                 ? provider.handleThinkingEffortChange
-                : undefined
-            }
+              : undefined
+          }
             thinkingOptions={provider.composerThinkingOptions}
-            contextUsagePercent={contextUsagePercent}
-            contextUsageLabel={contextUsageLabel}
+          contextUsagePercent={contextUsagePercent}
+          contextUsageLabel={contextUsageLabel}
             contextUsageTitle={contextUsageTitle}
-          />
+        />
         </div>
       </div>
     </div>
