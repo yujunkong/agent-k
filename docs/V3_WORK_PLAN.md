@@ -104,7 +104,10 @@ Done when: 8-item checklist + tests; summarize files touched
 | D1 | Feature Master 원본을 `docs/`에 배치 | **완료** |
 | D2 | Master ↔ Work Order Feature ID 세분화 (D-006) | **완료** |
 | S0 | 모노레포 스켈레톤 + AGENTS.md + cursor rules (코드 최소) | **완료** |
-| P0… | Work Order Phase 0 Feature 이식 | **진행** — SHARED + EXT + HOST + CFG-001~003 완료, 다음 `CHAT-001` / Phase 1 잔여 |
+| P0… | Work Order Phase 0 Feature 이식 | **완료** — SHARED + EXT + HOST + CFG-001~003 |
+| P1 | Phase 1 Providers/Models + UXPROV domain | **완료** — PROVIDER/MODEL/CFG-008/UXPROV-001~006 domain (picker UI → CHAT-003) |
+| P2 | Phase 2 Agent/Tools/Safety/Modes | **완료** — AGENT/TOOL/CTX/SAFE/MODE/DEBUG(domain)/REL/CFG 잔여 (host·chat-ui 배선 → Phase 3+) |
+| P3… | Chat / Streaming | **다음** — `CHAT-001` |
 
 ---
 

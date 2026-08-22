@@ -33,7 +33,9 @@ Provider/Model layer (R-001: Composer dropdown ≠ runtime ModelRouter).
 | UXPROV-003 | `modelPicker.ts` | searchable filter helpers (no React) |
 | UXPROV-004 | `ProviderConnections` | saved connections |
 
-**Skipped this session:** PROVIDER-015…018; UXPROV-005/006 UI (resolver local-first is domain-ready).
+**UXPROV-005 / UXPROV-006 (domain):** provider order = `reorderProviderConnections` + `preferUserOrder` (MODEL-010); local-first resolve = `ModelResolver` (MODEL-002). Chat-ui picker wiring → Phase 3 CHAT-003.
+
+**Skipped this session:** PROVIDER-015…018.
 
 ## Custom OpenAI Compatible
 

@@ -1901,16 +1901,19 @@ VS Code Extension
 - [x] PROVIDER-001~014 (015~018 skipped this phase)
 - [x] MODEL-001~011
 - [x] CFG-008
-- [x] UXPROV-001~004 (domain APIs; chat-ui picker later)
-- [ ] UXPROV-005~006
+- [x] UXPROV-001~006 (domain APIs; chat-ui picker later / CHAT-003)
 
 **원칙:** Composer dropdown과 runtime provider routing을 처음부터 분리한다.
 
 ## Phase 2 — Agent Core
-- [ ] AGENT-001~019
-- [ ] TOOL-001~017
-- [ ] CTX-001~005
-- [ ] SAFE-001~010
+- [x] AGENT-001~019 (domain + unit tests; host wiring later)
+- [x] TOOL-001~017 (R-005 contracts + unit tests)
+- [x] CTX-001~005
+- [x] SAFE-001~010
+- [x] MODE-001~009
+- [x] DEBUG-001~010 (domain; UI later)
+- [x] REL-001~008
+- [x] CFG-004~007, CFG-009~010
 
 ## Phase 3 — Chat / Streaming
 - [ ] CHAT-001~011

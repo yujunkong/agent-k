@@ -9,5 +9,18 @@
     ".": "./src/index.ts",
     "./*": "./src/*"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agent-k/shared": "*",
+    "@agent-k/safety": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
 }

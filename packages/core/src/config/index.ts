@@ -67,3 +67,54 @@ export {
   type WriteGatePolicyFlatKey,
   type WriteGatePolicySettings,
 } from './PermissionConfig';
+
+export {
+  DEFAULT_HARNESS_CONFIG,
+  HARNESS_CONFIG_KEYS,
+  extractHarnessConfig,
+  type HarnessConfig,
+  type HarnessConfigKey,
+} from './HarnessConfig';
+
+export {
+  DEFAULT_QUEUE_CONFIG,
+  QUEUE_CONFIG_KEYS,
+  extractQueueConfig,
+  parseQueueOnEnterWhileRunning,
+  parseQueueOnStop,
+  type QueueConfig,
+  type QueueOnEnterWhileRunning,
+  type QueueOnStop,
+} from './QueueConfig';
+
+export {
+  DEFAULT_TERMINAL_CONFIG,
+  TERMINAL_CONFIG_KEYS,
+  extractTerminalConfig,
+  isTerminalCommandDenied,
+  type TerminalConfig,
+} from './TerminalConfig';
+
+export {
+  DEFAULT_REVIEW_CONFIG,
+  REVIEW_CONFIG_KEYS,
+  extractReviewConfig,
+  parseReviewApplyPolicy,
+  type ReviewApplyPolicy,
+  type ReviewConfig,
+} from './ReviewConfig';
+
+export {
+  THINKING_EFFORT_CONFIG_KEY,
+  THINKING_EFFORT_LEVELS,
+  clampThinkingEffort,
+  extractThinkingEffort,
+  parseThinkingEffort,
+} from './ThinkingEffortConfig';
+
+export {
+  DEBUG_CLASSIFIER_CONFIG_KEY,
+  DEFAULT_DEBUG_CLASSIFIER_CONFIG,
+  extractDebugClassifierConfig,
+  type DebugClassifierConfig,
+} from './DebugClassifierConfig';

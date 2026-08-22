@@ -1,6 +1,12 @@
 /**
  * @agent-k/core — Agent runtime entry.
- * CFG-001~003 config domain exported; further Features land per V3_WORK_ORDER.
+ * CFG / AGENT / CTX / MODE / DEBUG / REL domains.
  */
 
+export * from './types';
 export * from './config';
+export * from './context';
+export * from './loop';
+export * from './mode';
+export * from './debug';
+export * from './reliability';

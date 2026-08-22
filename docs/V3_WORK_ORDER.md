@@ -43,7 +43,7 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **CHAT-001** / Phase 1 잔여 UXPROV-005·006 — SHARED + EXT + HOST + CFG-001~003 + PROVIDER-001~014 + MODEL-001~011 + CFG-008 + UXPROV-001~004 OK.
+**바로 다음:** **CHAT-001** — Phase 0–2 도메인 OK (SHARED…SAFE/MODE/AGENT/TOOL/CTX/REL/CFG + UXPROV-001~006 domain).
 
 ---
 
@@ -125,101 +125,102 @@ Phase 0 시작 전/병행: shared 계약.
 | UXPROV-002 | Auto-refresh models | providers (+ chat-ui picker) | [x] |
 | UXPROV-003 | Searchable model picker | providers (+ chat-ui picker) | [x] |
 | UXPROV-004 | Saved connections | providers (+ chat-ui picker) | [x] |
-| UXPROV-005 | Provider order | providers (+ chat-ui picker) | [ ] |
-| UXPROV-006 | Local-first auto resolve | providers (+ chat-ui picker) | [ ] |
+| UXPROV-005 | Provider order | providers (+ chat-ui picker) | [x] domain (MODEL-010); picker UI → CHAT-003 |
+| UXPROV-006 | Local-first auto resolve | providers (+ chat-ui picker) | [x] domain (MODEL-002); picker UI → CHAT-003 |
 
 ---
 
 ## Phase 2 — Agent Core + Modes + Safety
 
 **완료/원칙:** TOOL은 R-005 contract 필수. MODE/DEBUG/REL·잔여 CFG는 Master §38에 명시되지 않아 Phase 2에 배치.
+**상태:** Phase 2 도메인 API + unit tests 완료 (DEBUG UI·host 배선은 Phase 3+).
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| AGENT-001 | AgentLoopController | core | [ ] |
-| AGENT-002 | Multi-turn execution | core | [ ] |
-| AGENT-003 | Tool loop | core | [ ] |
-| AGENT-004 | Tool execution | core | [ ] |
-| AGENT-005 | Context assembly | core | [ ] |
-| AGENT-006 | Context compaction | core | [ ] |
-| AGENT-007 | Tool-call preservation during compaction | core | [ ] |
-| AGENT-008 | Max turns | core | [ ] |
-| AGENT-009 | Turn timeout | core | [ ] |
-| AGENT-010 | Doom loop detection | core | [ ] |
-| AGENT-011 | Error recovery | core | [ ] |
-| AGENT-012 | Weak final answer detection | core | [ ] |
-| AGENT-013 | Closing summary detection | core | [ ] |
-| AGENT-014 | Continue-work detection | core | [ ] |
-| AGENT-015 | Broken tool payload detection | core | [ ] |
-| AGENT-016 | Classifier diagnostics | core | [ ] |
-| AGENT-017 | Parallel executor | core | [ ] |
-| AGENT-018 | Streaming tool executor | core | [ ] |
-| AGENT-019 | Synthesize instructions | core | [ ] |
-| TOOL-001 | Read tools | tools | [ ] |
-| TOOL-002 | Edit tools | tools | [ ] |
-| TOOL-003 | Write tools | tools | [ ] |
-| TOOL-004 | Search / grep | tools | [ ] |
-| TOOL-005 | Glob/path search | tools | [ ] |
-| TOOL-006 | Terminal executor | tools | [ ] |
-| TOOL-007 | AskQuestionTool | tools | [ ] |
-| TOOL-008 | Tool call parser | providers (parser) / tools | [ ] |
-| TOOL-009 | Executor abstraction | tools | [ ] |
-| TOOL-010 | Write executor | tools | [ ] |
-| TOOL-011 | TodoWriteTool | tools | [ ] |
-| TOOL-012 | TaskTool / SubAgent orchestration | tools | [ ] |
-| TOOL-013 | SkillTool | tools | [ ] |
-| TOOL-014 | Browser tool group | tools | [ ] |
-| TOOL-015 | Debug tools | tools | [ ] |
-| TOOL-016 | Tool registry | tools | [ ] |
-| TOOL-017 | Parallel search | tools | [ ] |
-| CTX-001 | Context budget | core | [ ] |
-| CTX-002 | Read max lines | core | [ ] |
-| CTX-003 | Context assembler | core | [ ] |
-| CTX-004 | Compaction engine | core | [ ] |
-| CTX-005 | Workspace context | core | [ ] |
-| SAFE-001 | Permission gate | safety | [ ] |
-| SAFE-002 | Deny globs | safety | [ ] |
-| SAFE-003 | Terminal deny patterns | safety | [ ] |
-| SAFE-004 | Write gate | safety | [ ] |
-| SAFE-005 | Secret scan / Secrets Vault | safety | [ ] |
-| SAFE-006 | Checkpoint | safety | [ ] |
-| SAFE-007 | Verification-first | safety | [ ] |
-| SAFE-008 | Verification micro-loop | safety | [ ] |
-| SAFE-009 | Related test execution | safety | [ ] |
-| SAFE-010 | Hooks system | safety | [ ] |
-| MODE-001 | Ask Mode | core | [ ] |
-| MODE-002 | Agent Mode | core | [ ] |
-| MODE-003 | Plan Mode | core | [ ] |
-| MODE-004 | Debug Mode | core | [ ] |
-| MODE-005 | Auto Mode | core | [ ] |
-| MODE-006 | Sticky mode | core | [ ] |
-| MODE-007 | Plan V2 sticky state | core | [ ] |
-| MODE-008 | Manual mode override | core | [ ] |
-| MODE-009 | Plan → Agent handoff | core | [ ] |
-| DEBUG-001 | Debug controller | core (+ chat-ui UI) | [ ] |
-| DEBUG-002 | Hypothesis | core (+ chat-ui UI) | [ ] |
-| DEBUG-003 | Reproduce | core (+ chat-ui UI) | [ ] |
-| DEBUG-004 | Analyze | core (+ chat-ui UI) | [ ] |
-| DEBUG-005 | Fix | core (+ chat-ui UI) | [ ] |
-| DEBUG-006 | Cleanup | core (+ chat-ui UI) | [ ] |
-| DEBUG-007 | Debug timeline | core (+ chat-ui UI) | [ ] |
-| DEBUG-008 | Debug evidence | core (+ chat-ui UI) | [ ] |
-| DEBUG-009 | Instrumentation | core (+ chat-ui UI) | [ ] |
-| DEBUG-010 | Multi-file debug / templates / log server | core (+ chat-ui UI) | [ ] |
-| REL-001 | Classifier diagnostics | core | [ ] |
-| REL-002 | Plan watchdog | core | [ ] |
-| REL-003 | Streaming stabilization | core | [ ] |
-| REL-004 | Turn state machine | core | [ ] |
-| REL-005 | Send epoch protection | core | [ ] |
-| REL-006 | Regeneration safety | core | [ ] |
-| REL-007 | Tool payload validation | core | [ ] |
-| REL-008 | Compaction integrity | core | [ ] |
-| CFG-004 | Harness configuration | core | [ ] |
-| CFG-005 | Queue configuration | core | [ ] |
-| CFG-006 | Terminal configuration | core | [ ] |
-| CFG-007 | Review configuration | core | [ ] |
-| CFG-009 | Thinking effort | core | [ ] |
-| CFG-010 | Debug classifier diagnostics | core | [ ] |
+| AGENT-001 | AgentLoopController | core | [x] |
+| AGENT-002 | Multi-turn execution | core | [x] |
+| AGENT-003 | Tool loop | core | [x] |
+| AGENT-004 | Tool execution | core | [x] |
+| AGENT-005 | Context assembly | core | [x] |
+| AGENT-006 | Context compaction | core | [x] |
+| AGENT-007 | Tool-call preservation during compaction | core | [x] |
+| AGENT-008 | Max turns | core | [x] |
+| AGENT-009 | Turn timeout | core | [x] |
+| AGENT-010 | Doom loop detection | core | [x] |
+| AGENT-011 | Error recovery | core | [x] |
+| AGENT-012 | Weak final answer detection | core | [x] |
+| AGENT-013 | Closing summary detection | core | [x] |
+| AGENT-014 | Continue-work detection | core | [x] |
+| AGENT-015 | Broken tool payload detection | core | [x] |
+| AGENT-016 | Classifier diagnostics | core | [x] |
+| AGENT-017 | Parallel executor | core | [x] |
+| AGENT-018 | Streaming tool executor | core | [x] |
+| AGENT-019 | Synthesize instructions | core | [x] |
+| TOOL-001 | Read tools | tools | [x] |
+| TOOL-002 | Edit tools | tools | [x] |
+| TOOL-003 | Write tools | tools | [x] |
+| TOOL-004 | Search / grep | tools | [x] |
+| TOOL-005 | Glob/path search | tools | [x] |
+| TOOL-006 | Terminal executor | tools | [x] |
+| TOOL-007 | AskQuestionTool | tools | [x] |
+| TOOL-008 | Tool call parser | providers (parser) / tools | [x] |
+| TOOL-009 | Executor abstraction | tools | [x] |
+| TOOL-010 | Write executor | tools | [x] |
+| TOOL-011 | TodoWriteTool | tools | [x] |
+| TOOL-012 | TaskTool / SubAgent orchestration | tools | [x] |
+| TOOL-013 | SkillTool | tools | [x] |
+| TOOL-014 | Browser tool group | tools | [x] |
+| TOOL-015 | Debug tools | tools | [x] |
+| TOOL-016 | Tool registry | tools | [x] |
+| TOOL-017 | Parallel search | tools | [x] |
+| CTX-001 | Context budget | core | [x] |
+| CTX-002 | Read max lines | core | [x] |
+| CTX-003 | Context assembler | core | [x] |
+| CTX-004 | Compaction engine | core | [x] |
+| CTX-005 | Workspace context | core | [x] |
+| SAFE-001 | Permission gate | safety | [x] |
+| SAFE-002 | Deny globs | safety | [x] |
+| SAFE-003 | Terminal deny patterns | safety | [x] |
+| SAFE-004 | Write gate | safety | [x] |
+| SAFE-005 | Secret scan / Secrets Vault | safety | [x] |
+| SAFE-006 | Checkpoint | safety | [x] |
+| SAFE-007 | Verification-first | safety | [x] |
+| SAFE-008 | Verification micro-loop | safety | [x] |
+| SAFE-009 | Related test execution | safety | [x] |
+| SAFE-010 | Hooks system | safety | [x] |
+| MODE-001 | Ask Mode | core | [x] |
+| MODE-002 | Agent Mode | core | [x] |
+| MODE-003 | Plan Mode | core | [x] |
+| MODE-004 | Debug Mode | core | [x] |
+| MODE-005 | Auto Mode | core | [x] |
+| MODE-006 | Sticky mode | core | [x] |
+| MODE-007 | Plan V2 sticky state | core | [x] |
+| MODE-008 | Manual mode override | core | [x] |
+| MODE-009 | Plan → Agent handoff | core | [x] |
+| DEBUG-001 | Debug controller | core (+ chat-ui UI) | [x] domain; UI → Phase 3/9 |
+| DEBUG-002 | Hypothesis | core (+ chat-ui UI) | [x] domain; UI → Phase 3/9 |
+| DEBUG-003 | Reproduce | core (+ chat-ui UI) | [x] domain; UI → Phase 3/9 |
+| DEBUG-004 | Analyze | core (+ chat-ui UI) | [x] domain; UI → Phase 3/9 |
+| DEBUG-005 | Fix | core (+ chat-ui UI) | [x] domain; UI → Phase 3/9 |
+| DEBUG-006 | Cleanup | core (+ chat-ui UI) | [x] domain; UI → Phase 3/9 |
+| DEBUG-007 | Debug timeline | core (+ chat-ui UI) | [x] domain; UI → Phase 3/9 |
+| DEBUG-008 | Debug evidence | core (+ chat-ui UI) | [x] domain; UI → Phase 3/9 |
+| DEBUG-009 | Instrumentation | core (+ chat-ui UI) | [x] domain; UI → Phase 3/9 |
+| DEBUG-010 | Multi-file debug / templates / log server | core (+ chat-ui UI) | [x] domain; UI → Phase 3/9 |
+| REL-001 | Classifier diagnostics | core | [x] |
+| REL-002 | Plan watchdog | core | [x] |
+| REL-003 | Streaming stabilization | core | [x] |
+| REL-004 | Turn state machine | core | [x] |
+| REL-005 | Send epoch protection | core | [x] |
+| REL-006 | Regeneration safety | core | [x] |
+| REL-007 | Tool payload validation | core | [x] |
+| REL-008 | Compaction integrity | core | [x] |
+| CFG-004 | Harness configuration | core | [x] |
+| CFG-005 | Queue configuration | core | [x] |
+| CFG-006 | Terminal configuration | core | [x] |
+| CFG-007 | Review configuration | core | [x] |
+| CFG-009 | Thinking effort | core | [x] |
+| CFG-010 | Debug classifier diagnostics | core | [x] |
 
 ---
 

@@ -18,8 +18,10 @@
  * - UXPROV-002 refreshAvailableModels
  * - UXPROV-003 modelPicker filter helpers
  * - UXPROV-004 saved connections (ProviderConnections)
+ * - UXPROV-005 provider order (`reorderProviderConnections` + preferUserOrder / MODEL-010)
+ * - UXPROV-006 local-first auto resolve (`ModelResolver` / MODEL-002)
  *
- * Skipped: PROVIDER-015…018; UXPROV-005/006 UI wiring (resolver local-first is domain-ready).
+ * Skipped: PROVIDER-015…018. UXPROV-005/006 chat-ui picker wiring is Phase 3 (CHAT-003).
  */
 
 export * from './types';
