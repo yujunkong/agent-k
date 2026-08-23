@@ -249,8 +249,9 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
   });
 
   /**
-   * Soft-pause Thought: seal duration but keep thoughtSeg so the same row
-   * resumes after any tool (Cursor-style — no edit/Ran Thought spam).
+   * Soft-pause Thought before tools: seal the live row, but do NOT keep appending
+   * into the same opening accordion. Next reasoning rotates to a mid segment
+   * (nests under Exploring) — Cursor-style dig → read → dig.
    */
   const pauseThoughtSegment = (reason: string) => {
     debugLog('timeline-order', 'thought.seal', {
@@ -259,7 +260,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       seg: thoughtSeg,
       wasOpen: thoughtOpen,
       blocked: thoughtBlocked,
-      rotate: false
+      rotateOnReopen: true
     });
     thoughtOpen = false;
     thoughtBlocked = true;
@@ -574,7 +575,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         if (!hit) return prev;
         let msg = hit.msg;
         if (STREAM_TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running' && !tl.subagentId) {
-          // Comment: Cursor-style — all tools soft-pause; one Thought id per send (no edit/Ran spam)
+          // Comment: Cursor-style — pause opening Thought; mid seg opens after tools
           pauseThoughtSegment(`timeline.tool:${tl.kind}`);
           msg = sealRunningThoughtSteps(
             sealLeadFromMessage(msg, tl.turn, `timeline.tool:${tl.kind}`)
@@ -643,14 +644,14 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
     }
 
     if (delta.reasoning) {
-      // After tools: first reasoning opens a new Thought segment (mid-timeline).
-      // Comment: thoughtSeg / thoughtOpen / thoughtBlocked are per stream session
-      // (one owner tab). Never share across parallel tab streams.
+      // Comment: after tools, rotate to mid Thought (Exploring nest) — do not append to top Thinking
       if (thoughtBlocked) {
         thoughtBlocked = false;
+        thoughtSeg += 1;
         debugLog('timeline-order', 'thought.reopen', {
           ownerId: getOwnerSessionId(),
-          seg: thoughtSeg
+          seg: thoughtSeg,
+          role: thoughtSeg > 0 ? 'mid' : 'opening'
         });
       }
       if (!thoughtOpen) {
@@ -658,6 +659,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       }
       const turn = streamTurn();
       const id = thoughtIdForSeg(turn, thoughtSeg);
+      const role: 'opening' | 'mid' = thoughtSeg > 0 ? 'mid' : 'opening';
       const now = Date.now();
       const starts = stepStarts();
       if (!starts[id]) starts[id] = now;
@@ -698,7 +700,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
           label: 'Thought',
           detail: prevStepDetail + delta.reasoning,
           turn,
-          thoughtRole: 'opening' as const,
+          thoughtRole: role,
           itemStatus: 'running' as const,
           // Comment: drop premature durationMs so title stays Thinking until real seal
           durationMs: undefined as number | undefined
@@ -714,6 +716,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
           ownerId: getOwnerSessionId(),
           id,
           seg: thoughtSeg,
+          role,
           detailLen: (prevStepDetail + delta.reasoning).length
         });
         const copy = [...prev];

@@ -66,7 +66,7 @@ function baseCtx(
 }
 
 describe('thought segment rotation', () => {
-  it('opens a new Thought id after tools (clearContent) instead of appending', () => {
+  it('opens a new mid Thought id after tools (clearContent) instead of appending', () => {
     const store = { msgs: [assistant()] };
     const ctx = baseCtx(store);
     ctx.turnNumberRef.current.bump('sess');
@@ -77,6 +77,7 @@ describe('thought segment rotation', () => {
     let steps = store.msgs[0].steps || [];
     expect(steps).toHaveLength(1);
     expect(steps[0].id).toBe('tl_thinking_1');
+    expect(steps[0].thoughtRole).toBe('opening');
     expect(steps[0].detail).toBe('first dig more first');
     expect(steps[0].itemStatus).toBe('running');
 
@@ -93,19 +94,23 @@ describe('thought segment rotation', () => {
     steps = store.msgs[0].steps || [];
     const thought1 = steps.find((s) => s.id === 'tl_thinking_1');
     expect(thought1?.itemStatus).toBe('done');
+    expect(thought1?.detail).toBe('first dig more first');
 
     onDelta({ reasoning: 'second dig after tools' });
     steps = store.msgs[0].steps || [];
-    // Comment: clearContent soft-pauses — same id resumes (no s1 spam)
+    // Comment: post-tool reasoning → mid id (nests under Exploring), opening stays sealed
     const thoughts = steps.filter((s) => s.kind === 'thinking');
-    expect(thoughts).toHaveLength(1);
+    expect(thoughts).toHaveLength(2);
     expect(thoughts[0].id).toBe('tl_thinking_1');
-    expect(thoughts[0].detail).toContain('first dig more first');
-    expect(thoughts[0].detail).toContain('second dig after tools');
-    expect(thoughts[0].itemStatus).toBe('running');
+    expect(thoughts[0].detail).toBe('first dig more first');
+    expect(thoughts[0].itemStatus).toBe('done');
+    expect(thoughts[1].id).toBe('tl_thinking_1_s1');
+    expect(thoughts[1].thoughtRole).toBe('mid');
+    expect(thoughts[1].detail).toBe('second dig after tools');
+    expect(thoughts[1].itemStatus).toBe('running');
   });
 
-  it('explore Read soft-pauses Thought — same id resumes after (no Thought spam)', () => {
+  it('explore Read then Think → mid Thought under Exploring (not top append)', () => {
     const store = { msgs: [assistant()] };
     const ctx = baseCtx(store);
     ctx.turnNumberRef.current.bump('sess');
@@ -140,15 +145,18 @@ describe('thought segment rotation', () => {
     onDelta({ reasoning: 'more after' });
     steps = store.msgs[0].steps || [];
     const thoughts = steps.filter((s) => s.kind === 'thinking');
-    expect(thoughts).toHaveLength(1);
+    expect(thoughts).toHaveLength(2);
     expect(thoughts[0].id).toBe('tl_thinking_1');
-    expect(thoughts[0].itemStatus).toBe('running');
     expect(thoughts[0].detail).toContain('before read');
-    expect(thoughts[0].detail).toContain('after read still thinking');
-    expect(thoughts[0].detail).toContain('more after');
+    expect(thoughts[0].detail).not.toContain('after read');
+    expect(thoughts[1].id).toBe('tl_thinking_1_s1');
+    expect(thoughts[1].thoughtRole).toBe('mid');
+    expect(thoughts[1].itemStatus).toBe('running');
+    expect(thoughts[1].detail).toContain('after read still thinking');
+    expect(thoughts[1].detail).toContain('more after');
   });
 
-  it('edit/terminal soft-pause — same Thought id (no hard-rotate spam)', () => {
+  it('edit/terminal also rotate mid Thought (no opening append spam)', () => {
     const store = { msgs: [assistant()] };
     const ctx = baseCtx(store);
     ctx.turnNumberRef.current.bump('sess');
@@ -184,11 +192,15 @@ describe('thought segment rotation', () => {
     const thoughts = (store.msgs[0].steps || []).filter(
       (s) => s.kind === 'thinking'
     );
-    expect(thoughts).toHaveLength(1);
+    expect(thoughts).toHaveLength(3);
     expect(thoughts[0].id).toBe('tl_thinking_1');
-    expect(thoughts[0].detail).toContain('plan edit');
-    expect(thoughts[0].detail).toContain('after edit');
-    expect(thoughts[0].detail).toContain('after cargo');
+    expect(thoughts[0].detail).toBe('plan edit');
+    expect(thoughts[1].id).toBe('tl_thinking_1_s1');
+    expect(thoughts[1].thoughtRole).toBe('mid');
+    expect(thoughts[1].detail).toBe('after edit');
+    expect(thoughts[2].id).toBe('tl_thinking_1_s2');
+    expect(thoughts[2].thoughtRole).toBe('mid');
+    expect(thoughts[2].detail).toBe('after cargo');
   });
 
   it('tool.start clearContent+timeline upserts Grepped/Read detail (not bare verb)', () => {

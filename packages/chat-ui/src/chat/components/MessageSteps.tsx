@@ -1441,10 +1441,9 @@ export function MessageSteps({
         const exploreExpanded = openExplore[p.id] ?? false;
         const actionExpanded = actionLive || (openAction[p.id] ?? false);
 
+        // Comment: show full Exploring list — do not truncate mid-run rows
         const exploreDisplayRows: ExploreRow[] = (() => {
-          const base = isExploring
-            ? p.rows.slice(-Math.max(10, liveTail(tools, 8).length + 4))
-            : p.rows;
+          const base = p.rows;
           if (!th || !showExplore) return base;
           if (base.some((r) => r.type === 'thought' && r.step.id === th.id)) {
             return base;
