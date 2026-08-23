@@ -53,9 +53,10 @@
 
 | Feature ID | 오늘 한 일 | 상태 | 내일 |
 |------------|------------|------|------|
-| CONV-019 | FileEdit **전체 lines** + 카드 `max-height` 스크롤 (`… more` / MAX_PREVIEW / host slice 제거) | [~] | **rebuild → 화면 재확인** |
+| CONV-019 | FileEdit: 전체 lines + 접힘~4줄 스크롤 + Shiki extract 수정 | [x] | **화면 확인 완료** |
 | CONV-014 | Thought: **전 tool soft-pause** (edit/terminal 포함, 한 id/send) | [~] | **화면 확인** |
-| CONV-018 | dig prose가 Ran phase 안 쪼개게 | [~] | Ran 그룹 **화면 확인** |
+| CONV-018 | Terminal/Ran: host emit + dig prose phase 유지 | [x] | **화면 확인 완료** |
+| CHAT-012 | Composer 캡처 paste/DnD → temp 저장 + vision images | [~] | webview/host rebuild 후 paste·drop 확인 |
 | CONV-013/016 | liveProse / ChangedFiles | [~] | 화면 재검증 |
 | HOST-002 | incomplete stream 로그 | [~] | RCA |
 | STREAM-004 / CHAT send | **TODO:** 같은 탭 follow-up에서 UI엔 대화가 보이는데 모델이 prior를 모름 — `chat.send`가 `content`만 직렬화하고, `sealBodyBeforeTools` 후 assistant `content:''` + `turnProse`만 남는 경우 prior가 빈 문자열로 감 | [ ] | prior 직렬화: `content \|\| turnProse join` (+ 필요 시 prior attachment); `useChatStream` / `useChatSendFlow`; 재현 로그 `msgs=N` + contentLen |
@@ -259,6 +260,7 @@ Phase 0 시작 전/병행: shared 계약.
 | CHAT-009 | New Chat | chat-ui | [x] handleNewChat always forks tab (empty OK); tabs/history/host `session.new`/slash `/new`; unit tests |
 | CHAT-010 | Side Chat | chat-ui | [ ] skipped — v2.1도 unsupported stub(ADDON-T16); 코드 미이식 |
 | CHAT-011 | Composer palette | chat-ui | [x] composerPalette + ComposerPalette + Composer/@·slash wiring; unit tests |
+| CHAT-012 | Composer image paste/DnD | chat-ui (+ host) | [~] screenshot paste/drop → `attachments.saveImage` temp + chip; `chat.send.images` → multimodal (vision) |
 | STREAM-001 | Assistant stream session | chat-ui (표시) | [x] createAssistantStreamSession + ownerSessionId routing; tab settle/error; unit tests. core runtime → REL/useChatStream 별도 |
 | STREAM-002 | Turn state | chat-ui (표시) | [~] deriveTurnStatus kept unused; MessageBubble = pre-phase (no rail/label). REL-004 core [x] |
 | STREAM-003 | Send epoch | chat-ui (표시) | [x] SendEpochMap per-tab; wired in send/stop/resynth. Runtime = REL-005 [x] |
@@ -286,8 +288,8 @@ Phase 0 시작 전/병행: shared 계약.
 | CONV-015 | Explore Chrome | chat-ui | [x] ExploreChrome kept for nested group/thought rows; main+detail = MessageSteps |
 | CONV-016 | Changed Files bar | chat-ui | [~] 이식됨 — **footer ChangedFiles 바 화면 확인 남음** |
 | CONV-017 | Change Summary card | chat-ui | [-] **스킵** — 세션 변경 목록은 CONV-016 ChangedFilesBar만 사용 (턴 안 요약 카드 불필요) |
-| CONV-018 | Terminal Run Card | chat-ui | [~] host `terminal.run` emit 연결 — **Ran/터미널 카드 화면 확인 남음** |
-| CONV-019 | File Edit Card | chat-ui | [~] before→after + compact; **2026-08-23** Shiki `extractLineInnerHtml` nested-span 잘림 수정(마크다운 `-`만 보이던 버그) + suffix 줄번호 after 기준 — **webview rebuild 후 재확인** |
+| CONV-018 | Terminal Run Card | chat-ui | [x] host `terminal.run` + Ran 카드 — **2026-08-23 화면 확인 완료** |
+| CONV-019 | File Edit Card | chat-ui | [x] before→after + Shiki extract fix + 전체 lines/접힘~4줄 스크롤 — **2026-08-23 화면 확인 완료** |
 | CONV-020 | Conversation tabs | chat-ui | [x] ChatSessionTabs (CHAT-007) |
 ---
 

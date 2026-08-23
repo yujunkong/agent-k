@@ -51,6 +51,16 @@ export type HostBridgeWebviewMessage =
   | { type: 'attachments.resolve'; requestId: RequestId; uris: string[] }
   /** CHAT-005 — resolve multi-line paste via copy-time path stash (Cmd/Ctrl+C). */
   | { type: 'attachments.matchPaste'; requestId: RequestId; content: string }
+  /** CHAT-012 — save clipboard/drop image bytes to temp path. */
+  | {
+      type: 'attachments.saveImage';
+      requestId: RequestId;
+      mimeType: string;
+      dataBase64: string;
+      fileName?: string;
+    }
+  /** CHAT-012 — read screenshot from OS clipboard in extension host (Electron). */
+  | { type: 'attachments.readClipboardImage'; requestId: RequestId }
   | {
       type: 'composer.search';
       requestId: RequestId;
@@ -91,6 +101,8 @@ export type HostBridgeWebviewMessage =
 export type HostBridgeHostMessage =
   | { type: 'config.hydrate'; values: Record<string, unknown> }
   | { type: 'settings.open'; tab?: string }
+  /** CHAT-012 / CHAT-005 — focus Composer textarea after webview claims workbench focus. */
+  | { type: 'focus.input' }
   | {
       type: 'config.project.result';
       exists: boolean;
@@ -130,6 +142,18 @@ export type HostBridgeHostMessage =
         startLine?: number;
         endLine?: number;
       };
+    }
+  /** CHAT-012 — saved capture path for Composer chip. */
+  | {
+      type: 'attachments.saveImage.result';
+      requestId: RequestId;
+      item?: {
+        path: string;
+        mimeType: string;
+        type: 'image';
+        label?: string;
+      };
+      error?: string;
     }
   | {
       type: 'composer.search.result';

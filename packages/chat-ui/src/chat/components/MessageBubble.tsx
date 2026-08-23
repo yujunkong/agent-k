@@ -249,15 +249,16 @@ export function MessageBubble({
           {!isEditing && attachments.length > 0 ? (
             <div className="user-turn__chips" aria-label="Attached context">
               {attachments.map((att: any, i: number) => {
-                const openable = isOpenableAttachment(att);
+                const openable = isOpenableAttachment(att) || att.type === 'image';
                 const isLog = att.type === 'log' && !openable;
+                const isImage = att.type === 'image';
                 const label = attachmentDisplayLabel(att);
                 const openTarget = String(att.path || '');
                 return (
                   <span
                     key={att.id || i}
                     className={`user-chip user-chip--${
-                      openable ? 'file' : att.type || 'file'
+                      isImage ? 'image' : openable ? 'file' : att.type || 'file'
                     }`}
                     title={
                       openable
@@ -268,10 +269,23 @@ export function MessageBubble({
                     }
                   >
                     <span className="user-chip__icon" aria-hidden>
-                      {att.type === 'folder' ? (
+                      {isImage && att.previewUrl ? (
+                        <img
+                          src={att.previewUrl}
+                          alt=""
+                          style={{
+                            width: 12,
+                            height: 12,
+                            objectFit: 'cover',
+                            borderRadius: 2
+                          }}
+                        />
+                      ) : att.type === 'folder' ? (
                         <FileTypeIcon path={label} kind="folder" size={11} />
                       ) : isLog ? (
                         '📋'
+                      ) : isImage ? (
+                        '🖼'
                       ) : (
                         <FileTypeIcon
                           path={String(att.path || label)}

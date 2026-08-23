@@ -16,7 +16,9 @@ import {
   matchPasteAttachment,
   openWorkspaceFile,
   pickAttachmentUris,
+  readClipboardImage,
   resolveAttachmentUris,
+  saveClipboardImage,
 } from './composerHost';
 import {
   handleConfigUpdate,
@@ -200,6 +202,24 @@ async function dispatch(
         String(msg.requestId),
         String(msg.content || ''),
       );
+      return;
+
+    case 'attachments.saveImage':
+      await saveClipboardImage(
+        webview,
+        String(msg.requestId),
+        String(msg.mimeType || 'image/png'),
+        String(msg.dataBase64 || ''),
+        msg.fileName != null ? String(msg.fileName) : undefined,
+      );
+      return;
+
+    case 'attachments.readClipboardImage':
+      hostLog(
+        'composer.attach',
+        `← attachments.readClipboardImage requestId=${String(msg.requestId)}`,
+      );
+      await readClipboardImage(webview, String(msg.requestId));
       return;
 
     case 'composer.search':

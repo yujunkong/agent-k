@@ -38,6 +38,9 @@ function lineCountLabel(content?: string): string | null {
 }
 
 export function attachmentDisplayLabel(a: Attachment): string {
+  if (a.type === 'image') {
+    return a.label || basenamePath(a.path) || 'Screenshot';
+  }
   // Comment: editor selection / file range → filename + lines; never "log (N) (N)"
   if (isOpenableAttachment(a) || (a.type === 'file' && a.path)) {
     const name =
@@ -98,6 +101,28 @@ export function makeLogAttachment(content: string, label?: string): Attachment {
     // Comment: bare "log" — displayLabel appends "(N lines)" once
     label: label || 'log',
     content: body.slice(0, 200_000)
+  };
+}
+
+/** CHAT-012 — screenshot / image chip after host save. */
+export function makeImageAttachment(opts: {
+  path: string;
+  mimeType?: string;
+  label?: string;
+  previewUrl?: string;
+}): Attachment {
+  const id = `img_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  const name =
+    opts.label ||
+    basenamePath(opts.path) ||
+    'Screenshot';
+  return {
+    id,
+    type: 'image',
+    path: opts.path,
+    label: name,
+    mimeType: opts.mimeType || 'image/png',
+    previewUrl: opts.previewUrl
   };
 }
 
@@ -198,6 +223,13 @@ export function formatAttachmentsForPayload(files: Attachment[]): string {
   if (!files.length) return '';
   const parts: string[] = [];
   for (const f of files) {
+    if (f.type === 'image') {
+      // Comment: skip optimistic pending chips until host path lands
+      if (!String(f.path || '').startsWith('img_pending_')) {
+        parts.push(`@image:${f.path}`);
+      }
+      continue;
+    }
     if (f.type === 'folder') {
       parts.push(`@folder:${f.path}`);
       continue;

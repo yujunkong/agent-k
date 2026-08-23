@@ -99,12 +99,16 @@ export interface TerminalRunPreview {
 
 export interface Attachment {
   id?: string;
-  type: 'file' | 'folder' | 'symbol' | 'codebase' | 'snippet' | 'log';
+  type: 'file' | 'folder' | 'symbol' | 'codebase' | 'snippet' | 'log' | 'image';
   path: string;
   content?: string;
   startLine?: number;
   endLine?: number;
   label?: string;
+  /** CHAT-012 — image/* mime for vision send */
+  mimeType?: string;
+  /** Optional data-URL thumb in Composer (not sent on wire). */
+  previewUrl?: string;
 }
 
 export interface ToolCall {

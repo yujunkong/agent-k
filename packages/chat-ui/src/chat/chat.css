@@ -3768,18 +3768,31 @@ body.vscode-high-contrast .ak-code__cursor {
   position: relative;
   min-width: 240px;
   width: 100%;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  cursor: text;
+}
+
+/* Comment: hover affordance — JS .composer-box--hot (reliable) + CSS :hover fallback */
+.composer-box:hover,
+.composer-box.composer-box--hot,
+.composer--hot .composer-box {
+  border-color: var(--vscode-focusBorder, #007fd4) !important;
+  box-shadow:
+    var(--ak-panel-shadow),
+    0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 45%, transparent) !important;
+  background: color-mix(
+    in srgb,
+    var(--vscode-input-background, var(--ak-panel-bg)) 85%,
+    var(--vscode-focusBorder, #007fd4)
+  );
+  cursor: text;
 }
 
 .composer-box:focus-within {
-  border-color: color-mix(
-    in srgb,
-    var(--vscode-focusBorder, #007fd4) 65%,
-    var(--ak-panel-border)
-  );
+  border-color: var(--vscode-focusBorder, #007fd4);
   box-shadow:
     var(--ak-panel-shadow),
-    0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 35%, transparent);
+    0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 55%, transparent);
 }
 
 /* Flat textarea inside composer box — no nested input chrome */
@@ -4697,23 +4710,66 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .composer.drag-over {
-  outline: 1px dashed #22d3ee;
-  outline-offset: 2px;
-  background: rgba(34, 211, 238, 0.06);
+  position: relative;
+  z-index: 5;
+}
+
+.composer.drag-over .composer-box,
+.composer-box.composer-box--drag {
+  border-color: var(--vscode-focusBorder, #22d3ee) !important;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder, #22d3ee) 55%, transparent),
+    0 12px 36px rgba(0, 0, 0, 0.28) !important;
+  background: color-mix(
+    in srgb,
+    var(--vscode-input-background, var(--ak-panel-bg)) 70%,
+    var(--vscode-focusBorder, #22d3ee)
+  ) !important;
 }
 
 .composer-drop-hint {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 6;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   pointer-events: none;
+  font-size: 13px;
+  color: var(--vscode-editor-foreground, #e2e8f0);
+  background: color-mix(
+    in srgb,
+    var(--vscode-editor-background, #1e1e1e) 35%,
+    var(--vscode-focusBorder, #0e7490)
+  );
+  border: 2px dashed var(--vscode-focusBorder, #22d3ee);
+  border-radius: 14px;
+}
+
+.composer-drop-hint__title {
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.01em;
+}
+
+.composer-drop-hint__sub {
   font-size: 12px;
-  color: #67e8f9;
-  background: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 28%, #0f1720);
-  border-radius: 12px;
+  opacity: 0.9;
+}
+
+.composer-drop-hint__shift {
+  opacity: 0.7;
+}
+
+.composer-drop-hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--vscode-focusBorder, #22d3ee) 50%, transparent);
+  font-size: 11px;
+  font-family: inherit;
 }
 
 /* Cursor-like teal attachment pills (inside composer box) */
@@ -4787,6 +4843,25 @@ body.vscode-dark .composer-chip--snippet,
   flex-shrink: 0;
   font-size: 11px;
   opacity: 0.9;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.composer-chip-thumb {
+  width: 14px;
+  height: 14px;
+  object-fit: cover;
+  border-radius: 2px;
+  display: block;
+}
+
+.composer-chip--image {
+  border-color: color-mix(
+    in srgb,
+    var(--vscode-charts-purple, #c586c0) 40%,
+    var(--ak-card-border)
+  );
 }
 
 .composer-chip-label {

@@ -3,6 +3,7 @@
  */
 
 import * as vscode from 'vscode';
+import { hostLog } from './hostLog';
 
 /** Open a workspace-relative or absolute path in the editor (optional line reveal). */
 export async function openWorkspaceFile(
@@ -12,13 +13,21 @@ export async function openWorkspaceFile(
   try {
     // Dynamic fs import keeps unit tests from requiring node types at compile of callers.
     const fs = await import('node:fs');
-    let uri = vscode.Uri.file(filePath);
-    if (!fs.existsSync(filePath)) {
+    const pathMod = await import('node:path');
+    let uri = toOpenUri(filePath);
+    if (!fs.existsSync(uri.fsPath)) {
       const folders = vscode.workspace.workspaceFolders;
-      if (folders?.[0]) {
+      if (folders?.[0] && !filePath.includes('://') && !pathMod.isAbsolute(filePath)) {
         uri = vscode.Uri.joinPath(folders[0].uri, filePath);
       }
     }
+
+    // Comment: CHAT-012 — image/binary chips must not use showTextDocument
+    if (isBinaryOpenPath(uri.fsPath)) {
+      await vscode.commands.executeCommand('vscode.open', uri);
+      return;
+    }
+
     const editor = await vscode.window.showTextDocument(uri, { preview: true });
     // Comment: selection chips / paste stash carry 1-based line range
     if (opts?.startLine != null && opts.startLine >= 1) {
@@ -34,6 +43,22 @@ export async function openWorkspaceFile(
     const msg = err instanceof Error ? err.message : String(err);
     void vscode.window.showErrorMessage(`Agent K: could not open file — ${msg}`);
   }
+}
+
+/** Accept absolute path or file:// URI from Composer chips. */
+function toOpenUri(filePath: string): vscode.Uri {
+  const raw = String(filePath || '').trim();
+  if (!raw) return vscode.Uri.file(raw);
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
+    return vscode.Uri.parse(raw);
+  }
+  return vscode.Uri.file(raw);
+}
+
+function isBinaryOpenPath(fsPath: string): boolean {
+  return /\.(png|jpe?g|gif|webp|bmp|ico|svg|pdf|zip|gz|tgz|wasm|dylib|so|dll|exe|bin)$/i.test(
+    fsPath,
+  );
 }
 
 /**
@@ -251,5 +276,277 @@ export async function matchPasteAttachment(
           endLine: hit.endLine,
         }
       : undefined,
+  });
+}
+
+const MAX_CAPTURE_BYTES = 20 * 1024 * 1024;
+
+function mimeToExt(mimeType: string): string {
+  const m = mimeType.toLowerCase();
+  if (m.includes('jpeg') || m.includes('jpg')) return 'jpg';
+  if (m.includes('webp')) return 'webp';
+  if (m.includes('gif')) return 'gif';
+  return 'png';
+}
+
+/**
+ * CHAT-012 — persist clipboard/drop image bytes under OS temp for Composer chip + vision send.
+ */
+export async function saveClipboardImage(
+  webview: vscode.Webview | undefined,
+  requestId: string,
+  mimeType: string,
+  dataBase64: string,
+  fileName?: string,
+): Promise<void> {
+  if (!webview) return;
+
+  try {
+    const raw = String(dataBase64 || '').replace(/^data:[^;]+;base64,/, '');
+    if (!raw) {
+      hostLog('composer.attach', `saveImage empty requestId=${requestId}`);
+      void webview.postMessage({
+        type: 'attachments.saveImage.result',
+        requestId,
+        error: 'empty image data',
+      });
+      return;
+    }
+    const buf = Buffer.from(raw, 'base64');
+    hostLog(
+      'composer.attach',
+      `saveImage bytes=${buf.length} mime=${mimeType} requestId=${requestId}`,
+    );
+    await writeCaptureAndReply(webview, requestId, buf, mimeType, fileName);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    hostLog('composer.attach', `saveImage FAIL requestId=${requestId} err=${msg}`);
+    void webview.postMessage({
+      type: 'attachments.saveImage.result',
+      requestId,
+      error: msg,
+    });
+  }
+}
+
+/**
+ * CHAT-012 — read image from OS clipboard.
+ * VS Code extension host cannot `require('electron')` — use platform scripts
+ * (vscode-paste-image pattern: osascript PNGf / powershell / xclip).
+ */
+export async function readClipboardImage(
+  webview: vscode.Webview | undefined,
+  requestId: string,
+): Promise<void> {
+  if (!webview) return;
+  const purpose = 'composer.attach';
+  try {
+    const path = await import('node:path');
+    const os = await import('node:os');
+    const fs = await import('node:fs/promises');
+    const dest = path.join(
+      os.tmpdir(),
+      'agent-k-captures',
+      `capture_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`,
+    );
+    await fs.mkdir(path.dirname(dest), { recursive: true });
+
+    hostLog(
+      purpose,
+      `clipboard.read start requestId=${requestId} platform=${process.platform} dest=${dest}`,
+    );
+
+    const result = await saveOsClipboardPngToFile(dest);
+    hostLog(
+      purpose,
+      `clipboard.read result requestId=${requestId} status=${result}`,
+    );
+
+    if (result !== 'ok') {
+      void webview.postMessage({
+        type: 'attachments.saveImage.result',
+        requestId,
+        error: result === 'no image' ? 'no image on clipboard' : result,
+      });
+      return;
+    }
+
+    const st = await fs.stat(dest);
+    if (!st.size) {
+      void webview.postMessage({
+        type: 'attachments.saveImage.result',
+        requestId,
+        error: 'clipboard png empty',
+      });
+      return;
+    }
+
+    void webview.postMessage({
+      type: 'attachments.saveImage.result',
+      requestId,
+      item: {
+        path: dest,
+        mimeType: 'image/png',
+        type: 'image',
+        label: path.basename(dest),
+      },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    hostLog(purpose, `clipboard.read FAIL requestId=${requestId} err=${msg}`);
+    void webview.postMessage({
+      type: 'attachments.saveImage.result',
+      requestId,
+      error: msg,
+    });
+  }
+}
+
+/** AppleScript: argv[1] = dest PNG path. stdout: ok | no image | error */
+const MAC_CLIPBOARD_PNG_SCRIPT = [
+  'on run argv',
+  '  if (count of argv) is 0 then',
+  '    return "no path"',
+  '  end if',
+  '  set imagePath to (item 1 of argv) as string',
+  '  try',
+  '    set pngData to the clipboard as «class PNGf»',
+  '  on error',
+  '    return "no image"',
+  '  end try',
+  '  try',
+  '    set outFile to POSIX file imagePath',
+  '    set fileRef to open for access outFile with write permission',
+  '    set eof of fileRef to 0',
+  '    write pngData to fileRef',
+  '    close access fileRef',
+  '    return "ok"',
+  '  on error errMsg',
+  '    try',
+  '      close access fileRef',
+  '    end try',
+  '    return errMsg as string',
+  '  end try',
+  'end run',
+  '',
+].join('\n');
+
+/** @returns ok | no image | error text */
+async function saveOsClipboardPngToFile(destPath: string): Promise<string> {
+  const { spawn } = await import('node:child_process');
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const platform = process.platform;
+
+  if (platform === 'darwin') {
+    // Comment: write temp .applescript — multiline -e is fragile; no electron in EH
+    const scriptPath = path.join(
+      os.tmpdir(),
+      `agent-k-clip-${Date.now()}_${Math.random().toString(36).slice(2, 6)}.applescript`,
+    );
+    await fs.writeFile(scriptPath, MAC_CLIPBOARD_PNG_SCRIPT, 'utf8');
+    return await new Promise((resolve) => {
+      const child = spawn('osascript', [scriptPath, destPath], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let out = '';
+      let err = '';
+      child.stdout.on('data', (d: Buffer) => {
+        out += d.toString();
+      });
+      child.stderr.on('data', (d: Buffer) => {
+        err += d.toString();
+      });
+      child.on('error', (e) => resolve(`osascript spawn: ${e.message}`));
+      child.on('close', (code) => {
+        void fs.unlink(scriptPath).catch(() => undefined);
+        const text = out.trim() || err.trim();
+        if (code !== 0 && !text) resolve(`osascript exit ${code}`);
+        else resolve(text || 'no image');
+      });
+    });
+  }
+
+  if (platform === 'win32') {
+    // PowerShell: clipboard image → PNG file
+    const ps = [
+      'Add-Type -AssemblyName System.Windows.Forms',
+      'Add-Type -AssemblyName System.Drawing',
+      '$img = [System.Windows.Forms.Clipboard]::GetImage()',
+      'if ($img -eq $null) { Write-Output "no image"; exit 0 }',
+      `$img.Save(${JSON.stringify(destPath)}, [System.Drawing.Imaging.ImageFormat]::Png)`,
+      'Write-Output "ok"',
+    ].join('; ');
+    return await new Promise((resolve) => {
+      const child = spawn(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', ps],
+        { stdio: ['ignore', 'pipe', 'pipe'] },
+      );
+      let out = '';
+      child.stdout.on('data', (d: Buffer) => {
+        out += d.toString();
+      });
+      child.on('error', (e) => resolve(`powershell: ${e.message}`));
+      child.on('close', () => resolve(out.trim() || 'no image'));
+    });
+  }
+
+  // Linux: xclip
+  return await new Promise((resolve) => {
+    const child = spawn(
+      'sh',
+      [
+        '-c',
+        `xclip -selection clipboard -t image/png -o > ${JSON.stringify(destPath)} 2>/dev/null && echo ok || echo "no image"`,
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let out = '';
+    child.stdout.on('data', (d: Buffer) => {
+      out += d.toString();
+    });
+    child.on('error', () => resolve('no xclip'));
+    child.on('close', () => resolve(out.trim() || 'no image'));
+  });
+}
+
+async function writeCaptureAndReply(
+  webview: vscode.Webview,
+  requestId: string,
+  buf: Buffer,
+  mimeType: string,
+  fileName?: string,
+): Promise<void> {
+  if (buf.length > MAX_CAPTURE_BYTES) {
+    void webview.postMessage({
+      type: 'attachments.saveImage.result',
+      requestId,
+      error: `image too large (>${MAX_CAPTURE_BYTES} bytes)`,
+    });
+    return;
+  }
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const os = await import('node:os');
+  const ext = mimeToExt(mimeType || 'image/png');
+  const dir = path.join(os.tmpdir(), 'agent-k-captures');
+  await fs.mkdir(dir, { recursive: true });
+  const safeName =
+    fileName && /\.(png|jpe?g|gif|webp)$/i.test(fileName)
+      ? fileName.replace(/[^\w.\-]+/g, '_')
+      : `capture_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const filePath = path.join(dir, safeName);
+  await fs.writeFile(filePath, buf);
+  void webview.postMessage({
+    type: 'attachments.saveImage.result',
+    requestId,
+    item: {
+      path: filePath,
+      mimeType: mimeType || `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+      type: 'image',
+      label: safeName,
+    },
   });
 }

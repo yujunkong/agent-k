@@ -2,7 +2,7 @@
  * AGENT-009 — Idle turn/run timeout (bump on LLM/tool activity).
  */
 
-export const DEFAULT_TURN_TIMEOUT_MS = 120_000;
+export const DEFAULT_TURN_TIMEOUT_MS = 1_800_000; // 30 minutes idle — local models often >3m TTFT
 
 export function resolveTurnTimeoutMs(
   configValue: number | undefined,

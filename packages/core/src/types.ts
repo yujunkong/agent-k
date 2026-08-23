@@ -59,6 +59,8 @@ export type RunModelFn = (input: {
   messages: AgentMessage[];
   signal?: AbortSignal;
   turn: number;
+  /** AGENT-009 — call on stream/tool progress so idle timeout does not fire mid-turn. */
+  onActivity?: () => void;
 }) => Promise<ModelTurnResult>;
 
 /** Injected tool executor (AGENT-004). */

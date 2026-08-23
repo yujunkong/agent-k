@@ -106,7 +106,7 @@ export function createDefaultConfig(): Record<string, unknown> {
     'agent-k.mode.default': 'agent',
     'agent-k.maxTurns': 25,
     'agent-k.debugClassifiers': false,
-    'agent-k.turnTimeoutMs': 120000,
+    'agent-k.turnTimeoutMs': 1_800_000,
     ...PERMISSION_CONFIG_DEFAULTS,
     'agent-k.queue.onEnterWhileRunning': 'resynthesize',
     'agent-k.queue.onStop': 'keep',

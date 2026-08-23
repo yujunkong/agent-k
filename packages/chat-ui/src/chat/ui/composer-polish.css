@@ -10,12 +10,29 @@
   box-shadow: 0 8px 30px rgba(0,0,0,.16);
   /* Visible so mode / model menus can escape the rounded box */
   overflow: visible;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+  cursor: text;
+}
+
+.composer--cursor .composer-box:hover,
+.composer--cursor .composer-box.composer-box--hot,
+.composer--hot .composer-box {
+  border-color: var(--vscode-focusBorder, #007fd4) !important;
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.2),
+    0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 45%, transparent) !important;
+  background: color-mix(
+    in srgb,
+    var(--vscode-input-background, rgba(255, 255, 255, 0.035)) 82%,
+    var(--vscode-focusBorder, #007fd4)
+  );
 }
 
 .composer--cursor:focus-within .composer-box {
-  border-color: var(--vscode-focusBorder, rgba(255,255,255,.24));
-  box-shadow: 0 10px 34px rgba(0,0,0,.2);
+  border-color: var(--vscode-focusBorder, #007fd4);
+  box-shadow:
+    0 10px 34px rgba(0, 0, 0, 0.22),
+    0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 55%, transparent);
 }
 
 .composer--cursor textarea {
@@ -158,12 +175,13 @@ body.vscode-dark .composer--cursor .composer-chip--folder,
   background: rgba(255,255,255,.07);
 }
 
+.composer--cursor {
+  position: relative;
+}
+
 .composer--cursor .composer-drop-hint {
-  margin-bottom: 6px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  font-size: 12px;
-  background: rgba(255,255,255,.05);
+  margin: 0;
+  padding: 0;
 }
 
 @media (max-width: 620px) {

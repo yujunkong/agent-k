@@ -13,6 +13,7 @@ import {
 } from './planGenerate';
 import { getWebviewHtml } from './webviewHtml';
 import { rememberEditorCopy } from './editorCopyStash';
+import { hostLog } from './hostLog';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   /** Must match contributes.views id in extensions/agent-k/package.json. */
@@ -53,7 +54,47 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage((message: unknown) => {
       handleWebviewMessage(this.routerContext(), message);
+      // Comment: after ui.ready handshake, claim workbench focus so 1st paste/DnD hits webview
+      if (
+        message &&
+        typeof message === 'object' &&
+        (message as { type?: string }).type === 'ui.ready'
+      ) {
+        this.claimWebviewFocus('ui.ready');
+      }
     });
+
+    // Comment: Activity Bar reveal often leaves focus on the editor — steal it for paste/DnD
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) {
+        this.claimWebviewFocus('visibility');
+      }
+    });
+    if (webviewView.visible) {
+      this.claimWebviewFocus('resolve');
+    }
+  }
+
+  /**
+   * CHAT-012 — first Cmd+V / drag into an unfocused sidebar webview is eaten by
+   * the workbench (focus only). Take focus + tell Composer to focus the textarea.
+   * Retries: React may not have mounted Composer yet when ui.ready fires.
+   */
+  private claimWebviewFocus(reason: string): void {
+    hostLog('composer.attach', `claim webview focus (${reason})`);
+    try {
+      // preserveFocus=false → keyboard/clipboard target becomes this webview
+      this.view?.show(false);
+    } catch {
+      /* show() may throw if view disposed */
+    }
+    const post = () => {
+      void this.view?.webview.postMessage({ type: 'focus.input' });
+    };
+    post();
+    setTimeout(post, 50);
+    setTimeout(post, 200);
+    setTimeout(post, 500);
   }
 
   /** Post a host→webview message when the view is alive. */
@@ -111,9 +152,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   public focusInput(): void {
-    void this.focusChatView();
-    // CHAT-005 / Composer — focus the textarea after reveal
-    void this.view?.webview.postMessage({ type: 'focus.input' });
+    void this.focusChatView().then(() => {
+      this.claimWebviewFocus('command.focusInput');
+    });
   }
 
   /** CHAT-005 — attach current editor selection (line range) as a Composer chip. */

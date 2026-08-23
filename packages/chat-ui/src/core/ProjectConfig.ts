@@ -203,7 +203,7 @@ export function exampleProjectConfig(): Record<string, unknown> {
       default: 'agent',
     },
     maxTurns: 25,
-    turnTimeoutMs: 120000,
+    turnTimeoutMs: 1_800_000,
     plan: {
       forceOnComplex: false,
     },

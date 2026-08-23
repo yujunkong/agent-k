@@ -638,14 +638,15 @@ export function ChatApp() {
 
   // ─── Host 메시지 처리 ─────────────────────────────────────────
   useChatHostBridge({
-        sessionIdRef,
+    sessionIdRef,
     setMode,
-        setError,
+    setError,
     setInlineEditSeed,
     setComposerSeed,
+    setComposerFocusNonce,
     handleNewChat,
     applyHostHydration,
-      updateSessionMessages,
+    updateSessionMessages,
     panels,
     plan,
     debug,

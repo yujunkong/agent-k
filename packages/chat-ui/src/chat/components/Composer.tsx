@@ -20,6 +20,7 @@ import {
   looksLikeLogOrSnippet,
   isOpenableAttachment,
   makeLogAttachment,
+  makeImageAttachment,
   makeSnippetAttachment,
   parseVsCodeEditorClipboard,
   parseLineRangeInput
@@ -32,6 +33,7 @@ import {
   type MentionHit,
   type SlashCommand
 } from '../composerPalette';
+import { debugLog } from '../debugLog';
 
 interface ComposerProps {
   onSend: (text: string, files: Attachment[]) => void;
@@ -127,28 +129,66 @@ function getVsCodeApi(): { postMessage: (msg: unknown) => void } | null {
   }
 }
 
-/** Collect file:// / path URIs from VS Code explorer or OS drop */
+/** Collect file:// / path URIs from explorer, editor tabs, or OS drop. */
 function collectUrisFromDataTransfer(dt: DataTransfer): string[] {
   const uris: string[] = [];
+  const push = (raw: string) => {
+    const t = raw.trim();
+    if (!t || t.startsWith('#')) return;
+    uris.push(t);
+  };
+  const pushUriList = (blob: string) => {
+    for (const line of blob.split(/\r?\n/)) push(line);
+  };
+  const tryJsonUris = (raw: string) => {
+    try {
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return;
+      for (const item of arr) {
+        if (typeof item === 'string') push(item);
+        else if (item && typeof item === 'object') {
+          // Comment: editor-tab drag — { uri } | { resource } | VS Code Uri DTO
+          const u =
+            (item as { uri?: unknown }).uri ??
+            (item as { resource?: unknown }).resource;
+          if (typeof u === 'string') push(u);
+          else if (u && typeof u === 'object' && 'path' in (u as object)) {
+            const dto = u as { scheme?: string; path?: string; external?: string };
+            if (typeof dto.external === 'string') push(dto.external);
+            else if (dto.path)
+              push(
+                dto.scheme === 'file' || !dto.scheme
+                  ? `file://${dto.path}`
+                  : `${dto.scheme}:${dto.path}`
+              );
+          }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  };
 
-  const uriList = dt.getData('text/uri-list');
-  if (uriList) {
-    for (const line of uriList.split(/\r?\n/)) {
-      const t = line.trim();
-      if (t && !t.startsWith('#')) uris.push(t);
+  // Comment: VS Code editor-tab / explorer → webview (Shift+drop) MIME variants
+  for (const mime of [
+    'text/uri-list',
+    'application/vnd.code.uri-list',
+    'ResourceURLs',
+    'resourceurls'
+  ]) {
+    try {
+      const data = dt.getData(mime);
+      if (!data) continue;
+      if (mime.toLowerCase().includes('resource')) tryJsonUris(data);
+      else pushUriList(data);
+    } catch {
+      /* ignore */
     }
   }
 
   try {
-    const resourceUrls = dt.getData('resourceurls');
-    if (resourceUrls) {
-      const arr = JSON.parse(resourceUrls);
-      if (Array.isArray(arr)) {
-        for (const u of arr) {
-          if (typeof u === 'string' && u) uris.push(u);
-        }
-      }
-    }
+    const editors = dt.getData('application/vnd.code.editors');
+    if (editors) tryJsonUris(editors);
   } catch {
     /* ignore */
   }
@@ -159,7 +199,7 @@ function collectUrisFromDataTransfer(dt: DataTransfer): string[] {
       const t = line.trim();
       if (!t) continue;
       if (t.startsWith('file:') || t.startsWith('/') || /^[A-Za-z]:[\\/]/.test(t)) {
-        uris.push(t);
+        push(t);
       }
     }
   }
@@ -167,11 +207,129 @@ function collectUrisFromDataTransfer(dt: DataTransfer): string[] {
   if (dt.files?.length) {
     for (const f of Array.from(dt.files)) {
       const p = (f as File & { path?: string }).path;
-      if (p) uris.push(p.startsWith('file:') ? p : `file://${p}`);
+      if (p) push(p.startsWith('file:') ? p : `file://${p}`);
     }
   }
 
   return [...new Set(uris)];
+}
+
+/** CHAT-012 — image/* from clipboard paste or OS drop (path-less blobs OK). */
+function isLikelyImageFile(f: File, itemType?: string): boolean {
+  const mime = (f.type || itemType || '').toLowerCase();
+  if (mime.startsWith('image/')) return true;
+  // Comment: some Electron/macOS clipboard pastes leave type empty but name/ext set
+  if (/\.(png|jpe?g|gif|webp|tiff?|bmp)$/i.test(f.name || '')) return true;
+  // Comment: screenshot paste often has empty name+type with non-zero size
+  if (!mime && !f.name && f.size > 32) return true;
+  return false;
+}
+
+function collectImageFiles(dt: DataTransfer): File[] {
+  const out: File[] = [];
+  const seen = new Set<string>();
+  const push = (f: File | null, itemType?: string) => {
+    if (!f || !isLikelyImageFile(f, itemType)) return;
+    const key = `${f.name}:${f.size}:${f.type || itemType || ''}:${f.lastModified}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(f);
+  };
+  // Comment: getAsFile() must run sync during paste — do items before any getData
+  if (dt.items?.length) {
+    for (const item of Array.from(dt.items)) {
+      if (item.kind !== 'file') continue;
+      if (
+        item.type.startsWith('image/') ||
+        item.type === '' ||
+        item.type === 'application/octet-stream'
+      ) {
+        push(item.getAsFile(), item.type);
+      }
+    }
+  }
+  if (dt.files?.length) {
+    for (const f of Array.from(dt.files)) push(f);
+  }
+  return out;
+}
+
+function hasFileDrag(dt: DataTransfer | null): boolean {
+  if (!dt) return false;
+  try {
+    const types = Array.from(dt.types || []);
+    // Comment: editor tabs use vnd.code.* / ResourceURLs — not always "Files"
+    if (
+      types.some((t) =>
+        /files|resource|uri|vnd\.code|editors/i.test(String(t))
+      )
+    ) {
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  return Boolean(dt.files?.length);
+}
+
+/** Screenshot / image paste — even when clipboardData.files is empty (VS Code webview). */
+function looksLikeImagePaste(dt: DataTransfer): boolean {
+  try {
+    const types = Array.from(dt.types || []);
+    if (types.some((t) => /^image\//i.test(t))) return true;
+    if (collectImageFiles(dt).length > 0) return true;
+    const text = (dt.getData('text/plain') || '').trim();
+    // Comment: macOS screenshot paste is often Files + empty plain text
+    if (types.includes('Files') && !text) return true;
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
+/**
+ * Comment: CHAT-012 — clipboard File blobs are often revoked when the paste
+ * event ends; kick off arrayBuffer() synchronously during the handler.
+ */
+function snapshotClipboardFiles(files: File[]): Promise<File[]> {
+  const jobs = files.map(async (f) => {
+    const type = f.type || 'image/png';
+    const name = f.name || `Screenshot.${type.includes('jpeg') ? 'jpg' : 'png'}`;
+    const buf = await f.arrayBuffer();
+    return new File([buf], name, { type });
+  });
+  return Promise.all(jobs);
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function readImagesFromClipboardApi(): Promise<File[]> {
+  try {
+    const nav = navigator as Navigator & {
+      clipboard?: { read?: () => Promise<ClipboardItem[]> };
+    };
+    if (!nav.clipboard?.read) return [];
+    const items = await nav.clipboard.read();
+    const out: File[] = [];
+    for (const item of items) {
+      for (const type of item.types) {
+        if (!type.startsWith('image/')) continue;
+        const blob = await item.getType(type);
+        const ext = type.split('/')[1] || 'png';
+        out.push(new File([blob], `Screenshot.${ext}`, { type }));
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 function uriToFsPath(uri: string): string {
@@ -231,6 +389,7 @@ export function Composer({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const composerRootRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(52);
   const composingRef = useRef(false);
   const suppressCommitRef = useRef(false);
@@ -288,8 +447,36 @@ export function Composer({
     if (!focusNonce || isInlineEdit) return;
     window.requestAnimationFrame(() => {
       textareaRef.current?.focus();
+      debugLog('composer.attach', 'textarea focus (nonce)', { focusNonce });
     });
   }, [focusNonce, isInlineEdit]);
+
+  // Comment: CHAT-012 — claim caret on mount so first paste does not require a prior click
+  useLayoutEffect(() => {
+    if (isInlineEdit) return;
+    const el = textareaRef.current;
+    if (!el) return;
+    el.focus();
+    debugLog('composer.attach', 'textarea focus (mount)');
+  }, [isInlineEdit]);
+
+  // Comment: when workbench finally focuses the iframe, re-focus Composer (flaky claim)
+  useEffect(() => {
+    if (isInlineEdit) return;
+    const onWinFocus = () => {
+      if (document.visibilityState !== 'visible') return;
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        debugLog('composer.attach', 'textarea focus (window focus)');
+      });
+    };
+    window.addEventListener('focus', onWinFocus);
+    document.addEventListener('visibilitychange', onWinFocus);
+    return () => {
+      window.removeEventListener('focus', onWinFocus);
+      document.removeEventListener('visibilitychange', onWinFocus);
+    };
+  }, [isInlineEdit]);
 
   useEffect(() => {
     if (seedNonce <= 0 || seedText == null) return;
@@ -503,9 +690,40 @@ export function Composer({
           next.push(normalized);
         }
       }
+      // Comment: keep per-tab draft map warm so a remount/switch does not drop chips
+      const sid = draftSessionIdRef.current || sessionId;
+      if (sid) {
+        draftBySessionRef.current.set(sid, {
+          text: textRef.current,
+          attachments: next
+        });
+      }
       return next;
     });
-  }, []);
+  }, [sessionId]);
+
+  /** Replace a pending image chip path after host save (CHAT-012). */
+  const finalizeImageAttachment = useCallback(
+    (pendingId: string, chip: Attachment) => {
+      setAttachments((prev) => {
+        const next = prev.map((a) =>
+          a.id === pendingId || a.path === pendingId ? { ...chip, id: chip.id || a.id } : a
+        );
+        if (!next.some((a) => a.id === (chip.id || pendingId) || a.path === chip.path)) {
+          next.push({ ...chip, id: chip.id || pendingId });
+        }
+        const sid = draftSessionIdRef.current || sessionId;
+        if (sid) {
+          draftBySessionRef.current.set(sid, {
+            text: textRef.current,
+            attachments: next
+          });
+        }
+        return next;
+      });
+    },
+    [sessionId]
+  );
 
   // Editor selection / host → attach chip
   useEffect(() => {
@@ -608,6 +826,115 @@ export function Composer({
       window.setTimeout(() => window.removeEventListener('message', onMsg), 5000);
     },
     [addAttachments, applyResolvedResults]
+  );
+
+  /** CHAT-012 — paste/drop image → optimistic chip, then host temp path */
+  const saveImagesFromFiles = useCallback(
+    async (files: File[]) => {
+      if (!files.length) return;
+      const api = getVsCodeApi();
+      const ownerId = draftSessionIdRef.current || sessionId;
+
+      for (const file of files.slice(0, 5)) {
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          const dataBase64 = dataUrl.replace(/^data:[^;]+;base64,/, '');
+          if (!dataBase64) continue;
+          const mimeType = file.type || 'image/png';
+          const label = file.name || 'Screenshot';
+          const pendingId = `img_pending_${Date.now().toString(36)}_${Math.random()
+            .toString(36)
+            .slice(2, 7)}`;
+          // Comment: show chip immediately — waiting on host made paste feel like “need twice”
+          const pending = makeImageAttachment({
+            path: pendingId,
+            mimeType,
+            label,
+            previewUrl: dataUrl
+          });
+          pending.id = pendingId;
+
+          const activeNow = draftSessionIdRef.current || sessionId;
+          if (!ownerId || activeNow === ownerId) {
+            addAttachments([pending]);
+          } else if (ownerId) {
+            const prev = draftBySessionRef.current.get(ownerId) || {
+              text: '',
+              attachments: []
+            };
+            draftBySessionRef.current.set(ownerId, {
+              ...prev,
+              attachments: [...prev.attachments, pending]
+            });
+          }
+
+          if (!api) continue;
+
+          const requestId = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          await new Promise<void>((resolve) => {
+            let settled = false;
+            const finish = () => {
+              if (settled) return;
+              settled = true;
+              window.removeEventListener('message', onMsg);
+              resolve();
+            };
+            const onMsg = (event: MessageEvent) => {
+              const data = event.data;
+              if (
+                !data ||
+                data.type !== 'attachments.saveImage.result' ||
+                data.requestId !== requestId
+              ) {
+                return;
+              }
+              if (data.item?.path) {
+                const chip = makeImageAttachment({
+                  path: String(data.item.path),
+                  mimeType: String(data.item.mimeType || mimeType),
+                  label:
+                    data.item.label != null ? String(data.item.label) : label,
+                  previewUrl: dataUrl
+                });
+                chip.id = pendingId;
+                const active = draftSessionIdRef.current || sessionId;
+                if (!ownerId || active === ownerId) {
+                  finalizeImageAttachment(pendingId, chip);
+                } else if (ownerId) {
+                  const prev = draftBySessionRef.current.get(ownerId) || {
+                    text: '',
+                    attachments: []
+                  };
+                  const nextAtt = prev.attachments.map((a) =>
+                    a.id === pendingId || a.path === pendingId ? chip : a
+                  );
+                  if (!nextAtt.some((a) => a.id === pendingId || a.path === chip.path)) {
+                    nextAtt.push(chip);
+                  }
+                  draftBySessionRef.current.set(ownerId, {
+                    ...prev,
+                    attachments: nextAtt
+                  });
+                }
+              }
+              finish();
+            };
+            window.addEventListener('message', onMsg);
+            api.postMessage({
+              type: 'attachments.saveImage',
+              requestId,
+              mimeType,
+              dataBase64,
+              fileName: file.name || undefined
+            });
+            window.setTimeout(finish, 8000);
+          });
+        } catch {
+          /* skip unreadable blob */
+        }
+      }
+    },
+    [addAttachments, finalizeImageAttachment, sessionId]
   );
 
   const pickAttachments = useCallback(() => {
@@ -800,9 +1127,185 @@ export function Composer({
     syncPalette(next, e.target.selectionStart ?? next.length);
   };
 
+  /** CHAT-012 — OS clipboard via host (osascript/etc.); Files fallback if host misses */
+  const requestHostClipboardImage = useCallback(
+    (fallbackFiles?: File[]) => {
+      const api = getVsCodeApi();
+      if (!api) {
+        debugLog('composer.attach', 'paste: no vscode api — Files fallback only', {
+          fallbackCount: fallbackFiles?.length ?? 0
+        });
+        if (fallbackFiles?.length) void saveImagesFromFiles(fallbackFiles);
+        return;
+      }
+      const ownerId = draftSessionIdRef.current || sessionId;
+      const requestId = `clipimg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      debugLog('composer.attach', '→ readClipboardImage', {
+        requestId,
+        ownerId,
+        fallbackCount: fallbackFiles?.length ?? 0
+      });
+      const onMsg = (event: MessageEvent) => {
+        const data = event.data;
+        if (
+          !data ||
+          data.type !== 'attachments.saveImage.result' ||
+          data.requestId !== requestId
+        ) {
+          return;
+        }
+        window.removeEventListener('message', onMsg);
+        if (!data.item?.path) {
+          debugLog('composer.attach', '← readClipboardImage miss', {
+            requestId,
+            error: data.error ?? '(no path)',
+            willFallback: Boolean(fallbackFiles?.length)
+          });
+          if (fallbackFiles?.length) void saveImagesFromFiles(fallbackFiles);
+          return;
+        }
+        debugLog('composer.attach', '← readClipboardImage ok', {
+          requestId,
+          path: String(data.item.path),
+          mime: data.item.mimeType
+        });
+        const chip = makeImageAttachment({
+          path: String(data.item.path),
+          mimeType: String(data.item.mimeType || 'image/png'),
+          label:
+            data.item.label != null ? String(data.item.label) : 'Screenshot.png'
+        });
+        const active = draftSessionIdRef.current || sessionId;
+        if (!ownerId || active === ownerId) {
+          addAttachments([chip]);
+        } else if (ownerId) {
+          const prev = draftBySessionRef.current.get(ownerId) || {
+            text: '',
+            attachments: []
+          };
+          draftBySessionRef.current.set(ownerId, {
+            ...prev,
+            attachments: [...prev.attachments, chip]
+          });
+        }
+      };
+      window.addEventListener('message', onMsg);
+      api.postMessage({ type: 'attachments.readClipboardImage', requestId });
+      window.setTimeout(() => {
+        window.removeEventListener('message', onMsg);
+      }, 8000);
+    },
+    [addAttachments, saveImagesFromFiles, sessionId]
+  );
+
+  // Comment: CHAT-012 — image paste → host clipboard; snapshot Files sync for fallback
+  useEffect(() => {
+    const onPasteCapture = (e: ClipboardEvent) => {
+      const dt = e.clipboardData;
+      if (!dt) return;
+      const types = Array.from(dt.types || []);
+      const files = collectImageFiles(dt);
+      const looks = looksLikeImagePaste(dt);
+      debugLog('composer.attach', 'paste capture', {
+        looks,
+        types,
+        fileCount: files.length,
+        sizes: files.map((f) => f.size),
+        names: files.map((f) => f.name || '(empty)')
+      });
+      if (!looks) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // Comment: snapshot before paste ends — blobs revoke after handler returns
+      const snap = files.length ? snapshotClipboardFiles(files) : Promise.resolve([]);
+      void snap.then((stable) => {
+        requestHostClipboardImage(stable.length ? stable : undefined);
+      });
+    };
+    window.addEventListener('paste', onPasteCapture, true);
+    return () => window.removeEventListener('paste', onPasteCapture, true);
+  }, [requestHostClipboardImage]);
+
+  // Comment: DnD — listen on window always (do not bail if ref null on first effect tick)
+  useEffect(() => {
+    if (isInlineEdit) return;
+    let loggedEnter = false;
+    const composerRoot = () =>
+      composerRootRef.current ||
+      (document.querySelector('[data-ak-composer-root="1"]') as HTMLElement | null);
+
+    const onDocDragEnter = (e: DragEvent) => {
+      if (!hasFileDrag(e.dataTransfer)) return;
+      // Comment: focus textarea while drag is over webview so drop/hover are not eaten
+      if (document.activeElement !== textareaRef.current) {
+        textareaRef.current?.focus();
+        debugLog('composer.attach', 'dnd dragenter → focus textarea');
+      }
+      const root = composerRoot();
+      if (root?.contains(e.target as Node)) {
+        e.preventDefault();
+        setDragOver(true);
+      }
+    };
+    const onDocDragOver = (e: DragEvent) => {
+      if (!hasFileDrag(e.dataTransfer)) return;
+      const root = composerRoot();
+      const over = Boolean(root?.contains(e.target as Node));
+      if (over) {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        if (!loggedEnter) {
+          loggedEnter = true;
+          debugLog('composer.attach', 'dnd dragover enter composer', {
+            types: Array.from(e.dataTransfer?.types || [])
+          });
+        }
+        setDragOver(true);
+      }
+    };
+    const onDocDrop = () => {
+      dragDepthRef.current = 0;
+      loggedEnter = false;
+      setDragOver(false);
+    };
+    const onDocDragEnd = () => {
+      dragDepthRef.current = 0;
+      loggedEnter = false;
+      setDragOver(false);
+    };
+    // Comment: also focus when user clicks anywhere in the chat shell (first click was "wasted")
+    const onPointerDown = (e: PointerEvent) => {
+      const root = composerRoot();
+      if (!root) return;
+      const t = e.target as Node;
+      if (root.contains(t) && document.activeElement !== textareaRef.current) {
+        // Let the click land; rAF focus keeps caret ready for immediate paste
+        window.requestAnimationFrame(() => textareaRef.current?.focus());
+      }
+    };
+    window.addEventListener('dragenter', onDocDragEnter, true);
+    window.addEventListener('dragover', onDocDragOver, true);
+    window.addEventListener('drop', onDocDrop, true);
+    window.addEventListener('dragend', onDocDragEnd, true);
+    window.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      window.removeEventListener('dragenter', onDocDragEnter, true);
+      window.removeEventListener('dragover', onDocDragOver, true);
+      window.removeEventListener('drop', onDocDrop, true);
+      window.removeEventListener('dragend', onDocDragEnd, true);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, [isInlineEdit]);
+
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const dt = e.clipboardData;
     if (!dt) return;
+    // Comment: capture handler owns image pastes; text/URI paths continue here
+    if (looksLikeImagePaste(dt as unknown as DataTransfer)) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     const uris = collectUrisFromDataTransfer(dt as unknown as DataTransfer);
     if (uris.length && (dt.files?.length || dt.types.includes('text/uri-list'))) {
       e.preventDefault();
@@ -878,7 +1381,12 @@ export function Composer({
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!hasFileDrag(e.dataTransfer)) return;
     dragDepthRef.current += 1;
+    debugLog('composer.attach', 'dnd dragenter', {
+      depth: dragDepthRef.current,
+      types: Array.from(e.dataTransfer.types || [])
+    });
     setDragOver(true);
   };
 
@@ -892,6 +1400,8 @@ export function Composer({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!hasFileDrag(e.dataTransfer)) return;
+    setDragOver(true);
     e.dataTransfer.dropEffect = 'copy';
   };
 
@@ -900,8 +1410,32 @@ export function Composer({
     e.stopPropagation();
     dragDepthRef.current = 0;
     setDragOver(false);
+    const types = Array.from(e.dataTransfer.types || []);
+    const images = collectImageFiles(e.dataTransfer);
     const uris = collectUrisFromDataTransfer(e.dataTransfer);
-    resolveAndAdd(uris);
+    debugLog('composer.attach', 'dnd drop', {
+      imageCount: images.length,
+      uriCount: uris.length,
+      shiftKey: e.shiftKey,
+      types,
+      uris: uris.slice(0, 5)
+    });
+    // Comment: without Shift, VS Code often never delivers this event (webview pointer-events)
+    if (!e.shiftKey && !images.length && !uris.length) {
+      debugLog(
+        'composer.attach',
+        'dnd drop empty — hold Shift while dropping editor tabs / explorer files'
+      );
+    }
+    if (images.length) {
+      const snap = snapshotClipboardFiles(images);
+      void snap.then((stable) => saveImagesFromFiles(stable));
+      return;
+    }
+    if (uris.length) {
+      resolveAndAdd(uris);
+      return;
+    }
   };
 
   const getPlaceholder = () => {
@@ -927,6 +1461,8 @@ export function Composer({
 
   return (
     <div
+      ref={composerRootRef}
+      data-ak-composer-root="1"
       className={`composer composer--cursor${dragOver ? ' drag-over' : ''}${
         isInlineEdit ? ' user-turn-composer' : ''
       }`}
@@ -936,8 +1472,15 @@ export function Composer({
       onDrop={handleDrop}
     >
       {dragOver ? (
-        <div className="composer-drop-hint">
-          Hold <kbd>Shift</kbd> and drop files/folders to attach
+        <div className="composer-drop-hint" aria-live="polite">
+          <span className="composer-drop-hint__title">Drop to attach</span>
+          <span className="composer-drop-hint__sub">
+            Hold <kbd>Shift</kbd> — required for editor tabs &amp; explorer
+            <span className="composer-drop-hint__shift">
+              {' '}
+              (VS Code blocks webview DnD without Shift)
+            </span>
+          </span>
         </div>
       ) : null}
 
@@ -953,7 +1496,21 @@ export function Composer({
             onSelect={selectPaletteItem}
           />
         ) : null}
-        <div className="composer-box">
+        <div
+          className={`composer-box${dragOver ? ' composer-box--drag' : ''}`}
+          title="Click to focus chat input"
+          onMouseDown={(e) => {
+            // Comment: box chrome click → focus textarea (toolbar/chips keep their own hit targets)
+            const t = e.target as HTMLElement | null;
+            if (!t) return;
+            if (t.closest('textarea, button, select, a, input, label')) return;
+            if (t.closest('.composer-toolbar, .composer-chip-remove, .composer-palette')) {
+              return;
+            }
+            e.preventDefault();
+            textareaRef.current?.focus();
+          }}
+        >
           {inlineEdit ? (
             <div className="composer-inline-edit" role="status" aria-label="Inline Edit context">
               <div className="composer-inline-edit-head">
@@ -984,16 +1541,19 @@ export function Composer({
               {attachments.map((a) => {
                 const id = attachmentId(a);
                 const label = attachmentDisplayLabel(a);
-                const openable = isOpenableAttachment(a);
+                const openable = isOpenableAttachment(a) || a.type === 'image';
                 const isLog = a.type === 'log' && !openable;
+                const isImage = a.type === 'image';
                 return (
                   <span
                     key={id}
                     className={`composer-chip composer-chip--${
-                      openable ? 'file' : a.type
+                      isImage ? 'image' : openable ? 'file' : a.type
                     }${a.startLine != null ? ' composer-chip--ranged' : ''}`}
                     title={
-                      openable
+                      isImage
+                        ? a.path
+                        : openable
                         ? a.startLine != null
                           ? `${a.path}:${a.startLine}${
                               a.endLine != null ? `-${a.endLine}` : ''
@@ -1003,7 +1563,21 @@ export function Composer({
                     }
                   >
                     <span className="composer-chip-icon" aria-hidden>
-                      {a.type === 'folder' ? '📁' : isLog ? '📋' : '📄'}
+                      {isImage && a.previewUrl ? (
+                        <img
+                          src={a.previewUrl}
+                          alt=""
+                          className="composer-chip-thumb"
+                        />
+                      ) : a.type === 'folder' ? (
+                        '📁'
+                      ) : isLog ? (
+                        '📋'
+                      ) : isImage ? (
+                        '🖼'
+                      ) : (
+                        '📄'
+                      )}
                     </span>
                     <button
                       type="button"

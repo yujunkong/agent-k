@@ -206,6 +206,8 @@ export class AgentLoopController {
                 messages: assembled.messages,
                 signal: runAbort.signal,
                 turn: turns,
+                // Comment: AGENT-009 — long local LLM turns (vision/reasoning) must bump idle
+                onActivity: () => this.timeout.bump(),
               }),
             runAbort.signal
           );

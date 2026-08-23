@@ -76,8 +76,8 @@ type SendMessageOpts = {
 
 /** No-token idle timeout — Ask path default */
 const IDLE_TIMEOUT_MS = 30_000;
-/** Host agent loops wait on LLM between tools; need longer + heartbeats */
-const HOST_IDLE_TIMEOUT_MS = 180_000;
+/** Host agent loops — local LLMs often exceed 3m TTFT; keep 30m idle + heartbeats. */
+const HOST_IDLE_TIMEOUT_MS = 1_800_000;
 
 interface UseChatStreamOptions {
   baseUrl?: string;
@@ -705,6 +705,20 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         baseUrl: sendBaseUrl.slice(0, 48),
         msgs: messages.length
       });
+      // Comment: CHAT-012 — vision images from last user turn attachments
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+      const images = (lastUser?.attachments || [])
+        .filter(
+          (a) =>
+            a.type === 'image' &&
+            a.path &&
+            !String(a.path).startsWith('img_pending_')
+        )
+        .slice(0, 5)
+        .map((a) => ({
+          path: a.path,
+          mimeType: a.mimeType || 'image/png'
+        }));
       api.postMessage({
         type: 'chat.send',
         payload: {
@@ -719,6 +733,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             role: m.role,
             content: m.content
           })),
+          ...(images.length ? { images } : {}),
           baseUrl: sendBaseUrl,
           apiKey: sendApiKey,
           model: sendModel,

@@ -39,6 +39,8 @@ export interface UseChatHostBridgeParams {
   setError: (error: string | null) => void;
   setInlineEditSeed: (ctx: InlineEditContext | null) => void;
   setComposerSeed: (seed: { text: string; nonce: number } | null) => void;
+  /** Bump → Composer focuses textarea (host focus.input / tab click). */
+  setComposerFocusNonce: React.Dispatch<React.SetStateAction<number>>;
   handleNewChat: () => void;
   applyHostHydration: (metas: ChatSessionMeta[]) => void;
   updateSessionMessages: (
@@ -60,6 +62,7 @@ export function useChatHostBridge(p: UseChatHostBridgeParams): void {
     setError,
     setInlineEditSeed,
     setComposerSeed,
+    setComposerFocusNonce,
     handleNewChat,
     applyHostHydration,
     updateSessionMessages,
@@ -71,6 +74,10 @@ export function useChatHostBridge(p: UseChatHostBridgeParams): void {
   } = p;
 
   useHostMessages({
+    // Comment: host claimed webview focus — move caret into Composer for paste/DnD
+    'focus.input': () => {
+      setComposerFocusNonce((n) => n + 1);
+    },
     'session.new': () => {
       handleNewChat();
     },

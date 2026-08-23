@@ -12,6 +12,12 @@ export interface ChatMessagePayload {
   content: string;
 }
 
+/** Image attached for vision (CHAT-012) — host reads path → multimodal part. */
+export interface ChatSendImagePayload {
+  path: string;
+  mimeType: string;
+}
+
 /**
  * Webview → Host: tool-mediated agent send.
  * Provider fields are optional until PROVIDER-* / HOST-002 wire them.
@@ -28,6 +34,8 @@ export interface ChatSendPayload {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  /** CHAT-012 — screenshot / image chips for the current user turn. */
+  images?: ChatSendImagePayload[];
 }
 
 /** Webview → Host: stop in-flight chat.send for a request. */

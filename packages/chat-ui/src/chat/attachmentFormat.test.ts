@@ -8,6 +8,7 @@ import {
   isOpenableAttachment,
   looksLikeLogOrSnippet,
   makeLogAttachment,
+  makeImageAttachment,
   makeSnippetAttachment,
   parseLineRangeInput,
 } from './attachmentFormat';
@@ -53,6 +54,19 @@ describe('CHAT-005 attachmentFormat', () => {
     expect(out).toContain('@file:/tmp/a.ts:10-20');
     expect(out).toContain('Attached log');
     expect(out).toContain('line1');
+  });
+
+  it('CHAT-012 image chip → @image:path', () => {
+    const img = makeImageAttachment({
+      path: '/tmp/agent-k-captures/capture.png',
+      mimeType: 'image/png',
+      label: 'Screenshot.png',
+    });
+    expect(img.type).toBe('image');
+    expect(attachmentDisplayLabel(img)).toBe('Screenshot.png');
+    expect(formatAttachmentsForPayload([img])).toContain(
+      '@image:/tmp/agent-k-captures/capture.png',
+    );
   });
 });
 

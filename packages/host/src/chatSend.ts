@@ -7,6 +7,7 @@
 import {
   AgentLoopController,
   modeRegistry,
+  resolveTurnTimeoutMs,
   type AgentLoopEvent,
   type AgentMessage,
   type ModelTurnResult,
@@ -169,6 +170,22 @@ export async function runHostChatSend(
     100,
     Math.max(5, Number(cfg.get('agent.maxTurns')) || modeConfig.maxTurns),
   );
+  // Comment: local LLMs often idle >180s on first token — floor 30m unless user set 0 (disable)
+  const configuredTimeout = Number(cfg.get('turnTimeoutMs'));
+  const isLocalLlm = /127\.0\.0\.1|localhost/i.test(baseUrl);
+  let turnTimeoutMs = resolveTurnTimeoutMs(
+    Number.isFinite(configuredTimeout) && configuredTimeout >= 0
+      ? configuredTimeout
+      : undefined,
+    undefined,
+  );
+  if (configuredTimeout !== 0 && isLocalLlm) {
+    turnTimeoutMs = Math.max(turnTimeoutMs, 1_800_000);
+  }
+  hostLog(
+    'chat.send empty reply',
+    `timeouts requestId=${requestId} turnTimeoutMs=${turnTimeoutMs} local=${isLocalLlm}`,
+  );
 
   const provider = new LiteLLMProvider({
     id: 'agent-k-chat',
@@ -192,10 +209,28 @@ export async function runHostChatSend(
   // Auto-approve for first E2E wire; interactive approval lands with SAFE host prompts.
   const gate = new PermissionGate('auto');
 
+  // Comment: CHAT-012 — cache vision parts once (re-read + base64 every turn blew TTFT / idle timeout)
+  let cachedImageParts: Awaited<ReturnType<typeof loadChatSendImageParts>> | null =
+    null;
+  const getImageParts = async () => {
+    if (!cachedImageParts) {
+      cachedImageParts = await loadChatSendImageParts(payload.images);
+    }
+    return cachedImageParts;
+  };
+
   const loop = new AgentLoopController(
     {
-      runModel: async ({ messages, signal, turn }) => {
-        const providerMessages = messages.map((m) => {
+      runModel: async ({ messages, signal, turn, onActivity }) => {
+        const imageParts = await getImageParts();
+        onActivity?.();
+        const lastUserIdx = (() => {
+          for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i]?.role === 'user') return i;
+          }
+          return -1;
+        })();
+        const providerMessages = messages.map((m, idx) => {
           if (m.role === 'tool') {
             return {
               role: 'tool',
@@ -218,6 +253,19 @@ export async function runHostChatSend(
               })),
             };
           }
+          if (
+            idx === lastUserIdx &&
+            imageParts.length > 0 &&
+            typeof m.content === 'string'
+          ) {
+            return {
+              role: 'user',
+              content: [
+                { type: 'text', text: m.content || '' },
+                ...imageParts,
+              ],
+            };
+          }
           return { role: m.role, content: m.content };
         });
 
@@ -236,31 +284,52 @@ export async function runHostChatSend(
             { id?: string; name?: string; arguments: string }
           >();
 
-          for await (const chunk of provider.streamChat({
-            messages: providerMessages,
-            model,
-            signal,
-            tools: toolSchemas,
-            thinkingEffort,
-          })) {
-            if (chunk.error) {
-              throw new Error(chunk.error);
+          // Comment: keepalive while waiting on first token (local + vision TTFT)
+          let lastBeat = Date.now();
+          const beat = () => {
+            const now = Date.now();
+            if (now - lastBeat < 15_000) return;
+            lastBeat = now;
+            onActivity?.();
+            postStream({ event: 'heartbeat' });
+          };
+          const beatTimer = setInterval(beat, 15_000);
+          // Comment: fire immediately — local TTFT often exceeds former 180s idle window
+          onActivity?.();
+          postStream({ event: 'heartbeat' });
+          lastBeat = Date.now();
+
+          try {
+            for await (const chunk of provider.streamChat({
+              messages: providerMessages,
+              model,
+              signal,
+              tools: toolSchemas,
+              thinkingEffort,
+            })) {
+              onActivity?.();
+              beat();
+              if (chunk.error) {
+                throw new Error(chunk.error);
+              }
+              if (chunk.content) {
+                content += chunk.content;
+                postStream({ event: 'delta', content: chunk.content });
+              }
+              if (chunk.reasoning_content) {
+                reasoning += chunk.reasoning_content;
+                postStream({ event: 'delta', reasoning: chunk.reasoning_content });
+              }
+              if (chunk.toolCalls?.length) {
+                mergeToolCallDeltas(toolAcc, chunk.toolCalls);
+              }
+              // Comment: log-only — do not guess length-cut / auto-continue without evidence
+              if (chunk.finishReason) {
+                finishReason = String(chunk.finishReason);
+              }
             }
-            if (chunk.content) {
-              content += chunk.content;
-              postStream({ event: 'delta', content: chunk.content });
-            }
-            if (chunk.reasoning_content) {
-              reasoning += chunk.reasoning_content;
-              postStream({ event: 'delta', reasoning: chunk.reasoning_content });
-            }
-            if (chunk.toolCalls?.length) {
-              mergeToolCallDeltas(toolAcc, chunk.toolCalls);
-            }
-            // Comment: log-only — do not guess length-cut / auto-continue without evidence
-            if (chunk.finishReason) {
-              finishReason = String(chunk.finishReason);
-            }
+          } finally {
+            clearInterval(beatTimer);
           }
           return { content, reasoning, toolAcc, finishReason };
         };
@@ -564,6 +633,7 @@ export async function runHostChatSend(
     {
       mode,
       maxTurns,
+      turnTimeoutMs,
       systemPrompt: modeConfig.systemPrompt,
       contextBudgetTokens: modeConfig.contextBudget,
       parallelTools: true,
@@ -602,7 +672,11 @@ export async function runHostChatSend(
         error: result.content || 'Fatal agent error',
       });
     } else if (result.reason === 'aborted' || result.reason === 'timeout') {
-      postStream({ event: 'stopped' });
+      hostLog(
+        'chat.send empty reply',
+        `chat.stream → stopped reason=${result.reason} requestId=${requestId} turns=${result.turns} tools=${toolEvents}`,
+      );
+      postStream({ event: 'stopped', reason: result.reason });
     } else {
       // Parallel tabs: webview may drop deltas under load — send final body on complete.
       const finalBody =
@@ -664,6 +738,47 @@ function lastAssistantContent(
     }
   }
   return '';
+}
+
+/** CHAT-012 — read capture paths into OpenAI-style image_url parts (v2.1 ImageHandler parity). */
+async function loadChatSendImageParts(
+  images: ChatSendPayload['images'] | undefined,
+): Promise<Array<{ type: 'image_url'; image_url: { url: string; detail: string } }>> {
+  if (!images?.length) return [];
+  const fs = await import('node:fs/promises');
+  const parts: Array<{
+    type: 'image_url';
+    image_url: { url: string; detail: string };
+  }> = [];
+  for (const img of images.slice(0, 5)) {
+    try {
+      const path = String(img.path || '');
+      if (!path) continue;
+      const buf = await fs.readFile(path);
+      if (buf.length > 20 * 1024 * 1024) continue;
+      const mime = String(img.mimeType || 'image/png');
+      parts.push({
+        type: 'image_url',
+        image_url: {
+          url: `data:${mime};base64,${buf.toString('base64')}`,
+          detail: 'auto',
+        },
+      });
+    } catch (err) {
+      hostLog(
+        'card.pipe',
+        `chat.image SKIP path=${img.path} err=${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  if (parts.length) {
+    const bytes = parts.reduce((n, p) => n + (p.image_url.url.length || 0), 0);
+    hostLog(
+      'card.pipe',
+      `chat.image attach count=${parts.length} approxB64Chars=${bytes}`,
+    );
+  }
+  return parts;
 }
 
 /** Map AgentLoopController events → chat.stream envelope events. */
