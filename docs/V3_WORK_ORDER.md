@@ -54,10 +54,11 @@
 | Feature ID | 오늘 한 일 | 상태 | 내일 |
 |------------|------------|------|------|
 | CONV-019 | FileEdit: 전체 lines + 접힘~4줄 스크롤 + Shiki extract 수정 | [x] | **화면 확인 완료** |
-| CONV-014 | Thought: **전 tool soft-pause** (edit/terminal 포함, 한 id/send) | [~] | **화면 확인** |
+| CONV-014 | Thought: **전 tool soft-pause** (edit/terminal 포함, 한 id/send) | [~] | **미룸** — SUB-* 이후 |
 | CONV-018 | Terminal/Ran: host emit + dig prose phase 유지 | [x] | **화면 확인 완료** |
-| CHAT-012 | Composer 캡처 paste/DnD → temp 저장 + vision images | [~] | webview/host rebuild 후 paste·drop 확인 |
-| CONV-013/016 | liveProse / ChangedFiles | [~] | 화면 재검증 |
+| CHAT-012 | Composer 캡처 paste/DnD → temp 저장 + vision images | [x] | **완료** |
+| CONV-013 | Work timeline (= MessageSteps 본체) | [x] | **완료** |
+| CONV-016 | ChangedFiles 바 | [~] | **미룸** — 바 OK / 내부 동작은 checkpoint 이후 |
 | HOST-002 | incomplete stream 로그 | [~] | RCA |
 | STREAM-004 / CHAT send | **TODO:** 같은 탭 follow-up에서 UI엔 대화가 보이는데 모델이 prior를 모름 — `chat.send`가 `content`만 직렬화하고, `sealBodyBeforeTools` 후 assistant `content:''` + `turnProse`만 남는 경우 prior가 빈 문자열로 감 | [ ] | prior 직렬화: `content \|\| turnProse join` (+ 필요 시 prior attachment); `useChatStream` / `useChatSendFlow`; 재현 로그 `msgs=N` + contentLen |
 
@@ -260,9 +261,9 @@ Phase 0 시작 전/병행: shared 계약.
 | CHAT-009 | New Chat | chat-ui | [x] handleNewChat always forks tab (empty OK); tabs/history/host `session.new`/slash `/new`; unit tests |
 | CHAT-010 | Side Chat | chat-ui | [ ] skipped — v2.1도 unsupported stub(ADDON-T16); 코드 미이식 |
 | CHAT-011 | Composer palette | chat-ui | [x] composerPalette + ComposerPalette + Composer/@·slash wiring; unit tests |
-| CHAT-012 | Composer image paste/DnD | chat-ui (+ host) | [~] screenshot paste/drop → `attachments.saveImage` temp + chip; `chat.send.images` → multimodal (vision) |
+| CHAT-012 | Composer image paste/DnD | chat-ui (+ host) | [x] paste/DnD → temp PNG + chip; `chat.send.images` → multimodal; host OS clipboard (no Electron); focus claim — **완료** |
 | STREAM-001 | Assistant stream session | chat-ui (표시) | [x] createAssistantStreamSession + ownerSessionId routing; tab settle/error; unit tests. core runtime → REL/useChatStream 별도 |
-| STREAM-002 | Turn state | chat-ui (표시) | [~] deriveTurnStatus kept unused; MessageBubble = pre-phase (no rail/label). REL-004 core [x] |
+| STREAM-002 | Turn state | chat-ui (표시) | [-] **스킵** — phase rail/label 미배선; Thought/Exploring/Ran 등 MessageSteps가 바로 표시. `deriveTurnStatus` unused 유지. REL-004 core [x] |
 | STREAM-003 | Send epoch | chat-ui (표시) | [x] SendEpochMap per-tab; wired in send/stop/resynth. Runtime = REL-005 [x] |
 | STREAM-004 | Streaming buffer stabilization | chat-ui (표시) | [x] single-buffer contract (dedupe + sealBodyBeforeTools); REL-003 debounce core [x]. **TODO:** seal 후 `content:''`/`turnProse`만 있을 때 follow-up `chat.send` prior 빈약 — Session WIP 2026-08-23 |
 | STREAM-005 | Prose sealing | chat-ui | [x] sealTurnProse.ts (=v2.1) + STREAM-004 seal contract tests |
@@ -283,10 +284,10 @@ Phase 0 시작 전/병행: shared 계약.
 | CONV-010 | Subagent group presentation | chat-ui | [x] subagentGroupPresentation (+ tests) |
 | CONV-011 | Worktree diff presentation | chat-ui | [x] DiffReviewPanel (=v2.1) + ChangedFilesBar; smoke test. WT apply → Phase 4 |
 | CONV-012 | Change summary normalization | chat-ui | [x] normalizeChangeSummary (+ unit tests) |
-| CONV-013 | Work timeline | chat-ui | [~] MessageSteps sequential; **2026-08-22** liveProse under Explored / Worked flush-left — 화면 재검증 남음 |
-| CONV-014 | Timeline step card | chat-ui | [~] MessageSteps chrome **메인=서브에이전트 detail 동일** — **화면 확인 남음** |
+| CONV-013 | Work timeline | chat-ui | [x] = MessageSteps 본체 (Exploring/Explored·Thought·Ran·Edited·liveProse). 별도 컴포넌트 없음 |
+| CONV-014 | Timeline step card | chat-ui | [~] **미룸** — 서브에이전트(Phase 5 SUB-*) 이후. 메인 chrome은 018/019로 확인됨; detail=메인 동일성은 SUB 이후 |
 | CONV-015 | Explore Chrome | chat-ui | [x] ExploreChrome kept for nested group/thought rows; main+detail = MessageSteps |
-| CONV-016 | Changed Files bar | chat-ui | [~] 이식됨 — **footer ChangedFiles 바 화면 확인 남음** |
+| CONV-016 | Changed Files bar | chat-ui | [~] **미룸** — 바 노출 OK, 클릭/열기 등 동작 안 함 → **checkpoint 이후** (SAFE/WT 연동) |
 | CONV-017 | Change Summary card | chat-ui | [-] **스킵** — 세션 변경 목록은 CONV-016 ChangedFilesBar만 사용 (턴 안 요약 카드 불필요) |
 | CONV-018 | Terminal Run Card | chat-ui | [x] host `terminal.run` + Ran 카드 — **2026-08-23 화면 확인 완료** |
 | CONV-019 | File Edit Card | chat-ui | [x] before→after + Shiki extract fix + 전체 lines/접힘~4줄 스크롤 — **2026-08-23 화면 확인 완료** |
@@ -529,8 +530,9 @@ Phase 0 시작 전/병행: shared 계약.
 ## 다음으로 할 일
 
 1. **2026-08-23** — HOST-002 final-answer 중도 끊김 **원인 분석** (`finishReason` / `complete diag` / `streamedChars` vs `finalBodyLen`). 확정 전 이어쓰기·휴리스틱 패치 금지.
-2. Phase 3 잔여 화면 확인: **CONV-013** + **카드류 CONV-014 / 016 / 018 / 019** (Terminal·FileEdit·ChangedFiles·step card). **017 스킵**.
-3. STREAM-002 정리(스킵 확정 또는 배선) + HARNESS-007 nudge 효과 확인
+2. Phase 3 UI 잔여 미룸: **CONV-014 → SUB 이후**, **CONV-016 → checkpoint 이후**. CONV-013 완료.
+3. **코드 TODO:** STREAM-004 follow-up prior (`content || turnProse`) · HOST-002 final-cut RCA
+4. HARNESS-007 nudge 효과 확인 (선택)
 4. **Phase 4** — WT-001 Worktree manager (`packages/worktree`)
 5. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
 
