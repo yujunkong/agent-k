@@ -1,6 +1,8 @@
 /**
- * FileEditCard diff preview — keep in sync with packages/tools/src/editDiffPreview.ts
- * (tools emit path; languageBadge / guessLanguage live here). Full lines; UI scrolls.
+ * Unified-style preview for FileEditCard (TOOL-002 / TOOL-003).
+ *
+ * Prefer before→after file diff (not raw search/replace strings).
+ * Emit full hunk lines — UI scrolls with max-height (no MAX_PREVIEW / “… more”).
  */
 
 export interface EditDiffLine {
@@ -274,58 +276,4 @@ export function buildWriteFileDiffPreview(
   previousContent?: string,
 ): EditDiffPreview {
   return buildBeforeAfterDiff(previousContent ?? '', content);
-}
-
-/** UI helpers — FileEditCard only (not in tools package). */
-export function guessLanguageFromPath(filePath: string): string {
-  const base = filePath.replace(/\\/g, '/').split('/').pop() || '';
-  const ext = base.includes('.') ? base.split('.').pop()?.toLowerCase() || '' : '';
-  const map: Record<string, string> = {
-    ts: 'typescript',
-    tsx: 'tsx',
-    js: 'javascript',
-    jsx: 'jsx',
-    mjs: 'javascript',
-    cjs: 'javascript',
-    py: 'python',
-    rs: 'rust',
-    go: 'go',
-    md: 'markdown',
-    json: 'json',
-    css: 'css',
-    scss: 'scss',
-    html: 'html',
-    htm: 'html',
-    yml: 'yaml',
-    yaml: 'yaml',
-    toml: 'toml',
-    xml: 'xml',
-    sql: 'sql',
-    sh: 'bash',
-    bash: 'bash',
-    zsh: 'bash',
-    dockerfile: 'dockerfile',
-    java: 'java',
-    kt: 'kotlin',
-    cs: 'csharp',
-    cpp: 'cpp',
-    cc: 'cpp',
-    cxx: 'cpp',
-    h: 'c',
-    hpp: 'cpp',
-    c: 'c',
-    rb: 'ruby',
-    php: 'php',
-    swift: 'swift'
-  };
-  if (base.toLowerCase() === 'dockerfile') return 'dockerfile';
-  if (base.toLowerCase() === 'cargo.toml') return 'toml';
-  return map[ext] || (ext || 'plaintext');
-}
-
-export function languageBadge(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toUpperCase() || 'FILE';
-  if (ext === 'TSX') return 'TSX';
-  if (ext === 'JSX') return 'JSX';
-  return ext.slice(0, 4);
 }

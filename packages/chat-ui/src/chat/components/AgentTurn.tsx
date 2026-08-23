@@ -2,7 +2,6 @@ import React from 'react';
 import { WorkTimeline } from './WorkTimeline';
 import type { ConversationWorkEvent } from '../conversation/conversationWorkEvent';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
-import { ChangeSummary, type ChangeSummaryItem } from './ChangeSummary';
 import type { MessageStep } from './MessageSteps';
 
 export interface AgentTurnProps {
@@ -18,7 +17,6 @@ export interface AgentTurnProps {
    * (not below Planning / bubble gap).
    */
   liveProse?: string;
-  changes?: ChangeSummaryItem[];
   isStreaming?: boolean;
   /** Assistant answer body is streaming — suppress Planning next moves */
   hasLiveAnswer?: boolean;
@@ -42,7 +40,6 @@ export function AgentTurn({
   terminalRuns = [],
   turnProse = [],
   liveProse,
-  changes = [],
   isStreaming = false,
   hasLiveAnswer = false,
   workedDurationMs,
@@ -76,8 +73,8 @@ export function AgentTurn({
         onWorktreeApply={onWorktreeApply}
         onWorktreeReject={onWorktreeReject}
       />
+      {/* Comment: CONV-017 ChangeSummary skipped — changed files live in footer ChangedFilesBar (016) */}
       {children ? <div className="ak-agent-turn__response">{children}</div> : null}
-      <ChangeSummary files={changes} onOpenFile={onOpenFile} />
     </article>
   );
 }

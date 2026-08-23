@@ -310,6 +310,23 @@ export function ChatApp() {
     plan.syncBoundSessionId(sessionId);
   }, [sessionId, plan.syncBoundSessionId]);
 
+  // Comment: Composer Stop must track active-tab assistant status too — host
+  // request map can clear one paint before message.status leaves 'streaming'.
+  const activeAssistantStreaming = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant') {
+        return messages[i].status === 'streaming';
+      }
+    }
+    return false;
+  }, [messages]);
+  const agentRunning =
+    streaming ||
+    plan.generatingPlan ||
+    plan.showPlanExecutionBar ||
+    activeAssistantStreaming;
+  const composerBusy = streaming || plan.generatingPlan || activeAssistantStreaming;
+
   // plan relay ref 업데이트 — sessions / stream 초기화 이후 최신 구현체 반영
   streamingForPlanRef.current = streaming;
   setMessagesForPlanRef.current = setMessages;
@@ -808,10 +825,9 @@ export function ChatApp() {
               key={item.id}
               message={item}
               isStreaming={
-                      (streaming || plan.generatingPlan || plan.showPlanExecutionBar) &&
-                messages[messages.length - 1]?.id === item.id
+                      agentRunning && messages[messages.length - 1]?.id === item.id
               }
-                    isAgentRunning={streaming || plan.generatingPlan || plan.showPlanExecutionBar}
+                    isAgentRunning={agentRunning}
               isLastUser={item.role === 'user' && item.id === lastUserId}
                     isLastAssistant={item.role === 'assistant' && item.id === lastAssistantId}
                     isEditing={
@@ -888,7 +904,7 @@ export function ChatApp() {
             onOpenFile={fileEdits.handleOpenFile}
             onUndoAll={fileEdits.handleUndoAllEdits}
             onReview={fileEdits.handleReviewEdits}
-            isStreaming={streaming || plan.generatingPlan}
+            isStreaming={composerBusy}
             onStop={sendFlow.handleStop}
             checkpoints={fileEdits.checkpoints}
             onListCheckpoints={fileEdits.handleListCheckpoints}
@@ -897,7 +913,7 @@ export function ChatApp() {
             onRejectFile={fileEdits.handleRejectFileEdit}
             sessionId={sessionId}
             onSend={sendFlow.handleSend}
-            disabled={streaming || plan.generatingPlan}
+            disabled={composerBusy}
           seedText={composerSeed?.text ?? null}
           seedNonce={composerSeed?.nonce ?? 0}
           focusNonce={composerFocusNonce}

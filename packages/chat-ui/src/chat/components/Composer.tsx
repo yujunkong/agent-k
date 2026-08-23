@@ -18,7 +18,10 @@ import {
   attachmentDisplayLabel,
   attachmentId,
   looksLikeLogOrSnippet,
+  isOpenableAttachment,
   makeLogAttachment,
+  makeSnippetAttachment,
+  parseVsCodeEditorClipboard,
   parseLineRangeInput
 } from '../attachmentFormat';
 import {
@@ -512,25 +515,48 @@ export function Composer({
       const items = Array.isArray(data.items) ? data.items : [];
       const mapped: Attachment[] = items
         .filter((x: any) => x && (x.path || x.content))
-        .map((x: any) => ({
-          id: x.id ? String(x.id) : undefined,
-          type: (['file', 'folder', 'snippet', 'log', 'symbol', 'codebase'].includes(x.type)
-            ? x.type
-            : x.content && !x.path
-              ? 'log'
-              : 'file') as Attachment['type'],
-          path: String(x.path || x.id || `att_${Date.now()}`),
-          content: x.content != null ? String(x.content) : undefined,
-          startLine:
+        .map((x: any) => {
+          const path = String(x.path || x.id || `att_${Date.now()}`);
+          const content = x.content != null ? String(x.content) : undefined;
+          const startLine =
             x.startLine != null && Number.isFinite(Number(x.startLine))
               ? Number(x.startLine)
-              : undefined,
-          endLine:
+              : undefined;
+          const endLine =
             x.endLine != null && Number.isFinite(Number(x.endLine))
               ? Number(x.endLine)
-              : undefined,
-          label: x.label != null ? String(x.label) : undefined
-        }));
+              : undefined;
+          const label = x.label != null ? String(x.label) : undefined;
+          // Comment: host selection → file chip with range (never anonymous log)
+          if (
+            content &&
+            path &&
+            !/^(log_|snip_|att_)/.test(path) &&
+            (x.type === 'snippet' || x.type === 'file' || startLine != null)
+          ) {
+            return makeSnippetAttachment(content, {
+              path,
+              label,
+              startLine,
+              endLine
+            });
+          }
+          return {
+            id: x.id ? String(x.id) : undefined,
+            type: (['file', 'folder', 'snippet', 'log', 'symbol', 'codebase'].includes(
+              x.type
+            )
+              ? x.type
+              : content && (!x.path || /^(log_|snip_)/.test(path))
+                ? 'log'
+                : 'file') as Attachment['type'],
+            path,
+            content,
+            startLine,
+            endLine,
+            label
+          };
+        });
       if (mapped.length) addAttachments(mapped);
     };
     window.addEventListener('message', onMsg);
@@ -783,11 +809,69 @@ export function Composer({
       resolveAndAdd(uris);
       return;
     }
+    // Comment: VS Code editor selection paste → file chip with path/range
+    const editorRaw =
+      dt.getData('vscode-editor-data') || dt.getData('application/vnd.code.uri');
     const pasted = dt.getData('text/plain');
-    // Multi-line / log paste → chip (not dumped into the composer text)
+    if (editorRaw) {
+      const parsed = parseVsCodeEditorClipboard(editorRaw);
+      if (parsed?.path) {
+        e.preventDefault();
+        addAttachments([
+          makeSnippetAttachment(pasted || '', {
+            path: parsed.path,
+            startLine: parsed.startLine,
+            endLine: parsed.endLine
+          })
+        ]);
+        return;
+      }
+    }
+    // Multi-line paste → host resolves path from copy-time stash (Cmd/Ctrl+C).
+    // No stash match → anonymous log chip.
     if (pasted && looksLikeLogOrSnippet(pasted)) {
       e.preventDefault();
-      addAttachments([makeLogAttachment(pasted)]);
+      const api = getVsCodeApi();
+      if (!api) {
+        addAttachments([makeLogAttachment(pasted)]);
+        return;
+      }
+      const requestId = `paste_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const onMsg = (event: MessageEvent) => {
+        const data = event.data;
+        if (
+          !data ||
+          data.type !== 'attachments.matchPaste.result' ||
+          data.requestId !== requestId
+        ) {
+          return;
+        }
+        window.removeEventListener('message', onMsg);
+        const item = data.item;
+        if (item?.path && !/^(log_|snip_|att_)/.test(String(item.path))) {
+          addAttachments([
+            makeSnippetAttachment(String(item.content ?? pasted), {
+              path: String(item.path),
+              label: item.label != null ? String(item.label) : undefined,
+              startLine:
+                item.startLine != null && Number.isFinite(Number(item.startLine))
+                  ? Number(item.startLine)
+                  : undefined,
+              endLine:
+                item.endLine != null && Number.isFinite(Number(item.endLine))
+                  ? Number(item.endLine)
+                  : undefined
+            })
+          ]);
+          return;
+        }
+        addAttachments([makeLogAttachment(pasted)]);
+      };
+      window.addEventListener('message', onMsg);
+      api.postMessage({ type: 'attachments.matchPaste', requestId, content: pasted });
+      window.setTimeout(() => {
+        window.removeEventListener('message', onMsg);
+      }, 4000);
     }
   };
 
@@ -900,21 +984,22 @@ export function Composer({
               {attachments.map((a) => {
                 const id = attachmentId(a);
                 const label = attachmentDisplayLabel(a);
-                const isLog = a.type === 'log' || a.type === 'snippet';
+                const openable = isOpenableAttachment(a);
+                const isLog = a.type === 'log' && !openable;
                 return (
                   <span
                     key={id}
-                    className={`composer-chip composer-chip--${a.type}${
-                      a.startLine != null ? ' composer-chip--ranged' : ''
-                    }`}
+                    className={`composer-chip composer-chip--${
+                      openable ? 'file' : a.type
+                    }${a.startLine != null ? ' composer-chip--ranged' : ''}`}
                     title={
-                      isLog
-                        ? (a.content || '').slice(0, 500)
-                        : a.startLine != null
+                      openable
+                        ? a.startLine != null
                           ? `${a.path}:${a.startLine}${
                               a.endLine != null ? `-${a.endLine}` : ''
                             }`
                           : a.path
+                        : (a.content || '').slice(0, 500)
                     }
                   >
                     <span className="composer-chip-icon" aria-hidden>
@@ -923,11 +1008,28 @@ export function Composer({
                     <button
                       type="button"
                       className="composer-chip-label"
-                      onClick={() => editLineRange(a)}
+                      onClick={() => {
+                        // Comment: openable file chip → reveal in editor (link), not range prompt
+                        if (openable) {
+                          const api = getVsCodeApi();
+                          api?.postMessage?.({
+                            type: 'file.open',
+                            path: a.path,
+                            ...(a.startLine != null
+                              ? { startLine: a.startLine }
+                              : {}),
+                            ...(a.endLine != null ? { endLine: a.endLine } : {})
+                          });
+                          return;
+                        }
+                        if (a.type !== 'log') editLineRange(a);
+                      }}
                       title={
-                        a.type === 'file' || a.type === 'snippet'
-                          ? 'Click to set a line range'
-                          : undefined
+                        openable
+                          ? `Open ${a.path}`
+                          : a.type === 'file' || a.type === 'snippet'
+                            ? 'Click to set a line range'
+                            : undefined
                       }
                     >
                       {label}

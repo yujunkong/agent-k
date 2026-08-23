@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildCuriosityPhases } from './curiosityPhases';
+import {
+  buildCuriosityPhases,
+  coalesceAdjacentThinkingSteps
+} from './curiosityPhases';
 import type { CuriosityStep } from './curiosityPhases';
 import { lastBoundaryStepId, sealBodyBeforeTools } from './sealTurnProse';
 import type { ChatMessage } from './types';
@@ -24,8 +27,42 @@ function msg(partial: Partial<ChatMessage>): ChatMessage {
   };
 }
 
+describe('coalesceAdjacentThinkingSteps', () => {
+  it('merges consecutive Thoughts but not across a Read', () => {
+    const merged = coalesceAdjacentThinkingSteps([
+      step({
+        id: 't1',
+        kind: 'thinking',
+        detail: 'a',
+        durationMs: 500,
+        itemStatus: 'done'
+      }),
+      step({
+        id: 't2',
+        kind: 'thinking',
+        detail: 'b',
+        durationMs: 1500,
+        itemStatus: 'done'
+      }),
+      step({ id: 'r1', kind: 'reading', toolName: 'read_file' }),
+      step({
+        id: 't3',
+        kind: 'thinking',
+        detail: 'c',
+        durationMs: 2000,
+        itemStatus: 'done'
+      })
+    ]);
+    expect(merged.map((s) => s.id)).toEqual(['t1', 'r1', 't3']);
+    expect(merged[0].detail).toContain('a');
+    expect(merged[0].detail).toContain('b');
+    expect(merged[0].durationMs).toBe(2000);
+    expect(merged[2].detail).toBe('c');
+  });
+});
+
 describe('buildCuriosityPhases Exploring cuts', () => {
-  it('cuts Exploring at mid-message anchored after a Read step', () => {
+  it('keeps Exploring together when dig prose lands mid-batch (no Ran/Explore spam)', () => {
     const phases = buildCuriosityPhases(
       [
         step({ id: 'r1', kind: 'reading', toolName: 'read_file', label: 'Read' }),
@@ -48,26 +85,50 @@ describe('buildCuriosityPhases Exploring cuts', () => {
     );
 
     const withTools = phases.filter((p) => p.rows.some((r) => r.type === 'tool'));
-    expect(withTools.length).toBeGreaterThanOrEqual(2);
-    expect(withTools[0].resolved).toBe(true);
-    expect(withTools[0].proseAfter.some((n) => n.content.includes('테스트 파일'))).toBe(
-      true
-    );
-    // First dig intent stays chronological lead — not re-hoisted after the cut
+    expect(withTools).toHaveLength(1);
+    expect(withTools[0].rows.filter((r) => r.type === 'tool').map((r) => r.step.id)).toEqual([
+      'r1',
+      'r2',
+      'r3'
+    ]);
+    // Dig mid-batch stays in one Exploring (all reads together)
+    expect(withTools[0].resolved).toBe(true); // settled when not streaming
     expect(phases[0].leadProse.some((n) => n.content.includes('프로젝트 구조'))).toBe(
       true
     );
-    const toolIds = withTools.flatMap((p) =>
-      p.rows.filter((r) => r.type === 'tool').map((r) => r.step.id)
+  });
+
+  it('does not split Ran batch when dig prose arrives between commands', () => {
+    const phases = buildCuriosityPhases(
+      [
+        step({
+          id: 'c1',
+          kind: 'running',
+          toolName: 'run_terminal_cmd',
+          label: 'Ran'
+        }),
+        step({
+          id: 'c2',
+          kind: 'running',
+          toolName: 'run_terminal_cmd',
+          label: 'Ran'
+        })
+      ],
+      [
+        {
+          id: 'p1',
+          turn: 1,
+          content: 'Let me rewrite the file with proper egui API usage:',
+          afterStepId: 'c1'
+        }
+      ]
     );
-    expect(toolIds).toEqual(['r1', 'r2', 'r3']);
-    expect(withTools[0].rows.filter((r) => r.type === 'tool').map((r) => r.step.id)).toEqual([
-      'r1',
-      'r2'
-    ]);
-    expect(withTools[1].rows.filter((r) => r.type === 'tool').map((r) => r.step.id)).toEqual([
-      'r3'
-    ]);
+    const cmdPhases = phases.filter((p) => p.actions.length > 0);
+    expect(cmdPhases).toHaveLength(1);
+    expect(cmdPhases[0].actions.map((a) => a.id)).toEqual(['c1', 'c2']);
+    expect(cmdPhases[0].proseAfter.some((n) => n.content.includes('rewrite'))).toBe(
+      true
+    );
   });
 
   it('cuts Exploring at Edit and Command actions', () => {

@@ -22,6 +22,8 @@
     "onCommand:agent-k.mode.switch",
     "onCommand:agent-k.chat.focusInput",
     "onCommand:agent-k.chat.attachSelection",
+    "onCommand:agent-k.clipboardCopyWithPath",
+    "onCommand:agent-k.clipboardCutWithPath",
     "onCommand:agent-k.inlineEdit",
     "onCommand:agent-k.plan.open",
     "onCommand:agent-k.plan.build",
@@ -96,6 +98,16 @@
         "command": "agent-k.chat.attachSelection",
         "title": "Attach Selection to Chat",
         "icon": "$(mention)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.clipboardCopyWithPath",
+        "title": "Copy (capture path for Chat)",
+        "category": "Agent K"
+      },
+      {
+        "command": "agent-k.clipboardCutWithPath",
+        "title": "Cut (capture path for Chat)",
         "category": "Agent K"
       },
       {
@@ -250,6 +262,18 @@
         "key": "ctrl+shift+l",
         "mac": "cmd+shift+l",
         "when": "editorHasSelection"
+      },
+      {
+        "command": "agent-k.clipboardCopyWithPath",
+        "key": "ctrl+c",
+        "mac": "cmd+c",
+        "when": "editorTextFocus && !editorReadonly"
+      },
+      {
+        "command": "agent-k.clipboardCutWithPath",
+        "key": "ctrl+x",
+        "mac": "cmd+x",
+        "when": "editorTextFocus && !editorReadonly"
       }
     ],
     "configuration": {

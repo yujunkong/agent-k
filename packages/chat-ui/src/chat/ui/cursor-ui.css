@@ -38,7 +38,15 @@
   background: transparent;
   box-shadow: none;
 }
-.message-bubble.user { margin-top: 10px; padding: 10px 12px; border-radius: var(--ak-ui-radius); background: color-mix(in srgb, var(--vscode-editor-foreground, #ccc) 5%, transparent); }
+/* User request chip — single pill only (do NOT nest over .user-turn) */
+.message-bubble.user {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
 .message-bubble.assistant { padding-top: 14px; padding-bottom: 18px; }
 .message-bubble.assistant .message-bubble__body,.message-bubble.assistant .message-content { line-height: 1.62; }
 .message-bubble .message-steps,.message-bubble .message-steps-container { margin: 8px 0 10px; padding: 0; border: 0; background: transparent; box-shadow: none; }
@@ -242,7 +250,7 @@ button.ak-timeline-card__header:hover { background: color-mix(in srgb, var(--vsc
 @media (max-width: 560px) {
   .message-bubble,.conversation-turn,.ak-agent-turn,.changed-files-bar,.composer,.composer-container { width: calc(100% - 16px); }
   .message-bubble { padding-top: 8px; padding-bottom: 12px; }
-  .message-bubble.user { padding: 9px 10px; }
+  .message-bubble.user { padding: 0; }
   .message-bubble.assistant { padding-top: 10px; padding-bottom: 14px; }
   .message-content { max-width: 100%; }
   .ak-understanding-box { padding: 7px 8px; }

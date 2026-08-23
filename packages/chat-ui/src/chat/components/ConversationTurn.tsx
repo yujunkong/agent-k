@@ -1,7 +1,6 @@
 import React from 'react';
 import { MessageBubble } from './MessageBubble';
 import { AgentTurnAdapter } from '../conversation/agentTurnAdapter';
-import type { ChangeSummaryItem } from './ChangeSummary';
 import type { Attachment, FileEditPreview } from '../types';
 import type { ComposerChromeProps } from './Composer';
 import { getVariantMeta, useActiveVariant } from '../conversation/conversationVariants';
@@ -65,8 +64,6 @@ export function ConversationTurn(props: ConversationTurnProps) {
       ? (message.workItems as ConversationWorkEvent[])
       : workEventsFromLegacySteps(message?.steps);
   const workItems = normalizeWorkItems(workEvents);
-  // UI policy: show changed files only in the pinned bottom ChangedFilesBar.
-  const changes: ChangeSummaryItem[] = [];
 
   if (!isActiveVariant) return null;
 
@@ -83,7 +80,6 @@ export function ConversationTurn(props: ConversationTurnProps) {
         <AgentTurnAdapter
           message={message}
           workItems={workItems}
-          changes={changes}
           isStreaming={streaming}
           onOpenSubagent={onOpenSubagent}
           onOpenFile={onOpenFile}

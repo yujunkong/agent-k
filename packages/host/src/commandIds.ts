@@ -12,6 +12,8 @@ export const AGENT_K_COMMAND_IDS = [
   'agent-k.mode.switch',
   'agent-k.chat.focusInput',
   'agent-k.chat.attachSelection',
+  'agent-k.clipboardCopyWithPath',
+  'agent-k.clipboardCutWithPath',
   'agent-k.inlineEdit',
   'agent-k.plan.open',
   'agent-k.plan.build',

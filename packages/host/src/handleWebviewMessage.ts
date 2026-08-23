@@ -13,6 +13,7 @@ import type { ChatSendContext } from './chatSend';
 import { runHostChatSend, stopHostChatSend } from './chatSend';
 import {
   handleComposerSearch,
+  matchPasteAttachment,
   openWorkspaceFile,
   pickAttachmentUris,
   resolveAttachmentUris,
@@ -193,6 +194,14 @@ async function dispatch(
       await resolveAttachmentUris(webview, String(msg.requestId), msg.uris);
       return;
 
+    case 'attachments.matchPaste':
+      await matchPasteAttachment(
+        webview,
+        String(msg.requestId),
+        String(msg.content || ''),
+      );
+      return;
+
     case 'composer.search':
       await handleComposerSearch(
         webview,
@@ -203,7 +212,16 @@ async function dispatch(
       return;
 
     case 'file.open':
-      await openWorkspaceFile(msg.path);
+      await openWorkspaceFile(String(msg.path || ''), {
+        startLine:
+          msg.startLine != null && Number.isFinite(Number(msg.startLine))
+            ? Number(msg.startLine)
+            : undefined,
+        endLine:
+          msg.endLine != null && Number.isFinite(Number(msg.endLine))
+            ? Number(msg.endLine)
+            : undefined,
+      });
       return;
 
     case 'provider.test':

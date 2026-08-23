@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { AGENT_K_COMMAND_IDS } from './commandIds';
 import type { ChatViewProvider } from './ChatViewProvider';
+import { clipboardCopyWithPath } from './clipboardCopyWithPath';
 
 /**
  * Register all Agent-K commands against the ChatViewProvider surface.
@@ -23,6 +24,9 @@ export function registerCommands(
     'agent-k.mode.switch': () => provider.switchMode(),
     'agent-k.chat.focusInput': () => provider.focusInput(),
     'agent-k.chat.attachSelection': () => provider.attachEditorSelection(),
+    // Comment: Cmd/Ctrl+C|X — stash path at copy time for Chat paste chips
+    'agent-k.clipboardCopyWithPath': () => clipboardCopyWithPath({ cut: false }),
+    'agent-k.clipboardCutWithPath': () => clipboardCopyWithPath({ cut: true }),
     'agent-k.inlineEdit': () => provider.requestInlineEdit(),
     'agent-k.plan.open': () => provider.openPlanCreate(),
     'agent-k.plan.build': (uri?: unknown) =>

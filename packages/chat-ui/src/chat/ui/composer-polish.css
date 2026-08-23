@@ -38,16 +38,44 @@
   padding: 10px 12px 0;
 }
 
-.composer--cursor .composer-chip {
+/* Comment: override washed-out white chip — Cursor teal file-ref wash */
+.composer--cursor .composer-chip,
+.composer--cursor .composer-chip--file {
   max-width: min(100%, 320px);
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 7px;
-  border-radius: 7px;
-  background: rgba(255,255,255,.055);
-  border: 1px solid rgba(255,255,255,.08);
+  padding: 3px 8px 3px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #5eead4 34%, var(--vscode-input-background, #fff));
+  border: 1px solid color-mix(in srgb, #14b8a6 40%, transparent);
+  color: color-mix(in srgb, #0f766e 92%, #115e59);
   font-size: 12px;
+  font-weight: 500;
+}
+
+.composer--cursor .composer-chip--folder {
+  background: color-mix(in srgb, #2dd4bf 28%, var(--vscode-input-background, #fff));
+  border-color: color-mix(in srgb, #14b8a6 38%, transparent);
+  color: color-mix(in srgb, #0f766e 88%, #134e4a);
+}
+
+.composer--cursor .composer-chip--log,
+.composer--cursor .composer-chip--snippet {
+  background: color-mix(in srgb, #facc15 18%, var(--vscode-input-background, #fff));
+  border-color: color-mix(in srgb, #ca8a04 40%, transparent);
+  color: color-mix(in srgb, #a16207 85%, #854d0e);
+}
+
+body.vscode-dark .composer--cursor .composer-chip,
+.vscode-dark .composer--cursor .composer-chip,
+body.vscode-dark .composer--cursor .composer-chip--file,
+.vscode-dark .composer--cursor .composer-chip--file,
+body.vscode-dark .composer--cursor .composer-chip--folder,
+.vscode-dark .composer--cursor .composer-chip--folder {
+  background: rgba(45, 212, 191, 0.2);
+  border-color: rgba(45, 212, 191, 0.45);
+  color: #5eead4;
 }
 
 .composer--cursor .composer-chip-label {
@@ -58,6 +86,12 @@
   background: none;
   color: inherit;
   cursor: pointer;
+  text-decoration: none;
+}
+
+.composer--cursor .composer-chip-label:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .composer--cursor .composer-chip-remove,

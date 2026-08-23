@@ -2,12 +2,10 @@ import React from 'react';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 import { AgentTurn, type AgentTurnProps } from '../components/AgentTurn';
 import type { ConversationWorkEvent } from './conversationWorkEvent';
-import type { ChangeSummaryItem } from '../components/ChangeSummary';
 
 export interface AgentTurnAdapterProps {
   message: unknown;
   workItems?: ConversationWorkEvent[];
-  changes?: ChangeSummaryItem[];
   isStreaming?: boolean;
   children?: React.ReactNode;
   onOpenSubagent?: (subagentId: string, title: string) => void;
@@ -23,7 +21,6 @@ export interface AgentTurnAdapterProps {
 export function AgentTurnAdapter({
   message,
   workItems = [],
-  changes = [],
   isStreaming = false,
   children,
   onOpenSubagent,
@@ -67,7 +64,6 @@ export function AgentTurnAdapter({
       terminalRuns={terminalRuns}
       turnProse={turnProse}
       liveProse={liveProse}
-      changes={changes}
       isStreaming={isStreaming}
       hasLiveAnswer={hasLiveAnswer}
       workedDurationMs={candidate?.workedDurationMs}

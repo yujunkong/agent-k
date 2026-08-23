@@ -324,8 +324,13 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         finished = true;
         clearIdle();
         window.removeEventListener('message', onMsg);
-        detachRequest(runtimeKey, hostRequestId);
-        fn();
+        // Comment: settle transcript before clearing Stop chrome — avoids Send
+        // while last assistant is still status:'streaming' for a paint.
+        try {
+          fn();
+        } finally {
+          detachRequest(runtimeKey, hostRequestId);
+        }
       };
 
       /** Correlate tool.end when host omits id (match last start by toolName). */
@@ -467,45 +472,86 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             break;
           }
           case 'file.edit': {
+            // Comment: payload is { event:'file.edit', edit:{...} } — not the outer envelope
+            const editRaw =
+              stream.edit && typeof stream.edit === 'object'
+                ? (stream.edit as Record<string, unknown>)
+                : (stream as Record<string, unknown>);
+            const preview = fileEditPreviewFromHost(editRaw);
+            debugLog('card.pipe', '← file.edit', {
+              requestId: hostRequestId,
+              path: preview.path,
+              additions: preview.additions,
+              deletions: preview.deletions,
+              lines: preview.lines?.length ?? 0,
+              toolId: preview.toolId
+            });
             onDelta({
-              fileEdit: fileEditPreviewFromHost(data as Record<string, unknown>)
+              fileEdit: preview
             });
             break;
           }
           case 'terminal.run': {
+            // Comment: protocol nests `run:`; accept flat fields for older emitters
+            const runRaw =
+              stream.run && typeof stream.run === 'object'
+                ? (stream.run as Record<string, unknown>)
+                : (stream as Record<string, unknown>);
+            const phase =
+              runRaw.phase === 'chunk' || runRaw.phase === 'end'
+                ? runRaw.phase
+                : 'start';
+            // Comment: skip chunk spam — start/end only for card diagnostics
+            if (phase !== 'chunk') {
+              debugLog('card.pipe', '← terminal.run', {
+                requestId: hostRequestId,
+                phase,
+                id: String(runRaw.id || ''),
+                cmd:
+                  runRaw.command != null
+                    ? String(runRaw.command).slice(0, 80)
+                    : undefined,
+                exitCode: runRaw.exitCode,
+                status: runRaw.status,
+                toolId: runRaw.toolId
+              });
+            }
             onDelta({
               terminalRun: {
-                id: String(stream.id || `term_${Date.now()}`),
-                phase:
-                  stream.phase === 'chunk' || stream.phase === 'end'
-                    ? stream.phase
-                    : 'start',
-                command: stream.command != null ? String(stream.command) : undefined,
+                id: String(runRaw.id || `term_${Date.now()}`),
+                phase,
+                command:
+                  runRaw.command != null ? String(runRaw.command) : undefined,
                 description:
-                  stream.description != null ? String(stream.description) : undefined,
-                cwd: stream.cwd != null ? String(stream.cwd) : undefined,
-                chunk: stream.chunk != null ? String(stream.chunk) : undefined,
+                  runRaw.description != null
+                    ? String(runRaw.description)
+                    : undefined,
+                cwd: runRaw.cwd != null ? String(runRaw.cwd) : undefined,
+                chunk: runRaw.chunk != null ? String(runRaw.chunk) : undefined,
                 stream:
-                  stream.stream === 'stderr' || stream.stream === 'stdout'
-                    ? stream.stream
+                  runRaw.stream === 'stderr' || runRaw.stream === 'stdout'
+                    ? runRaw.stream
                     : undefined,
                 exitCode:
-                  stream.exitCode === null
+                  runRaw.exitCode === null
                     ? null
-                    : stream.exitCode != null
-                      ? Number(stream.exitCode)
+                    : runRaw.exitCode != null
+                      ? Number(runRaw.exitCode)
                       : undefined,
-                error: stream.error != null ? String(stream.error) : undefined,
+                error: runRaw.error != null ? String(runRaw.error) : undefined,
                 durationMs:
-                  stream.durationMs != null ? Number(stream.durationMs) : undefined,
-                turn: stream.turn != null ? Number(stream.turn) : undefined,
-                status:
-                  stream.status === 'done' ||
-                  stream.status === 'error' ||
-                  stream.status === 'running'
-                    ? stream.status
+                  runRaw.durationMs != null
+                    ? Number(runRaw.durationMs)
                     : undefined,
-                toolId: stream.toolId != null ? String(stream.toolId) : undefined
+                turn: runRaw.turn != null ? Number(runRaw.turn) : undefined,
+                status:
+                  runRaw.status === 'done' ||
+                  runRaw.status === 'error' ||
+                  runRaw.status === 'running'
+                    ? runRaw.status
+                    : undefined,
+                toolId:
+                  runRaw.toolId != null ? String(runRaw.toolId) : undefined
               }
             });
             break;

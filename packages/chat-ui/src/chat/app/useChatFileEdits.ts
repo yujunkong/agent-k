@@ -28,7 +28,10 @@ export interface UseChatFileEditsReturn {
   checkpoints: CheckpointSummary[];
   setCheckpoints: Dispatch<SetStateAction<CheckpointSummary[]>>;
   sessionFileEdits: ReturnType<typeof collectSessionFileEdits>;
-  handleOpenFile: (filePath: string) => void;
+  handleOpenFile: (
+    filePath: string,
+    opts?: { startLine?: number; endLine?: number }
+  ) => void;
   handleUndoAllEdits: () => void;
   handleReviewEdits: () => void;
   handleAcceptFileEdit: (file: FileEditPreview) => void;
@@ -48,15 +51,23 @@ export function useChatFileEdits(params: UseChatFileEditsParams): UseChatFileEdi
     [messages]
   );
 
-  /** VS Code 에디터에서 파일 열기 */
-  const handleOpenFile = useCallback((filePath: string) => {
-    try {
-      const api = getVsCodeApi();
-      api?.postMessage?.({ type: 'file.open', path: filePath });
-    } catch {
-      /* no host bridge (browser preview) */
-    }
-  }, []);
+  /** VS Code 에디터에서 파일 열기 (선택 영역 라인이 있으면 reveal) */
+  const handleOpenFile = useCallback(
+    (filePath: string, opts?: { startLine?: number; endLine?: number }) => {
+      try {
+        const api = getVsCodeApi();
+        api?.postMessage?.({
+          type: 'file.open',
+          path: filePath,
+          ...(opts?.startLine != null ? { startLine: opts.startLine } : {}),
+          ...(opts?.endLine != null ? { endLine: opts.endLine } : {})
+        });
+      } catch {
+        /* no host bridge (browser preview) */
+      }
+    },
+    []
+  );
 
   /** 가장 오래된 체크포인트로 전체 롤백 */
   const handleUndoAllEdits = useCallback(() => {

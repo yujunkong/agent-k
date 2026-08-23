@@ -21,4 +21,6 @@ export interface TerminalRunPayload {
   durationMs?: number;
   turn?: number;
   status?: TerminalRunStatus;
+  /** Host tool call id — links TerminalRunCard to Ran timeline row */
+  toolId?: string;
 }

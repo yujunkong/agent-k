@@ -12,13 +12,56 @@ export function attachmentId(a: Attachment): string {
   return `${a.type}:${a.path}${range}`;
 }
 
-export function attachmentDisplayLabel(a: Attachment): string {
-  if (a.type === 'log' || a.type === 'snippet') {
-    const base = a.label || 'snippet';
-    const lines = (a.content || '').split(/\r?\n/).length;
-    return lines > 1 ? `${base} (${lines} lines)` : base;
+/** Synthetic chip path (paste log / anonymous snippet) — not openable. */
+export function isSyntheticAttachmentPath(path?: string): boolean {
+  if (!path) return true;
+  return /^(log_|snip_|att_)/.test(path);
+}
+
+/** File / editor selection with a real workspace path — openable chip. */
+export function isOpenableAttachment(a: Attachment): boolean {
+  if (a.type === 'folder' || a.type === 'log') return false;
+  if (a.type === 'file' || a.type === 'snippet' || a.type === 'symbol') {
+    return !isSyntheticAttachmentPath(a.path);
   }
-  const name = a.path.replace(/\\/g, '/').replace(/\/+$/, '').split('/').pop() || a.path;
+  return !isSyntheticAttachmentPath(a.path);
+}
+
+function basenamePath(path: string): string {
+  return path.replace(/\\/g, '/').replace(/\/+$/, '').split('/').pop() || path;
+}
+
+function lineCountLabel(content?: string): string | null {
+  if (!content) return null;
+  const lines = content.replace(/\r\n/g, '\n').split('\n').length;
+  return lines > 1 ? `${lines} lines` : null;
+}
+
+export function attachmentDisplayLabel(a: Attachment): string {
+  // Comment: editor selection / file range → filename + lines; never "log (N) (N)"
+  if (isOpenableAttachment(a) || (a.type === 'file' && a.path)) {
+    const name =
+      (a.label && !/^log\b/i.test(a.label) && !/^selection$/i.test(a.label)
+        ? a.label
+        : null) || basenamePath(a.path);
+    if (a.startLine != null && a.endLine != null && a.endLine !== a.startLine) {
+      return `${name} (${a.startLine}-${a.endLine})`;
+    }
+    if (a.startLine != null) {
+      return `${name} (${a.startLine})`;
+    }
+    return name;
+  }
+
+  if (a.type === 'log' || a.type === 'snippet') {
+    const count = lineCountLabel(a.content);
+    const raw = (a.label || (a.type === 'log' ? 'log' : 'snippet')).trim();
+    // Avoid "log (6 lines) (6 lines)" when makeLogAttachment already baked count
+    if (/\(\d+\s*lines?\)/i.test(raw)) return raw;
+    return count ? `${raw} (${count})` : raw;
+  }
+
+  const name = basenamePath(a.path);
   if (a.startLine != null && a.endLine != null && a.endLine !== a.startLine) {
     return `${name} (${a.startLine}-${a.endLine})`;
   }
@@ -48,12 +91,12 @@ export function looksLikeLogOrSnippet(text: string): boolean {
 export function makeLogAttachment(content: string, label?: string): Attachment {
   const body = content.replace(/\r\n/g, '\n');
   const id = `log_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-  const lineCount = body.split('\n').length;
   return {
     id,
     type: 'log',
     path: id,
-    label: label || `log (${lineCount} lines)`,
+    // Comment: bare "log" — displayLabel appends "(N lines)" once
+    label: label || 'log',
     content: body.slice(0, 200_000)
   };
 }
@@ -64,15 +107,71 @@ export function makeSnippetAttachment(
 ): Attachment {
   const body = content.replace(/\r\n/g, '\n');
   const id = `snip_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  const path = opts?.path || id;
+  const name = opts?.label || (opts?.path ? basenamePath(opts.path) : 'selection');
+  // Comment: real path → file chip (openable); anonymous paste stays snippet
+  if (opts?.path && !isSyntheticAttachmentPath(opts.path)) {
+    return {
+      id,
+      type: 'file',
+      path,
+      label: name,
+      content: body.slice(0, 200_000),
+      startLine: opts?.startLine,
+      endLine: opts?.endLine
+    };
+  }
   return {
     id,
     type: 'snippet',
-    path: opts?.path || id,
-    label: opts?.label || 'selection',
+    path,
+    label: name,
     content: body.slice(0, 200_000),
     startLine: opts?.startLine,
     endLine: opts?.endLine
   };
+}
+
+/**
+ * Parse VS Code editor clipboard payload (drag/copy selection → file + range).
+ * Returns null when the payload is missing or not a file selection.
+ */
+export function parseVsCodeEditorClipboard(
+  raw: string
+): {
+  path: string;
+  content?: string;
+  startLine?: number;
+  endLine?: number;
+} | null {
+  try {
+    const data = JSON.parse(raw) as Record<string, unknown>;
+    const resource = String(data.resource || data.uri || '').trim();
+    if (!resource) return null;
+    let path = resource;
+    if (resource.startsWith('file:')) {
+      try {
+        const u = new URL(resource);
+        path = decodeURIComponent(u.pathname);
+        if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1);
+      } catch {
+        path = resource.replace(/^file:\/\//, '');
+      }
+    }
+    const selections = Array.isArray(data.selections) ? data.selections : [];
+    const sel = selections[0] as Record<string, unknown> | undefined;
+    const startLine =
+      sel && Number.isFinite(Number(sel.startLineNumber))
+        ? Number(sel.startLineNumber)
+        : undefined;
+    const endLine =
+      sel && Number.isFinite(Number(sel.endLineNumber))
+        ? Number(sel.endLineNumber)
+        : startLine;
+    return { path, startLine, endLine };
+  } catch {
+    return null;
+  }
 }
 
 /** Parse "10-30", "10", "L10-L30" → range */
@@ -103,21 +202,12 @@ export function formatAttachmentsForPayload(files: Attachment[]): string {
       parts.push(`@folder:${f.path}`);
       continue;
     }
-    if (f.type === 'log' || f.type === 'snippet') {
+    if (f.type === 'log' || (f.type === 'snippet' && isSyntheticAttachmentPath(f.path))) {
       const label = f.label || f.path;
-      const range =
-        f.startLine != null
-          ? f.endLine != null && f.endLine !== f.startLine
-            ? `:${f.startLine}-${f.endLine}`
-            : `:${f.startLine}`
-          : '';
-      const src = f.path && !f.path.startsWith('log_') && !f.path.startsWith('snip_')
-        ? ` (${f.path}${range})`
-        : '';
       const body = (f.content || '').slice(0, 100_000);
       parts.push(
         [
-          `Attached ${f.type}${src}: ${label}`,
+          `Attached ${f.type}: ${label}`,
           '```',
           body,
           '```'
@@ -125,7 +215,7 @@ export function formatAttachmentsForPayload(files: Attachment[]): string {
       );
       continue;
     }
-    // file / symbol / codebase
+    // file / snippet with path / symbol / codebase
     const range =
       f.startLine != null
         ? f.endLine != null && f.endLine !== f.startLine

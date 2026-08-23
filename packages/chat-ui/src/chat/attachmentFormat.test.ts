@@ -5,8 +5,10 @@ import { describe, expect, it } from 'vitest';
 import {
   attachmentDisplayLabel,
   formatAttachmentsForPayload,
+  isOpenableAttachment,
   looksLikeLogOrSnippet,
   makeLogAttachment,
+  makeSnippetAttachment,
   parseLineRangeInput,
 } from './attachmentFormat';
 import { parseFileMentionQuery } from '../prefetch/MentionExtractor';
@@ -24,11 +26,23 @@ describe('CHAT-005 attachmentFormat', () => {
     expect(parseLineRangeInput('abc')).toBeNull();
   });
 
-  it('makeLogAttachment + display label', () => {
+  it('makeLogAttachment + display label (no double line count)', () => {
     const a = makeLogAttachment('err\nwarn\nok');
     expect(a.type).toBe('log');
     expect(a.content).toContain('err');
-    expect(attachmentDisplayLabel(a)).toMatch(/3 lines/);
+    expect(attachmentDisplayLabel(a)).toBe('log (3 lines)');
+  });
+
+  it('editor selection → openable file chip with range label', () => {
+    const a = makeSnippetAttachment('a\nb\nc\nd\ne\nf', {
+      path: '/ws/src/IDE_PLAN.md',
+      label: 'IDE_PLAN.md',
+      startLine: 10,
+      endLine: 15,
+    });
+    expect(a.type).toBe('file');
+    expect(isOpenableAttachment(a)).toBe(true);
+    expect(attachmentDisplayLabel(a)).toBe('IDE_PLAN.md (10-15)');
   });
 
   it('formatAttachmentsForPayload includes range + log body', () => {

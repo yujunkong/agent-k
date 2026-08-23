@@ -55,8 +55,8 @@ describe('EXT-001 replyToWebviewMessage', () => {
 });
 
 describe('EXT-003 command catalog', () => {
-  it('lists 19 command ids synced with package.json', () => {
-    expect(AGENT_K_COMMAND_IDS).toHaveLength(19);
+  it('lists command ids synced with package.json', () => {
+    expect(AGENT_K_COMMAND_IDS).toHaveLength(21);
     const pkgPath = path.resolve(__dirname, '../../../extensions/agent-k/package.json');
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as {
       contributes: { commands: Array<{ command: string }> };

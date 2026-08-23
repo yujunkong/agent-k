@@ -42,22 +42,50 @@ export const STREAM_TOOL_KINDS = new Set([
   'asking'
 ]);
 
-/** Mark running Thought rows done so the next segment can start mid-timeline. */
+/**
+ * Mark running Thought rows done so the next segment can start mid-timeline.
+ * @param exceptId — keep this Thought running (same tab segment still open).
+ *   Per-stream `thoughtSeg` already isolates tabs; this only protects the
+ *   active segment inside one owner session from premature seal.
+ */
 function sealRunningThoughtSteps(
   msg: ChatMessage,
-  now = Date.now()
+  now = Date.now(),
+  exceptId?: string
 ): ChatMessage {
-  const steps = (msg.steps || []).map((s) =>
-    s.kind === 'thinking' && s.itemStatus === 'running'
-      ? { ...s, itemStatus: 'done' as const }
-      : s
-  );
+  // Comment: stamp durationMs on seal — UI shows "Thought 3s", not "briefly"
+  const workById = new Map((msg.workItems || []).map((e) => [e.id, e]));
+  const steps = (msg.steps || []).map((s) => {
+    if (!(s.kind === 'thinking' && s.itemStatus === 'running')) return s;
+    if (exceptId && s.id === exceptId) return s;
+    const startedAt = workById.get(s.id)?.startedAt;
+    // Comment: always recompute from startedAt — never keep a premature briefly stamp
+    const durationMs =
+      startedAt != null ? Math.max(0, now - startedAt) : s.durationMs;
+    return {
+      ...s,
+      itemStatus: 'done' as const,
+      ...(durationMs != null ? { durationMs } : {})
+    };
+  });
   const workItems = sealStaleThoughtsBeforeTools(
-    (msg.workItems || []).map((e) =>
-      e.type === 'thinking' && (e.status === 'running' || e.status === 'pending')
-        ? { ...e, status: 'complete' as const, completedAt: e.completedAt ?? now }
-        : e
-    ),
+    (msg.workItems || []).map((e) => {
+      if (
+        !(
+          e.type === 'thinking' &&
+          (e.status === 'running' || e.status === 'pending')
+        )
+      ) {
+        return e;
+      }
+      if (exceptId && e.id === exceptId) return e;
+      const completedAt = e.completedAt ?? now;
+      return {
+        ...e,
+        status: 'complete' as const,
+        completedAt
+      };
+    }),
     now
   );
   return { ...msg, steps, workItems };
@@ -220,18 +248,20 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
     thoughtSeg: 0
   });
 
-  const closeThoughtSegment = (reason: string) => {
+  /**
+   * Soft-pause Thought: seal duration but keep thoughtSeg so the same row
+   * resumes after any tool (Cursor-style — no edit/Ran Thought spam).
+   */
+  const pauseThoughtSegment = (reason: string) => {
     debugLog('timeline-order', 'thought.seal', {
       ownerId: getOwnerSessionId(),
       reason,
       seg: thoughtSeg,
       wasOpen: thoughtOpen,
-      blocked: thoughtBlocked
+      blocked: thoughtBlocked,
+      rotate: false
     });
-    if (thoughtOpen) {
-      thoughtSeg += 1;
-      thoughtOpen = false;
-    }
+    thoughtOpen = false;
     thoughtBlocked = true;
   };
 
@@ -362,7 +392,8 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
     // Comment: tool.start packs clearContent + timeline(detail) together.
     // Early-return here used to skip the timeline upsert → bare "Read"/"Grepped".
     if (delta.clearContent && !delta.timeline) {
-      closeThoughtSegment('clearContent');
+      // Comment: never hard-rotate on clear alone — same Thought id resumes after tools
+      pauseThoughtSegment('clearContent');
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
@@ -388,7 +419,15 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       };
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
-        if (!hit) return prev;
+        if (!hit) {
+          // Comment: diagnose drop — host emitted but no streaming assistant to attach
+          debugLog('card.pipe', 'state.fileEdit DROP no-streaming', {
+            ownerId: getOwnerSessionId(),
+            path: fe.path,
+            toolId: fe.toolId
+          });
+          return prev;
+        }
         const msg = hit.msg;
         const key = (fe.absPath || fe.path || '').replace(/\\/g, '/');
         const prevEdits = msg.fileEdits || [];
@@ -406,6 +445,17 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
           kind: 'fileEdit',
           fileEdit: fe
         });
+        // Comment: state attach — if missing after host emit, DROP or preview parse failed
+        debugLog('card.pipe', 'state.fileEdit', {
+          ownerId: getOwnerSessionId(),
+          path: fe.path,
+          add: fe.additions,
+          del: fe.deletions,
+          lines: fe.lines?.length ?? 0,
+          upsert: idx >= 0 ? 'patch' : 'append',
+          total: fileEdits.length,
+          toolId: fe.toolId
+        });
         const copy = [...prev];
         copy[hit.lastIdx] = { ...msg, fileEdits, workItems };
         return copy;
@@ -417,7 +467,16 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       const ev = delta.terminalRun;
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
-        if (!hit) return prev;
+        if (!hit) {
+          if (ev.phase !== 'chunk') {
+            debugLog('card.pipe', 'state.terminal DROP no-streaming', {
+              ownerId: getOwnerSessionId(),
+              phase: ev.phase,
+              id: ev.id
+            });
+          }
+          return prev;
+        }
         const msg = hit.msg;
         const runs = [...(msg.terminalRuns || [])];
         const idx = runs.findIndex((r) => r.id === ev.id);
@@ -462,6 +521,16 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
             toolId: ev.toolId || cur.toolId
           };
         }
+        if (ev.phase !== 'chunk') {
+          debugLog('card.pipe', 'state.terminal', {
+            ownerId: getOwnerSessionId(),
+            phase: ev.phase,
+            id: ev.id,
+            status: runs[idx]?.status ?? runs[runs.length - 1]?.status,
+            total: runs.length,
+            toolId: ev.toolId
+          });
+        }
         const linked = runs[idx] || runs[runs.length - 1];
         const workItems = linked
           ? linkPreviewToWorkEvents(msg.workItems || [], {
@@ -505,7 +574,8 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         if (!hit) return prev;
         let msg = hit.msg;
         if (STREAM_TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running' && !tl.subagentId) {
-          closeThoughtSegment('timeline.tool');
+          // Comment: Cursor-style — all tools soft-pause; one Thought id per send (no edit/Ran spam)
+          pauseThoughtSegment(`timeline.tool:${tl.kind}`);
           msg = sealRunningThoughtSteps(
             sealLeadFromMessage(msg, tl.turn, `timeline.tool:${tl.kind}`)
           );
@@ -574,6 +644,8 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
 
     if (delta.reasoning) {
       // After tools: first reasoning opens a new Thought segment (mid-timeline).
+      // Comment: thoughtSeg / thoughtOpen / thoughtBlocked are per stream session
+      // (one owner tab). Never share across parallel tab streams.
       if (thoughtBlocked) {
         thoughtBlocked = false;
         debugLog('timeline-order', 'thought.reopen', {
@@ -592,8 +664,8 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
-        // If tools already landed under a still-running older Thought, seal them first.
-        let msg = sealRunningThoughtSteps(hit.msg);
+        // Comment: seal older Thoughts only — keep current segment live (Thinking clock grows)
+        let msg = sealRunningThoughtSteps(hit.msg, now, id);
         msg = {
           ...msg,
           workItems: sealStaleThoughtsBeforeTools(msg.workItems || [], now)
@@ -612,7 +684,9 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
           status: 'running',
           label: 'Thought',
           detail: prevDetail + delta.reasoning,
-          startedAt: prevEvent?.startedAt ?? starts[id]
+          startedAt: prevEvent?.startedAt ?? starts[id],
+          // Comment: clear completedAt if a prior soft seal left this id complete
+          completedAt: undefined
         };
         const msgWithWork = withWorkEvent(msg, thinkingEvent);
         const steps = [...(msgWithWork.steps || [])];
@@ -620,15 +694,22 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         const prevStepDetail = idx >= 0 ? steps[idx].detail || '' : '';
         const nextStep = {
           id,
-          kind: 'thinking',
+          kind: 'thinking' as const,
           label: 'Thought',
           detail: prevStepDetail + delta.reasoning,
           turn,
           thoughtRole: 'opening' as const,
-          itemStatus: 'running' as const
+          itemStatus: 'running' as const,
+          // Comment: drop premature durationMs so title stays Thinking until real seal
+          durationMs: undefined as number | undefined
         };
-        if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
-        else steps.push(nextStep);
+        if (idx >= 0) {
+          const { durationMs: _drop, ...rest } = steps[idx];
+          void _drop;
+          steps[idx] = { ...rest, ...nextStep };
+        } else {
+          steps.push(nextStep);
+        }
         debugLog('timeline-order', 'thought.append', {
           ownerId: getOwnerSessionId(),
           id,
@@ -708,16 +789,13 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
 
     if (delta.content) {
       if (planPinned) return;
-      // Answer tokens close Thought chrome (Cursor: Thought settles before prose).
-      if (thoughtOpen) {
-        closeThoughtSegment('content');
-      }
+      // Comment: content alone must NOT rotate/seal Thought. Models interleave
+      // content+reasoning between tools; one live Thought per tab until turn end.
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
-        const sealed = sealRunningThoughtSteps(hit.msg);
-        const nextContent = (sealed.content || '') + delta.content!;
-        const prevLen = (sealed.content || '').length;
+        const nextContent = (hit.msg.content || '') + delta.content!;
+        const prevLen = (hit.msg.content || '').length;
         // Fingerprint mid-reply growth (skip pure 1–2 char token spam).
         if (
           nextContent.trim().length >= 8 &&
@@ -726,12 +804,14 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
           debugLog('timeline-order', 'mid-reply.content', {
             ownerId: getOwnerSessionId(),
             contentLen: nextContent.length,
+            thoughtOpen,
+            thoughtSeg,
             preview: nextContent.trim().slice(0, 100)
           });
         }
         const newMsgs = [...prev];
         newMsgs[hit.lastIdx] = {
-          ...sealed,
+          ...hit.msg,
           toolStatus: undefined,
           openingLead: undefined,
           content: nextContent
@@ -763,11 +843,10 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       if (/^🔧/.test(content.trim()) && content.length < 80) {
         content = '';
       }
-      const prevSteps = newMsgs[lastIdx].steps || [];
-      const steps = prevSteps.map((s) =>
-        s.itemStatus === 'running' ? { ...s, itemStatus: 'done' as const } : s
-      );
-      const workItems = settleWorkEvents(newMsgs[lastIdx].workItems);
+      // Comment: owner-tab only — sealRunningThoughtSteps stamps durationMs for Thought Ns
+      const sealedThoughts = sealRunningThoughtSteps(newMsgs[lastIdx]);
+      const steps = sealedThoughts.steps || [];
+      const workItems = settleWorkEvents(sealedThoughts.workItems);
       const leadLeft = (newMsgs[lastIdx].openingLead || '').trim();
       const body = content.trim();
       const finalContent =

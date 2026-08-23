@@ -5,10 +5,8 @@
 import {
   looksLikeExploreContinue,
   looksLikeExploreStart,
-  looksLikeExploreSettled,
-  looksLikeVisibleMidReply
+  looksLikeExploreSettled
 } from './exploreProseHints';
-import { looksLikeVisibleTurnProse } from './planPromote';
 
 /** Compatible with MessageSteps.MessageStep */
 export type CuriosityStep = {
@@ -94,6 +92,66 @@ function inferTurn(step: CuriosityStep): number {
   return m ? Number(m[1]) : 1;
 }
 
+/**
+ * Merge adjacent Thinking steps with no tool between them into one row.
+ * (Multiple tl_thinking_*_sN from explore-tool rotation → single Thought.)
+ */
+export function coalesceAdjacentThinkingSteps(
+  steps: CuriosityStep[]
+): CuriosityStep[] {
+  const out: CuriosityStep[] = [];
+  for (const s of steps) {
+    if (s.kind !== 'thinking') {
+      out.push(s);
+      continue;
+    }
+    const prev = out[out.length - 1];
+    if (!prev || prev.kind !== 'thinking') {
+      out.push({ ...s });
+      continue;
+    }
+    const prevDetail = String(prev.detail || '').trim();
+    const nextDetail = String(s.detail || '').trim();
+    let detail = prevDetail;
+    if (nextDetail) {
+      if (!prevDetail) detail = nextDetail;
+      else if (nextDetail.startsWith(prevDetail)) detail = nextDetail;
+      else if (!prevDetail.includes(nextDetail)) {
+        detail = `${prevDetail}\n\n${nextDetail}`;
+      }
+    }
+    const running =
+      prev.itemStatus === 'running' || s.itemStatus === 'running';
+    const durations = [prev.durationMs, s.durationMs].filter(
+      (n): n is number => typeof n === 'number' && Number.isFinite(n)
+    );
+    const durationMs = running
+      ? undefined
+      : durations.length
+        ? durations.reduce((a, b) => a + b, 0)
+        : undefined;
+    out[out.length - 1] = {
+      ...prev,
+      detail,
+      itemStatus: running
+        ? 'running'
+        : s.itemStatus === 'error' || prev.itemStatus === 'error'
+          ? 'error'
+          : 'done',
+      durationMs,
+      label: prev.label || s.label
+    };
+  }
+  return out;
+}
+
+function mergeThoughtStep(
+  prev: CuriosityStep,
+  next: CuriosityStep
+): CuriosityStep {
+  return coalesceAdjacentThinkingSteps([prev, next])[0]!;
+}
+
 export type BuildCuriosityPhasesOpts = {
   liveProse?: string;
   isStreaming?: boolean;
@@ -154,7 +212,8 @@ export function buildCuriosityPhases(
   for (const turn of turns) {
     // Comment: notes flush by afterStepId so mid prose cuts Exploring mid-batch.
     const notes = [...(proseByTurn.get(turn) || [])];
-    const list = byTurn.get(turn) || [];
+    // Comment: collapse adjacent Thinking before phase layout (no tool between)
+    const list = coalesceAdjacentThinkingSteps(byTurn.get(turn) || []);
     let noteIdx = 0;
 
     const foldAsideIntoThought = (noteId: string, text: string) => {
@@ -169,17 +228,21 @@ export function buildCuriosityPhases(
         return;
       }
       if (hasExploreTools(cur) && !cur.resolved) {
-        cur.rows.push({
-          type: 'thought',
-          step: {
-            id: noteId,
-            kind: 'thinking',
-            label: 'Thought',
-            detail: text,
-            itemStatus: 'done',
-            thoughtRole: 'mid'
-          }
-        });
+        const last = cur.rows[cur.rows.length - 1];
+        const aside: CuriosityStep = {
+          id: noteId,
+          kind: 'thinking',
+          label: 'Thought',
+          detail: text,
+          itemStatus: 'done',
+          thoughtRole: 'mid'
+        };
+        // Comment: do not spawn a new mid-Thought row per sealed prose note
+        if (last?.type === 'thought') {
+          last.step = mergeThoughtStep(last.step, aside);
+        } else {
+          cur.rows.push({ type: 'thought', step: aside });
+        }
         return;
       }
       cur.openingThought = {
@@ -203,44 +266,42 @@ export function buildCuriosityPhases(
       const payload = { id: note.id, content: text };
       const digIntent =
         looksLikeExploreStart(text) || looksLikeExploreContinue(text);
-      const visibleCut =
-        looksLikeVisibleTurnProse(text) ||
-        looksLikeVisibleMidReply(text) ||
-        digIntent ||
-        looksLikeExploreSettled(text);
+      const settled = looksLikeExploreSettled(text);
 
-      if (visibleCut && hasExploreTools(cur) && !cur.resolved) {
-        cur.resolved = true;
-        cur.proseAfter.push(payload);
-        cur = startPhase(undefined);
-        return;
-      }
-
-      if (looksLikeExploreSettled(text) && hasExploreTools(cur)) {
-        cur.resolved = true;
+      // Comment: dig/"Let me…" must NOT split Ran/Edit batches into many "Ran N" groups
+      if (cur.actions.length > 0) {
         cur.proseAfter.push(payload);
         return;
       }
 
-      if (cur.resolved || cur.actions.length > 0) {
-        if (cur.actions.length > 0 || hasExploreTools(cur)) {
+      // Explore: only settle-cut; dig/mid stays in the same Exploring phase
+      if (hasExploreTools(cur) && !cur.resolved) {
+        if (settled && !digIntent) {
+          cur.resolved = true;
+          cur.proseAfter.push(payload);
+          cur = startPhase(undefined);
+          return;
+        }
+        foldAsideIntoThought(note.id, text);
+        return;
+      }
+
+      if (settled && hasExploreTools(cur)) {
+        cur.resolved = true;
+        cur.proseAfter.push(payload);
+        return;
+      }
+
+      if (cur.resolved) {
+        if (hasExploreTools(cur)) {
           cur.proseAfter.push(payload);
           cur = startPhase(undefined);
           return;
         }
       }
 
-      if (hasExploreTools(cur) && !cur.resolved) {
-        foldAsideIntoThought(note.id, text);
-        return;
-      }
-
       // Chronological lead before first tools — not a special top hoist
-      if (cur.actions.length > 0) {
-        cur.proseAfter.push(payload);
-      } else {
-        cur.leadProse.push(payload);
-      }
+      cur.leadProse.push(payload);
     };
 
     const flushNotesAfter = (afterId: string | undefined) => {
@@ -297,17 +358,29 @@ export function buildCuriosityPhases(
         if (!cur || cur.resolved || cur.actions.length > 0) {
           cur = startPhase({ ...s, thoughtRole: 'opening' });
         } else if (hasExploreTools(cur) && !cur.resolved) {
-          cur.rows.push({
-            type: 'thought',
-            step: { ...s, thoughtRole: 'mid' }
-          });
+          const last = cur.rows[cur.rows.length - 1];
+          if (last?.type === 'thought') {
+            last.step = mergeThoughtStep(last.step, {
+              ...s,
+              thoughtRole: 'mid'
+            });
+          } else {
+            cur.rows.push({
+              type: 'thought',
+              step: { ...s, thoughtRole: 'mid' }
+            });
+          }
         } else if (
           cur.openingThought &&
           cur.openingThought.id &&
           s.id &&
           cur.openingThought.id !== s.id
         ) {
-          cur = startPhase({ ...s, thoughtRole: 'opening' });
+          // Comment: consecutive opening Thoughts with no tools — merge, don't split phases
+          cur.openingThought = mergeThoughtStep(cur.openingThought, {
+            ...s,
+            thoughtRole: 'opening'
+          });
         } else {
           cur.openingThought = { ...s, thoughtRole: 'opening' };
         }

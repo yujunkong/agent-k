@@ -5,6 +5,7 @@
 import * as fs from 'node:fs/promises';
 import type { ToolDefinition, ToolResult } from '../types';
 import { resolveWorkspacePath, withToolTiming } from '../pathUtils';
+import { buildBeforeAfterDiff } from '../editDiffPreview';
 
 export interface SearchReplaceHunk {
   search: string;
@@ -117,13 +118,18 @@ export const editTool: ToolDefinition = {
         return { success: false, error: applied.error };
       }
 
+      // Comment: CONV-019 — diff real before→after (not raw search/replace strings)
+      const diff = buildBeforeAfterDiff(before, applied.content);
+
       await fs.writeFile(resolved.abs, applied.content, 'utf-8');
       return {
         success: true,
         data: {
           path: resolved.rel,
+          absPath: resolved.abs,
           replacements: applied.replacements,
           bytes: Buffer.byteLength(applied.content, 'utf-8'),
+          diff,
         },
       };
     });

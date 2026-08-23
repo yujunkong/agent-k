@@ -4,8 +4,11 @@
 
 import * as vscode from 'vscode';
 
-/** Open a workspace-relative or absolute path in the editor. */
-export async function openWorkspaceFile(filePath: string): Promise<void> {
+/** Open a workspace-relative or absolute path in the editor (optional line reveal). */
+export async function openWorkspaceFile(
+  filePath: string,
+  opts?: { startLine?: number; endLine?: number },
+): Promise<void> {
   try {
     // Dynamic fs import keeps unit tests from requiring node types at compile of callers.
     const fs = await import('node:fs');
@@ -16,7 +19,17 @@ export async function openWorkspaceFile(filePath: string): Promise<void> {
         uri = vscode.Uri.joinPath(folders[0].uri, filePath);
       }
     }
-    await vscode.window.showTextDocument(uri, { preview: true });
+    const editor = await vscode.window.showTextDocument(uri, { preview: true });
+    // Comment: selection chips / paste stash carry 1-based line range
+    if (opts?.startLine != null && opts.startLine >= 1) {
+      const startLine = opts.startLine - 1;
+      const endLine = Math.max(startLine, (opts.endLine ?? opts.startLine) - 1);
+      const start = new vscode.Position(startLine, 0);
+      const end = editor.document.lineAt(endLine).range.end;
+      const range = new vscode.Range(start, end);
+      editor.selection = new vscode.Selection(start, end);
+      editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     void vscode.window.showErrorMessage(`Agent K: could not open file — ${msg}`);
@@ -208,5 +221,35 @@ export async function resolveAttachmentUris(
     type: 'attachments.resolve.result',
     requestId,
     results,
+  });
+}
+
+/**
+ * CHAT-005 — multi-line paste → file chip using copy-time path stash.
+ * Path is captured on Cmd/Ctrl+C in the editor, not from the active file at paste.
+ */
+export async function matchPasteAttachment(
+  webview: vscode.Webview | undefined,
+  requestId: string,
+  content: string,
+): Promise<void> {
+  if (!webview) return;
+
+  const { matchPasteToCopyStash } = await import('./editorCopyStash');
+  const hit = matchPasteToCopyStash(content);
+  void webview.postMessage({
+    type: 'attachments.matchPaste.result',
+    requestId,
+    item: hit
+      ? {
+          id: `sel_${Date.now().toString(36)}`,
+          type: 'file',
+          path: hit.path,
+          label: hit.label,
+          content: hit.content,
+          startLine: hit.startLine,
+          endLine: hit.endLine,
+        }
+      : undefined,
   });
 }

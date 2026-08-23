@@ -1,3 +1,8 @@
+/**
+ * CONV-017 — Change Summary card (SKIPPED).
+ * Session file list lives in footer ChangedFilesBar (CONV-016) only.
+ * Kept as presentational remnant + ChangeSummaryItem type for CONV-012 normalize.
+ */
 import React from 'react';
 
 export interface ChangeSummaryItem {

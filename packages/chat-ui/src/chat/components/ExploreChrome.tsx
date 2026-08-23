@@ -87,6 +87,7 @@ function formatRollingTool(step: TimelineStep): string {
   return detail ? `${verb} ${detail}` : verb;
 }
 
+/** Cursor-style Thought title: brief stays "briefly"; longer → "Thought 3s". */
 export function formatThoughtTitle(step: TimelineStep, live: boolean): string {
   if (isPlanGenerateStep(step)) {
     if (live && step.status === 'running') return 'Creating plan';
@@ -95,8 +96,9 @@ export function formatThoughtTitle(step: TimelineStep, live: boolean): string {
   }
   if (live && step.status === 'running') return 'Thinking';
   const ms = step.durationMs;
-  if (ms != null && ms >= 1000) {
-    return `Thought for ${(ms / 1000).toFixed(ms >= 10000 ? 0 : 1)}s`;
+  // Comment: sub-second / short digests stay "briefly"; only material waits show clock
+  if (ms != null && Number.isFinite(ms) && ms >= 1000) {
+    return `Thought ${Math.max(1, Math.round(ms / 1000))}s`;
   }
   return 'Thought briefly';
 }

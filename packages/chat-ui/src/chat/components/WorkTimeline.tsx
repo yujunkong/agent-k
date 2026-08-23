@@ -11,7 +11,7 @@ import {
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 import { TimelineStepCard } from './TimelineStepCard';
 import { SubagentChangesCard } from './SubagentChangesCard';
-import { ExploreRunRow, PlanningTailRow, ThoughtRow } from './ExploreChrome';
+import { ExploreRunRow, ThoughtRow } from './ExploreChrome';
 import { SubagentRunRow } from './SubagentRunRow';
 import { isPlanGenerateStep, PLAN_GENERATE_STEP_ID } from '../planGenerateStep';
 import { isPendingInlineEdit } from '../inlineEditReview';
@@ -398,10 +398,20 @@ export function WorkTimeline({
       const detail = (s.detail && s.detail.trim()) || w.detail;
       const openPath = s.openPath || w.openPath;
       const toolName = s.toolName || w.toolName;
-      if (detail === s.detail && openPath === s.openPath && toolName === s.toolName) {
+      const durationMs =
+        s.durationMs ??
+        (w.startedAt != null && w.completedAt != null
+          ? Math.max(0, w.completedAt - w.startedAt)
+          : undefined);
+      if (
+        detail === s.detail &&
+        openPath === s.openPath &&
+        toolName === s.toolName &&
+        durationMs === s.durationMs
+      ) {
         return s;
       }
-      return { ...s, detail, openPath, toolName };
+      return { ...s, detail, openPath, toolName, durationMs };
     });
   }, [stepsProp, items]);
 
@@ -488,128 +498,69 @@ export function WorkTimeline({
       s.toolName === 'list_dir'
   );
 
-  // —— Main chat: MessageSteps sequential chrome (CONV-013) ——
-  if (!subagentDetail) {
-    // Comment: Planning idle only — never while dig/answer liveProse streams
-    const showPlanningTail =
-      isStreaming &&
+  // —— Main + subagent detail: same MessageSteps chrome (CONV-013/014) ——
+  // Comment: subagent detail reuses MessageSteps; TimelineStepCard is not subagent-only
+  const showPlanningTail = subagentDetail
+    ? isStreaming && !hasLiveAnswer && !timelineSummary.hasActive
+    : isStreaming &&
       !hasLiveAnswer &&
       !stepsLive &&
       !timelineSummary.hasActive &&
       !hasExploreToolSteps &&
       !hasSubagentHeaders;
-    const planGenRunning = items.some(
-      (e) => e.id === PLAN_GENERATE_STEP_ID && e.status === 'running'
-    );
-    const planningTailTitle = planGenRunning ? 'Creating plan' : 'Planning next moves';
-
-    // Comment: show shell while streaming dig (no steps yet) so prose isn't in bubble below
-    const showMessageSteps =
-      messageSteps.length > 0 ||
-      turnProse.length > 0 ||
-      Boolean(isStreaming && liveProse?.trim()) ||
-      showPlanningTail;
-
-    const itemNodes = (
-      <>
-        {showMessageSteps ? (
-          <MessageSteps
-            steps={messageSteps}
-            fileEdits={fileEdits}
-            terminalRuns={terminalRuns}
-            turnProse={turnProse}
-            liveProse={liveProse}
-            liveProseStreaming={Boolean(isStreaming && liveProse?.trim())}
-            isStreaming={isStreaming}
-            hasLiveAnswer={hasLiveAnswer}
-            showPlanningTail={showPlanningTail}
-            planningTailTitle={planningTailTitle}
-            onOpenFile={onOpenFile}
-            onAcceptFile={onAcceptFile}
-            onRejectFile={onRejectFile}
-          />
-        ) : null}
-        {/* Orphan previews when no steps/phases yet to attach MessageSteps cards */}
-        {!showMessageSteps && fileEdits.length > 0 ? (
-          <div className="ak-file-edits-inline ak-cards-under-action">
-            {fileEdits.map((fe) => (
-              <FileEditPreviewView
-                key={fe.id}
-                file={fe}
-                onOpenFile={onOpenFile}
-                onAccept={onAcceptFile}
-                onReject={onRejectFile}
-              />
-            ))}
-          </div>
-        ) : null}
-        {!showMessageSteps && terminalRuns.length > 0 ? (
-          <div className="ak-terminal-runs-inline ak-cards-under-action">
-            {terminalRuns.map((tr) => (
-              <TerminalRunCard key={tr.id} {...tr} />
-            ))}
-          </div>
-        ) : null}
-        {subagentGroupNodes.map((node) =>
-          renderTimelineNode(
-            node,
-            presentation.activeStepId,
-            onOpenFile,
-            onAcceptFile,
-            onRejectFile,
-            onWorktreeReview,
-            onWorktreeApply,
-            onWorktreeReject,
-            undefined,
-            false,
-            onOpenSubagent,
-            false
-          )
-        )}
-      </>
-    );
-
-    return (
-      <div
-        className={[
-          'ak-work-timeline',
-          'ak-work-timeline--message-steps',
-          settled ? 'ak-work-timeline--settled' : live ? 'ak-work-timeline--live' : '',
-          timelineSummary.hasError ? 'ak-work-timeline--error' : ''
-        ]
-          .filter(Boolean)
-          .join(' ')}
-      >
-        {settled ? (
-          <button
-            type="button"
-            className="ak-worked__toggle"
-            onClick={() => setWorkedOpen((v) => !v)}
-            aria-expanded={workedOpen}
-          >
-            <span className="ak-worked__chevron" aria-hidden>
-              {workedOpen ? '▾' : '▸'}
-            </span>
-            <span className="ak-worked__label">{workedLabel}</span>
-          </button>
-        ) : null}
-        {showItems ? <div className="ak-work-timeline__items">{itemNodes}</div> : null}
-      </div>
-    );
-  }
-
-  // —— Subagent detail: existing ExploreChrome / card presentation ——
-  // Comment: Planning only when idle — not while answer streams
-  const showPlanningTail =
-    isStreaming && !hasLiveAnswer && !timelineSummary.hasActive;
   const planGenRunning = items.some(
     (e) => e.id === PLAN_GENERATE_STEP_ID && e.status === 'running'
   );
   const planningTailTitle = planGenRunning ? 'Creating plan' : 'Planning next moves';
 
+  // Comment: show shell while streaming dig (no steps yet) so prose isn't in bubble below
+  const showMessageSteps =
+    messageSteps.length > 0 ||
+    turnProse.length > 0 ||
+    Boolean(isStreaming && liveProse?.trim()) ||
+    showPlanningTail;
+
   const itemNodes = (
     <>
-      {presentation.nodes.map((node) =>
+      {showMessageSteps ? (
+        <MessageSteps
+          steps={messageSteps}
+          fileEdits={fileEdits}
+          terminalRuns={terminalRuns}
+          turnProse={turnProse}
+          liveProse={liveProse}
+          liveProseStreaming={Boolean(isStreaming && liveProse?.trim())}
+          isStreaming={isStreaming}
+          hasLiveAnswer={hasLiveAnswer}
+          showPlanningTail={showPlanningTail}
+          planningTailTitle={planningTailTitle}
+          onOpenFile={onOpenFile}
+          onAcceptFile={onAcceptFile}
+          onRejectFile={onRejectFile}
+        />
+      ) : null}
+      {/* Orphan previews when no steps/phases yet to attach MessageSteps cards */}
+      {!showMessageSteps && fileEdits.length > 0 ? (
+        <div className="ak-file-edits-inline ak-cards-under-action">
+          {fileEdits.map((fe) => (
+            <FileEditPreviewView
+              key={fe.id}
+              file={fe}
+              onOpenFile={onOpenFile}
+              onAccept={onAcceptFile}
+              onReject={onRejectFile}
+            />
+          ))}
+        </div>
+      ) : null}
+      {!showMessageSteps && terminalRuns.length > 0 ? (
+        <div className="ak-terminal-runs-inline ak-cards-under-action">
+          {terminalRuns.map((tr) => (
+            <TerminalRunCard key={tr.id} {...tr} />
+          ))}
+        </div>
+      ) : null}
+      {subagentGroupNodes.map((node) =>
         renderTimelineNode(
           node,
           presentation.activeStepId,
@@ -620,12 +571,11 @@ export function WorkTimeline({
           onWorktreeApply,
           onWorktreeReject,
           undefined,
-          true,
+          Boolean(subagentDetail),
           onOpenSubagent,
-          true
+          Boolean(subagentDetail)
         )
       )}
-      {showPlanningTail ? <PlanningTailRow title={planningTailTitle} /> : null}
     </>
   );
 
@@ -633,13 +583,27 @@ export function WorkTimeline({
     <div
       className={[
         'ak-work-timeline',
+        'ak-work-timeline--message-steps',
         settled ? 'ak-work-timeline--settled' : live ? 'ak-work-timeline--live' : '',
         timelineSummary.hasError ? 'ak-work-timeline--error' : '',
-        'ak-work-timeline--subagent-detail'
+        subagentDetail ? 'ak-work-timeline--subagent-detail' : ''
       ]
         .filter(Boolean)
         .join(' ')}
     >
+      {!subagentDetail && settled ? (
+        <button
+          type="button"
+          className="ak-worked__toggle"
+          onClick={() => setWorkedOpen((v) => !v)}
+          aria-expanded={workedOpen}
+        >
+          <span className="ak-worked__chevron" aria-hidden>
+            {workedOpen ? '▾' : '▸'}
+          </span>
+          <span className="ak-worked__label">{workedLabel}</span>
+        </button>
+      ) : null}
       {showItems ? <div className="ak-work-timeline__items">{itemNodes}</div> : null}
     </div>
   );

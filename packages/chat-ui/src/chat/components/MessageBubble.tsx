@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StreamingMarkdown } from '../StreamingMarkdown';
 import { stripFakeToolMarkup } from '../displaySanitize';
-import { attachmentDisplayLabel } from '../attachmentFormat';
+import { attachmentDisplayLabel, isOpenableAttachment } from '../attachmentFormat';
 import { FileEditPreviewView } from './FileEditPreviewView';
 import { IconCopy, IconEdit, IconFork } from './Icons';
 import { FileTypeIcon } from './FileTypeIcon';
@@ -32,7 +32,10 @@ interface MessageBubbleProps {
   onCopy?: (content: string) => void;
   /** Stop run and prefill composer with this user message */
   onStopAndPrefill?: (content: string) => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: (
+    path: string,
+    opts?: { startLine?: number; endLine?: number }
+  ) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
   /** Resume after mid-mission abort (send continue) */
@@ -246,13 +249,23 @@ export function MessageBubble({
           {!isEditing && attachments.length > 0 ? (
             <div className="user-turn__chips" aria-label="Attached context">
               {attachments.map((att: any, i: number) => {
-                const isLog = att.type === 'log' || att.type === 'snippet';
+                const openable = isOpenableAttachment(att);
+                const isLog = att.type === 'log' && !openable;
                 const label = attachmentDisplayLabel(att);
+                const openTarget = String(att.path || '');
                 return (
                   <span
                     key={att.id || i}
-                    className={`user-chip user-chip--${att.type || 'file'}`}
-                    title={isLog ? (att.content || '').slice(0, 200) : att.path}
+                    className={`user-chip user-chip--${
+                      openable ? 'file' : att.type || 'file'
+                    }`}
+                    title={
+                      openable
+                        ? openTarget
+                        : isLog
+                          ? (att.content || '').slice(0, 200)
+                          : att.path
+                    }
                   >
                     <span className="user-chip__icon" aria-hidden>
                       {att.type === 'folder' ? (
@@ -267,7 +280,23 @@ export function MessageBubble({
                         />
                       )}
                     </span>
-                    <span className="user-chip__label">{label}</span>
+                    {openable && onOpenFile ? (
+                      <button
+                        type="button"
+                        className="user-chip__label user-chip__label--link"
+                        onClick={() =>
+                          onOpenFile(openTarget, {
+                            startLine: att.startLine,
+                            endLine: att.endLine
+                          })
+                        }
+                        title={`Open ${openTarget}`}
+                      >
+                        {label}
+                      </button>
+                    ) : (
+                      <span className="user-chip__label">{label}</span>
+                    )}
                   </span>
                 );
               })}
@@ -350,18 +379,44 @@ export function MessageBubble({
           {attachments.length > 0 ? (
             <div className="message-attachments">
               {attachments.map((att: any, i: number) => {
-                const isLog = att.type === 'log' || att.type === 'snippet';
+                const openable = isOpenableAttachment(att);
+                const isLog = att.type === 'log' && !openable;
                 const label = attachmentDisplayLabel(att);
+                const openTarget = String(att.path || '');
                 return (
                   <span
                     key={att.id || i}
-                    className={`attachment-tag attachment-tag--${att.type || 'file'}`}
-                    title={isLog ? (att.content || '').slice(0, 200) : att.path}
+                    className={`attachment-tag attachment-tag--${
+                      openable ? 'file' : att.type || 'file'
+                    }`}
+                    title={
+                      openable
+                        ? openTarget
+                        : isLog
+                          ? (att.content || '').slice(0, 200)
+                          : att.path
+                    }
                   >
                     <span aria-hidden>
                       {att.type === 'folder' ? '📁' : isLog ? '📋' : '📄'}
                     </span>
-                    {label}
+                    {openable && onOpenFile ? (
+                      <button
+                        type="button"
+                        className="attachment-tag__link"
+                        onClick={() =>
+                          onOpenFile(openTarget, {
+                            startLine: att.startLine,
+                            endLine: att.endLine
+                          })
+                        }
+                        title={`Open ${openTarget}`}
+                      >
+                        {label}
+                      </button>
+                    ) : (
+                      label
+                    )}
                   </span>
                 );
               })}

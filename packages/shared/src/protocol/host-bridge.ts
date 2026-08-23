@@ -49,13 +49,15 @@ export type HostBridgeWebviewMessage =
   | { type: 'config.project.createExample' }
   | { type: 'attachments.pick'; requestId: RequestId }
   | { type: 'attachments.resolve'; requestId: RequestId; uris: string[] }
+  /** CHAT-005 — resolve multi-line paste via copy-time path stash (Cmd/Ctrl+C). */
+  | { type: 'attachments.matchPaste'; requestId: RequestId; content: string }
   | {
       type: 'composer.search';
       requestId: RequestId;
       query: string;
       kind: 'file' | 'folder';
     }
-  | { type: 'file.open'; path: string }
+  | { type: 'file.open'; path: string; startLine?: number; endLine?: number }
   | {
       type: 'provider.test';
       requestId: RequestId;
@@ -114,6 +116,20 @@ export type HostBridgeHostMessage =
         startLine?: number;
         endLine?: number;
       }>;
+    }
+  /** Reply to attachments.matchPaste — item set when editor file matched. */
+  | {
+      type: 'attachments.matchPaste.result';
+      requestId: RequestId;
+      item?: {
+        id?: string;
+        type?: string;
+        path?: string;
+        label?: string;
+        content?: string;
+        startLine?: number;
+        endLine?: number;
+      };
     }
   | {
       type: 'composer.search.result';

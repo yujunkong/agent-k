@@ -381,16 +381,19 @@ function summarizeActions(steps: MessageStep[]): string {
   const edits = tools.filter((s) => s.kind === 'editing');
   const runs = tools.filter((s) => isShellStep(s));
   const asks = tools.filter((s) => s.kind === 'asking');
-  if (edits.length) {
-    if (edits.every((s) => s.itemStatus === 'error')) {
-      return edits.length === 1
-        ? 'Edit attempted'
-        : `Edit attempted · ${edits.length}`;
-    }
-    if (edits.some((s) => s.itemStatus === 'running')) {
-      return 'Editing';
-    }
-    return edits.length === 1 ? 'Edited 1 file' : `Edited ${edits.length} files`;
+  const tasks = tools.filter(
+    (s) =>
+      s.kind === 'task' ||
+      s.toolName === 'task' ||
+      s.toolName === 'task_run'
+  );
+  // Comment: file edits render as FileEditCard — never "Edited N files" chevron group
+  if (edits.length && !runs.length && !asks.length && !tasks.length) {
+    if (edits.some((s) => s.itemStatus === 'running')) return 'Editing';
+    return '';
+  }
+  if (tasks.length && !runs.length && !asks.length && !edits.length) {
+    return tasks.length === 1 ? 'Started an agent' : `Started ${tasks.length} agents`;
   }
   if (runs.length) {
     return runs.length === 1 ? 'Ran a command' : `Ran ${runs.length} commands`;
@@ -399,6 +402,7 @@ function summarizeActions(steps: MessageStep[]): string {
   return tools.length === 1 ? 'Used 1 tool' : `Used ${tools.length} tools`;
 }
 
+/** Cursor-style Thought title: brief stays "briefly"; longer → "Thought 3s". */
 function formatThoughtTitle(th: MessageStep, live: boolean): string {
   if (isPlanGenerateStep(th)) {
     if (live && th.itemStatus === 'running') return 'Creating plan';
@@ -407,8 +411,9 @@ function formatThoughtTitle(th: MessageStep, live: boolean): string {
   }
   if (live && th.itemStatus === 'running') return 'Thinking';
   const ms = th.durationMs;
-  if (ms != null && ms >= 1000) {
-    return `Thought for ${(ms / 1000).toFixed(ms >= 10000 ? 0 : 1)}s`;
+  // Comment: sub-second / short digests stay "briefly"; only material waits show clock
+  if (ms != null && Number.isFinite(ms) && ms >= 1000) {
+    return `Thought ${Math.max(1, Math.round(ms / 1000))}s`;
   }
   return 'Thought briefly';
 }
@@ -461,8 +466,9 @@ function toolRowLabel(s: MessageStep): string {
       return 'Asked';
     case 'todo_write':
       return 'Updated todos';
+    case 'task':
     case 'task_run':
-      return 'Ran task';
+      return 'Started agent';
     case 'skill_run':
       return 'Ran skill';
     case 'switch_mode':
@@ -472,7 +478,7 @@ function toolRowLabel(s: MessageStep): string {
       if (s.kind === 'searching') return 'Searched';
       if (s.kind === 'editing') return 'Edited';
       if (isShellStep(s)) return 'Ran';
-      if (s.kind === 'task') return 'Used';
+      if (s.kind === 'task') return 'Started agent';
       return s.toolName || name || 'Tool';
   }
 }
@@ -1422,7 +1428,9 @@ export function MessageSteps({
           Boolean(th) &&
           (Boolean(reasoning) || thoughtLive) &&
           !showExplore;
-        const actions = p.actions;
+        // Comment: edits → FileEditCard only; ChevronRow keeps shell/ask tools
+        const editActions = p.actions.filter((a) => a.kind === 'editing');
+        const actions = p.actions.filter((a) => a.kind !== 'editing');
         const actionLive = actions.some((a) => a.itemStatus === 'running');
         const actionHasError = actions.some((a) => a.itemStatus === 'error');
         const actionSummary = summarizeActions(actions);
@@ -1446,6 +1454,14 @@ export function MessageSteps({
 
         const turnEdits = cardsByPhase.edits.get(p.id) || [];
         const turnTerms = cardsByPhase.terms.get(p.id) || [];
+        const editingLiveNoCard =
+          turnEdits.length === 0 &&
+          editActions.some((a) => a.itemStatus === 'running');
+        // Fallback when host hasn't emitted a FileEditPreview yet
+        const orphanEditRows =
+          turnEdits.length === 0
+            ? editActions.filter((a) => a.itemStatus !== 'running')
+            : [];
 
         return (
           <Fragment key={p.id}>
@@ -1521,13 +1537,8 @@ export function MessageSteps({
                 <ChevronRow
                   title={
                     actionLive
-                      ? actions.some(
-                          (a) =>
-                            a.kind === 'editing' && a.itemStatus === 'running'
-                        )
-                        ? 'Editing'
-                        : actions.find((a) => a.itemStatus === 'running')
-                            ?.toolName || 'Working'
+                      ? actions.find((a) => a.itemStatus === 'running')
+                          ?.toolName || 'Working'
                       : actionSummary || 'Done'
                   }
                   expanded={actionExpanded}
@@ -1547,6 +1558,35 @@ export function MessageSteps({
                     onOpenFile={onOpenFile}
                   />
                 </ChevronRow>
+              ) : null}
+
+              {editingLiveNoCard ? (
+                <div className="ak-edit-flush-row" aria-live="polite">
+                  <span className="ak-edit-flush-row__label">Editing</span>
+                </div>
+              ) : null}
+
+              {/* Comment: no FileEditPreview yet — same column as Explored (not ToolSlide indent) */}
+              {orphanEditRows.length > 0 ? (
+                <div className="ak-edit-flush-list">
+                  {orphanEditRows.map((s) => {
+                    const detail =
+                      resolveExploreDetail(s) || s.detail || s.openPath || '';
+                    return (
+                      <div key={s.id} className="ak-edit-flush-row">
+                        <span className="ak-edit-flush-row__label">
+                          {toolRowLabel(s)}
+                          {detail ? ` ${detail}` : ''}
+                        </span>
+                        {s.durationMs != null ? (
+                          <span className="ak-edit-flush-row__ms">
+                            {formatMs(s.durationMs)}
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
               ) : null}
 
               {turnEdits.length > 0 ? (

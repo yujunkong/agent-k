@@ -16,6 +16,7 @@ export function runTerminalCommand(options: {
   timeoutMs?: number;
   signal?: AbortSignal;
   env?: NodeJS.ProcessEnv;
+  onChunk?: (chunk: string, stream: 'stdout' | 'stderr') => void;
 }): Promise<{
   stdout: string;
   stderr: string;
@@ -76,10 +77,14 @@ export function runTerminalCommand(options: {
     }
 
     child.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString('utf-8');
+      const text = chunk.toString('utf-8');
+      stdout += text;
+      options.onChunk?.(text, 'stdout');
     });
     child.stderr?.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString('utf-8');
+      const text = chunk.toString('utf-8');
+      stderr += text;
+      options.onChunk?.(text, 'stderr');
     });
     child.on('error', (err) => {
       stderr += err.message;
@@ -145,11 +150,16 @@ export const terminalTool: ToolDefinition = {
         cwd,
         timeoutMs: Number(input.timeoutMs) || DEFAULT_TIMEOUT_MS,
         signal: ctx.signal,
+        onChunk: ctx.onTerminalChunk,
       });
 
       return {
         success: result.exitCode === 0 && !result.timedOut,
-        data: result,
+        data: {
+          ...result,
+          command,
+          cwd,
+        },
         error: result.timedOut
           ? 'Command timed out'
           : result.exitCode === 0

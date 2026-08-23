@@ -1,5 +1,5 @@
 /**
- * Cursor-style file edit card: header opens file, hover chevron expands diff.
+ * Cursor-style file edit card: header opens file; full diff scrolls in max-height.
  * Diff lines use Shiki (or fallback) token colors.
  */
 import React, { useEffect, useMemo, useState } from 'react';
@@ -13,7 +13,7 @@ export interface FileEditCardProps {
   deletions: number;
   lines: EditDiffLine[];
   onOpenFile?: (path: string) => void;
-  /** Force the complete diff open (used by the multi-file review surface). */
+  /** Force larger scroll viewport (multi-file review). */
   expanded?: boolean;
   /** Nested under TimelineStepCard — hide duplicate header chrome. */
   embedded?: boolean;
@@ -63,13 +63,10 @@ export function FileEditCard({
   embedded = false
 }: FileEditCardProps) {
   const [localExpanded, setLocalExpanded] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const openTarget = absPath || path;
-  const previewCount = 5;
-  const isExpanded = embedded ? true : expandedProp ?? localExpanded;
-  const visible = isExpanded ? lines : lines.slice(0, previewCount);
-  const canExpand = !embedded && lines.length > previewCount;
-  const showExpand = !embedded && expandedProp == null && (canExpand || hovered);
+  // Comment: collapsed ≈ 4 lines (72px CSS); expand raises max-height only
+  const isExpanded = expandedProp ?? localExpanded;
+  const showExpand = !embedded && expandedProp == null && lines.length > 4;
   const lang = useMemo(() => guessLanguageFromPath(path), [path]);
   const htmlCache = useMemo(() => new Map<string, string>(), [path]);
 
@@ -78,8 +75,6 @@ export function FileEditCard({
       className={`ak-file-edit-card${isExpanded ? ' ak-file-edit-card--expanded' : ''}${
         embedded ? ' ak-file-edit-card--embedded' : ''
       }`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       {embedded ? null : (
         <button type="button" className="ak-file-edit-header" title={`Open ${path}`} onClick={() => onOpenFile?.(openTarget)}>
@@ -93,9 +88,9 @@ export function FileEditCard({
         </button>
       )}
 
-      {visible.length > 0 ? (
-        <div className="ak-file-edit-diff" style={{ maxHeight: isExpanded ? 520 : undefined, overflow: isExpanded ? 'auto' : 'hidden' }}>
-          {visible.map((line, i) => {
+      {lines.length > 0 ? (
+        <div className="ak-file-edit-diff">
+          {lines.map((line, i) => {
             const kind = line.type === 'add' ? 'add' : line.type === 'delete' ? 'delete' : 'context';
             const mark = line.type === 'add' ? '+' : line.type === 'delete' ? '-' : ' ';
             return (
@@ -109,9 +104,17 @@ export function FileEditCard({
         </div>
       ) : null}
 
-      {showExpand && lines.length > 0 ? (
-        <button type="button" className="ak-file-edit-expand" title={isExpanded ? 'Collapse diff' : 'Expand diff'} aria-expanded={isExpanded} onClick={() => setLocalExpanded((v) => !v)}>
-          <span aria-hidden style={{ fontSize: 12, lineHeight: 1 }}>{isExpanded ? '⌃' : '⌄'}</span>
+      {showExpand ? (
+        <button
+          type="button"
+          className="ak-file-edit-expand"
+          title={isExpanded ? 'Collapse' : 'Expand'}
+          aria-expanded={isExpanded}
+          onClick={() => setLocalExpanded((v) => !v)}
+        >
+          <span aria-hidden style={{ fontSize: 12, lineHeight: 1 }}>
+            {isExpanded ? '⌃' : '⌄'}
+          </span>
         </button>
       ) : null}
     </div>

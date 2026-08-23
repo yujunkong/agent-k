@@ -16,11 +16,32 @@ function isDarkTheme(): boolean {
   }
 }
 
-/** Extract token HTML from a full Shiki/fallback <pre> document */
+/**
+ * Extract token HTML inside `<span class="line">…</span>`.
+ * Comment: naive /<\/span>/ truncates at the first nested token close
+ * (markdown `- foo` → only `-`), which broke FileEditCard (CONV-019).
+ */
 export function extractLineInnerHtml(preHtml: string): string {
   if (!preHtml) return '';
-  const lineMatch = preHtml.match(/<span class="line">([\s\S]*?)<\/span>/);
-  if (lineMatch) return lineMatch[1] || '';
+  const open = preHtml.match(/<span class="line">/);
+  if (open && open.index != null) {
+    const start = open.index + open[0].length;
+    let depth = 1;
+    let i = start;
+    while (i < preHtml.length && depth > 0) {
+      const nextOpen = preHtml.indexOf('<span', i);
+      const nextClose = preHtml.indexOf('</span>', i);
+      if (nextClose < 0) break;
+      if (nextOpen >= 0 && nextOpen < nextClose) {
+        depth++;
+        i = nextOpen + 5;
+      } else {
+        depth--;
+        if (depth === 0) return preHtml.slice(start, nextClose);
+        i = nextClose + 7;
+      }
+    }
+  }
   const codeMatch = preHtml.match(/<code[^>]*>([\s\S]*?)<\/code>/);
   if (codeMatch) {
     return codeMatch[1]

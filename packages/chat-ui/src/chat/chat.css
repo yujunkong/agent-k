@@ -1385,23 +1385,20 @@ body {
   animation: none;
 }
 
-/* Hover actions float — no extra footer row */
+/* Hover actions float inside the pill — no extra footer row */
 .message-bubble.user .message-actions--user {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
   margin: 0;
   padding: 0;
-  opacity: 0;
+  opacity: 0.55;
   justify-content: flex-end;
   gap: 1px;
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 2;
-  background: color-mix(
-    in srgb,
-    var(--vscode-input-background, #2a2a2a) 92%,
-    transparent
-  );
+  background: transparent;
   border-radius: 6px;
 }
 
@@ -1411,21 +1408,36 @@ body {
   pointer-events: auto;
 }
 
-/* Cursor-like user turn: quiet card, chips then text, no role chrome */
+/* Cursor-like user request: single flat pill (text left, hover actions right) */
 .user-turn {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  /* left matches assistant thread column; right reserves hover actions */
-  padding: 8px 36px 8px var(--ak-thread-inset, 12px);
-  border-radius: 10px;
+  /* Comment: stadium pill chrome only — edit/copy stay; no re-run control */
+  padding: 10px 40px 10px 16px;
+  border-radius: 999px;
+  background: var(--vscode-input-background, #ffffff);
+  border: 1px solid
+    color-mix(in srgb, var(--vscode-widget-border, #c8c8c8) 85%, transparent);
+  box-shadow: none;
+  position: relative;
+  color: var(--vscode-input-foreground, var(--vscode-foreground, #1e1e1e));
+}
+
+/* Dark themes: keep a quiet surface pill (still one box, not nested) */
+body.vscode-dark .user-turn,
+.vscode-dark .user-turn {
   background: color-mix(
     in srgb,
-    var(--vscode-input-background, #2a2a2a) 78%,
+    var(--vscode-input-background, #2a2a2a) 92%,
     transparent
   );
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  position: relative;
+  border-color: color-mix(
+    in srgb,
+    var(--vscode-widget-border, #454545) 80%,
+    transparent
+  );
+  color: var(--vscode-foreground, #e8e8e8);
 }
 
 .user-turn__chips {
@@ -1463,16 +1475,43 @@ body {
   letter-spacing: 0.01em;
 }
 
-.user-chip--folder {
-  background: rgba(45, 212, 191, 0.09);
-  border-color: rgba(45, 212, 191, 0.26);
-  color: #7ee7d8;
+.user-chip__label--link {
+  all: unset;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
+.user-chip__label--link:hover {
+  opacity: 0.9;
+}
+
+.user-chip--folder {
+  background: color-mix(in srgb, #2dd4bf 22%, var(--vscode-editor-background, #fff));
+  border-color: color-mix(in srgb, #14b8a6 38%, transparent);
+  color: color-mix(in srgb, #0f766e 88%, #134e4a);
+}
+
+/* Cursor-like file selection chip — solid teal wash so path/range stays readable */
 .user-chip--file {
-  background: rgba(96, 165, 250, 0.09);
-  border-color: rgba(96, 165, 250, 0.26);
-  color: #93c5fd;
+  background: color-mix(in srgb, #5eead4 32%, var(--vscode-editor-background, #fff));
+  border: 1px solid color-mix(in srgb, #14b8a6 42%, transparent);
+  color: color-mix(in srgb, #0f766e 92%, #115e59);
+}
+
+body.vscode-dark .user-chip--folder,
+.vscode-dark .user-chip--folder,
+body.vscode-dark .user-chip--file,
+.vscode-dark .user-chip--file {
+  background: rgba(45, 212, 191, 0.2);
+  border-color: rgba(45, 212, 191, 0.45);
+  color: #5eead4;
 }
 
 .user-chip--log,
@@ -1486,8 +1525,8 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 13px;
-  line-height: 1.55;
-  color: var(--vscode-foreground, #e8e8e8);
+  line-height: 1.5;
+  color: inherit;
 }
 
 /* Pencil edit embeds the real Composer component */
@@ -2070,16 +2109,40 @@ body {
   pointer-events: none;
 }
 
-/* Diff / terminal cards stick under Edited / Ran (not after wrap-up prose) */
+/* Diff / terminal cards — same column as Explored (no extra indent) */
 .ak-cards-under-action {
   margin: 2px 0 8px;
-  padding-left: var(--ak-thread-inset, 12px);
+  padding-left: 0;
 }
 
 .ak-cards-under-action .ak-file-edit-card,
 .ak-cards-under-action .ak-terminal-card {
   margin-top: 4px;
   margin-bottom: 4px;
+}
+
+/* Orphan Edited row (no FileEditPreview yet) — flush with Explored, not nested */
+.ak-edit-flush-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #888);
+}
+
+.ak-edit-flush-row__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ak-edit-flush-row__ms {
+  flex-shrink: 0;
+  opacity: 0.45;
+  font-size: 11px;
 }
 
 /* File edit card — same surface as terminal / code */
@@ -2154,6 +2217,14 @@ body {
   font-size: 11.5px;
   line-height: 1.45;
   background: var(--ak-card-bg);
+  /* Comment: CONV-019 — collapsed ≈ 4 lines; expand raises viewport */
+  max-height: var(--ak-card-body-max, 72px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.ak-file-edit-card--expanded .ak-file-edit-diff {
+  max-height: var(--ak-card-body-max-expanded, 280px);
 }
 
 .ak-file-edit-diff__line {
@@ -2584,7 +2655,7 @@ body {
 .ak-terminal-card__output {
   margin: 0;
   padding: 10px 12px 12px;
-  max-height: 220px;
+  max-height: var(--ak-card-body-max, 72px);
   overflow: auto;
   font-size: 12px;
   line-height: 1.45;
@@ -2592,6 +2663,10 @@ body {
   word-break: break-word;
   color: var(--vscode-editor-foreground, #d4d4d4);
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
+}
+
+.ak-terminal-card[aria-expanded='true'] .ak-terminal-card__output {
+  max-height: var(--ak-card-body-max-expanded, 280px);
 }
 
 .ak-terminal-card__caret {
@@ -4652,32 +4727,60 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   max-width: 100%;
-  padding: 2px 6px 2px 8px;
+  padding: 3px 8px 3px 7px;
   border-radius: 999px;
   font-size: 12px;
   line-height: 1.4;
-  background: rgba(34, 211, 238, 0.14);
-  color: #67e8f9;
-  border: 1px solid rgba(34, 211, 238, 0.35);
+  font-weight: 500;
+  /* Comment: light teal wash — matches Cursor file-ref chip legibility */
+  background: color-mix(in srgb, #5eead4 34%, var(--vscode-input-background, #fff));
+  color: color-mix(in srgb, #0f766e 92%, #115e59);
+  border: 1px solid color-mix(in srgb, #14b8a6 40%, transparent);
+}
+
+.composer-chip--file {
+  background: color-mix(in srgb, #5eead4 34%, var(--vscode-input-background, #fff));
+  color: color-mix(in srgb, #0f766e 92%, #115e59);
+  border-color: color-mix(in srgb, #14b8a6 40%, transparent);
 }
 
 .composer-chip--folder {
-  background: rgba(45, 212, 191, 0.14);
-  border-color: rgba(45, 212, 191, 0.4);
-  color: #5eead4;
+  background: color-mix(in srgb, #2dd4bf 28%, var(--vscode-input-background, #fff));
+  border-color: color-mix(in srgb, #14b8a6 38%, transparent);
+  color: color-mix(in srgb, #0f766e 88%, #134e4a);
 }
 
 .composer-chip--log,
 .composer-chip--snippet {
+  background: rgba(250, 204, 21, 0.14);
+  border-color: rgba(250, 204, 21, 0.38);
+  color: color-mix(in srgb, #a16207 80%, #854d0e);
+}
+
+body.vscode-dark .composer-chip,
+.vscode-dark .composer-chip,
+body.vscode-dark .composer-chip--file,
+.vscode-dark .composer-chip--file,
+body.vscode-dark .composer-chip--folder,
+.vscode-dark .composer-chip--folder {
+  background: rgba(45, 212, 191, 0.2);
+  border-color: rgba(45, 212, 191, 0.45);
+  color: #5eead4;
+}
+
+body.vscode-dark .composer-chip--log,
+.vscode-dark .composer-chip--log,
+body.vscode-dark .composer-chip--snippet,
+.vscode-dark .composer-chip--snippet {
   background: rgba(250, 204, 21, 0.12);
   border-color: rgba(250, 204, 21, 0.35);
   color: #fde047;
 }
 
 .composer-chip--ranged {
-  border-style: dashed;
+  border-style: solid;
 }
 
 .composer-chip-icon {

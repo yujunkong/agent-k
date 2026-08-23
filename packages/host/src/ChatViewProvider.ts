@@ -12,6 +12,7 @@ import {
   type PlanGenerateContext,
 } from './planGenerate';
 import { getWebviewHtml } from './webviewHtml';
+import { rememberEditorCopy } from './editorCopyStash';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   /** Must match contributes.views id in extensions/agent-k/package.json. */
@@ -134,12 +135,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const endLine = selection.end.line + 1;
     const path = document.uri.fsPath;
     const label = path.replace(/\\/g, '/').split('/').pop() || path;
+    // Comment: same copy-time meta as Cmd+C stash — paste/attach share path source
+    rememberEditorCopy({
+      path,
+      label,
+      content: text,
+      startLine,
+      endLine,
+    });
     void this.focusInput();
     void this.view?.webview.postMessage({
       type: 'attachments.add',
       items: [
         {
-          type: 'snippet',
+          // Comment: file + range — Composer maps to openable chip (not anonymous log)
+          type: 'file',
           path,
           label,
           content: text,

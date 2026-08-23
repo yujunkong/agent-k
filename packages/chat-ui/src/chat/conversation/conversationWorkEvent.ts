@@ -247,8 +247,15 @@ export function upsertWorkEvents(
   const prev = events[idx];
   const prevTerminal = isTerminalWorkStatus(prev.status);
   const incomingLive = incoming.status === 'running' || incoming.status === 'pending';
-  // A late "running" ping must not resurrect a finished header/Thought.
-  const status = prevTerminal && incomingLive ? prev.status : incoming.status;
+  // Comment: explore soft-pause seals Thought then resumes same id — allow thinking reopen
+  const thinkingResume =
+    prev.type === 'thinking' &&
+    incoming.type === 'thinking' &&
+    prevTerminal &&
+    incomingLive;
+  // A late "running" ping must not resurrect a finished header/tool (except Thought resume).
+  const status =
+    prevTerminal && incomingLive && !thinkingResume ? prev.status : incoming.status;
   const merged: ConversationWorkEvent = {
     ...prev,
     ...incoming,
@@ -260,8 +267,9 @@ export function upsertWorkEvents(
     openPath: incoming.openPath ?? prev.openPath,
     description: incoming.description ?? prev.description,
     startedAt: prev.startedAt ?? incoming.startedAt,
-    completedAt:
-      prevTerminal && incomingLive
+    completedAt: thinkingResume
+      ? undefined
+      : prevTerminal && incomingLive
         ? prev.completedAt ?? incoming.completedAt
         : incoming.completedAt ?? prev.completedAt,
     ref: incoming.ref ?? prev.ref,

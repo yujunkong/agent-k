@@ -16,6 +16,8 @@ export interface FileEditPayload {
   absPath?: string;
   checkpointId?: string;
   turn?: number;
+  /** Host tool call id — links FileEditCard to the Edited timeline row */
+  toolId?: string;
   additions: number;
   deletions: number;
   lines: FileEditLine[];

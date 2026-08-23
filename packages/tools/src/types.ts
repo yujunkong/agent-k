@@ -64,6 +64,8 @@ export interface ToolContext {
   todoStore?: TodoItem[];
   /** Optional debug log buffer (TOOL-015). */
   debugLogs?: string[];
+  /** CONV-018 — live terminal stdout/stderr chunks for TerminalRunCard. */
+  onTerminalChunk?: (chunk: string, stream: 'stdout' | 'stderr') => void;
 }
 
 /** Standard tool execution result. */

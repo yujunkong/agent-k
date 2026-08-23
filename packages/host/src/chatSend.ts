@@ -301,6 +301,16 @@ export async function runHostChatSend(
           `model turn done requestId=${requestId} turn=${turn} contentLen=${content.length} reasoningLen=${reasoning.length} tools=${[...toolAcc.values()].map((t) => t.name).filter(Boolean).join(',') || '0'} finishReason=${finishReason || '(none)'} tail=${JSON.stringify(content.slice(-40))}`,
         );
 
+        // Comment: finishReason omitted + tools=0 + short prose = Zen stream cut (HOST-002 RCA).
+        // Do not auto-retry here — deltas already hit the UI; retry would duplicate.
+        if (!finishReason && ![...toolAcc.values()].some((tc) => Boolean(tc.name))) {
+          hostLog(
+            'chat.send empty reply',
+            `incomplete stream? requestId=${requestId} turn=${turn} contentLen=${content.length} (no finishReason, no tools)`,
+            true,
+          );
+        }
+
         const toolCalls: NonNullable<ModelTurnResult['toolCalls']> = [];
         for (const [, tc] of [...toolAcc.entries()].sort((a, b) => a[0] - b[0])) {
           if (!tc.name) continue;
@@ -328,12 +338,197 @@ export async function runHostChatSend(
       },
 
       executeTool: async ({ name, args, callId, signal }) => {
-        void callId;
+        // Comment: CONV-018/019 — card.pipe logs for tool + FileEdit/Terminal card emit
+        const toolPath =
+          typeof args.path === 'string'
+            ? args.path
+            : typeof args.file_path === 'string'
+              ? args.file_path
+              : undefined;
+        hostLog(
+          'card.pipe',
+          `tool.exec start requestId=${requestId} name=${name} callId=${callId || '-'} path=${toolPath || '-'}`,
+        );
+
+        const isTerminal = name === 'run_terminal_cmd';
+        const termId = isTerminal ? `term_${callId || Date.now()}` : '';
+        const termCommand = isTerminal ? String(args.command || '') : '';
+        const termDescription =
+          isTerminal && args.description != null
+            ? String(args.description)
+            : undefined;
+        const termStartedAt = isTerminal ? Date.now() : 0;
+        let termChunked = false;
+
+        if (isTerminal) {
+          hostLog(
+            'card.pipe',
+            `card.terminal emit phase=start requestId=${requestId} id=${termId} toolId=${callId || '-'} cmd=${termCommand.slice(0, 120)}`,
+          );
+          postStream({
+            event: 'terminal.run',
+            run: {
+              id: termId,
+              phase: 'start',
+              command: termCommand,
+              description: termDescription,
+              status: 'running',
+              toolId: callId,
+            },
+          });
+        }
+
         const toolCtx: ToolContext = {
           ...toolCtxBase,
           signal,
+          onTerminalChunk: isTerminal
+            ? (chunk, stream) => {
+                termChunked = true;
+                postStream({
+                  event: 'terminal.run',
+                  run: {
+                    id: termId,
+                    phase: 'chunk',
+                    chunk,
+                    stream,
+                    toolId: callId,
+                  },
+                });
+              }
+            : undefined,
         };
         const result = await executeTool(registry, name, args, toolCtx);
+
+        hostLog(
+          'card.pipe',
+          `tool.exec end requestId=${requestId} name=${name} callId=${callId || '-'} ok=${result.success} denied=${Boolean(result.metadata?.denied)} err=${result.error ? String(result.error).slice(0, 80) : '-'}`,
+        );
+
+        if (isTerminal) {
+          const data =
+            result.data && typeof result.data === 'object'
+              ? (result.data as Record<string, unknown>)
+              : {};
+          const exitCode =
+            data.exitCode === null
+              ? null
+              : data.exitCode != null
+                ? Number(data.exitCode)
+                : result.success
+                  ? 0
+                  : 1;
+          // Comment: seed card buffers when spawn failed before any onChunk
+          if (!termChunked) {
+            const stdout = data.stdout != null ? String(data.stdout) : '';
+            const stderr =
+              data.stderr != null
+                ? String(data.stderr)
+                : result.error
+                  ? String(result.error)
+                  : '';
+            if (stdout) {
+              postStream({
+                event: 'terminal.run',
+                run: {
+                  id: termId,
+                  phase: 'chunk',
+                  chunk: stdout,
+                  stream: 'stdout',
+                  toolId: callId,
+                },
+              });
+            }
+            if (stderr) {
+              postStream({
+                event: 'terminal.run',
+                run: {
+                  id: termId,
+                  phase: 'chunk',
+                  chunk: stderr,
+                  stream: 'stderr',
+                  toolId: callId,
+                },
+              });
+            }
+          }
+          const durationMs = Date.now() - termStartedAt;
+          hostLog(
+            'card.pipe',
+            `card.terminal emit phase=end requestId=${requestId} id=${termId} exit=${exitCode} ms=${durationMs} chunked=${termChunked} status=${result.success ? 'done' : 'error'}`,
+          );
+          postStream({
+            event: 'terminal.run',
+            run: {
+              id: termId,
+              phase: 'end',
+              command:
+                data.command != null ? String(data.command) : termCommand,
+              description: termDescription,
+              cwd: data.cwd != null ? String(data.cwd) : undefined,
+              exitCode,
+              error: result.error,
+              durationMs,
+              status: result.success ? 'done' : 'error',
+              toolId: callId,
+            },
+          });
+        }
+
+        // Comment: CONV-019 — emit FileEditCard payload (v2.1 onToolResult parity)
+        if (
+          result.success &&
+          (name === 'edit_file' || name === 'write_file') &&
+          result.data &&
+          typeof result.data === 'object'
+        ) {
+          const data = result.data as Record<string, unknown>;
+          const diff = data.diff as
+            | {
+                additions?: number;
+                deletions?: number;
+                lines?: Array<{
+                  type: string;
+                  lineNumber: number;
+                  text: string;
+                }>;
+              }
+            | undefined;
+          const editPath = String(data.path || args.path || '');
+          if (diff && Array.isArray(diff.lines) && diff.lines.length > 0) {
+            // Comment: emit full diff lines — FileEditCard scrolls (no line-count cap)
+            const previewLines = diff.lines.map((l) => ({
+              type:
+                l.type === 'add' || l.type === 'delete' ? l.type : 'context',
+              lineNumber: Number(l.lineNumber) || 0,
+              text: String(l.text ?? ''),
+            }));
+            hostLog(
+              'card.pipe',
+              `card.fileEdit emit requestId=${requestId} name=${name} path=${editPath} +${Number(diff.additions) || 0} -${Number(diff.deletions) || 0} lines=${previewLines.length} toolId=${callId || '-'}`,
+            );
+            postStream({
+              event: 'file.edit',
+              edit: {
+                path: editPath,
+                absPath:
+                  data.absPath != null ? String(data.absPath) : undefined,
+                checkpointId:
+                  data.checkpointId != null
+                    ? String(data.checkpointId)
+                    : undefined,
+                toolId: callId,
+                additions: Number(diff.additions) || 0,
+                deletions: Number(diff.deletions) || 0,
+                lines: previewLines,
+              },
+            });
+          } else {
+            hostLog(
+              'card.pipe',
+              `card.fileEdit SKIP no-diff requestId=${requestId} name=${name} path=${editPath} toolId=${callId || '-'}`,
+            );
+          }
+        }
         return {
           success: result.success,
           data: result.data,

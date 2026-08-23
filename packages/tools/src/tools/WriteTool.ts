@@ -6,6 +6,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { ToolDefinition, ToolResult } from '../types';
 import { resolveWorkspacePath, withToolTiming } from '../pathUtils';
+import { buildWriteFileDiffPreview } from '../editDiffPreview';
 
 export const writeTool: ToolDefinition = {
   name: 'write_file',
@@ -48,8 +49,9 @@ export const writeTool: ToolDefinition = {
       }
 
       let created = false;
+      let previousContent: string | undefined;
       try {
-        await fs.access(resolved.abs);
+        previousContent = await fs.readFile(resolved.abs, 'utf-8');
       } catch {
         created = true;
       }
@@ -57,12 +59,17 @@ export const writeTool: ToolDefinition = {
       await fs.mkdir(path.dirname(resolved.abs), { recursive: true });
       await fs.writeFile(resolved.abs, input.content, 'utf-8');
 
+      // Comment: CONV-019 — FileEditCard needs diff lines on the wire
+      const diff = buildWriteFileDiffPreview(input.content, previousContent);
+
       return {
         success: true,
         data: {
           path: resolved.rel,
+          absPath: resolved.abs,
           bytes: Buffer.byteLength(input.content, 'utf-8'),
           created,
+          diff,
         },
       };
     });

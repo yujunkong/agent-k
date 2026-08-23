@@ -96,11 +96,99 @@ describe('thought segment rotation', () => {
 
     onDelta({ reasoning: 'second dig after tools' });
     steps = store.msgs[0].steps || [];
-    const thought2 = steps.find((s) => s.id === 'tl_thinking_1_s1');
-    expect(thought2).toBeTruthy();
-    expect(thought2?.detail).toBe('second dig after tools');
-    expect(thought2?.itemStatus).toBe('running');
-    expect(thought1?.detail).toBe('first dig more first');
+    // Comment: clearContent soft-pauses — same id resumes (no s1 spam)
+    const thoughts = steps.filter((s) => s.kind === 'thinking');
+    expect(thoughts).toHaveLength(1);
+    expect(thoughts[0].id).toBe('tl_thinking_1');
+    expect(thoughts[0].detail).toContain('first dig more first');
+    expect(thoughts[0].detail).toContain('second dig after tools');
+    expect(thoughts[0].itemStatus).toBe('running');
+  });
+
+  it('explore Read soft-pauses Thought — same id resumes after (no Thought spam)', () => {
+    const store = { msgs: [assistant()] };
+    const ctx = baseCtx(store);
+    ctx.turnNumberRef.current.bump('sess');
+    const { onDelta } = createAssistantStreamSession(ctx);
+
+    onDelta({ reasoning: 'before read ' });
+    onDelta({
+      clearContent: true,
+      sealTurn: 1,
+      workEvent: {
+        id: 'tl_read_1',
+        type: 'read',
+        status: 'running',
+        label: 'Reading',
+        toolName: 'read_file',
+        detail: 'src/lib.rs L1-250'
+      },
+      timeline: {
+        kind: 'reading',
+        turn: 1,
+        label: 'read_file',
+        toolName: 'read_file',
+        detail: 'src/lib.rs L1-250',
+        itemStatus: 'running',
+        id: 'tl_read_1'
+      }
+    });
+    let steps = store.msgs[0].steps || [];
+    expect(steps.find((s) => s.id === 'tl_thinking_1')?.itemStatus).toBe('done');
+
+    onDelta({ reasoning: 'after read still thinking ' });
+    onDelta({ reasoning: 'more after' });
+    steps = store.msgs[0].steps || [];
+    const thoughts = steps.filter((s) => s.kind === 'thinking');
+    expect(thoughts).toHaveLength(1);
+    expect(thoughts[0].id).toBe('tl_thinking_1');
+    expect(thoughts[0].itemStatus).toBe('running');
+    expect(thoughts[0].detail).toContain('before read');
+    expect(thoughts[0].detail).toContain('after read still thinking');
+    expect(thoughts[0].detail).toContain('more after');
+  });
+
+  it('edit/terminal soft-pause — same Thought id (no hard-rotate spam)', () => {
+    const store = { msgs: [assistant()] };
+    const ctx = baseCtx(store);
+    ctx.turnNumberRef.current.bump('sess');
+    const { onDelta } = createAssistantStreamSession(ctx);
+
+    onDelta({ reasoning: 'plan edit' });
+    onDelta({
+      clearContent: true,
+      sealTurn: 1,
+      timeline: {
+        kind: 'editing',
+        turn: 1,
+        label: 'edit_file',
+        toolName: 'edit_file',
+        itemStatus: 'running',
+        id: 'tl_edit_1'
+      }
+    });
+    onDelta({ reasoning: 'after edit' });
+    onDelta({
+      clearContent: true,
+      sealTurn: 1,
+      timeline: {
+        kind: 'running',
+        turn: 1,
+        label: 'run_terminal_cmd',
+        toolName: 'run_terminal_cmd',
+        itemStatus: 'running',
+        id: 'tl_term_1'
+      }
+    });
+    onDelta({ reasoning: 'after cargo' });
+    const thoughts = (store.msgs[0].steps || []).filter(
+      (s) => s.kind === 'thinking'
+    );
+    expect(thoughts).toHaveLength(1);
+    expect(thoughts[0].id).toBe('tl_thinking_1');
+    expect(thoughts[0].detail).toContain('plan edit');
+    expect(thoughts[0].detail).toContain('after edit');
+    expect(thoughts[0].detail).toContain('after cargo');
   });
 
   it('tool.start clearContent+timeline upserts Grepped/Read detail (not bare verb)', () => {
@@ -138,5 +226,48 @@ describe('thought segment rotation', () => {
     expect(grep?.detail).toContain('liveProse|isStreaming');
     expect(grep?.openPath).toContain('WorkTimeline.tsx');
     expect(store.msgs[0].content).toBe('');
+  });
+
+  it('keeps one live Thought across interleaved content+reasoning (no tools)', () => {
+    const store = { msgs: [assistant()] };
+    const ctx = baseCtx(store);
+    ctx.turnNumberRef.current.bump('sess');
+    const { onDelta, onComplete } = createAssistantStreamSession(ctx);
+
+    onDelta({ reasoning: 'plan A ' });
+    onDelta({ content: 'Let me check.\n' });
+    onDelta({ reasoning: 'still planning ' });
+    onDelta({ content: 'One more note. ' });
+    onDelta({ reasoning: 'done thinking' });
+
+    let steps = store.msgs[0].steps || [];
+    const thoughts = steps.filter((s) => s.kind === 'thinking');
+    expect(thoughts).toHaveLength(1);
+    expect(thoughts[0].id).toBe('tl_thinking_1');
+    expect(thoughts[0].itemStatus).toBe('running');
+    expect(thoughts[0].durationMs).toBeUndefined();
+    expect(thoughts[0].detail).toBe('plan A still planning done thinking');
+    expect(store.msgs[0].content).toContain('Let me check');
+
+    onComplete();
+    steps = store.msgs[0].steps || [];
+    const sealed = steps.find((s) => s.id === 'tl_thinking_1');
+    expect(sealed?.itemStatus).toBe('done');
+    expect(typeof sealed?.durationMs).toBe('number');
+  });
+
+  it('does not stamp durationMs on every reasoning chunk (stays Thinking)', () => {
+    const store = { msgs: [assistant()] };
+    const ctx = baseCtx(store);
+    ctx.turnNumberRef.current.bump('sess');
+    const { onDelta } = createAssistantStreamSession(ctx);
+
+    onDelta({ reasoning: 'chunk1 ' });
+    onDelta({ reasoning: 'chunk2 ' });
+    onDelta({ reasoning: 'chunk3' });
+    const step = (store.msgs[0].steps || [])[0];
+    expect(step.itemStatus).toBe('running');
+    expect(step.durationMs).toBeUndefined();
+    expect(step.detail).toBe('chunk1 chunk2 chunk3');
   });
 });
