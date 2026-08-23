@@ -17,6 +17,7 @@ Canonical docs:
 3. **경계 존중** — 경계를 넘으면 먼저 `packages/shared` 타입/프로토콜
 4. **v2.1 충실 이식** — Feature 범위의 검증된 구현을 `git show` / worktree로 확인 후 패키지 경계에 맞게 가져온다. 빈 스텁 `[x]` 금지
 5. **맹목 파일 복사 금지** — 트리 통째 move/copy가 아니라 Feature ID 단위로 **동작 동등** 이식
+6. **안정 표면 보존** — `docs/V3_WORK_ORDER.md` 「안정 표면 (2026-08-23)」: Phase 0–3 `[x]` UI/스트림은 사용자 확인으로 정상. MessageSteps·CONV-018/019·CHAT-012·seal 계약을 넓게 건드리지 말 것. 로그→원인→최소 패치.
 
 ## B-1. 패키지 경계 요약
 

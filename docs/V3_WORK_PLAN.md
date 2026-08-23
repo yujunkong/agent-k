@@ -119,7 +119,7 @@ Done when: behavior parity with v2.1 for this Feature + 8-item checklist + tests
 | P0… | Work Order Phase 0 Feature 이식 | **완료** — SHARED + EXT + HOST + CFG-001~003 |
 | P1 | Phase 1 Providers/Models + UXPROV domain | **완료** — PROVIDER/MODEL/CFG-008/UXPROV-001~006 domain (picker UI → CHAT-003) |
 | P2 | Phase 2 Agent/Tools/Safety/Modes | **완료** — AGENT/TOOL/CTX/SAFE/MODE/DEBUG(domain)/REL/CFG 잔여 (host·chat-ui 배선 → Phase 3+) |
-| P3… | Chat / Streaming / Conversation | **완료** (CHAT-010 skipped; STREAM-002 phase UI deferred unused) |
+| P3… | Chat / Streaming / Conversation | **완료** (CHAT-010/STREAM-002/CONV-017 스킵; CONV-014→SUB 이후, CONV-016→checkpoint 이후). **안정 표면:** Work Order 「안정 표면 (2026-08-23)」— 잘 되는 timeline/composer/카드는 신중히만 수정 |
 | P4… | Worktree / Patch | **다음** — `WT-001` |
 
 ---

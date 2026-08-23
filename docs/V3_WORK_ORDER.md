@@ -45,7 +45,8 @@
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
 **바로 다음:** **2026-08-23** — final-answer 중도 끊김 **원인 분석** (HOST-002; `finishReason`/`complete diag` 로그로 확정). 이어쓰기 추측 패치 금지.  
-그 다음: **Phase 4** Worktree / Patch (WT-001).
+그 다음: **Phase 4** Worktree / Patch (WT-001).  
+**주의:** 「안정 표면 (2026-08-23)」 절 — 현재까지 동작하는 UI/스트림은 최소 침습만.
 
 ---
 
@@ -62,8 +63,40 @@
 | HOST-002 | incomplete stream 로그 | [~] | RCA |
 | STREAM-004 / CHAT send | **TODO:** 같은 탭 follow-up에서 UI엔 대화가 보이는데 모델이 prior를 모름 — `chat.send`가 `content`만 직렬화하고, `sealBodyBeforeTools` 후 assistant `content:''` + `turnProse`만 남는 경우 prior가 빈 문자열로 감 | [ ] | prior 직렬화: `content \|\| turnProse join` (+ 필요 시 prior attachment); `useChatStream` / `useChatSendFlow`; 재현 로그 `msgs=N` + contentLen |
 
-**메모:** explore Thought pause는 기적용. 잔여였던 (1) edit/Ran Thought spam (2) Ran 난장판 (3) diff 벽을 Cursor 스타일로 수정 중.  
+**메모:** explore Thought pause는 기적용.  
 **TODO (나중):** 같은 탭 history lossy — UI=`content`+`turnProse`, API=`content`만 → tool-heavy 턴 follow-up 시 모델이 위 대화를 모름. New Chat 격리는 정상(CHAT-009).
+
+---
+
+## 안정 표면 (2026-08-23) — 수정 시 신중
+
+**현재까지 Phase 0–3에서 `[x]` 된 동작은 사용자 확인 기준으로 잘 돌아가고 있다.**  
+새 Feature / RCA / 미룸 항목을 건드릴 때 **이 표면을 깨지 말 것.** 추측 패치·광범위 리팩터·“정리용” 동시 변경 금지.
+
+### 건드리면 안 되는 것 (회귀 고위험)
+
+| 영역 | Feature / 경로 힌트 | 이유 |
+|------|---------------------|------|
+| Timeline 본체 | CONV-013 = `MessageSteps` | Exploring/Explored·Thought·tool 순서·접힘 |
+| Thought soft-pause / mid Thought | CONV-014 일부 기적용 (`assistantStreamSession`) | tool 전후 Thinking 회전 — 서브에이전트 전 추가 손대지 말 것 |
+| Terminal / FileEdit 카드 | CONV-018 / 019 | Ran·Edited 화면 확인 완료 (Shiki extract, 접힘 스크롤 포함) |
+| Composer / paste·DnD·vision | CHAT-012 + host clipboard | OS clipboard 경로·focus claim — Electron 가정 금지 |
+| Stream seal / buffer | STREAM-004·005 (완료분) | sealBodyBeforeTools 계약; prior TODO는 **직렬화만** 최소 변경 |
+| Explore chrome nesting | CONV-015 | MessageSteps와 이중 구조 — 합치기 리팩터 금지 |
+
+### 의도적 미룸 (지금 손대지 말 것)
+
+- **CONV-014** 잔여(메인=서브 detail 동일) → **SUB-\*** 이후
+- **CONV-016** 바 내부 동작(열기/체크포인트 연동) → **checkpoint 이후** (바 노출만 OK)
+- **STREAM-002** phase rail → 스킵 유지
+- **CONV-017** / **CHAT-010** → 스킵 유지
+
+### 수정 규칙 (이 표면 관련)
+
+1. **로그 → 원인 확정 → 최소 패치.** 증상만으로 MessageSteps / FileEdit / Ran / Composer attach를 다시 쓰지 말 것.
+2. 한 세션 = 한 Feature. 안정 표면과 무관한 Phase 4+(WT) 작업이어도, 공유 스트림/브리지 건드릴 때는 위 표 회귀를 먼저 의식.
+3. HOST-002 final-cut·STREAM-004 prior는 **해당 파일만** 좁게; “답 이어쓰기” 휴리스틱·timeline 레이아웃 동시 변경 금지.
+4. CSS/chrome “정리”로 `.ak-turn-rail` 배선·Explored liveProse 위치·chip/attach 프로토콜을 바꾸지 말 것.
 
 ---
 
@@ -531,8 +564,9 @@ Phase 0 시작 전/병행: shared 계약.
 
 1. **2026-08-23** — HOST-002 final-answer 중도 끊김 **원인 분석** (`finishReason` / `complete diag` / `streamedChars` vs `finalBodyLen`). 확정 전 이어쓰기·휴리스틱 패치 금지.
 2. Phase 3 UI 잔여 미룸: **CONV-014 → SUB 이후**, **CONV-016 → checkpoint 이후**. CONV-013 완료.
-3. **코드 TODO:** STREAM-004 follow-up prior (`content || turnProse`) · HOST-002 final-cut RCA
+3. **코드 TODO:** STREAM-004 follow-up prior (`content || turnProse`) · HOST-002 final-cut RCA — **안정 표면 최소 침습**
 4. HARNESS-007 nudge 효과 확인 (선택)
-4. **Phase 4** — WT-001 Worktree manager (`packages/worktree`)
-5. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
+5. **Phase 4** — WT-001 Worktree manager (`packages/worktree`)
+6. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
 
+**에이전트:** 위 「안정 표면」을 읽고 수정할 것. 잘 되는 UI/스트림을 넓게 건드리지 말 것.
