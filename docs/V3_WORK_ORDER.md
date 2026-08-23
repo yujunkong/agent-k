@@ -44,9 +44,9 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **2026-08-23** — final-answer 중도 끊김 **원인 분석** (HOST-002; `finishReason`/`complete diag` 로그로 확정). 이어쓰기 추측 패치 금지.  
-그 다음: **Phase 4** Worktree / Patch (WT-001).  
-**주의:** 「안정 표면 (2026-08-23)」 절 — 현재까지 동작하는 UI/스트림은 최소 침습만.
+**바로 다음:** **Phase 5** — **SUB-001** Subagent task model (worktree/core; UI→chat-ui).  
+Phase 4 WT-001…015 도메인 `[x]`. SUB 배선 전 worktree 확인은 `npm run test -w @agent-k/worktree` + README howto.  
+**주의:** 「안정 표면 (2026-08-23)」 절 — Phase 0–3 UI/스트림은 최소 침습만.
 
 ---
 
@@ -333,21 +333,21 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| WT-001 | Worktree manager | worktree | [ ] |
-| WT-002 | Worktree creation | worktree | [ ] |
-| WT-003 | Worktree registry | worktree | [ ] |
-| WT-004 | Worktree path validation | worktree | [ ] |
-| WT-005 | Worktree isolation | worktree | [ ] |
-| WT-006 | Worktree snapshot | worktree | [ ] |
-| WT-007 | Worktree diff | worktree | [ ] |
-| WT-008 | Git porcelain parsing | worktree | [ ] |
-| WT-009 | Patch validation | worktree | [ ] |
-| WT-010 | Patch apply | worktree | [ ] |
-| WT-011 | Untracked file transfer | worktree | [ ] |
-| WT-012 | Worktree review | worktree | [ ] |
-| WT-013 | Diff review panel | worktree | [ ] |
-| WT-014 | Adopt / reject | worktree | [ ] |
-| WT-015 | Subagent worktree bridge | worktree | [ ] |
+| WT-001 | Worktree manager | worktree | [x] v2.1 domain `WorktreeManager` + porcelain; **cross-platform** `execFile` argv + flat dirs `a/b`→`a__b` + path realpath/win case; unit+git smoke. HOST-015 host 사본은 별도 |
+| WT-002 | Worktree creation | worktree | [x] `bindWorktreeManager` + SubagentWorktree create/capture (v2.1 agent/subagentWorktree). Runner wiring → SUB-* |
+| WT-003 | Worktree registry | worktree | [x] session Map registry; host re-export |
+| WT-004 | Worktree path validation | worktree | [x] `assertManagedWorktree` / `.agentk/worktrees` only |
+| WT-005 | Worktree isolation | worktree | [x] `assertIsolatedWorktree` gate |
+| WT-006 | Worktree snapshot | worktree | [x] `captureWorktreeSnapshot` |
+| WT-007 | Worktree diff | worktree | [x] manager.diff + `parseWorktreeUnifiedDiff` |
+| WT-008 | Git porcelain parsing | worktree | [x] worktree-list porcelain + `parseStatusPorcelain` |
+| WT-009 | Patch validation | worktree | [x] `checkGitPatch` (`git apply --check`); StalenessChecker. search-replace PatchApplier→tools/SAFE 후속 |
+| WT-010 | Patch apply | worktree | [x] `applySubagentWorktree` + reverse rollback (R-003) |
+| WT-011 | Untracked file transfer | worktree | [x] preflight + copy + rollback |
+| WT-012 | Worktree review | worktree | [x] `reviewSubagentWorktree` (non-mutating) |
+| WT-013 | Diff review panel | worktree (+ chat-ui) | [x] domain `worktreeDiff.ts`; UI already chat-ui CONV-011 / SubagentChangesCard |
+| WT-014 | Adopt / reject | worktree | [x] `rejectSubagentWorktree` + `AdoptWinner` (+ BestOfN fan-out, AgentLoop→BON-*) |
+| WT-015 | Subagent worktree bridge | worktree + host | [x] domain `bridge.ts`; host vscode adapter → `@agent-k/worktree` |
 
 ---
 
@@ -566,7 +566,7 @@ Phase 0 시작 전/병행: shared 계약.
 2. Phase 3 UI 잔여 미룸: **CONV-014 → SUB 이후**, **CONV-016 → checkpoint 이후**. CONV-013 완료.
 3. **코드 TODO:** STREAM-004 follow-up prior (`content || turnProse`) · HOST-002 final-cut RCA — **안정 표면 최소 침습**
 4. HARNESS-007 nudge 효과 확인 (선택)
-5. **Phase 4** — WT-001 Worktree manager (`packages/worktree`)
+5. **Phase 4** — WT-001…015 `[x]` → 다음 **Phase 5 SUB-001**
 6. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
 
-**에이전트:** 위 「안정 표면」을 읽고 수정할 것. 잘 되는 UI/스트림을 넓게 건드리지 말 것.
+**에이전트:** 위 「안정 표면」을 읽고 수정할 것. 잘 되는 UI/스트림을 넓게 건드리지 말 것. Phase 4 worktree는 `packages/worktree` (+ host thin adapter).

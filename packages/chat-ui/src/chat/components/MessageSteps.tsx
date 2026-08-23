@@ -6,6 +6,7 @@ import { StreamingMarkdown } from '../StreamingMarkdown';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 import { buildCuriosityPhases } from '../curiosityPhases';
 import type { CuriosityPhase as BuiltCuriosityPhase } from '../curiosityPhases';
+import { assignTerminalCardsToPhases } from '../assignTerminalCards';
 import { logTimelinePhaseOrder } from '../conversation/timelineOrderLog';
 import { openPathFromExploreDetail } from '../../host/timelineLabels';
 
@@ -376,10 +377,11 @@ function formatRollingTool(s: MessageStep): string {
 }
 
 function summarizeActions(steps: MessageStep[]): string {
-  const tools = actionSteps(steps);
+  // Comment: caller already strips editing + shell (cards own those); title is ask/task/other only
+  const tools = actionSteps(steps).filter(
+    (s) => s.kind !== 'editing' && !isShellStep(s)
+  );
   if (!tools.length) return '';
-  const edits = tools.filter((s) => s.kind === 'editing');
-  const runs = tools.filter((s) => isShellStep(s));
   const asks = tools.filter((s) => s.kind === 'asking');
   const tasks = tools.filter(
     (s) =>
@@ -387,16 +389,8 @@ function summarizeActions(steps: MessageStep[]): string {
       s.toolName === 'task' ||
       s.toolName === 'task_run'
   );
-  // Comment: file edits render as FileEditCard — never "Edited N files" chevron group
-  if (edits.length && !runs.length && !asks.length && !tasks.length) {
-    if (edits.some((s) => s.itemStatus === 'running')) return 'Editing';
-    return '';
-  }
-  if (tasks.length && !runs.length && !asks.length && !edits.length) {
+  if (tasks.length && !asks.length && tasks.length === tools.length) {
     return tasks.length === 1 ? 'Started an agent' : `Started ${tasks.length} agents`;
-  }
-  if (runs.length) {
-    return runs.length === 1 ? 'Ran a command' : `Ran ${runs.length} commands`;
   }
   if (asks.length) return 'Asked a question';
   return tools.length === 1 ? 'Used 1 tool' : `Used ${tools.length} tools`;
@@ -1149,13 +1143,10 @@ export function MessageSteps({
    */
   const cardsByPhase = useMemo(() => {
     const edits = new Map<string, FileEditPreview[]>();
-    const terms = new Map<string, TerminalRunPreview[]>();
     for (const p of phases) {
       edits.set(p.id, []);
-      terms.set(p.id, []);
     }
     const usedEdit = new Set<string>();
-    const usedTerm = new Set<string>();
 
     const scorePhaseForEdit = (p: CuriosityPhase, turn: number): number => {
       const hasEditAction = p.actions.some(
@@ -1173,25 +1164,6 @@ export function MessageSteps({
       if (hasEditAction) return 100;
       if (hasAnyAction) return 60;
       if (hasExplore) return 20;
-      return 0;
-    };
-
-    const scorePhaseForTerm = (p: CuriosityPhase, turn: number): number => {
-      const isShell = (a: MessageStep) =>
-        a.kind === 'running' ||
-        a.toolName === 'run_terminal_cmd' ||
-        a.toolName === 'terminal_output';
-      const hasRunOnTurn = p.actions.some((a) => isShell(a) && inferTurn(a) === turn);
-      const hasRun = p.actions.some(isShell);
-      const hasAnyAction = p.actions.some((a) => inferTurn(a) === turn);
-      const hasExplore = p.rows.some(
-        (r) => r.type === 'tool' && inferTurn(r.step) === turn
-      );
-      if (hasRunOnTurn) return 100;
-      if (hasRun && hasAnyAction) return 80;
-      if (hasRun) return 55;
-      if (hasAnyAction) return 40;
-      if (hasExplore) return 10;
       return 0;
     };
 
@@ -1279,23 +1251,8 @@ export function MessageSteps({
       else bucket.push(fe);
     }
 
-    for (const tr of terminalRuns) {
-      if (usedTerm.has(tr.id)) continue;
-      const turn = typeof tr.turn === 'number' && tr.turn > 0 ? tr.turn : 0;
-      const phase =
-        turn > 0
-          ? pickPhase(turn, scorePhaseForTerm)
-          : [...phases].reverse().find((p) =>
-              p.actions.some(
-                (a) => a.kind === 'running' || a.toolName === 'run_terminal_cmd'
-              )
-            ) ||
-            phases[phases.length - 1] ||
-            null;
-      if (!phase) continue;
-      usedTerm.add(tr.id);
-      terms.get(phase.id)!.push(tr);
-    }
+    // Comment: CONV-018 — toolId→phase; turn-only pick pinned every card under first Ran
+    const terms = assignTerminalCardsToPhases(phases, terminalRuns);
 
     return { edits, terms };
   }, [phases, fileEdits, terminalRuns]);
@@ -1428,9 +1385,12 @@ export function MessageSteps({
           Boolean(th) &&
           (Boolean(reasoning) || thoughtLive) &&
           !showExplore;
-        // Comment: edits → FileEditCard only; ChevronRow keeps shell/ask tools
+        // Comment: edits → FileEditCard; shells → TerminalRunCard (no Ran N group)
         const editActions = p.actions.filter((a) => a.kind === 'editing');
-        const actions = p.actions.filter((a) => a.kind !== 'editing');
+        const shellActions = p.actions.filter(isShellStep);
+        const actions = p.actions.filter(
+          (a) => a.kind !== 'editing' && !isShellStep(a)
+        );
         const actionLive = actions.some((a) => a.itemStatus === 'running');
         const actionHasError = actions.some((a) => a.itemStatus === 'error');
         const actionSummary = summarizeActions(actions);
@@ -1462,6 +1422,24 @@ export function MessageSteps({
             ? editActions.filter((a) => a.itemStatus !== 'running')
             : [];
 
+        // Comment: pair each shell action → card (toolId); leftovers still render
+        const usedTermIds = new Set<string>();
+        const shellCards = shellActions.map((a) => {
+          const byId = turnTerms.find(
+            (t) => t.toolId === a.id && !usedTermIds.has(t.id)
+          );
+          const byCmd =
+            byId ||
+            turnTerms.find((t) => {
+              if (usedTermIds.has(t.id)) return false;
+              const d = (a.detail || '').trim();
+              const c = (t.command || '').trim();
+              return Boolean(d && c && (d === c || c.startsWith(d) || d.startsWith(c.slice(0, 40))));
+            });
+          if (byCmd) usedTermIds.add(byCmd.id);
+          return { action: a, run: byCmd };
+        });
+        const orphanTerms = turnTerms.filter((t) => !usedTermIds.has(t.id));
         return (
           <Fragment key={p.id}>
             <div
@@ -1602,9 +1580,36 @@ export function MessageSteps({
                 </div>
               ) : null}
 
-              {turnTerms.length > 0 ? (
+              {/* Comment: CONV-018 — one TerminalRunCard per shell; never "Ran N commands" */}
+              {shellCards.length > 0 || orphanTerms.length > 0 ? (
                 <div className="ak-terminal-runs-inline ak-cards-under-action">
-                  {turnTerms.map((tr) => (
+                  {shellCards.map(({ action: a, run }) => {
+                    if (run) {
+                      return <TerminalRunCard key={run.id} {...run} />;
+                    }
+                    const detail =
+                      resolveExploreDetail(a) || a.detail || '';
+                    return (
+                      <div
+                        key={a.id}
+                        className="ak-edit-flush-row"
+                        aria-live={
+                          a.itemStatus === 'running' ? 'polite' : undefined
+                        }
+                      >
+                        <span className="ak-edit-flush-row__label">
+                          {a.itemStatus === 'running' ? 'Running' : 'Ran'}
+                          {detail ? ` ${detail}` : ''}
+                        </span>
+                        {a.durationMs != null && a.itemStatus !== 'running' ? (
+                          <span className="ak-edit-flush-row__ms">
+                            {formatMs(a.durationMs)}
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                  {orphanTerms.map((tr) => (
                     <TerminalRunCard key={tr.id} {...tr} />
                   ))}
                 </div>

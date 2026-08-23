@@ -2,12 +2,24 @@
   "name": "@agent-k/worktree",
   "version": "0.0.0",
   "private": true,
-  "description": "Worktree / subagent isolation / Best-of-N (2nd-wave stub).",
+  "description": "Managed git worktree / patch / adopt (WT-*). R-003 transaction.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agent-k/shared": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
 }

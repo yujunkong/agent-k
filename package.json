@@ -13,8 +13,8 @@
     "build:webview:chunks": "npm run build:chunks -w @agent-k/chat-ui",
     "build:extension": "npm run build -w agent-k",
     "build": "npm run build:webview && npm run build:extension",
-    "test": "npm run test -w @agent-k/shared && npm run test -w @agent-k/host && npm run test -w @agent-k/chat-ui && npm run test -w @agent-k/providers && npm run test -w @agent-k/core && npm run test -w @agent-k/safety && npm run test -w @agent-k/tools",
-    "typecheck": "npm run typecheck -w @agent-k/shared && npm run typecheck -w @agent-k/host && npm run typecheck -w @agent-k/chat-ui && npm run typecheck -w @agent-k/providers && npm run typecheck -w @agent-k/core && npm run typecheck -w @agent-k/safety && npm run typecheck -w @agent-k/tools && npm run typecheck -w agent-k",
+    "test": "npm run test -w @agent-k/shared && npm run test -w @agent-k/host && npm run test -w @agent-k/chat-ui && npm run test -w @agent-k/providers && npm run test -w @agent-k/core && npm run test -w @agent-k/safety && npm run test -w @agent-k/tools && npm run test -w @agent-k/worktree",
+    "typecheck": "npm run typecheck -w @agent-k/shared && npm run typecheck -w @agent-k/host && npm run typecheck -w @agent-k/chat-ui && npm run typecheck -w @agent-k/providers && npm run typecheck -w @agent-k/core && npm run typecheck -w @agent-k/safety && npm run typecheck -w @agent-k/tools && npm run typecheck -w @agent-k/worktree && npm run typecheck -w agent-k",
     "smoke:providers": "npm run smoke -w @agent-k/providers"
   },
   "engines": {

@@ -19,7 +19,8 @@
     "@agent-k/core": "*",
     "@agent-k/providers": "*",
     "@agent-k/tools": "*",
-    "@agent-k/safety": "*"
+    "@agent-k/safety": "*",
+    "@agent-k/worktree": "*"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

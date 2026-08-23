@@ -1,5 +1,5 @@
 /**
- * Cursor-style terminal run card: click header to expand live/final output.
+ * Cursor-style terminal run card — FileEdit-shaped: clipped body + bottom expand.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import type { TerminalRunPreview } from '../types';
@@ -7,7 +7,7 @@ import type { TerminalRunPreview } from '../types';
 export type TerminalRunCardProps = TerminalRunPreview & {
   /** Nested under a WorkTimeline row — hide the duplicate header. */
   embedded?: boolean;
-  /** Controlled expand; omit to use internal state. */
+  /** Controlled expand; omit to use internal state (bottom ⌄). */
   open?: boolean;
 };
 
@@ -25,28 +25,40 @@ function formatDuration(ms?: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+function outputLineCount(text: string): number {
+  if (!text.trim()) return 0;
+  return text.split(/\r?\n/).length;
+}
+
 export function TerminalRunCard({
   embedded = false,
   open,
   ...run
 }: TerminalRunCardProps) {
   const live = run.status === 'running';
-  const [expanded, setExpanded] = useState(live);
+  const [localExpanded, setLocalExpanded] = useState(false);
   const bodyRef = useRef<HTMLPreElement>(null);
   const output =
     [run.stdout, run.stderr].filter(Boolean).join('') ||
     (run.error ? String(run.error) : '');
-  const showBody = open ?? expanded;
+  // Comment: controlled `open` (WorkTimeline embedded) bypasses local bottom toggle
+  const isExpanded = open ?? localExpanded;
+  const controlled = open != null;
+  const lines = outputLineCount(output);
+  // Comment: FileEdit shows ⌄ when >4 lines; live output may grow — keep toggle available
+  const showExpand =
+    !embedded && !controlled && (live || lines > 4 || output.length > 180);
 
   useEffect(() => {
-    if (open != null) return;
-    if (live) setExpanded(true);
-  }, [live, open]);
+    if (controlled) return;
+    // Comment: auto-expand only while live when output already exceeds collapse viewport
+    if (live && (lines > 4 || output.length > 180)) setLocalExpanded(true);
+  }, [live, lines, output.length, controlled]);
 
   useEffect(() => {
-    if (!showBody || !bodyRef.current) return;
+    if (!bodyRef.current || !live) return;
     bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
-  }, [output, showBody, live]);
+  }, [output, live, isExpanded]);
 
   const title = run.description?.trim() || run.command;
   const statusColor =
@@ -56,34 +68,16 @@ export function TerminalRunCard({
         ? 'var(--vscode-charts-blue, #4fc1ff)'
         : 'var(--vscode-descriptionForeground, #9d9d9d)';
 
-  const body = showBody ? (
-    <div className="ak-terminal-card__body">
-      {!embedded && run.command && run.description ? (
-        <div className="ak-terminal-card__cmd" title={run.command}>
-          {run.command}
-        </div>
-      ) : null}
-      <pre ref={bodyRef} className="ak-terminal-card__output">
-        {output.trim() ? output : live ? '…' : '(no output)'}
-        {live ? <span className="ak-terminal-card__caret" aria-hidden /> : null}
-      </pre>
-    </div>
-  ) : null;
-
   return (
     <div
       className={`ak-terminal-card${live ? ' ak-terminal-card--live' : ''}${
         run.status === 'error' ? ' ak-terminal-card--error' : ''
-      }${embedded ? ' ak-terminal-card--embedded' : ''}`}
+      }${embedded ? ' ak-terminal-card--embedded' : ''}${
+        isExpanded ? ' ak-terminal-card--expanded' : ''
+      }`}
     >
       {embedded ? null : (
-        <button
-          type="button"
-          className="ak-terminal-card__header"
-          onClick={() => setExpanded((v) => !v)}
-          title={showBody ? 'Collapse output' : 'Show output'}
-          aria-expanded={showBody}
-        >
+        <div className="ak-terminal-card__header" title={run.command}>
           <span className="ak-terminal-card__badge" aria-hidden>
             sh
           </span>
@@ -104,12 +98,35 @@ export function TerminalRunCard({
               </span>
             ) : null}
           </span>
-          <span className="ak-terminal-card__chev" aria-hidden>
-            {showBody ? '▾' : '▸'}
+        </div>
+      )}
+
+      {/* Comment: body always mounted — expand only raises max-height (FileEdit parity) */}
+      <div className="ak-terminal-card__body">
+        {!embedded && run.command && run.description ? (
+          <div className="ak-terminal-card__cmd" title={run.command}>
+            {run.command}
+          </div>
+        ) : null}
+        <pre ref={bodyRef} className="ak-terminal-card__output">
+          {output.trim() ? output : live ? '…' : '(no output)'}
+          {live ? <span className="ak-terminal-card__caret" aria-hidden /> : null}
+        </pre>
+      </div>
+
+      {showExpand ? (
+        <button
+          type="button"
+          className="ak-terminal-card__expand"
+          title={isExpanded ? 'Collapse' : 'Expand'}
+          aria-expanded={isExpanded}
+          onClick={() => setLocalExpanded((v) => !v)}
+        >
+          <span aria-hidden style={{ fontSize: 12, lineHeight: 1 }}>
+            {isExpanded ? '⌃' : '⌄'}
           </span>
         </button>
-      )}
-      {body}
+      ) : null}
     </div>
   );
 }

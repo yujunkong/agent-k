@@ -2551,13 +2551,14 @@ body.vscode-dark .user-chip--file,
   padding: 2px 8px;
 }
 
-/* Cursor-style terminal run card */
+/* Cursor-style terminal run card — FileEdit parity (clipped body + bottom expand) */
 .ak-terminal-card {
   margin: 6px 0;
   border-radius: 8px;
   border: 1px solid var(--ak-card-border);
   background: var(--ak-card-bg);
   overflow: hidden;
+  position: relative;
 }
 
 .ak-terminal-card--live {
@@ -2575,17 +2576,11 @@ body.vscode-dark .user-chip--file,
   width: 100%;
   padding: 7px 10px;
   border: none;
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid var(--ak-card-border);
   background: var(--ak-card-header-bg);
   color: var(--vscode-foreground, #ccc);
-  cursor: pointer;
   text-align: left;
   font: inherit;
-}
-
-.ak-terminal-card[aria-expanded='true'] .ak-terminal-card__header,
-.ak-terminal-card:has(.ak-terminal-card__body) .ak-terminal-card__header {
-  border-bottom-color: var(--ak-card-border);
 }
 
 .ak-terminal-card__badge {
@@ -2632,12 +2627,6 @@ body.vscode-dark .user-chip--file,
   opacity: 0.75;
 }
 
-.ak-terminal-card__chev {
-  flex-shrink: 0;
-  opacity: 0.55;
-  font-size: 11px;
-}
-
 .ak-terminal-card__body {
   background: var(--ak-card-bg);
 }
@@ -2655,6 +2644,7 @@ body.vscode-dark .user-chip--file,
 .ak-terminal-card__output {
   margin: 0;
   padding: 10px 12px 12px;
+  /* Comment: CONV-018 — collapsed ≈ 4 lines; --expanded raises viewport */
   max-height: var(--ak-card-body-max, 72px);
   overflow: auto;
   font-size: 12px;
@@ -2665,8 +2655,23 @@ body.vscode-dark .user-chip--file,
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
 }
 
-.ak-terminal-card[aria-expanded='true'] .ak-terminal-card__output {
+.ak-terminal-card--expanded .ak-terminal-card__output {
   max-height: var(--ak-card-body-max-expanded, 280px);
+}
+
+/* Comment: same chrome as .ak-file-edit-expand */
+.ak-terminal-card__expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 4px 0 6px;
+  border: none;
+  border-top: 1px solid var(--ak-card-border);
+  background: transparent;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  cursor: pointer;
+  opacity: 0.85;
 }
 
 .ak-terminal-card__caret {
