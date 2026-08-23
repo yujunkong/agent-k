@@ -1,7 +1,7 @@
 /**
  * Cursor-style terminal run card — FileEdit-shaped: clipped body + bottom expand.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { TerminalRunPreview } from '../types';
 
 export type TerminalRunCardProps = TerminalRunPreview & {
@@ -37,6 +37,7 @@ export function TerminalRunCard({
 }: TerminalRunCardProps) {
   const live = run.status === 'running';
   const [localExpanded, setLocalExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
   const bodyRef = useRef<HTMLPreElement>(null);
   const output =
     [run.stdout, run.stderr].filter(Boolean).join('') ||
@@ -45,15 +46,18 @@ export function TerminalRunCard({
   const isExpanded = open ?? localExpanded;
   const controlled = open != null;
   const lines = outputLineCount(output);
-  // Comment: FileEdit shows ⌄ when >4 lines; live output may grow — keep toggle available
+  // Comment: show ⌄ when clipped or likely to clip — not only raw line count
   const showExpand =
-    !embedded && !controlled && (live || lines > 4 || output.length > 180);
+    !embedded &&
+    !controlled &&
+    (isExpanded || overflows || live || lines > 4 || output.length > 120);
 
-  useEffect(() => {
-    if (controlled) return;
-    // Comment: auto-expand only while live when output already exceeds collapse viewport
-    if (live && (lines > 4 || output.length > 180)) setLocalExpanded(true);
-  }, [live, lines, output.length, controlled]);
+  // Comment: measure real clip — short pwd/ls used to show ⌄ that "did nothing"
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el || isExpanded) return;
+    setOverflows(el.scrollHeight > el.clientHeight + 2);
+  }, [output, isExpanded, live]);
 
   useEffect(() => {
     if (!bodyRef.current || !live) return;
@@ -68,6 +72,8 @@ export function TerminalRunCard({
         ? 'var(--vscode-charts-blue, #4fc1ff)'
         : 'var(--vscode-descriptionForeground, #9d9d9d)';
 
+  const toggle = () => setLocalExpanded((v) => !v);
+
   return (
     <div
       className={`ak-terminal-card${live ? ' ak-terminal-card--live' : ''}${
@@ -77,7 +83,13 @@ export function TerminalRunCard({
       }`}
     >
       {embedded ? null : (
-        <div className="ak-terminal-card__header" title={run.command}>
+        <button
+          type="button"
+          className="ak-terminal-card__header"
+          title={run.command}
+          onClick={showExpand || !controlled ? toggle : undefined}
+          disabled={controlled && !showExpand}
+        >
           <span className="ak-terminal-card__badge" aria-hidden>
             sh
           </span>
@@ -98,7 +110,7 @@ export function TerminalRunCard({
               </span>
             ) : null}
           </span>
-        </div>
+        </button>
       )}
 
       {/* Comment: body always mounted — expand only raises max-height (FileEdit parity) */}
@@ -120,7 +132,7 @@ export function TerminalRunCard({
           className="ak-terminal-card__expand"
           title={isExpanded ? 'Collapse' : 'Expand'}
           aria-expanded={isExpanded}
-          onClick={() => setLocalExpanded((v) => !v)}
+          onClick={toggle}
         >
           <span aria-hidden style={{ fontSize: 12, lineHeight: 1 }}>
             {isExpanded ? '⌃' : '⌄'}

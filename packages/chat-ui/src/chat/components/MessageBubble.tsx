@@ -40,6 +40,10 @@ interface MessageBubbleProps {
   onRejectFile?: (file: FileEditPreview) => void;
   /** Resume after mid-mission abort (send continue) */
   onContinueMission?: () => void;
+  /**
+   * SUB-010 — subagent detail prompt: expand to read full order; no edit/copy.
+   */
+  userPromptMode?: 'default' | 'expand-only';
 }
 
 /** Fold legacy openingLead into body (no top-of-bubble lead slot). */
@@ -102,12 +106,15 @@ export function MessageBubble({
   onOpenFile,
   onAcceptFile,
   onRejectFile,
-  onContinueMission
+  onContinueMission,
+  userPromptMode = 'default'
 }: MessageBubbleProps) {
   const isAssistant = message.role === 'assistant';
   const isUser = message.role === 'user';
   const streaming = !!isStreaming || message.status === 'streaming';
   const showUserStop = isUser && isAgentRunning && isLastUser;
+  const expandOnlyUser = userPromptMode === 'expand-only';
+  const [userPromptExpanded, setUserPromptExpanded] = useState(false);
 
   const rawContent = typeof message.content === 'string' ? message.content : '';
   const rawLead =
@@ -183,11 +190,15 @@ export function MessageBubble({
 
   const showFooter =
     message.role !== 'system' &&
+    !expandOnlyUser &&
     (showUserStop || (!streamBody && (isAssistant || isUser)));
 
   const attachments = Array.isArray(message.attachments)
     ? message.attachments
     : [];
+  // Comment: SUB-010 — long child prompts need expand; pill alone clips poorly
+  const userPromptLong =
+    expandOnlyUser && displayContent.trim().length > 160;
 
   return (
     <div
@@ -244,7 +255,18 @@ export function MessageBubble({
 
       {isUser ? (
         <div
-          className={isEditing ? 'user-turn user-turn--editing' : 'user-turn'}
+          className={[
+            isEditing ? 'user-turn user-turn--editing' : 'user-turn',
+            expandOnlyUser ? 'user-turn--expand-only' : '',
+            expandOnlyUser && userPromptExpanded
+              ? 'user-turn--prompt-expanded'
+              : '',
+            expandOnlyUser && userPromptLong && !userPromptExpanded
+              ? 'user-turn--prompt-collapsed'
+              : ''
+          ]
+            .filter(Boolean)
+            .join(' ')}
         >
           {!isEditing && attachments.length > 0 ? (
             <div className="user-turn__chips" aria-label="Attached context">
@@ -331,7 +353,19 @@ export function MessageBubble({
               isStreaming={false}
             />
           ) : displayContent.trim() ? (
-            <div className="user-turn__text">{displayContent}</div>
+            <>
+              <div className="user-turn__text">{displayContent}</div>
+              {expandOnlyUser && userPromptLong ? (
+                <button
+                  type="button"
+                  className="user-turn__expand"
+                  aria-expanded={userPromptExpanded}
+                  onClick={() => setUserPromptExpanded((v) => !v)}
+                >
+                  {userPromptExpanded ? 'Show less' : 'Show more'}
+                </button>
+              ) : null}
+            </>
           ) : null}
           {showFooter && !isEditing ? (
             <div

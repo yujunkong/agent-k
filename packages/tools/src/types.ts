@@ -66,6 +66,54 @@ export interface ToolContext {
   debugLogs?: string[];
   /** CONV-018 — live terminal stdout/stderr chunks for TerminalRunCard. */
   onTerminalChunk?: (chunk: string, stream: 'stdout' | 'stderr') => void;
+  /** Optional VS Code LSP / diagnostics bridges (host). */
+  lspDefinition?: (
+    input: Record<string, unknown>,
+    ctx: ToolContext
+  ) => Promise<unknown>;
+  lspReferences?: (
+    input: Record<string, unknown>,
+    ctx: ToolContext
+  ) => Promise<unknown>;
+  readLints?: (
+    paths: string[],
+    ctx: ToolContext
+  ) => Promise<
+    Array<{
+      path: string;
+      severity: string;
+      message: string;
+      line?: number;
+    }>
+  >;
+  /** Optional MCP client (host). */
+  mcp?: {
+    listTools: (
+      server?: string
+    ) => Promise<Array<{ name: string; description?: string; server?: string }>>;
+    callTool: (
+      server: string,
+      tool: string,
+      args: Record<string, unknown>,
+      signal?: AbortSignal
+    ) => Promise<unknown>;
+  };
+  /** Optional mode switch (host / UI). */
+  switchMode?: (mode: string) => Promise<unknown>;
+  /** Optional checkpoint / terminal helpers (host). */
+  createCheckpoint?: (
+    input: Record<string, unknown>,
+    ctx: ToolContext
+  ) => Promise<unknown>;
+  restoreCheckpoint?: (
+    input: Record<string, unknown>,
+    ctx: ToolContext
+  ) => Promise<unknown>;
+  terminalOutput?: (
+    input: Record<string, unknown>,
+    ctx: ToolContext
+  ) => Promise<unknown>;
+  processList?: (ctx: ToolContext) => Promise<unknown>;
 }
 
 /** Standard tool execution result. */

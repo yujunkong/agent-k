@@ -95,6 +95,17 @@ interface UseChatStreamOptions {
   activeRuntimeKey?: string;
   /** Host worktree.review/apply/reject results (not tied to chat.send). */
   onWorktreeResult?: (payload: Record<string, unknown>) => void;
+  /**
+   * SUB-010 — stream events tagged with sessionId (child subagent ChatSession).
+   * Parent onDelta is not called for those events.
+   */
+  onChildDelta?: (
+    sessionId: string,
+    delta: StreamDelta,
+    stream: Record<string, unknown>
+  ) => void;
+  /** SUB-010 — ensure child session + tab when host announces subagent.event */
+  onSubagentLifecycle?: (stream: Record<string, unknown>) => void;
 }
 
 interface UseChatStreamReturn {
@@ -140,10 +151,14 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
   const debugStageRef = useRef(options.debugStage);
   const thinkingEffortRef = useRef(options.thinkingEffort);
   const onWorktreeResultRef = useRef(options.onWorktreeResult);
+  const onChildDeltaRef = useRef(options.onChildDelta);
+  const onSubagentLifecycleRef = useRef(options.onSubagentLifecycle);
   planStageRef.current = options.planStage;
   debugStageRef.current = options.debugStage;
   thinkingEffortRef.current = options.thinkingEffort;
   onWorktreeResultRef.current = options.onWorktreeResult;
+  onChildDeltaRef.current = options.onChildDelta;
+  onSubagentLifecycleRef.current = options.onSubagentLifecycle;
 
   useEffect(() => {
     const onMsg = (event: MessageEvent) => {
@@ -344,21 +359,40 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
         if (stream.requestId !== hostRequestId) return;
         bumpIdle();
 
+        // Comment: SUB-010 — route child-tagged events away from parent onDelta
+        const childSid =
+          stream.sessionId != null && String(stream.sessionId).trim()
+            ? String(stream.sessionId).trim()
+            : '';
+        const routeDelta = (delta: StreamDelta) => {
+          if (childSid) {
+            onChildDeltaRef.current?.(childSid, delta, stream as Record<string, unknown>);
+          } else {
+            onDelta(delta);
+          }
+        };
+
         switch (stream.event) {
           case 'heartbeat':
             // Host keepalive while waiting on LLM / tools — reset idle only
             break;
           case 'status':
-            if (stream.status) onDelta({ status: String(stream.status) });
+            if (stream.status) routeDelta({ status: String(stream.status) });
             break;
           case 'delta':
-            if (stream.content) onDelta({ content: String(stream.content) });
+            if (stream.content) routeDelta({ content: String(stream.content) });
             // Host posts reasoning on the same event — was dropped → Thought empty + (no response).
-            if (stream.reasoning) onDelta({ reasoning: String(stream.reasoning) });
+            if (stream.reasoning) routeDelta({ reasoning: String(stream.reasoning) });
+            // Comment: SUB-010 — child final answer catch-up (avoid empty settle after tools)
+            if (stream.replaceContent != null) {
+              routeDelta({ replaceContent: String(stream.replaceContent) });
+            }
             break;
           case 'tool.start': {
             // Prefer host id/kind/detail (shortDetail: "file.ts L410-439", "pat in path").
             const toolName = String(stream.toolName || '');
+            // Comment: SUB-010 — parent SubagentRunRow is tl_subagent_* only (skip call_* task_run)
+            if (toolName === 'task' || toolName === 'task_run') break;
             const turn =
               stream.turn != null && Number.isFinite(Number(stream.turn))
                 ? Number(stream.turn)
@@ -380,6 +414,15 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             const openPath =
               openPathFromToolArgs(toolName, parseToolArgs(stream.toolArgs)) ||
               undefined;
+            // Comment: SUB — child tools must carry subagentId for detail-tab collect
+            const subagentId =
+              stream.subagentId != null && String(stream.subagentId).trim()
+                ? String(stream.subagentId)
+                : undefined;
+            const parentTurnId =
+              stream.parentTurnId != null
+                ? String(stream.parentTurnId)
+                : undefined;
             openToolIdsByName.set(toolName, id);
             debugLog('timeline-order', 'tool.start', {
               runtimeKey,
@@ -388,9 +431,10 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
               kind,
               turn,
               detail,
-              openPath
+              openPath,
+              subagentId
             });
-            onDelta({
+            routeDelta({
               clearContent: true,
               sealTurn: turn,
               workEvent:
@@ -401,7 +445,9 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                     kind,
                     detail,
                     openPath,
-                    status: 'running'
+                    status: 'running',
+                    subagentId,
+                    parentTurnId
                   },
                   'running'
                 ) || undefined,
@@ -413,13 +459,16 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                 openPath,
                 toolName: toolName || undefined,
                 itemStatus: 'running',
-                id
+                id,
+                subagentId,
+                parentTurnId
               }
             });
             break;
           }
           case 'tool.end': {
             const toolName = String(stream.toolName || '');
+            if (toolName === 'task' || toolName === 'task_run') break;
             const id = String(
               stream.id ||
                 stream.callId ||
@@ -440,6 +489,14 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             const openPath =
               openPathFromToolArgs(toolName, parseToolArgs(stream.toolArgs)) ||
               undefined;
+            const subagentId =
+              stream.subagentId != null && String(stream.subagentId).trim()
+                ? String(stream.subagentId)
+                : undefined;
+            const parentTurnId =
+              stream.parentTurnId != null
+                ? String(stream.parentTurnId)
+                : undefined;
             const workEvent = workEventFromHostPayload(
               {
                 id,
@@ -448,11 +505,13 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                 detail,
                 openPath,
                 error: stream.error,
-                status: stream.error ? 'error' : 'complete'
+                status: stream.error ? 'error' : 'complete',
+                subagentId,
+                parentTurnId
               },
               stream.error ? 'error' : 'complete'
             );
-            onDelta({
+            routeDelta({
               workEvent: workEvent || undefined,
               timeline: {
                 kind: kind as NonNullable<StreamDelta['timeline']>['kind'],
@@ -464,6 +523,8 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                 toolName: toolName || undefined,
                 itemStatus,
                 id,
+                subagentId,
+                parentTurnId,
                 // Only set when present — never wipe start detail with undefined
                 ...(detail ? { detail } : {}),
                 ...(openPath ? { openPath } : {})
@@ -486,7 +547,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
               lines: preview.lines?.length ?? 0,
               toolId: preview.toolId
             });
-            onDelta({
+            routeDelta({
               fileEdit: preview
             });
             break;
@@ -516,7 +577,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                 toolId: runRaw.toolId
               });
             }
-            onDelta({
+            routeDelta({
               terminalRun: {
                 id: String(runRaw.id || `term_${Date.now()}`),
                 phase,
@@ -561,10 +622,18 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             const kind = String(stream.kind || 'thinking') as NonNullable<
               StreamDelta['timeline']
             >['kind'];
-            const itemStatus = (stream.status === 'done' || stream.status === 'error'
-              ? stream.status
+            // Comment: host posts itemStatus; older payloads used status
+            const rawStatus = String(
+              stream.itemStatus ?? stream.status ?? 'running'
+            );
+            const itemStatus = (rawStatus === 'done' ||
+            rawStatus === 'complete' ||
+            rawStatus === 'error'
+              ? rawStatus === 'complete'
+                ? 'done'
+                : rawStatus
               : 'running') as 'running' | 'done' | 'error';
-            onDelta({
+            routeDelta({
               timeline: {
                 kind,
                 turn: Number(stream.turn) || 1,
@@ -611,8 +680,10 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             break;
           }
           case 'subagent.event': {
+            // Comment: parent header only — never route to child sessionId
+            onSubagentLifecycleRef.current?.(stream as Record<string, unknown>);
             const workEvent = workEventFromSubagentHostEvent(
-              data as Record<string, unknown>
+              stream as Record<string, unknown>
             );
             if (workEvent) onDelta({ workEvent });
             break;
@@ -621,7 +692,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             // Pause idle watchdog while host waits on user (can be minutes)
             clearIdle();
             // Pause "Streaming…" chrome — user must answer ClarifyingQuestions
-            onDelta({
+            routeDelta({
               status: 'asking',
               askQuestion: {
                 id: String(stream.qid || ''),
@@ -637,7 +708,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             });
             break;
           case 'debug.stage':
-            onDelta({
+            routeDelta({
               debugStage: stream.stage != null ? String(stream.stage) : undefined,
             });
             break;
@@ -648,7 +719,7 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
             finish(() => {
               // Parallel-tab catch-up: host final body heals dropped deltas.
               if (stream.content != null && String(stream.content).length > 0) {
-                onDelta({ replaceContent: String(stream.content) });
+                routeDelta({ replaceContent: String(stream.content) });
               }
               onComplete();
             });

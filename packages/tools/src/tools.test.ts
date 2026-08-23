@@ -22,19 +22,28 @@ describe('TOOL-016 ToolRegistry', () => {
     registerBuiltinTools(registry);
 
     expect(registry.get('read_file')?.name).toBe('read_file');
-    expect(registry.list().length).toBeGreaterThan(10);
+    expect(registry.get('read_files')?.name).toBe('read_files');
+    expect(registry.get('list_dir')?.name).toBe('list_dir');
+    expect(registry.get('codebase_search')?.name).toBe('codebase_search');
+    expect(registry.get('task_run')?.name).toBe('task_run');
+    expect(registry.list().length).toBeGreaterThan(25);
 
     const askSchemas = registry.getSchemas('ask');
     const askNames = askSchemas.map((s) => s.function.name);
     expect(askNames).toContain('read_file');
+    expect(askNames).toContain('read_files');
+    expect(askNames).toContain('list_dir');
     expect(askNames).toContain('grep');
     expect(askNames).not.toContain('write_file');
+    expect(askNames).not.toContain('delete_file');
     expect(askNames).not.toContain('run_terminal_cmd');
 
     const agentSchemas = registry.getSchemas('agent');
     const agentNames = agentSchemas.map((s) => s.function.name);
     expect(agentNames).toContain('write_file');
+    expect(agentNames).toContain('delete_file');
     expect(agentNames).toContain('run_terminal_cmd');
+    expect(agentNames).toContain('web_fetch');
 
     // Every schema is OpenAI function shape
     for (const s of askSchemas) {
@@ -77,6 +86,20 @@ describe('TOOL-001/003 read/write with temp dir', () => {
     expect(data.content).toBe('line1\nline2');
     expect(data.lineCount).toBe(2);
     expect(data.truncated).toBe(true);
+  });
+
+  it('read_files batches multiple paths', async () => {
+    await writeTool.execute({ path: 'a.ts', content: 'aaa\n' }, ctx);
+    await writeTool.execute({ path: 'b.ts', content: 'bbb\n' }, ctx);
+    const { readFilesTool } = await import('./tools/ReadFilesTool');
+    const result = await readFilesTool.execute(
+      { paths: ['a.ts', 'b.ts'] },
+      ctx
+    );
+    expect(result.success).toBe(true);
+    const data = result.data as { ok: number; count: number };
+    expect(data.count).toBe(2);
+    expect(data.ok).toBe(2);
   });
 
   it('executeTool routes through registry', async () => {

@@ -17,13 +17,18 @@ export interface ChatSessionMeta {
   messageCount: number;
   createdAt: number;
   updatedAt: number;
+  /** SUB-010 — omit or 'chat' for normal tabs; 'subagent' hidden from history. */
+  kind?: 'chat' | 'subagent';
+  parentSessionId?: string;
 }
 
-/** Cursor-style subagent detail tab — persisted across tab switches / reload. */
+/** Cursor-style subagent detail tab — id is child ChatSession id (sess-sub-*). */
 export interface SubagentTabRecord {
   id: string;
   title: string;
   parentSessionId: string;
+  /** Runner task id (tl_subagent_* / worktree registry). */
+  taskId?: string;
 }
 
 export interface ChatSession extends ChatSessionMeta {
@@ -115,9 +120,14 @@ export class ChatSessionStore {
    */
   getOpenTabIds(): string[] {
     const stored = readJson<string[]>(OPEN_TABS_KEY, []);
-    const valid = stored.filter((id) => this.index.includes(id));
+    const valid = stored.filter((id) => {
+      if (!this.index.includes(id)) return false;
+      const s = this.readSession(id);
+      return s && s.kind !== 'subagent';
+    });
     if (valid.length === 0 && this.currentId && this.index.includes(this.currentId)) {
-      return [this.currentId];
+      const cur = this.readSession(this.currentId);
+      if (cur && cur.kind !== 'subagent') return [this.currentId];
     }
     return valid;
   }
@@ -128,7 +138,7 @@ export class ChatSessionStore {
     writeJson(OPEN_TABS_KEY, valid);
   }
 
-  /** Persisted subagent tabs — filtered to sessions that still exist. */
+  /** Persisted subagent tabs — parent must exist; child session may already be stored. */
   getSubagentTabs(): SubagentTabRecord[] {
     const stored = readJson<SubagentTabRecord[]>(SUBAGENT_TABS_KEY, []);
     return stored.filter(
@@ -149,18 +159,22 @@ export class ChatSessionStore {
     writeJson(SUBAGENT_TABS_KEY, valid);
   }
 
+  /** Chat history / open tabs — exclude subagent child sessions. */
   list(): ChatSessionMeta[] {
     const out: ChatSessionMeta[] = [];
     for (const id of this.index) {
       const s = this.readSession(id);
       if (!s) continue;
+      if (s.kind === 'subagent') continue;
       out.push({
         id: s.id,
         title: s.title,
         mode: s.mode,
         messageCount: s.messageCount,
         createdAt: s.createdAt,
-        updatedAt: s.updatedAt
+        updatedAt: s.updatedAt,
+        kind: s.kind,
+        parentSessionId: s.parentSessionId
       });
     }
     return out.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -186,6 +200,7 @@ export class ChatSessionStore {
       title: 'New chat',
       mode,
       modeAuto: true,
+      kind: 'chat',
       messageCount: 0,
       createdAt: now,
       updatedAt: now,
@@ -198,6 +213,53 @@ export class ChatSessionStore {
     this.persistIndex();
     this.currentId = session.id;
     this.persistCurrent();
+    return session;
+  }
+
+  /**
+   * SUB-010 — independent subagent ChatSession (not switched to current).
+   * Idempotent: returns existing child if id already stored.
+   */
+  createSubagentSession(opts: {
+    id: string;
+    parentSessionId: string;
+    title: string;
+    mode?: Mode;
+    taskId?: string;
+  }): ChatSession {
+    const existing = this.readSession(opts.id);
+    if (existing) {
+      if (existing.title !== opts.title && opts.title.trim()) {
+        const updated: ChatSession = {
+          ...existing,
+          title: opts.title.trim(),
+          updatedAt: Date.now(),
+          parentSessionId: opts.parentSessionId,
+          kind: 'subagent'
+        };
+        this.writeSession(updated);
+        return updated;
+      }
+      return existing;
+    }
+    const now = Date.now();
+    const session: ChatSession = {
+      id: opts.id,
+      title: String(opts.title || 'Subagent').trim() || 'Subagent',
+      mode: opts.mode || 'agent',
+      kind: 'subagent',
+      parentSessionId: opts.parentSessionId,
+      messageCount: 0,
+      createdAt: now,
+      updatedAt: now,
+      messages: [],
+      activeVariants: {}
+    };
+    this.writeSession(session);
+    // Comment: keep in index for get()/cascade delete; list() hides kind=subagent
+    this.index = [...this.index.filter((id) => id !== session.id), session.id];
+    this.trimExcess();
+    this.persistIndex();
     return session;
   }
 
@@ -248,6 +310,8 @@ export class ChatSessionStore {
       title: titleFromMessages(messages) || prev?.title || 'New chat',
       mode: mode || prev?.mode || 'agent',
       modeAuto: prev?.modeAuto,
+      kind: prev?.kind || 'chat',
+      parentSessionId: prev?.parentSessionId,
       messageCount: messages.length,
       createdAt: prev?.createdAt || now,
       updatedAt: now,
@@ -387,16 +451,32 @@ export class ChatSessionStore {
   }
 
   delete(id: string): ChatSession | null {
+    // Comment: SUB-010 — cascade delete child subagent sessions
+    const childIds = this.index.filter((cid) => {
+      if (cid === id) return false;
+      const s = this.readSession(cid);
+      return s?.kind === 'subagent' && s.parentSessionId === id;
+    });
+    for (const cid of childIds) {
+      try {
+        localStorage.removeItem(sessionKey(cid));
+      } catch {
+        /* ignore */
+      }
+    }
+    const drop = new Set([id, ...childIds]);
     try {
       localStorage.removeItem(sessionKey(id));
     } catch {
       /* ignore */
     }
-    this.index = this.index.filter((x) => x !== id);
+    this.index = this.index.filter((x) => !drop.has(x));
     this.persistIndex();
+    const tabs = this.getSubagentTabs().filter((t) => !drop.has(t.id) && t.parentSessionId !== id);
+    this.setSubagentTabs(tabs);
 
-    if (this.currentId === id) {
-      const nextId = this.index[0];
+    if (this.currentId === id || (this.currentId && drop.has(this.currentId))) {
+      const nextId = this.index.find((x) => this.readSession(x)?.kind !== 'subagent');
       if (nextId) {
         this.currentId = nextId;
         this.persistCurrent();

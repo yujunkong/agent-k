@@ -106,7 +106,7 @@ describe('STREAM-004 sealBodyBeforeTools — single-buffer contract', () => {
     expect(thought?.detail || '').not.toContain('테스트 파일');
   });
 
-  it('long English self-talk after explore tools still folds into Thought', () => {
+  it('long English content after explore tools stays turnProse (never Thought)', () => {
     const dump =
       'Looking at the internal machinery more carefully, there are several interconnected pieces that need verification before proceeding with the wider refactor across modules.';
     const sealed = sealBodyBeforeTools(
@@ -120,9 +120,11 @@ describe('STREAM-004 sealBodyBeforeTools — single-buffer contract', () => {
       }),
       1
     );
-    expect((sealed.turnProse || []).length).toBe(0);
+    // Comment: structural contract — content channel never folds into Thought
+    expect(sealed.turnProse?.length).toBe(1);
+    expect(sealed.turnProse?.[0].content).toContain('interconnected pieces');
     const thought = sealed.steps?.find((s) => s.kind === 'thinking');
-    expect(thought?.detail).toContain('interconnected pieces');
+    expect(thought?.detail).toBe('prior');
   });
 
   it('sealing the same mid reply twice does not duplicate turnProse', () => {

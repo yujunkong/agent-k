@@ -153,10 +153,11 @@ describe('work event lifecycle', () => {
       id: 'tl_subagent_a',
       type: 'subagent',
       status: 'running',
-      label: 'Research authentication · running',
+      label: 'Explorer authentication · running',
       detail: undefined,
       subagentId: 'a',
-      parentTurnId: '3'
+      parentTurnId: '3',
+      role: 'research'
     });
 
     const transcript = 'line\n'.repeat(80) + 'Authentication flow is handled in session.ts.';
@@ -171,7 +172,7 @@ describe('work event lifecycle', () => {
       toolCount: 14,
       duration: 8400
     });
-    expect(completed?.label).toBe('Research authentication · completed');
+    expect(completed?.label).toBe('Explorer authentication · completed');
     expect(completed?.detail).toBeUndefined();
     expect(completed?.result).toEqual({
       subagentId: 'a',

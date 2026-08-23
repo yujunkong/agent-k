@@ -28,41 +28,64 @@ function msg(partial: Partial<ChatMessage>): ChatMessage {
 }
 
 describe('coalesceAdjacentThinkingSteps', () => {
-  it('merges consecutive Thoughts but not across a Read', () => {
+  it('does not merge sealed Thoughts with different ids (keeps Cursor breaks)', () => {
     const merged = coalesceAdjacentThinkingSteps([
       step({
-        id: 't1',
+        id: 'tl_thinking_1',
         kind: 'thinking',
-        detail: 'a',
+        detail: 'before tools',
         durationMs: 500,
         itemStatus: 'done'
       }),
       step({
-        id: 't2',
+        id: 'tl_thinking_1_s1',
         kind: 'thinking',
-        detail: 'b',
+        detail: 'after tools',
         durationMs: 1500,
         itemStatus: 'done'
       }),
       step({ id: 'r1', kind: 'reading', toolName: 'read_file' }),
       step({
-        id: 't3',
+        id: 'tl_thinking_1_s2',
         kind: 'thinking',
-        detail: 'c',
+        detail: 'later',
         durationMs: 2000,
         itemStatus: 'done'
       })
     ]);
-    expect(merged.map((s) => s.id)).toEqual(['t1', 'r1', 't3']);
-    expect(merged[0].detail).toContain('a');
-    expect(merged[0].detail).toContain('b');
-    expect(merged[0].durationMs).toBe(2000);
-    expect(merged[2].detail).toBe('c');
+    expect(merged.map((s) => s.id)).toEqual([
+      'tl_thinking_1',
+      'tl_thinking_1_s1',
+      'r1',
+      'tl_thinking_1_s2'
+    ]);
+    expect(merged[0].detail).toBe('before tools');
+    expect(merged[1].detail).toBe('after tools');
+  });
+
+  it('merges same-id live Thought stream fragments', () => {
+    const merged = coalesceAdjacentThinkingSteps([
+      step({
+        id: 'tl_thinking_1',
+        kind: 'thinking',
+        detail: 'hel',
+        itemStatus: 'running'
+      }),
+      step({
+        id: 'tl_thinking_1',
+        kind: 'thinking',
+        detail: 'hello',
+        itemStatus: 'running'
+      })
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].detail).toBe('hello');
+    expect(merged[0].itemStatus).toBe('running');
   });
 });
 
 describe('buildCuriosityPhases Exploring cuts', () => {
-  it('keeps Exploring together when dig prose lands mid-batch (no Ran/Explore spam)', () => {
+  it('cuts Exploring at visible mid dig (proseAfter), not fold into Thought', () => {
     const phases = buildCuriosityPhases(
       [
         step({ id: 'r1', kind: 'reading', toolName: 'read_file', label: 'Read' }),
@@ -84,15 +107,25 @@ describe('buildCuriosityPhases Exploring cuts', () => {
       ]
     );
 
-    const withTools = phases.filter((p) => p.rows.some((r) => r.type === 'tool'));
-    expect(withTools).toHaveLength(1);
-    expect(withTools[0].rows.filter((r) => r.type === 'tool').map((r) => r.step.id)).toEqual([
+    const explore1 = phases.find((p) =>
+      p.rows.some((r) => r.type === 'tool' && r.step.id === 'r1')
+    );
+    expect(explore1?.rows.filter((r) => r.type === 'tool').map((r) => r.step.id)).toEqual([
       'r1',
-      'r2',
-      'r3'
+      'r2'
     ]);
-    // Dig mid-batch stays in one Exploring (all reads together)
-    expect(withTools[0].resolved).toBe(true); // settled when not streaming
+    expect(explore1?.resolved).toBe(true);
+    expect(
+      explore1?.proseAfter.some((n) => n.content.includes('테스트 파일'))
+    ).toBe(true);
+    // Comment: must not swallow mid dig into Thought accordion
+    expect(String(explore1?.openingThought?.detail || '')).not.toContain(
+      '테스트 파일'
+    );
+    const explore2 = phases.find((p) =>
+      p.rows.some((r) => r.type === 'tool' && r.step.id === 'r3')
+    );
+    expect(explore2).toBeTruthy();
     expect(phases[0].leadProse.some((n) => n.content.includes('프로젝트 구조'))).toBe(
       true
     );
@@ -163,6 +196,124 @@ describe('buildCuriosityPhases Exploring cuts', () => {
     expect(explore2?.resolved).toBe(true);
     const cmdPhase = phases.find((p) => p.actions.some((a) => a.id === 'c1'));
     expect(cmdPhase).toBeTruthy();
+  });
+
+  it('puts SubagentRunRow in its own phase (not under live Thought)', () => {
+    const phases = buildCuriosityPhases([
+      step({
+        id: 't1',
+        kind: 'thinking',
+        detail: 'planning spawn',
+        itemStatus: 'running'
+      }),
+      step({
+        id: 'tl_subagent_x',
+        kind: 'subagent',
+        label: 'Verify phase 1',
+        toolName: 'task_run',
+        subagentId: 'x',
+        itemStatus: 'running'
+      })
+    ]);
+    const thoughtPhase = phases.find((p) => p.openingThought?.id === 't1');
+    const taskPhase = phases.find((p) =>
+      p.actions.some((a) => a.id === 'tl_subagent_x')
+    );
+    expect(thoughtPhase).toBeTruthy();
+    expect(taskPhase).toBeTruthy();
+    expect(thoughtPhase).not.toBe(taskPhase);
+    expect(taskPhase?.openingThought).toBeUndefined();
+  });
+
+  it('places next Thought below Subagent (does not revive sealed Thought above)', () => {
+    const phases = buildCuriosityPhases([
+      step({
+        id: 't1',
+        kind: 'thinking',
+        detail: 'spawn decision',
+        itemStatus: 'done'
+      }),
+      step({
+        id: 'tl_subagent_x',
+        kind: 'subagent',
+        label: 'Verify',
+        toolName: 'task_run',
+        subagentId: 'x',
+        itemStatus: 'running'
+      }),
+      step({
+        id: 't2',
+        kind: 'thinking',
+        detail: 'waiting on child',
+        itemStatus: 'running'
+      })
+    ]);
+    const ids = phases.map((p) => ({
+      thought: p.openingThought?.id,
+      tasks: p.actions.map((a) => a.id)
+    }));
+    expect(ids[0]?.thought).toBe('t1');
+    expect(ids[1]?.tasks).toContain('tl_subagent_x');
+    expect(ids[2]?.thought).toBe('t2');
+    // t1 must not absorb t2
+    expect(phases[0].openingThought?.detail).toBe('spawn decision');
+  });
+
+  it('puts post-spawn Ran in a phase below Subagent (not glued under it)', () => {
+    const phases = buildCuriosityPhases([
+      step({
+        id: 'tl_subagent_x',
+        kind: 'subagent',
+        label: 'Audit',
+        toolName: 'task_run',
+        subagentId: 'x',
+        itemStatus: 'running'
+      }),
+      step({
+        id: 'c1',
+        kind: 'running',
+        toolName: 'run_terminal_cmd',
+        label: 'Ran',
+        detail: 'git status'
+      })
+    ]);
+    const subPhase = phases.find((p) =>
+      p.actions.some((a) => a.id === 'tl_subagent_x')
+    );
+    const ranPhase = phases.find((p) => p.actions.some((a) => a.id === 'c1'));
+    expect(subPhase).toBeTruthy();
+    expect(ranPhase).toBeTruthy();
+    expect(subPhase).not.toBe(ranPhase);
+    expect(phases.indexOf(subPhase!) < phases.indexOf(ranPhase!)).toBe(true);
+  });
+
+  it('does not sort Subagent after Explore due to digits in task id', () => {
+    const phases = buildCuriosityPhases([
+      step({
+        id: 'tl_subagent_subagent-mt5sznft-q1zbft',
+        kind: 'subagent',
+        label: 'Quality pass',
+        toolName: 'task_run',
+        turn: 5, // poisoned (old inferTurnFromId)
+        itemStatus: 'running'
+      }),
+      step({
+        id: 'r1',
+        kind: 'reading',
+        toolName: 'read_file',
+        turn: 1,
+        itemStatus: 'done'
+      })
+    ]);
+    // Same turn bucket — list order: subagent then read (not turn 5 after turn 1)
+    expect(phases[0]?.actions.some((a) => a.id.includes('tl_subagent_'))).toBe(
+      true
+    );
+    const explore = phases.find((p) =>
+      p.rows.some((r) => r.type === 'tool' && r.step.id === 'r1')
+    );
+    expect(explore).toBeTruthy();
+    expect(phases.indexOf(phases[0]!) < phases.indexOf(explore!)).toBe(true);
   });
 });
 

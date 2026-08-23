@@ -1,5 +1,5 @@
 /**
- * TOOL-012 TaskTool — create subagent task descriptor (no real spawn).
+ * TOOL-012 TaskTool — subagent task args (host spawns via createSubagentHost).
  */
 
 import type { ToolDefinition, ToolResult } from '../types';
@@ -11,8 +11,8 @@ export interface SubAgentTaskDescriptor {
   prompt: string;
   description?: string;
   model?: string;
-  /** Stub only — host/core owns real spawn. */
-  status: 'pending';
+  /** Host intercepts task/task_run before this runs. */
+  status: 'pending' | 'completed' | 'error' | 'cancelled';
 }
 
 let taskCounter = 0;
@@ -20,12 +20,23 @@ let taskCounter = 0;
 export const taskTool: ToolDefinition = {
   name: 'task',
   description:
-    'Create a subagent task descriptor. Does not spawn a real agent (host/core wiring).',
+    'Spawn a subagent for a focused task (isolated worktree). Prefer short description (3–5 words).',
   inputSchema: {
     type: 'object',
     properties: {
-      prompt: { type: 'string', description: 'Task prompt for the subagent' },
-      description: { type: 'string', description: 'Short title' },
+      prompt: {
+        type: 'string',
+        description: 'Detailed task prompt for the subagent',
+      },
+      description: {
+        type: 'string',
+        description: 'Short (3-5 words) title shown in the parent timeline',
+      },
+      type: {
+        type: 'string',
+        description:
+          'Subagent role: search|explore|general|debug|coding|review',
+      },
       model: { type: 'string', description: 'Optional model hint' },
     },
     required: ['prompt'],
@@ -39,12 +50,13 @@ export const taskTool: ToolDefinition = {
     },
   },
   permissionHint: 'session',
-  timeoutMs: 5_000,
+  timeoutMs: 300_000,
   cancelSupported: true,
   timelineEventType: 'task',
   modeAllowlist: ['agent', 'debug', 'plan'],
   category: 'orchestration',
   async execute(input, ctx): Promise<ToolResult> {
+    // Comment: host chatSend intercepts task/task_run before this runs
     return withToolTiming(ctx.signal, async () => {
       const prompt = String(input.prompt ?? '').trim();
       if (!prompt) {
@@ -55,7 +67,9 @@ export const taskTool: ToolDefinition = {
         kind: 'subagent_task',
         taskId: `task_${taskCounter}_${Date.now()}`,
         prompt,
-        description: input.description ? String(input.description) : undefined,
+        description: input.description
+          ? String(input.description)
+          : undefined,
         model: input.model ? String(input.model) : undefined,
         status: 'pending',
       };

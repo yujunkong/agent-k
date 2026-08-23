@@ -22,8 +22,13 @@ export * from './ParallelSearch';
 export * from './registerBuiltinTools';
 
 export { readTool } from './tools/ReadTool';
+export { readFilesTool, coerceReadFilesPaths } from './tools/ReadFilesTool';
+export { listDirTool } from './tools/ListDirTool';
+export { fileSearchTool } from './tools/FileSearchTool';
+export { codebaseSearchTool } from './tools/CodebaseSearchTool';
 export { editTool, applySearchReplace } from './tools/EditTool';
 export { writeTool } from './tools/WriteTool';
+export { deleteFileTool } from './tools/DeleteFileTool';
 export { grepTool, grepWorkspace, simpleGlobToRegExp } from './tools/GrepTool';
 export { globTool, globWorkspace } from './tools/GlobTool';
 export { terminalTool, runTerminalCommand } from './tools/TerminalTool';
@@ -32,6 +37,11 @@ export type { AskQuestionPayload } from './tools/AskQuestionTool';
 export { todoWriteTool } from './tools/TodoWriteTool';
 export { taskTool } from './tools/TaskTool';
 export type { SubAgentTaskDescriptor } from './tools/TaskTool';
+export {
+  SubAgentResult,
+  type SubAgentRawResult,
+  type SubAgentSummary,
+} from './SubAgentResult';
 export { skillTool } from './tools/SkillTool';
 export type { SkillStubResult } from './tools/SkillTool';
 export {
@@ -46,3 +56,12 @@ export {
   collectRuntimeLogsTool,
   resetDebugInstrumentation,
 } from './tools/DebugTools';
+export { webFetchTool, webSearchTool } from './tools/WebTools';
+export {
+  lspDefinitionTool,
+  lspReferencesTool,
+  readLintsTool,
+} from './tools/LspLintTools';
+export { mcpListToolsTool, mcpCallTool } from './tools/McpTools';
+export { switchModeTool } from './tools/SwitchModeTool';
+export { requestReproduceTool } from './tools/RequestReproduceTool';

@@ -98,6 +98,21 @@ describe('ChatSessionStore subagent tabs', () => {
     const fresh = new ChatSessionStore();
     expect(fresh.getSubagentTabs()).toHaveLength(0);
   });
+  it('createSubagentSession is hidden from list and cascades on parent delete', () => {
+    const parent = store.createEmpty('agent');
+    const child = store.createSubagentSession({
+      id: 'sess-sub-task1',
+      parentSessionId: parent.id,
+      title: 'Explore'
+    });
+    expect(child.kind).toBe('subagent');
+    expect(child.parentSessionId).toBe(parent.id);
+    expect(store.list().some((s) => s.id === child.id)).toBe(false);
+    expect(store.get(child.id)?.id).toBe(child.id);
+
+    store.delete(parent.id);
+    expect(store.get(child.id)).toBeFalsy();
+  });
 });
 
 describe('ChatSessionStore open tabs + host hydration', () => {

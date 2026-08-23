@@ -2,6 +2,7 @@ import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { FileEditPreviewView } from './FileEditPreviewView';
 import { TerminalRunCard } from './TerminalRunCard';
 import { PlanningTailRow } from './ExploreChrome';
+import { SubagentRunRow } from './SubagentRunRow';
 import { StreamingMarkdown } from '../StreamingMarkdown';
 import type { FileEditPreview, TerminalRunPreview } from '../types';
 import { buildCuriosityPhases } from '../curiosityPhases';
@@ -43,6 +44,10 @@ export interface MessageStep {
   openPath?: string;
   itemStatus: 'running' | 'done' | 'error';
   durationMs?: number;
+  /** SUB-010 — parent SubagentRunRow (kind subagent / task_run) */
+  subagentId?: string;
+  role?: string;
+  description?: string;
 }
 
 type ExploreRow = { type: 'tool' | 'thought' | 'prose'; step: MessageStep };
@@ -76,6 +81,9 @@ interface MessageStepsProps {
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
+  /** SUB-010 — open child session tab from in-timeline SubagentRunRow */
+  onOpenSubagent?: (subagentId: string, title: string) => void;
+  getSubagentRolling?: (subagentId: string) => string | undefined;
 }
 
 type TurnGroup = {
@@ -123,10 +131,13 @@ function isExploreStep(s: MessageStep): boolean {
   return false;
 }
 
-/** Session chrome (todos / mode) — never show as "Ran a command" */
+/** Session chrome + parent task_run tool.start leftovers — never ChevronRow / SubagentRunRow */
 function isNoiseAction(s: MessageStep): boolean {
+  if (isCanonicalSubagentStep(s)) return false;
   if (s.kind === 'session') return true;
-  const n = s.toolName || '';
+  const n = (s.toolName || '').toLowerCase();
+  // Comment: parent task_run tool.start is suppressed on host; ignore leftovers
+  if (n === 'task' || n === 'task_run') return true;
   return (
     n === 'todo_write' ||
     n === 'switch_mode' ||
@@ -138,6 +149,20 @@ function isNoiseAction(s: MessageStep): boolean {
 function isShellStep(s: MessageStep): boolean {
   const n = s.toolName || '';
   return n === 'run_terminal_cmd' || n === 'terminal_output' || s.kind === 'running';
+}
+
+/** Canonical parent header only — not raw task_run tool.start (call_*). */
+function isCanonicalSubagentStep(s: MessageStep): boolean {
+  if (s.kind === 'subagent') return true;
+  if (s.id.startsWith('tl_subagent_')) return true;
+  return Boolean(
+    s.subagentId && s.id === `tl_subagent_${s.subagentId}`
+  );
+}
+
+/** task_run / task / subagent header — in-phase SubagentRunRow (not ChevronRow) */
+function isTaskStep(s: MessageStep): boolean {
+  return isCanonicalSubagentStep(s);
 }
 
 function isActionStep(s: MessageStep): boolean {
@@ -379,7 +404,7 @@ function formatRollingTool(s: MessageStep): string {
 function summarizeActions(steps: MessageStep[]): string {
   // Comment: caller already strips editing + shell (cards own those); title is ask/task/other only
   const tools = actionSteps(steps).filter(
-    (s) => s.kind !== 'editing' && !isShellStep(s)
+    (s) => s.kind !== 'editing' && !isShellStep(s) && !isTaskStep(s)
   );
   if (!tools.length) return '';
   const asks = tools.filter((s) => s.kind === 'asking');
@@ -499,8 +524,9 @@ function ThoughtBody({
   const ref = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const max = compact ? MID_THOUGHT_DISPLAY_MAX : THOUGHT_DISPLAY_MAX;
+  // Comment: over cap → drop the head so live Thinking keeps scrolling newest tokens
   const display =
-    text.length > max ? `${text.slice(0, max)}…` : text;
+    text.length > max ? `…${text.slice(text.length - max)}` : text;
 
   useEffect(() => {
     const el = ref.current;
@@ -1085,7 +1111,9 @@ export function MessageSteps({
   planningTailTitle = 'Planning next moves',
   onOpenFile,
   onAcceptFile,
-  onRejectFile
+  onRejectFile,
+  onOpenSubagent,
+  getSubagentRolling
 }: MessageStepsProps) {
   const groups = useMemo(() => {
     const map = new Map<number, MessageStep[]>();
@@ -1385,11 +1413,12 @@ export function MessageSteps({
           Boolean(th) &&
           (Boolean(reasoning) || thoughtLive) &&
           !showExplore;
-        // Comment: edits → FileEditCard; shells → TerminalRunCard (no Ran N group)
+        // Comment: edits → FileEditCard; shells → TerminalRunCard; tasks → SubagentRunRow
         const editActions = p.actions.filter((a) => a.kind === 'editing');
         const shellActions = p.actions.filter(isShellStep);
+        const taskActions = p.actions.filter(isTaskStep);
         const actions = p.actions.filter(
-          (a) => a.kind !== 'editing' && !isShellStep(a)
+          (a) => a.kind !== 'editing' && !isShellStep(a) && !isTaskStep(a)
         );
         const actionLive = actions.some((a) => a.itemStatus === 'running');
         const actionHasError = actions.some((a) => a.itemStatus === 'error');
@@ -1510,32 +1539,128 @@ export function MessageSteps({
                 </ExploringChrome>
               ) : null}
 
-              {actions.length > 0 ? (
-                <ChevronRow
-                  title={
-                    actionLive
-                      ? actions.find((a) => a.itemStatus === 'running')
-                          ?.toolName || 'Working'
-                      : actionSummary || 'Done'
+              {/* Comment: SUB-010 — walk p.actions in order (Ran / Subagent / misc).
+                  Bucket dumps put every SubagentRunRow after all shells → "stuck at end". */}
+              {(() => {
+                const nodes: React.ReactNode[] = [];
+                let miscBuf: MessageStep[] = [];
+                const termByAction = new Map(
+                  shellCards
+                    .filter((c) => c.run)
+                    .map((c) => [c.action.id, c.run!] as const)
+                );
+                const flushMisc = (key: string) => {
+                  if (!miscBuf.length) return;
+                  const batch = miscBuf;
+                  miscBuf = [];
+                  const live = batch.some((a) => a.itemStatus === 'running');
+                  const err = batch.some((a) => a.itemStatus === 'error');
+                  nodes.push(
+                    <ChevronRow
+                      key={`misc_${p.id}_${key}`}
+                      title={
+                        live
+                          ? batch.find((a) => a.itemStatus === 'running')
+                              ?.toolName || 'Working'
+                          : summarizeActions(batch) || 'Done'
+                      }
+                      expanded={live || actionExpanded}
+                      live={!!live}
+                      hasError={err}
+                      onToggle={() =>
+                        setOpenAction((prev) => ({
+                          ...prev,
+                          [p.id]: !actionExpanded
+                        }))
+                      }
+                    >
+                      <ToolSlideList
+                        items={live ? liveTail(batch) : batch}
+                        live={!!live}
+                        maxHeight={live ? 72 : 140}
+                        onOpenFile={onOpenFile}
+                      />
+                    </ChevronRow>
+                  );
+                };
+                for (const a of p.actions) {
+                  if (isTaskStep(a)) {
+                    flushMisc(a.id);
+                    const sid =
+                      a.subagentId ||
+                      (a.id.startsWith('tl_subagent_')
+                        ? a.id.slice('tl_subagent_'.length)
+                        : a.id);
+                    const title =
+                      String(a.description || a.label || '').trim() || 'Agent';
+                    nodes.push(
+                      <SubagentRunRow
+                        key={a.id}
+                        title={title}
+                        role={a.role}
+                        live={a.itemStatus === 'running'}
+                        hasError={a.itemStatus === 'error'}
+                        rollingOverride={getSubagentRolling?.(sid)}
+                        onOpen={() => onOpenSubagent?.(sid, title)}
+                      />
+                    );
+                    continue;
                   }
-                  expanded={actionExpanded}
-                  live={!!actionLive}
-                  hasError={actionHasError}
-                  onToggle={() =>
-                    setOpenAction((prev) => ({
-                      ...prev,
-                      [p.id]: !actionExpanded
-                    }))
+                  if (isShellStep(a)) {
+                    flushMisc(a.id);
+                    const run = termByAction.get(a.id);
+                    if (run) {
+                      nodes.push(
+                        <div
+                          key={run.id}
+                          className="ak-terminal-runs-inline ak-cards-under-action"
+                        >
+                          <TerminalRunCard {...run} />
+                        </div>
+                      );
+                    } else {
+                      const detail = resolveExploreDetail(a) || a.detail || '';
+                      nodes.push(
+                        <div
+                          key={a.id}
+                          className="ak-edit-flush-row"
+                          aria-live={
+                            a.itemStatus === 'running' ? 'polite' : undefined
+                          }
+                        >
+                          <span className="ak-edit-flush-row__label">
+                            {a.itemStatus === 'running' ? 'Running' : 'Ran'}
+                            {detail ? ` ${detail}` : ''}
+                          </span>
+                          {a.durationMs != null &&
+                          a.itemStatus !== 'running' ? (
+                            <span className="ak-edit-flush-row__ms">
+                              {formatMs(a.durationMs)}
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+                    }
+                    continue;
                   }
-                >
-                  <ToolSlideList
-                    items={actionLive ? liveTail(actions) : actions}
-                    live={!!actionLive}
-                    maxHeight={actionLive ? 72 : 140}
-                    onOpenFile={onOpenFile}
-                  />
-                </ChevronRow>
-              ) : null}
+                  if (a.kind === 'editing') continue;
+                  miscBuf.push(a);
+                }
+                flushMisc('tail');
+                if (orphanTerms.length > 0) {
+                  nodes.push(
+                    <div
+                      key={`orphan_term_${p.id}`}
+                      className="ak-terminal-runs-inline ak-cards-under-action"
+                    >
+                      {orphanTerms.map((tr) => (
+                        <TerminalRunCard key={tr.id} {...tr} />
+                      ))}
+                    </div>
+                  );
+                }
+                return nodes;
+              })()}
 
               {editingLiveNoCard ? (
                 <div className="ak-edit-flush-row" aria-live="polite">
@@ -1576,41 +1701,6 @@ export function MessageSteps({
                       onAccept={onAcceptFile}
                       onReject={onRejectFile}
                     />
-                  ))}
-                </div>
-              ) : null}
-
-              {/* Comment: CONV-018 — one TerminalRunCard per shell; never "Ran N commands" */}
-              {shellCards.length > 0 || orphanTerms.length > 0 ? (
-                <div className="ak-terminal-runs-inline ak-cards-under-action">
-                  {shellCards.map(({ action: a, run }) => {
-                    if (run) {
-                      return <TerminalRunCard key={run.id} {...run} />;
-                    }
-                    const detail =
-                      resolveExploreDetail(a) || a.detail || '';
-                    return (
-                      <div
-                        key={a.id}
-                        className="ak-edit-flush-row"
-                        aria-live={
-                          a.itemStatus === 'running' ? 'polite' : undefined
-                        }
-                      >
-                        <span className="ak-edit-flush-row__label">
-                          {a.itemStatus === 'running' ? 'Running' : 'Ran'}
-                          {detail ? ` ${detail}` : ''}
-                        </span>
-                        {a.durationMs != null && a.itemStatus !== 'running' ? (
-                          <span className="ak-edit-flush-row__ms">
-                            {formatMs(a.durationMs)}
-                          </span>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                  {orphanTerms.map((tr) => (
-                    <TerminalRunCard key={tr.id} {...tr} />
                   ))}
                 </div>
               ) : null}

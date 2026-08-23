@@ -12,6 +12,7 @@ import type {
 const WRITE_TOOL_NAMES = new Set([
   'write_file',
   'edit_file',
+  'delete_file',
   'todo_write',
 ]);
 

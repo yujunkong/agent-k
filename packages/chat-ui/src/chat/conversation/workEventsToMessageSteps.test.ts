@@ -51,14 +51,16 @@ describe('workEventsToMessageSteps', () => {
     });
   });
 
-  it('skips subagent events (parent SubagentRunRow owns them)', () => {
+  it('keeps subagent headers in order and skips child-tagged tools', () => {
     const events: ConversationWorkEvent[] = [
       {
         id: 'tl_subagent_x',
         type: 'subagent',
         status: 'running',
         label: 'Agent',
-        subagentId: 'x'
+        description: 'Phase 1 audit',
+        subagentId: 'x',
+        role: 'review'
       },
       {
         id: 'tl_tool_child',
@@ -76,8 +78,40 @@ describe('workEventsToMessageSteps', () => {
       }
     ];
     const steps = workEventsToMessageSteps(events);
-    expect(steps).toHaveLength(1);
-    expect(steps[0].id).toBe('tl_tool_root');
-    expect(steps[0].kind).toBe('searching');
+    expect(steps.map((s) => s.id)).toEqual(['tl_subagent_x', 'tl_tool_root']);
+    expect(steps[0]).toMatchObject({
+      kind: 'subagent',
+      toolName: 'task_run',
+      subagentId: 'x',
+      description: 'Phase 1 audit',
+      role: 'review',
+      itemStatus: 'running'
+    });
+    expect(steps[1].kind).toBe('searching');
+  });
+
+  it('does not infer turn from digits inside tl_subagent task ids', () => {
+    const events: ConversationWorkEvent[] = [
+      {
+        id: 'tl_tool_read',
+        type: 'read',
+        status: 'complete',
+        label: 'Reading',
+        toolName: 'read_file'
+      },
+      {
+        // Comment: mt5s… would match turn 5 with the old tl_…(\\d+) regex
+        id: 'tl_subagent_subagent-mt5sznft-q1zbft',
+        type: 'subagent',
+        status: 'running',
+        label: 'Agent',
+        description: 'Quality pass',
+        subagentId: 'subagent-mt5sznft-q1zbft',
+        parentTurnId: '1'
+      }
+    ];
+    const steps = workEventsToMessageSteps(events);
+    expect(steps[1].turn).toBe(1);
+    expect(steps[1].turn).not.toBe(5);
   });
 });

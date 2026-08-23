@@ -142,7 +142,8 @@ function ThoughtBody({
   const ref = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const max = compact ? MID_THOUGHT_DISPLAY_MAX : THOUGHT_DISPLAY_MAX;
-  const display = text.length > max ? `${text.slice(0, max)}…` : text;
+  // Comment: over cap → drop the head so live Thinking keeps scrolling newest tokens
+  const display = text.length > max ? `…${text.slice(text.length - max)}` : text;
 
   useEffect(() => {
     const el = ref.current;

@@ -27,6 +27,8 @@ import {
   applyWorkEvent,
   beginWorkEvent,
   sealStaleThoughtsBeforeTools,
+  isSubagentHeaderEvent,
+  isTerminalWorkStatus,
   type ConversationWorkEvent
 } from './conversation/conversationWorkEvent';
 import { linkPreviewToWorkEvents } from './conversation/workEventDetails';
@@ -275,6 +277,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
     const beforeLen = String(msg.content || '').trim().length;
     const beforeLead = String(msg.openingLead || '').trim().length;
     const beforeProse = msg.turnProse?.length ?? 0;
+    // Comment: content → turnProse always (structural; no NLP / forceVisible)
     const sealed = sealBodyBeforeTools(msg, turn);
     const snap = summarizeMidReplySeal(msg, sealed);
     // Always log clearContent / tool seals so missing mid-reply is diagnosable.
@@ -315,6 +318,18 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
       return null;
     }
     return { lastIdx, msg: prev[lastIdx] };
+  };
+
+  /** Last assistant bubble — for terminal subagent settle after parent stream ended. */
+  const lastAssistant = (
+    prev: ChatMessage[]
+  ): { lastIdx: number; msg: ChatMessage } | null => {
+    for (let i = prev.length - 1; i >= 0; i--) {
+      if (prev[i].role === 'assistant') {
+        return { lastIdx: i, msg: prev[i] };
+      }
+    }
+    return null;
   };
 
   const onDelta = (delta: StreamDelta) => {
@@ -560,11 +575,59 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         }
         return;
       }
-      const id =
-        tl.id ||
-        `step_${tl.kind}_${tl.turn}_${tl.toolName || 'x'}_${Date.now()}`;
       const now = Date.now();
       const starts = stepStarts();
+      // Comment: id may rotate if host reuses a sealed Thought id (child SUB-010)
+      let id =
+        tl.id ||
+        `step_${tl.kind}_${tl.turn}_${tl.toolName || 'x'}_${Date.now()}`;
+      let remappedThinkingId = false;
+      if (
+        tl.kind === 'thinking' &&
+        (tl.itemStatus === 'running' || tl.itemStatus == null)
+      ) {
+        const ownerId = getOwnerSessionId();
+        const ownerMsgs =
+          ownerId && typeof ctx.getSessionMessages === 'function'
+            ? ctx.getSessionMessages(ownerId)
+            : ctx.messagesRef.current;
+        const hitPeek = lastStreaming(ownerMsgs || []);
+        const sealedSame = !!hitPeek?.msg.steps?.some(
+          (s) =>
+            s.id === id &&
+            s.kind === 'thinking' &&
+            (s.itemStatus === 'done' || s.itemStatus === 'error')
+        );
+        if (sealedSame) {
+          // Comment: host reused sealed id — route to live mid Thought (or open one)
+          if (thoughtBlocked) thoughtBlocked = false;
+          thoughtOpen = true;
+          const liveMid = hitPeek?.msg.steps?.find(
+            (s) =>
+              s.kind === 'thinking' &&
+              s.itemStatus === 'running' &&
+              s.id !== id
+          );
+          if (liveMid?.id) {
+            id = liveMid.id;
+          } else {
+            thoughtSeg += 1;
+            id = thoughtIdForSeg(tl.turn ?? streamTurn(), thoughtSeg);
+          }
+          remappedThinkingId = true;
+          debugLog('timeline-order', 'thought.reopen-timeline', {
+            ownerId,
+            hostId: tl.id,
+            id,
+            seg: thoughtSeg,
+            reason: liveMid ? 'alias-live' : 'sealed-same-id'
+          });
+        } else if (thoughtBlocked) {
+          // Comment: tools already paused Thought; host sent a fresh id — keep it
+          thoughtBlocked = false;
+          thoughtOpen = true;
+        }
+      }
       if (!starts[id]) starts[id] = now;
       const durationMs =
         tl.itemStatus === 'done' || tl.itemStatus === 'error'
@@ -572,7 +635,23 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
           : undefined;
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
-        if (!hit) return prev;
+        if (!hit) {
+          // Comment: SUB-010 — parent may already be complete; still settle RunRow
+          if (
+            tl.subagentId &&
+            (tl.itemStatus === 'done' || tl.itemStatus === 'error') &&
+            (tl.id?.startsWith('tl_subagent_') || tl.kind === 'task')
+          ) {
+            const asst = lastAssistant(prev);
+            if (!asst) return prev;
+            const we = delta.workEvent;
+            if (!we || !isSubagentHeaderEvent(we)) return prev;
+            const copy = [...prev];
+            copy[asst.lastIdx] = withWorkEvent(asst.msg, we);
+            return copy;
+          }
+          return prev;
+        }
         let msg = hit.msg;
         if (STREAM_TOOL_KINDS.has(tl.kind) && tl.itemStatus === 'running' && !tl.subagentId) {
           // Comment: Cursor-style — pause opening Thought; mid seg opens after tools
@@ -581,12 +660,28 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
             sealLeadFromMessage(msg, tl.turn, `timeline.tool:${tl.kind}`)
           );
         }
-        msg = withWorkEvent(msg, delta.workEvent);
+        // Comment: SUB-010 — parent keeps tl_subagent_* header only; child tools live on child session
         if (tl.subagentId) {
+          const we = delta.workEvent;
+          const keepHeader =
+            (we != null && isSubagentHeaderEvent(we)) ||
+            (tl.id != null && String(tl.id).startsWith('tl_subagent_')) ||
+            tl.kind === 'task';
+          if (!keepHeader) return prev;
+          // Comment: task_run skips tool.start — still seal Thought so next dig is
+          // a NEW Thought *below* SubagentRunRow (not growing the open accordion above).
+          if (tl.itemStatus === 'running' || tl.itemStatus == null) {
+            pauseThoughtSegment('timeline.subagent');
+            msg = sealRunningThoughtSteps(
+              sealLeadFromMessage(msg, tl.turn, 'timeline.subagent')
+            );
+          }
+          msg = withWorkEvent(msg, we);
           const copy = [...prev];
           copy[hit.lastIdx] = msg;
           return copy;
         }
+        msg = withWorkEvent(msg, delta.workEvent);
         const steps = [...(msg.steps || [])];
         const idx = steps.findIndex((s) => s.id === id);
         const nextStep = {
@@ -604,11 +699,14 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
               ? String(tl.openPath)
               : steps[idx]?.openPath,
           turn: tl.turn,
-          thoughtRole:
-            tl.thoughtRole ??
-            (tl.kind === 'thinking'
-              ? steps[idx]?.thoughtRole ?? 'opening'
-              : steps[idx]?.thoughtRole),
+          thoughtRole: remappedThinkingId
+            ? thoughtSeg > 0
+              ? 'mid'
+              : 'opening'
+            : tl.thoughtRole ??
+              (tl.kind === 'thinking'
+                ? steps[idx]?.thoughtRole ?? 'opening'
+                : steps[idx]?.thoughtRole),
           itemStatus: tl.itemStatus,
           durationMs: durationMs ?? steps[idx]?.durationMs
         };
@@ -634,10 +732,34 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
 
     if (delta.workEvent) {
       applyOwnerMessages((prev) => {
-        const hit = lastStreaming(prev);
+        const terminalHeader =
+          isSubagentHeaderEvent(delta.workEvent!) &&
+          isTerminalWorkStatus(delta.workEvent!.status);
+        const hit =
+          lastStreaming(prev) || (terminalHeader ? lastAssistant(prev) : null);
         if (!hit) return prev;
+        // Comment: SUB-010 — drop child-tagged tool rows that leaked onto parent
+        if (
+          delta.workEvent!.subagentId &&
+          !isSubagentHeaderEvent(delta.workEvent!)
+        ) {
+          return prev;
+        }
+        let msg = hit.msg;
+        // Comment: subagent.event path (no timeline) must also seal+rotate Thought
+        if (
+          isSubagentHeaderEvent(delta.workEvent!) &&
+          (delta.workEvent!.status === 'running' ||
+            delta.workEvent!.status === 'pending') &&
+          hit.msg.status === 'streaming'
+        ) {
+          pauseThoughtSegment('workEvent.subagent');
+          msg = sealRunningThoughtSteps(
+            sealLeadFromMessage(msg, undefined, 'workEvent.subagent')
+          );
+        }
         const copy = [...prev];
-        copy[hit.lastIdx] = withWorkEvent(hit.msg, delta.workEvent);
+        copy[hit.lastIdx] = withWorkEvent(msg, delta.workEvent);
         return copy;
       });
       return;

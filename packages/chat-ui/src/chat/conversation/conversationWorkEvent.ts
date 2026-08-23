@@ -47,6 +47,8 @@ export type ConversationWorkEvent = {
   parentTurnId?: string;
   /** Short Cursor-style progress title from task_run.description (3–5 words). */
   description?: string;
+  /** SUB-008 — research/coding/… for RunRow badge */
+  role?: string;
   /** Completion stats from subagent.event — not a child transcript. */
   result?: SubagentResult;
   /** Plan execution correlation — connects this event to the DAG run. */
@@ -266,6 +268,7 @@ export function upsertWorkEvents(
     detail: incoming.detail ?? prev.detail,
     openPath: incoming.openPath ?? prev.openPath,
     description: incoming.description ?? prev.description,
+    role: incoming.role ?? prev.role,
     startedAt: prev.startedAt ?? incoming.startedAt,
     completedAt: thinkingResume
       ? undefined
@@ -351,10 +354,19 @@ export type HostWorkPayload = {
 
 export function subagentRoleTitle(role?: string): string {
   const value = String(role || '').trim().toLowerCase();
-  if (value === 'research') return 'Research';
+  // Comment: Cursor main-row badge — research/explore → Explorer
+  if (
+    value === 'research' ||
+    value === 'explore' ||
+    value === 'explorer' ||
+    value === 'search'
+  ) {
+    return 'Explorer';
+  }
   if (value === 'coding') return 'Coding';
   if (value === 'review') return 'Review';
   if (value === 'debug') return 'Debug';
+  if (value === 'general') return 'Agent';
   return 'Subagent';
 }
 
@@ -477,6 +489,7 @@ export function workEventFromSubagentHostEvent(
     ),
     detail: undefined,
     description,
+    role: data.role != null ? String(data.role) : undefined,
     result: terminal ? parseSubagentResult(data) : undefined,
     subagentId: taskId,
     parentTurnId:
@@ -537,6 +550,7 @@ export function workEventFromHostPayload(
       ),
       detail: undefined,
       description,
+      role: data.role != null ? String(data.role) : undefined,
       result:
         status === 'complete' || status === 'error'
           ? parseSubagentResult(data as Record<string, unknown>)

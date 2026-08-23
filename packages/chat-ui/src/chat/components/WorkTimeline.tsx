@@ -63,6 +63,8 @@ export interface WorkTimelineProps {
   subagentDetail?: boolean;
   /** Parent timeline: open a Cursor-style subagent progress tab (no composer). */
   onOpenSubagent?: (subagentId: string, title: string) => void;
+  /** SUB-010 — rolling line from child ChatSession (taskId or sess-sub-*) */
+  getSubagentRolling?: (subagentId: string) => string | undefined;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
@@ -158,6 +160,7 @@ function SubagentTimelineGroup({
   activeStepId,
   expandInline = false,
   onOpenSubagent,
+  getSubagentRolling,
   onOpenFile,
   onAcceptFile,
   onRejectFile,
@@ -170,6 +173,7 @@ function SubagentTimelineGroup({
   /** Detail tab: show full child timeline; parent: progress row → open tab */
   expandInline?: boolean;
   onOpenSubagent?: (subagentId: string, title: string) => void;
+  getSubagentRolling?: (subagentId: string) => string | undefined;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
@@ -195,6 +199,7 @@ function SubagentTimelineGroup({
       .replace(/\s*·\s*(running|completed|failed|queued)$/i, '')
       .trim() ||
     'Agent';
+  const rollingOverride = getSubagentRolling?.(subagentId);
 
   // Parent conversation: one progress row; click opens detail tab (no nested noise).
   if (!expandInline) {
@@ -205,9 +210,11 @@ function SubagentTimelineGroup({
       >
         <SubagentRunRow
           title={progressTitle}
+          role={node.step.role}
           live={live}
           hasError={hasError}
           childrenSteps={visibleChildren}
+          rollingOverride={rollingOverride}
           onOpen={() => onOpenSubagent?.(subagentId, progressTitle)}
         />
       </div>
@@ -237,6 +244,7 @@ function SubagentTimelineGroup({
     >
       <SubagentRunRow
         title={progressTitle}
+        role={node.step.role}
         live={live}
         hasError={hasError}
         childrenSteps={visibleChildren}
@@ -281,7 +289,8 @@ function renderTimelineNode(
   compactFileEdit?: boolean,
   expandSubagentInline?: boolean,
   onOpenSubagent?: (subagentId: string, title: string) => void,
-  preferCollapsedThought = false
+  preferCollapsedThought = false,
+  getSubagentRolling?: (subagentId: string) => string | undefined
 ): React.ReactNode {
   if (node.kind === 'group') {
     return (
@@ -291,6 +300,7 @@ function renderTimelineNode(
         activeStepId={activeStepId}
         expandInline={expandSubagentInline}
         onOpenSubagent={onOpenSubagent}
+        getSubagentRolling={getSubagentRolling}
         onOpenFile={onOpenFile}
         onAcceptFile={onAcceptFile}
         onRejectFile={onRejectFile}
@@ -358,6 +368,7 @@ export function WorkTimeline({
   workedDurationMs,
   subagentDetail = false,
   onOpenSubagent,
+  getSubagentRolling,
   onOpenFile,
   onAcceptFile,
   onRejectFile,
@@ -384,35 +395,31 @@ export function WorkTimeline({
   );
   const { summary: timelineSummary } = presentation;
   const pendingInline = fileEdits.some(isPendingInlineEdit);
-  // Prefer host `message.steps`; enrich empty Grepped/Read detail from workItems.
+  // Prefer chronological workItems (includes subagent headers); enrich from host steps.
   const messageSteps = useMemo((): MessageStep[] => {
-    const base =
-      stepsProp && stepsProp.length > 0
-        ? stepsProp
-        : workEventsToMessageSteps(items);
-    if (!items.length) return base;
-    const byId = new Map(items.map((e) => [e.id, e]));
-    return base.map((s) => {
-      const w = byId.get(s.id);
-      if (!w) return s;
-      const detail = (s.detail && s.detail.trim()) || w.detail;
-      const openPath = s.openPath || w.openPath;
-      const toolName = s.toolName || w.toolName;
-      const durationMs =
-        s.durationMs ??
-        (w.startedAt != null && w.completedAt != null
-          ? Math.max(0, w.completedAt - w.startedAt)
-          : undefined);
-      if (
-        detail === s.detail &&
-        openPath === s.openPath &&
-        toolName === s.toolName &&
-        durationMs === s.durationMs
-      ) {
-        return s;
-      }
-      return { ...s, detail, openPath, toolName, durationMs };
+    const fromItems = workEventsToMessageSteps(items);
+    if (!stepsProp?.length) return fromItems;
+    const byId = new Map(stepsProp.map((s) => [s.id, s]));
+    const seen = new Set<string>();
+    const merged = fromItems.map((s) => {
+      seen.add(s.id);
+      if (s.kind === 'subagent') return s;
+      const prev = byId.get(s.id);
+      if (!prev) return s;
+      return {
+        ...prev,
+        // Comment: keep workItems detail when step row blanked it
+        detail: (prev.detail && prev.detail.trim()) || s.detail,
+        openPath: prev.openPath || s.openPath,
+        durationMs: prev.durationMs ?? s.durationMs
+      };
     });
+    for (const s of stepsProp) {
+      if (seen.has(s.id)) continue;
+      if (s.kind === 'subagent' || s.kind === 'task') continue;
+      merged.push(s);
+    }
+    return merged;
   }, [stepsProp, items]);
 
   const stepsLive = messageSteps.some((s) => s.itemStatus === 'running');
@@ -537,6 +544,8 @@ export function WorkTimeline({
           onOpenFile={onOpenFile}
           onAcceptFile={onAcceptFile}
           onRejectFile={onRejectFile}
+          onOpenSubagent={onOpenSubagent}
+          getSubagentRolling={getSubagentRolling}
         />
       ) : null}
       {/* Orphan previews when no steps/phases yet to attach MessageSteps cards */}
@@ -560,22 +569,27 @@ export function WorkTimeline({
           ))}
         </div>
       ) : null}
-      {subagentGroupNodes.map((node) =>
-        renderTimelineNode(
-          node,
-          presentation.activeStepId,
-          onOpenFile,
-          onAcceptFile,
-          onRejectFile,
-          onWorktreeReview,
-          onWorktreeApply,
-          onWorktreeReject,
-          undefined,
-          Boolean(subagentDetail),
-          onOpenSubagent,
-          Boolean(subagentDetail)
-        )
-      )}
+      {/* Comment: SUB-010 — subagent rows live inside MessageSteps (chronological).
+          Only expandInline detail still uses group nodes. */}
+      {subagentDetail
+        ? subagentGroupNodes.map((node) =>
+            renderTimelineNode(
+              node,
+              presentation.activeStepId,
+              onOpenFile,
+              onAcceptFile,
+              onRejectFile,
+              onWorktreeReview,
+              onWorktreeApply,
+              onWorktreeReject,
+              undefined,
+              true,
+              onOpenSubagent,
+              true,
+              getSubagentRolling
+            )
+          )
+        : null}
     </>
   );
 

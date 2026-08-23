@@ -1091,14 +1091,21 @@ body {
  * - `.ak-step-title__base` is ALWAYS opaque readable text
  * - `.ak-step-title__shine` is a duplicate clipped to a moving bright band
  * No rectangular overlay — only glyph-shaped highlight (no “box” sweep).
+ * Containing block REQUIRED — without position:relative the shine anchors to
+ * .chat-container and paints a white gradient over the session tab strip.
  */
+.ak-step-title--live-shimmer {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 .ak-step-row--live > .ak-step-chevron-btn > .ak-step-title--live-shimmer,
 .ak-step-rolling--live > .ak-step-title--live-shimmer,
 .ak-explore-mid-thought--live
   > .ak-explore-mid-thought__btn
   > .ak-step-title--live-shimmer {
-  position: relative;
-  display: inline-block;
   flex: 0 0 auto !important;
   min-width: max-content !important;
   max-width: none !important;
@@ -1527,6 +1534,48 @@ body.vscode-dark .user-chip--file,
   font-size: 13px;
   line-height: 1.5;
   color: inherit;
+}
+
+/* SUB-010 — subagent detail prompt: expand to read, no edit/copy chrome */
+.user-turn--expand-only {
+  /* Comment: readable card, not stadium composer pill */
+  border-radius: 10px;
+  padding: 10px 14px 8px;
+}
+
+.user-turn--expand-only .message-actions--user {
+  display: none;
+}
+
+.user-turn--prompt-collapsed .user-turn__text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  max-height: calc(1.5em * 4);
+}
+
+.user-turn--prompt-expanded .user-turn__text {
+  display: block;
+  -webkit-line-clamp: unset;
+  max-height: none;
+  overflow: visible;
+}
+
+.user-turn__expand {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--vscode-textLink-foreground, #3794ff);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.user-turn__expand:hover {
+  text-decoration: underline;
 }
 
 /* Pencil edit embeds the real Composer component */
@@ -2000,29 +2049,109 @@ body.vscode-dark .user-chip--file,
   max-width: 100%;
 }
 
-.ak-subagent-run__btn {
-  position: relative;
+.ak-subagent-run {
+  margin: 6px 0 10px;
 }
 
-.ak-subagent-run__hint {
-  margin-left: auto;
-  padding-right: 4px;
-  font-size: 10px;
-  opacity: 0.45;
+.ak-subagent-run__btn {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ak-subagent-run__btn--locked {
+  cursor: default;
+}
+
+.ak-subagent-run__glyph {
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  grid-template-rows: repeat(3, 3px);
+  gap: 2px;
+  margin-top: 5px;
   flex-shrink: 0;
 }
 
-.ak-subagent-run__btn:hover .ak-subagent-run__hint {
+.ak-subagent-run__glyph > span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--vscode-descriptionForeground, #888);
   opacity: 0.85;
 }
 
-.ak-work-subagent--detail .ak-subagent-run__hint {
+.ak-subagent-run__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ak-subagent-run__headline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ak-subagent-run__title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--vscode-foreground, #ccc);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Comment: SUB-010 — LiveTitle shimmer must contain absolute shine (else paints over tab strip) */
+.ak-subagent-run__title.ak-step-title--live-shimmer {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+.ak-subagent-run__role {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--vscode-descriptionForeground, #888);
+}
+
+.ak-subagent-run__detail {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--vscode-descriptionForeground, #888);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ak-subagent-run__detail--wait {
+  opacity: 0.85;
+}
+
+.ak-subagent-run--error .ak-subagent-run__title {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+/* legacy hint unused — keep harmless */
+.ak-subagent-run__hint {
   display: none;
 }
 
-/* Detail tab reuses main WorkTimeline — no nested rail. */
-
-/* Subagent detail pane (tab without composer) */
+/* Detail tab — same AgentTurn / MessageSteps chrome as main chat */
 .ak-subagent-detail {
   display: flex;
   flex-direction: column;
@@ -2581,6 +2710,11 @@ body.vscode-dark .user-chip--file,
   color: var(--vscode-foreground, #ccc);
   text-align: left;
   font: inherit;
+  cursor: pointer;
+}
+
+.ak-terminal-card__header:disabled {
+  cursor: default;
 }
 
 .ak-terminal-card__badge {
@@ -2656,7 +2790,8 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-terminal-card--expanded .ak-terminal-card__output {
-  max-height: var(--ak-card-body-max-expanded, 280px);
+  /* Comment: full command log — 280px felt "broken" for short pwd/ls cards */
+  max-height: min(70vh, 720px);
 }
 
 /* Comment: same chrome as .ak-file-edit-expand */
@@ -2668,10 +2803,17 @@ body.vscode-dark .user-chip--file,
   padding: 4px 0 6px;
   border: none;
   border-top: 1px solid var(--ak-card-border);
-  background: transparent;
+  background: var(--ak-card-header-bg, transparent);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   cursor: pointer;
   opacity: 0.85;
+  position: relative;
+  z-index: 2;
+}
+
+.ak-terminal-card__expand:hover {
+  opacity: 1;
+  color: var(--vscode-foreground, #ccc);
 }
 
 .ak-terminal-card__caret {
@@ -3443,13 +3585,24 @@ body.vscode-high-contrast .ak-code__cursor {
 .changed-files-bar {
   position: relative;
   border: 1px solid var(--ak-panel-border);
-  border-radius: 10px;
+  border-radius: 10px 10px 0 0;
+  border-bottom: none;
   background: color-mix(
     in srgb,
     var(--vscode-sideBar-background, #252526) 92%,
     var(--vscode-editor-background, #1e1e1e)
   );
   overflow: visible;
+  /* Comment: cancel .chat-footer gap so bar sits flush on composer */
+  margin-bottom: -8px;
+  z-index: 1;
+}
+
+/* Composer under files bar — shared seam, no gap */
+.changed-files-bar + .ak-composer-host .composer-box,
+.changed-files-bar + .composer .composer-box {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .changed-files-bar__row {

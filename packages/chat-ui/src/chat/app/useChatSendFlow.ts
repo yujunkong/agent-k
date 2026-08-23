@@ -181,6 +181,16 @@ export interface UseChatSendFlowReturn {
   pushSystemNotice: (content: string) => void;
   runSlashCommand: (cmd: SlashCommand) => void;
   planBuildHandoffRef: MutableRefObject<boolean>;
+  /** SUB-010 — create stream session for parent or child ChatSession owner */
+  makeAssistantStream: (
+    effectiveMode: Mode,
+    isStale?: () => boolean,
+    ownerSessionId?: string
+  ) => {
+    onDelta: (d: import('../types').StreamDelta) => void;
+    onComplete: () => void;
+    onError: (e: string) => void;
+  };
 }
 
 export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowReturn {
@@ -970,6 +980,7 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
     handleModeChange,
     pushSystemNotice,
     runSlashCommand,
-    planBuildHandoffRef
+    planBuildHandoffRef,
+    makeAssistantStream
   };
 }

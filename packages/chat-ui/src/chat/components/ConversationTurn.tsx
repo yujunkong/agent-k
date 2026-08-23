@@ -21,6 +21,7 @@ export interface ConversationTurnProps {
   onCopy?: (content: string) => void;
   onStopAndPrefill?: (content: string) => void;
   onOpenSubagent?: (subagentId: string, title: string) => void;
+  getSubagentRolling?: (subagentId: string) => string | undefined;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
@@ -34,6 +35,11 @@ export interface ConversationTurnProps {
   onCancelEdit?: () => void;
   editSeedNonce?: number;
   composerChrome?: ComposerChromeProps;
+  /**
+   * SUB-010 — subagent detail: user prompt is expand-to-read only
+   * (no copy / edit / stop chrome).
+   */
+  userPromptMode?: 'default' | 'expand-only';
 }
 
 /**
@@ -46,6 +52,7 @@ export function ConversationTurn(props: ConversationTurnProps) {
     message,
     isStreaming,
     onOpenSubagent,
+    getSubagentRolling,
     onOpenFile,
     onAcceptFile,
     onRejectFile,
@@ -67,7 +74,7 @@ export function ConversationTurn(props: ConversationTurnProps) {
 
   if (!isActiveVariant) return null;
 
-  const response = <MessageBubble {...props} />;
+  const response = <MessageBubble {...props} userPromptMode={props.userPromptMode} />;
 
   return (
     <section
@@ -82,6 +89,7 @@ export function ConversationTurn(props: ConversationTurnProps) {
           workItems={workItems}
           isStreaming={streaming}
           onOpenSubagent={onOpenSubagent}
+          getSubagentRolling={getSubagentRolling}
           onOpenFile={onOpenFile}
           onAcceptFile={onAcceptFile}
           onRejectFile={onRejectFile}

@@ -36,6 +36,8 @@ export interface ChatSendPayload {
   model?: string;
   /** CHAT-012 — screenshot / image chips for the current user turn. */
   images?: ChatSendImagePayload[];
+  /** Owning chat session id (parent). Host tags child streams separately. */
+  sessionId?: string;
 }
 
 /** Webview → Host: stop in-flight chat.send for a request. */

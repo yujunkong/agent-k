@@ -1,5 +1,5 @@
-import type { SubagentRole, SubagentTask } from '../../agent/subagents';
-import type { SubagentWorktree } from '../../agent/subagentWorktree';
+import type { SubagentRole, SubagentTask } from '@agent-k/core';
+import type { SubagentWorktree } from '@agent-k/worktree';
 import type { ExecutionPlan, ExecutionPlanTask } from './types';
 import { buildPlanTaskSubagentPrompt } from './planTaskPrompt';
 

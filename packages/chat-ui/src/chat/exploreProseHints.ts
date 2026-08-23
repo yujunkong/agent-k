@@ -1,6 +1,7 @@
 /**
  * Cursor-style mid-timeline prose hints.
- * Shared by MessageSteps (phase routing) and sealTurnProse (keep visible vs Thought).
+ * Shared by MessageSteps (Exploring cut heuristics) — not used to route
+ * content↔Thought (that is structural: content→turnProse, reasoning→Thought).
  */
 
 /** Still digging after a partial understanding — keep Exploring (do NOT close) */
@@ -27,16 +28,19 @@ export function looksLikeExploreSettled(text: string): boolean {
 }
 
 /**
- * Visible mid-timeline ack (screenshot: between Exploring batches).
- * Must stay as turnProse — never fold into collapsed Thought.
+ * @deprecated Prefer structural seal (content→turnProse). Kept for callers that
+ * still classify explore chrome; do not use for Thought folding.
  */
 export function looksLikeVisibleMidReply(text: string): boolean {
   const t = String(text || '').trim();
   if (!t) return false;
-  if (looksLikeExploreStart(t) || looksLikeExploreContinue(t) || looksLikeExploreSettled(t)) {
+  if (
+    looksLikeExploreStart(t) ||
+    looksLikeExploreContinue(t) ||
+    looksLikeExploreSettled(t)
+  ) {
     return true;
   }
-  // Short Hangul / English dig-bridge — Cursor mid-timeline ack, not a reasoning dump
   if (t.length <= 280 && !/^#{1,6}\s/m.test(t) && !/```/.test(t)) {
     if (/[가-힣]/.test(t)) return true;
     if (

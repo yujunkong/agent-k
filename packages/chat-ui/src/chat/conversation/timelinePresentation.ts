@@ -61,6 +61,8 @@ export type TimelineStep = {
   subagentId?: string;
   /** Short Cursor-style progress title (task_run.description). */
   description?: string;
+  /** SUB-008 role badge on SubagentRunRow */
+  role?: string;
   result?: SubagentResult;
   /** Resolved previews — populated by the builder for render convenience */
   fileEdit?: FileEditPreview;
@@ -203,6 +205,7 @@ export function eventToTimelineStep(
     ref: event.ref,
     subagentId: event.subagentId,
     description: event.description,
+    role: event.role,
     result: event.result
   };
   if (previews?.fileEdits?.length) {

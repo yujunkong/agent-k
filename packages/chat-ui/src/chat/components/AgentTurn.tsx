@@ -23,6 +23,7 @@ export interface AgentTurnProps {
   workedDurationMs?: number;
   children?: React.ReactNode;
   onOpenSubagent?: (subagentId: string, title: string) => void;
+  getSubagentRolling?: (subagentId: string) => string | undefined;
   onOpenFile?: (path: string) => void;
   onAcceptFile?: (file: FileEditPreview) => void;
   onRejectFile?: (file: FileEditPreview) => void;
@@ -45,6 +46,7 @@ export function AgentTurn({
   workedDurationMs,
   children,
   onOpenSubagent,
+  getSubagentRolling,
   onOpenFile,
   onAcceptFile,
   onRejectFile,
@@ -66,6 +68,7 @@ export function AgentTurn({
         hasLiveAnswer={hasLiveAnswer}
         workedDurationMs={workedDurationMs}
         onOpenSubagent={onOpenSubagent}
+        getSubagentRolling={getSubagentRolling}
         onOpenFile={onOpenFile}
         onAcceptFile={onAcceptFile}
         onRejectFile={onRejectFile}

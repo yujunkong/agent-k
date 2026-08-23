@@ -44,8 +44,8 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **Phase 5** — **SUB-001** Subagent task model (worktree/core; UI→chat-ui).  
-Phase 4 WT-001…015 도메인 `[x]`. SUB 배선 전 worktree 확인은 `npm run test -w @agent-k/worktree` + README howto.  
+**바로 다음:** **Phase 6** — PLAN-* (Plan V1/V2).  
+Phase 5 SUB-001…014 `[x]` (core runner + host createSubagentHost + chat-ui RunRow).  
 **주의:** 「안정 표면 (2026-08-23)」 절 — Phase 0–3 UI/스트림은 최소 침습만.
 
 ---
@@ -209,10 +209,10 @@ Phase 0 시작 전/병행: shared 계약.
 | AGENT-017 | Parallel executor | core | [x] |
 | AGENT-018 | Streaming tool executor | core | [x] |
 | AGENT-019 | Synthesize instructions | core | [x] |
-| TOOL-001 | Read tools | tools | [x] |
+| TOOL-001 | Read tools | tools | [x] read_file + **read_files** / list_dir / file_search wired |
 | TOOL-002 | Edit tools | tools | [x] |
-| TOOL-003 | Write tools | tools | [x] |
-| TOOL-004 | Search / grep | tools | [x] |
+| TOOL-003 | Write tools | tools | [x] + delete_file |
+| TOOL-004 | Search / grep | tools | [x] + codebase_search (grep snippets) |
 | TOOL-005 | Glob/path search | tools | [x] |
 | TOOL-006 | Terminal executor | tools | [x] |
 | TOOL-007 | AskQuestionTool | tools | [x] |
@@ -220,10 +220,10 @@ Phase 0 시작 전/병행: shared 계약.
 | TOOL-009 | Executor abstraction | tools | [x] |
 | TOOL-010 | Write executor | tools | [x] |
 | TOOL-011 | TodoWriteTool | tools | [x] |
-| TOOL-012 | TaskTool / SubAgent orchestration | tools | [~] descriptor only; host spawn PENDING |
-| TOOL-013 | SkillTool | tools | [~] loads skills/*.md from workspace |
-| TOOL-014 | Browser tool group | tools | [~] in-memory session (no Playwright yet) |
-| TOOL-015 | Debug tools | tools | [~] real DEBUG_INSTRUMENT disk write/remove |
+| TOOL-012 | TaskTool / SubAgent orchestration | tools | [x] task + task_run alias; host spawn |
+| TOOL-013 | SkillTool | tools | [x] skill + skill_run alias |
+| TOOL-014 | Browser tool group | tools | [~] navigate/snapshot + click/… stubs (no Playwright) |
+| TOOL-015 | Debug tools | tools | [x] debug_* + add_instrumentation aliases + request_reproduce |
 | TOOL-016 | Tool registry | tools | [x] |
 | TOOL-017 | Parallel search | tools | [x] |
 | CTX-001 | Context budget | core | [x] |
@@ -355,20 +355,22 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| SUB-001 | Subagent task model | worktree / core (UI→chat-ui) | [ ] |
-| SUB-002 | Subagent creation | worktree / core (UI→chat-ui) | [ ] |
-| SUB-003 | Subagent runner | worktree / core (UI→chat-ui) | [ ] |
-| SUB-004 | Subagent Agent Loop executor | worktree / core (UI→chat-ui) | [ ] |
-| SUB-005 | Subagent result | worktree / core (UI→chat-ui) | [ ] |
-| SUB-006 | Subagent cancellation | worktree / core (UI→chat-ui) | [ ] |
-| SUB-007 | Subagent lifecycle guard | worktree / core (UI→chat-ui) | [ ] |
-| SUB-008 | Subagent roles | worktree / core (UI→chat-ui) | [ ] |
-| SUB-009 | Subagent description | worktree / core (UI→chat-ui) | [ ] |
-| SUB-010 | Subagent detail view | worktree / core (UI→chat-ui) | [ ] |
-| SUB-011 | Subagent run row | worktree / core (UI→chat-ui) | [ ] |
-| SUB-012 | Subagent changes card | worktree / core (UI→chat-ui) | [ ] |
-| SUB-013 | Subagent result presentation | worktree / core (UI→chat-ui) | [ ] |
-| SUB-014 | Subagent worktree | worktree / core (UI→chat-ui) | [ ] |
+| SUB-001 | Subagent task model | core | [x] `subagent/subagents.ts` |
+| SUB-002 | Subagent creation | core + host | [x] Runner.create + host |
+| SUB-003 | Subagent runner | core | [x] `SubagentRunner` |
+| SUB-004 | Subagent Agent Loop executor | core | [x] `createSubagentAgentLoopExecutor` → `run()` |
+| SUB-005 | Subagent result | core + tools | [x] task.result + `SubAgentResult` |
+| SUB-006 | Subagent cancellation | core + host | [x] cancel / cancelAll on stop |
+| SUB-007 | Subagent lifecycle guard | core | [x] `applySubagentPatch` |
+| SUB-008 | Subagent roles | core + chat-ui | [x] role + Explorer badge |
+| SUB-009 | Subagent description | core + host | [x] task.description → RunRow title |
+| SUB-010 | Subagent detail view | chat-ui | [x] independent child ChatSession (`sess-sub-*`); parent = RunRow + summary only; child Thought segments rotate after tools (`_thinking_sN`); parent tool body = full conclusion (no 12k stub) |
+| SUB-011 | Subagent run row | chat-ui | [x] 6-dot · title · role · Waiting |
+| SUB-012 | Subagent changes card | chat-ui | [x] `SubagentChangesCard` |
+| SUB-013 | Subagent result presentation | chat-ui | [x] `subagentResult` / workEvent |
+| SUB-014 | Subagent worktree | worktree + host | [x] bindWorktreeManager on Runner |
+
+**검증:** `npm run test -w @agent-k/core` (subagent) · `npm run test -w @agent-k/worktree` · chat-ui conversation/subagent tests. 수동: `task` 병렬 → 메인 단건 RunRow + Waiting/rolling.
 
 ---
 
@@ -566,7 +568,7 @@ Phase 0 시작 전/병행: shared 계약.
 2. Phase 3 UI 잔여 미룸: **CONV-014 → SUB 이후**, **CONV-016 → checkpoint 이후**. CONV-013 완료.
 3. **코드 TODO:** STREAM-004 follow-up prior (`content || turnProse`) · HOST-002 final-cut RCA — **안정 표면 최소 침습**
 4. HARNESS-007 nudge 효과 확인 (선택)
-5. **Phase 4** — WT-001…015 `[x]` → 다음 **Phase 5 SUB-001**
+5. **Phase 5** — SUB-001…014 `[x]` → 다음 **Phase 6 PLAN-***
 6. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
 
 **에이전트:** 위 「안정 표면」을 읽고 수정할 것. 잘 되는 UI/스트림을 넓게 건드리지 말 것. Phase 4 worktree는 `packages/worktree` (+ host thin adapter).

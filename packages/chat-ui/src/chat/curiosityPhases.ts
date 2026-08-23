@@ -2,11 +2,7 @@
  * Pure Curiosity-phase builder for MessageSteps.
  * Cuts Exploring at mid-message / Edit / Command (afterStepId anchors).
  */
-import {
-  looksLikeExploreContinue,
-  looksLikeExploreStart,
-  looksLikeExploreSettled
-} from './exploreProseHints';
+import { looksLikeExploreSettled } from './exploreProseHints';
 
 /** Compatible with MessageSteps.MessageStep */
 export type CuriosityStep = {
@@ -21,6 +17,9 @@ export type CuriosityStep = {
   durationMs?: number;
   /** Workspace path for clickable explore detail links */
   openPath?: string;
+  subagentId?: string;
+  role?: string;
+  description?: string;
 };
 
 export type TurnProseNote = {
@@ -71,7 +70,8 @@ function isExploreStep(s: CuriosityStep): boolean {
 
 function isNoiseAction(s: CuriosityStep): boolean {
   if (s.kind === 'session') return true;
-  const n = s.toolName || '';
+  const n = (s.toolName || '').toLowerCase();
+  if (n === 'task' || n === 'task_run') return true;
   return (
     n === 'todo_write' ||
     n === 'switch_mode' ||
@@ -82,11 +82,16 @@ function isNoiseAction(s: CuriosityStep): boolean {
 
 function isActionStep(s: CuriosityStep): boolean {
   if (isMeta(s.kind)) return false;
+  if (s.kind === 'subagent' || s.kind === 'task') return true;
   if (isNoiseAction(s)) return false;
   return !isExploreStep(s);
 }
 
 function inferTurn(step: CuriosityStep): number {
+  // Comment: SUB-010 — ignore poisoned turn on tl_subagent_* (id digits like mt5s → 5)
+  if (step.id.startsWith('tl_subagent_') || step.kind === 'subagent') {
+    return 1;
+  }
   if (typeof step.turn === 'number' && step.turn > 0) return step.turn;
   const m = step.id.match(/(?:thinking|planning|tool|step)[^\d]*(\d+)/i);
   return m ? Number(m[1]) : 1;
@@ -94,7 +99,8 @@ function inferTurn(step: CuriosityStep): number {
 
 /**
  * Merge adjacent Thinking steps with no tool between them into one row.
- * (Multiple tl_thinking_*_sN from explore-tool rotation → single Thought.)
+ * Same id only (live stream upserts). Never glue a sealed Thought to the next
+ * segment — that re-opened "Thought" after Read/Ran/Subagent (Cursor break).
  */
 export function coalesceAdjacentThinkingSteps(
   steps: CuriosityStep[]
@@ -108,6 +114,26 @@ export function coalesceAdjacentThinkingSteps(
     const prev = out[out.length - 1];
     if (!prev || prev.kind !== 'thinking') {
       out.push({ ...s });
+      continue;
+    }
+    // Comment: different Thought segments stay separate (tl_thinking_1 vs _s1)
+    if (prev.id && s.id && prev.id !== s.id) {
+      out.push({ ...s });
+      continue;
+    }
+    // Comment: sealed Thought must not absorb the next dig
+    if (
+      prev.itemStatus === 'done' ||
+      prev.itemStatus === 'error' ||
+      s.itemStatus === 'done' ||
+      s.itemStatus === 'error'
+    ) {
+      if (prev.id === s.id) {
+        // Same id settling — keep latest status/detail
+        out[out.length - 1] = { ...prev, ...s };
+      } else {
+        out.push({ ...s });
+      }
       continue;
     }
     const prevDetail = String(prev.detail || '').trim();
@@ -132,6 +158,8 @@ export function coalesceAdjacentThinkingSteps(
         : undefined;
     out[out.length - 1] = {
       ...prev,
+      ...s,
+      id: prev.id || s.id,
       detail,
       itemStatus: running
         ? 'running'
@@ -216,73 +244,29 @@ export function buildCuriosityPhases(
     const list = coalesceAdjacentThinkingSteps(byTurn.get(turn) || []);
     let noteIdx = 0;
 
-    const foldAsideIntoThought = (noteId: string, text: string) => {
-      if (!cur) cur = startPhase(undefined);
-      if (cur.openingThought) {
-        const prev = String(cur.openingThought.detail || '').trim();
-        if (prev.includes(text)) return;
-        cur.openingThought = {
-          ...cur.openingThought,
-          detail: prev ? `${prev}\n\n${text}` : text
-        };
-        return;
-      }
-      if (hasExploreTools(cur) && !cur.resolved) {
-        const last = cur.rows[cur.rows.length - 1];
-        const aside: CuriosityStep = {
-          id: noteId,
-          kind: 'thinking',
-          label: 'Thought',
-          detail: text,
-          itemStatus: 'done',
-          thoughtRole: 'mid'
-        };
-        // Comment: do not spawn a new mid-Thought row per sealed prose note
-        if (last?.type === 'thought') {
-          last.step = mergeThoughtStep(last.step, aside);
-        } else {
-          cur.rows.push({ type: 'thought', step: aside });
-        }
-        return;
-      }
-      cur.openingThought = {
-        id: noteId,
-        kind: 'thinking',
-        label: 'Thought',
-        detail: text,
-        itemStatus: 'done',
-        thoughtRole: 'opening'
-      };
-    };
-
     /**
-     * Place one sealed prose note. Mid / dig / settle cut open Exploring;
-     * do not hoist dig intent to a new phase lead (chronological proseAfter).
+     * Place one sealed prose note.
+     * turnProse is always user-visible — never fold into Thought
+     * (Thought is reasoning-only; no NLP classification here).
      */
     const placeNote = (note: TurnProseNote) => {
       const text = String(note.content || '').trim();
       if (!text) return;
       if (!cur) cur = startPhase(undefined);
       const payload = { id: note.id, content: text };
-      const digIntent =
-        looksLikeExploreStart(text) || looksLikeExploreContinue(text);
       const settled = looksLikeExploreSettled(text);
 
-      // Comment: dig/"Let me…" must NOT split Ran/Edit batches into many "Ran N" groups
+      // Comment: Edit/Ran/Subagent batches — chronological proseAfter
       if (cur.actions.length > 0) {
         cur.proseAfter.push(payload);
         return;
       }
 
-      // Explore: only settle-cut; dig/mid stays in the same Exploring phase
+      // Comment: cut open Exploring so mid-reply sits between batches (Cursor)
       if (hasExploreTools(cur) && !cur.resolved) {
-        if (settled && !digIntent) {
-          cur.resolved = true;
-          cur.proseAfter.push(payload);
-          cur = startPhase(undefined);
-          return;
-        }
-        foldAsideIntoThought(note.id, text);
+        cur.resolved = true;
+        cur.proseAfter.push(payload);
+        cur = startPhase(undefined);
         return;
       }
 
@@ -292,15 +276,12 @@ export function buildCuriosityPhases(
         return;
       }
 
-      if (cur.resolved) {
-        if (hasExploreTools(cur)) {
-          cur.proseAfter.push(payload);
-          cur = startPhase(undefined);
-          return;
-        }
+      if (cur.resolved && hasExploreTools(cur)) {
+        cur.proseAfter.push(payload);
+        cur = startPhase(undefined);
+        return;
       }
 
-      // Chronological lead before first tools — not a special top hoist
       cur.leadProse.push(payload);
     };
 
@@ -331,10 +312,29 @@ export function buildCuriosityPhases(
         if (s.id) {
           const owned = out.find((p) => p.openingThought?.id === s.id);
           if (owned) {
-            owned.openingThought = { ...s, thoughtRole: 'opening' };
-            cur = owned;
-            flushNotesAfter(s.id);
-            continue;
+            const ownedIdx = out.indexOf(owned);
+            // Comment: SUB-010 — never revive a sealed Thought above a later SubagentRunRow
+            const subagentAfter = out
+              .slice(ownedIdx + 1)
+              .some((p) =>
+                p.actions.some(
+                  (a) =>
+                    a.kind === 'subagent' ||
+                    a.kind === 'task' ||
+                    (a.toolName || '').toLowerCase() === 'task_run' ||
+                    (a.toolName || '').toLowerCase() === 'task'
+                )
+              );
+            const sealed =
+              owned.openingThought?.itemStatus === 'done' ||
+              owned.openingThought?.itemStatus === 'error';
+            if (!(sealed && (live || subagentAfter))) {
+              owned.openingThought = { ...s, thoughtRole: 'opening' };
+              cur = owned;
+              flushNotesAfter(s.id);
+              continue;
+            }
+            // Fall through — new phase below the subagent
           }
           const midIdx = out.findIndex((p) =>
             p.rows.some((r) => r.type === 'thought' && r.step.id === s.id)
@@ -355,7 +355,17 @@ export function buildCuriosityPhases(
           }
         }
 
-        if (!cur || cur.resolved || cur.actions.length > 0) {
+        // Comment: after a SubagentRunRow phase, next Thought always starts fresh below
+        const curHasSubagent =
+          !!cur &&
+          cur.actions.some(
+            (a) =>
+              a.kind === 'subagent' ||
+              a.kind === 'task' ||
+              (a.toolName || '').toLowerCase() === 'task_run' ||
+              (a.toolName || '').toLowerCase() === 'task'
+          );
+        if (!cur || cur.resolved || cur.actions.length > 0 || curHasSubagent) {
           cur = startPhase({ ...s, thoughtRole: 'opening' });
         } else if (hasExploreTools(cur) && !cur.resolved) {
           const last = cur.rows[cur.rows.length - 1];
@@ -376,11 +386,19 @@ export function buildCuriosityPhases(
           s.id &&
           cur.openingThought.id !== s.id
         ) {
-          // Comment: consecutive opening Thoughts with no tools — merge, don't split phases
-          cur.openingThought = mergeThoughtStep(cur.openingThought, {
-            ...s,
-            thoughtRole: 'opening'
-          });
+          const sealedOpen =
+            cur.openingThought.itemStatus === 'done' ||
+            cur.openingThought.itemStatus === 'error';
+          if (sealedOpen) {
+            // Comment: sealed Thought stays closed — next dig is a new phase
+            cur = startPhase({ ...s, thoughtRole: 'opening' });
+          } else {
+            // Comment: consecutive live openings with no tools — merge fragments
+            cur.openingThought = mergeThoughtStep(cur.openingThought, {
+              ...s,
+              thoughtRole: 'opening'
+            });
+          }
         } else {
           cur.openingThought = { ...s, thoughtRole: 'opening' };
         }
@@ -402,7 +420,30 @@ export function buildCuriosityPhases(
       if (isActionStep(s)) {
         // Edit / Command always close open Exploring, then own a new phase
         closeExplore();
-        if (!cur || cur.resolved || (cur && hasExploreTools(cur))) {
+        // Comment: SUB-010 — SubagentRunRow owns its phase; later tools/Thought must
+        // start *below* it (never glue Ran/Edit into the same phase → row sinks to end).
+        const isSubagentRow =
+          s.kind === 'subagent' ||
+          s.kind === 'task' ||
+          (s.toolName || '').toLowerCase() === 'task' ||
+          (s.toolName || '').toLowerCase() === 'task_run';
+        const curHasSubagent =
+          !!cur &&
+          cur.actions.some(
+            (a) =>
+              a.kind === 'subagent' ||
+              a.kind === 'task' ||
+              (a.toolName || '').toLowerCase() === 'task_run' ||
+              (a.toolName || '').toLowerCase() === 'task'
+          );
+        if (
+          isSubagentRow ||
+          curHasSubagent ||
+          !cur ||
+          cur.resolved ||
+          (cur && hasExploreTools(cur)) ||
+          (cur && cur.openingThought)
+        ) {
           cur = startPhase(undefined);
         }
         cur.actions.push(s);

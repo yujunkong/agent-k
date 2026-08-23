@@ -43,4 +43,11 @@ export type ChatStreamEvent =
   | { event: 'error'; error: string };
 
 /** Full host→webview stream message body (type added at ProtocolMessage layer). */
-export type ChatStreamEnvelope = { requestId: RequestId } & ChatStreamEvent;
+export type ChatStreamEnvelope = {
+  requestId: RequestId;
+  /**
+   * SUB-010 — when set, webview applies this event to that ChatSession
+   * (child subagent). Omit for parent-owner freeze routing.
+   */
+  sessionId?: string;
+} & ChatStreamEvent;

@@ -16,11 +16,16 @@ import { ConversationTurn } from './conversation';
 import { selectActiveConversationMessages } from './conversation/conversationVariants';
 import {
   SubagentDetailView,
-  collectSubagentTimeline,
   type SubagentDetailTab
 } from './components/SubagentDetailView';
 import { useChatStream } from './hooks/useChatStream';
 import { useChatSessions, sessionStore } from './hooks/useChatSessions';
+import {
+  ensureSubagentChildSession,
+  ensureChildAssistantStreaming,
+  rollingLineFromChildMessages,
+  scrubChildStreamDelta
+} from './subagentChildSession';
 import { SendEpochMap, SessionTurnMap, SessionStepStartMap } from './sendEpoch';
 import { getVsCodeApi } from './host/vscodeApi';
 import type { InlineEditContext } from './inlineEdit';
@@ -142,6 +147,16 @@ export function ChatApp() {
 
   /** handleWorktreeResultRef — useChatStream 콜백; useChatWorktree에서 최신 구현체로 교체 */
   const handleWorktreeResultRef = useRef<(payload: Record<string, unknown>) => void>(() => {});
+  /** SUB-010 — child stream routing (wired after sendFlow / sessions) */
+  const handleChildDeltaRef = useRef<
+    (sessionId: string, delta: import('./types').StreamDelta, stream: Record<string, unknown>) => void
+  >(() => {});
+  const handleSubagentLifecycleRef = useRef<(stream: Record<string, unknown>) => void>(() => {});
+  // Comment: SUB-010 — childStreamSessionsRef + terminal fence (no reopen after settle)
+  const childStreamSessionsRef = useRef(
+    new Map<string, { onDelta: (d: import('./types').StreamDelta) => void; onComplete: () => void; onError: (e: string) => void }>()
+  );
+  const childTerminalRef = useRef(new Set<string>());
 
   // useChatSessions lifecycle relay refs (plan/provider 훅이 나중에 채움)
   const parkPlanRelayRef = useRef<(id: string) => void>(() => {});
@@ -224,7 +239,10 @@ export function ChatApp() {
     debugStage: undefined, // debug 훅 초기화 후 re-render 시 최신값이 반영됨
     thinkingEffort: provider.thinkingEffort,
     activeRuntimeKey: runtimeKey,
-    onWorktreeResult: (payload) => handleWorktreeResultRef.current(payload)
+    onWorktreeResult: (payload) => handleWorktreeResultRef.current(payload),
+    onChildDelta: (sessionId, delta, stream) =>
+      handleChildDeltaRef.current(sessionId, delta, stream),
+    onSubagentLifecycle: (stream) => handleSubagentLifecycleRef.current(stream)
   });
 
   // History setter relay — panels mounts after sessions
@@ -538,6 +556,10 @@ export function ChatApp() {
     sessionStore.getSubagentTabs()
   );
   const [activeSubagentId, setActiveSubagentId] = useState<string | null>(null);
+  /** Bump when active child session streams so detail re-reads store. */
+  const [subagentDetailTick, setSubagentDetailTick] = useState(0);
+  const activeSubagentIdRef = useRef<string | null>(null);
+  activeSubagentIdRef.current = activeSubagentId;
 
   useEffect(() => {
     sessionStore.setSubagentTabs(subagentTabs);
@@ -545,18 +567,32 @@ export function ChatApp() {
 
   const handleOpenSubagent = useCallback(
     (subagentId: string, title: string) => {
-      const id = String(subagentId || '').trim();
-      if (!id) return;
+      const raw = String(subagentId || '').trim();
+      if (!raw) return;
+      // Comment: SubagentRunRow passes taskId; tab key is child ChatSession id
+      const childId = raw.startsWith('sess-sub-') ? raw : `sess-sub-${raw}`;
+      const taskId = raw.startsWith('sess-sub-') ? raw.slice('sess-sub-'.length) : raw;
       const tabTitle = String(title || '').trim() || 'Agent';
+      ensureSubagentChildSession({
+        childSessionId: childId,
+        parentSessionId: sessionId,
+        title: tabTitle,
+        taskId
+      });
       setSubagentTabs((prev) => {
-        if (prev.some((t) => t.id === id)) {
+        if (prev.some((t) => t.id === childId)) {
           return prev.map((t) =>
-            t.id === id ? { ...t, title: tabTitle, parentSessionId: sessionId } : t
+            t.id === childId
+              ? { ...t, title: tabTitle, parentSessionId: sessionId, taskId }
+              : t
           );
         }
-        return [...prev, { id, title: tabTitle, parentSessionId: sessionId }];
+        return [
+          ...prev,
+          { id: childId, title: tabTitle, parentSessionId: sessionId, taskId }
+        ];
       });
-      setActiveSubagentId(id);
+      setActiveSubagentId(childId);
     },
     [sessionId]
   );
@@ -607,16 +643,128 @@ export function ChatApp() {
     [subagentTabs, activeSubagentId]
   );
 
-  const subagentParentMessages = useMemo(() => {
-    if (!activeSubagentTab) return messages;
-    if (activeSubagentTab.parentSessionId === sessionId) return messages;
-    return getSessionMessages(activeSubagentTab.parentSessionId);
-  }, [activeSubagentTab, sessionId, messages, getSessionMessages]);
-
-  const subagentDetailData = useMemo(() => {
+  // Comment: SUB-010 — child ChatSession messages (same ConversationTurn path as main)
+  const subagentDetailMessages = useMemo(() => {
     if (!activeSubagentTab) return null;
-    return collectSubagentTimeline(subagentParentMessages, activeSubagentTab.id);
-  }, [activeSubagentTab, subagentParentMessages]);
+    return getSessionMessages(activeSubagentTab.id);
+  }, [activeSubagentTab, getSessionMessages, messages, sessionList, subagentDetailTick]);
+
+  /** Parent SubagentRunRow peeks child session for rolling status */
+  const getSubagentRolling = useCallback(
+    (subagentId: string) => {
+      const raw = String(subagentId || '').trim();
+      if (!raw) return undefined;
+      const childId = raw.startsWith('sess-sub-') ? raw : `sess-sub-${raw}`;
+      return rollingLineFromChildMessages(getSessionMessages(childId));
+    },
+    [getSessionMessages, subagentDetailTick]
+  );
+
+  // Comment: SUB-010 — wire child stream handlers once tabs + makeAssistantStream exist
+  useEffect(() => {
+    handleSubagentLifecycleRef.current = (stream) => {
+      const taskId = String(stream.taskId || '').trim();
+      const childId =
+        String(stream.childSessionId || '').trim() ||
+        (taskId ? `sess-sub-${taskId}` : '');
+      if (!childId) return;
+      const parentId =
+        String(stream.parentSessionId || '').trim() || sessionIdRef.current;
+      const title =
+        String(stream.description || stream.prompt || '').trim() || 'Subagent';
+      ensureSubagentChildSession({
+        childSessionId: childId,
+        parentSessionId: parentId,
+        title,
+        taskId: taskId || undefined,
+        userPrompt: String(stream.prompt || title)
+      });
+      // Comment: new run identity — clear prior terminal fence for this child id
+      const lifeType = String(stream.type || '');
+      if (
+        lifeType === 'subagent.created' ||
+        lifeType === 'subagent.started'
+      ) {
+        childTerminalRef.current.delete(childId);
+      }
+      setSubagentTabs((prev) => {
+        if (prev.some((t) => t.id === childId)) {
+          return prev.map((t) =>
+            t.id === childId
+              ? {
+                  ...t,
+                  title,
+                  parentSessionId: parentId,
+                  taskId: taskId || t.taskId
+                }
+              : t
+          );
+        }
+        return [
+          ...prev,
+          {
+            id: childId,
+            title,
+            parentSessionId: parentId,
+            taskId: taskId || undefined
+          }
+        ];
+      });
+      if (!childStreamSessionsRef.current.has(childId)) {
+        childStreamSessionsRef.current.set(
+          childId,
+          sendFlow.makeAssistantStream(mode, undefined, childId)
+        );
+      }
+      // Comment: parent RunRow peeks child for rolling — do NOT settle here.
+      // Child terminal status (postChildStream status complete|error) is the
+      // single settlement owner; lifecycle settle + status caused ghost turns.
+      setSubagentDetailTick((n) => n + 1);
+    };
+
+    handleChildDeltaRef.current = (childId, delta) => {
+      const isTerminalStatus =
+        delta.status === 'complete' || delta.status === 'error';
+      // Comment: SUB-010 — after authoritative settle, drop reopen/late non-terminal
+      if (childTerminalRef.current.has(childId)) {
+        if (!isTerminalStatus) return;
+        // Duplicate terminal is idempotent no-op
+        return;
+      }
+      // Comment: seed only if missing — never rewrite title to bare "Subagent"
+      ensureSubagentChildSession({
+        childSessionId: childId,
+        parentSessionId: sessionIdRef.current,
+        title: 'Subagent'
+      });
+      // Comment: late non-terminal before first settle may reopen a soft seal
+      if (!isTerminalStatus) {
+        ensureChildAssistantStreaming(childId, mode);
+      }
+      let h = childStreamSessionsRef.current.get(childId);
+      if (!h) {
+        h = sendFlow.makeAssistantStream(mode, undefined, childId);
+        childStreamSessionsRef.current.set(childId, h);
+      }
+      // Comment: status-only deltas are settlement signals — skip onDelta paint
+      if (!isTerminalStatus) {
+        h.onDelta(scrubChildStreamDelta(delta));
+      }
+      // Comment: parent rolling + detail both re-read store
+      setSubagentDetailTick((n) => n + 1);
+      if (delta.status === 'complete') {
+        childTerminalRef.current.add(childId);
+        h.onComplete();
+        childStreamSessionsRef.current.delete(childId);
+        setSubagentDetailTick((n) => n + 1);
+      } else if (delta.status === 'error') {
+        childTerminalRef.current.add(childId);
+        h.onError('Subagent error');
+        childStreamSessionsRef.current.delete(childId);
+        setSubagentDetailTick((n) => n + 1);
+      }
+    };
+  }, [sendFlow, mode, sessionIdRef]);
 
   // ─── Context usage (푸터는 사용량만 — providerType/host-fallback 노출 금지) ──
   // ConfigManager 기본값이 'litellm'·modelContextSource='fallback'이라 예산 폴백 문구에
@@ -801,14 +949,10 @@ export function ChatApp() {
         aria-relevant="additions"
         onScroll={onMessageListScroll}
       >
-        {activeSubagentTab && subagentDetailData ? (
+        {activeSubagentTab && subagentDetailMessages ? (
           <SubagentDetailView
             title={activeSubagentTab.title}
-            items={subagentDetailData.items}
-            fileEdits={subagentDetailData.fileEdits}
-            terminalRuns={subagentDetailData.terminalRuns}
-            isStreaming={subagentDetailData.isStreaming}
-            workedDurationMs={subagentDetailData.workedDurationMs}
+            messages={subagentDetailMessages}
             onBack={() => setActiveSubagentId(null)}
                 onOpenFile={fileEdits.handleOpenFile}
                 onAcceptFile={fileEdits.handleAcceptFileEdit}
@@ -866,6 +1010,7 @@ export function ChatApp() {
                     onStopAndPrefill={sendFlow.handleStopAndPrefill}
               onCopy={(content) => navigator.clipboard.writeText(content)}
               onOpenSubagent={handleOpenSubagent}
+              getSubagentRolling={getSubagentRolling}
                     onOpenFile={fileEdits.handleOpenFile}
                     onAcceptFile={fileEdits.handleAcceptFileEdit}
                     onRejectFile={fileEdits.handleRejectFileEdit}

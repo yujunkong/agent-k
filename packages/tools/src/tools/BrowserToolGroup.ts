@@ -132,7 +132,90 @@ export function resetBrowserSessions(): void {
   sessions.clear();
 }
 
+function stubBrowserAction(
+  name: string,
+  description: string,
+  required: string[] = []
+): ToolDefinition {
+  return {
+    name,
+    description: `${description} (in-memory session stub).`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        selector: { type: 'string' },
+        text: { type: 'string' },
+        expression: { type: 'string' },
+        pixels: { type: 'number' },
+        ms: { type: 'number' },
+        url: { type: 'string' },
+      },
+      required,
+    },
+    permissionHint: 'network',
+    timeoutMs: 15_000,
+    cancelSupported: true,
+    timelineEventType: 'browsing',
+    modeAllowlist: ['agent', 'debug'],
+    category: 'web',
+    async execute(input, ctx): Promise<ToolResult> {
+      return withToolTiming(ctx.signal, async () => {
+        const sid = sessionIdOf(input);
+        const session = getOrCreate(sid);
+        session.console.push(`[${name}] ${JSON.stringify(input).slice(0, 200)}`);
+        return {
+          success: true,
+          data: {
+            status: name.replace(/^browser_/, ''),
+            sessionId: sid,
+            url: session.url,
+            note: 'In-memory stub — Playwright wiring is Phase 3+.',
+          },
+        };
+      });
+    },
+  };
+}
+
+export const browserClickTool = stubBrowserAction(
+  'browser_click',
+  'Click an element in the browser session',
+  []
+);
+export const browserScreenshotTool = stubBrowserAction(
+  'browser_screenshot',
+  'Capture a screenshot of the browser session'
+);
+export const browserEvaluateTool = stubBrowserAction(
+  'browser_evaluate',
+  'Evaluate JS in the browser session'
+);
+export const browserConsoleTool = stubBrowserAction(
+  'browser_console',
+  'Read recent browser console messages'
+);
+export const browserNetworkTool = stubBrowserAction(
+  'browser_network',
+  'Read recent network activity from the browser session'
+);
+export const browserScrollTool = stubBrowserAction(
+  'browser_scroll',
+  'Scroll the browser session'
+);
+export const browserWaitTool = stubBrowserAction(
+  'browser_wait',
+  'Wait in the browser session'
+);
+
 export const browserToolGroup: ToolDefinition[] = [
   browserNavigateTool,
   browserSnapshotTool,
+  browserClickTool,
+  browserScreenshotTool,
+  browserEvaluateTool,
+  browserConsoleTool,
+  browserNetworkTool,
+  browserScrollTool,
+  browserWaitTool,
 ];

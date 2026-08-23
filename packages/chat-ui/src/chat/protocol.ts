@@ -252,6 +252,8 @@ export type WebviewMessage =
 export interface ChatStreamEvent {
   type: 'chat.stream';
   requestId: string;
+  /** SUB-010 — target ChatSession (child subagent); omit = parent owner */
+  sessionId?: string;
   event: 'delta' | 'status' | 'tool.start' | 'tool.end' | 'timeline' | 'file.edit' | 'complete' | 'error' | 'subagent.event';
   content?: string;
   status?: string;
@@ -268,6 +270,8 @@ export interface ChatStreamEvent {
   subagentId?: string;
   parentTurnId?: string;
   taskId?: string;
+  /** SUB-010 — child session id announced on subagent.event */
+  childSessionId?: string;
   role?: string;
   prompt?: string;
   summary?: string;
