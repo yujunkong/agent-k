@@ -54,6 +54,8 @@ export interface WorkTimelineProps {
   isStreaming?: boolean;
   /** Answer body tokens flowing — hide Planning / settle Exploring */
   hasLiveAnswer?: boolean;
+  /** CTX-004 — show Summarizing chat context... while API transcript is compacted */
+  contextSummarizing?: boolean;
   /** Elapsed work ms for settled "Worked for Xs" label */
   workedDurationMs?: number;
   /**
@@ -365,6 +367,7 @@ export function WorkTimeline({
   title,
   isStreaming = false,
   hasLiveAnswer = false,
+  contextSummarizing = false,
   workedDurationMs,
   subagentDetail = false,
   onOpenSubagent,
@@ -507,18 +510,25 @@ export function WorkTimeline({
 
   // —— Main + subagent detail: same MessageSteps chrome (CONV-013/014) ——
   // Comment: subagent detail reuses MessageSteps; TimelineStepCard is not subagent-only
-  const showPlanningTail = subagentDetail
-    ? isStreaming && !hasLiveAnswer && !timelineSummary.hasActive
-    : isStreaming &&
-      !hasLiveAnswer &&
-      !stepsLive &&
-      !timelineSummary.hasActive &&
-      !hasExploreToolSteps &&
-      !hasSubagentHeaders;
+  // Comment: CTX-004 — Summarizing chat context... overrides idle Planning while wire compact runs
+  const showPlanningTail = contextSummarizing
+    ? true
+    : subagentDetail
+      ? isStreaming && !hasLiveAnswer && !timelineSummary.hasActive
+      : isStreaming &&
+        !hasLiveAnswer &&
+        !stepsLive &&
+        !timelineSummary.hasActive &&
+        !hasExploreToolSteps &&
+        !hasSubagentHeaders;
   const planGenRunning = items.some(
     (e) => e.id === PLAN_GENERATE_STEP_ID && e.status === 'running'
   );
-  const planningTailTitle = planGenRunning ? 'Creating plan' : 'Planning next moves';
+  const planningTailTitle = contextSummarizing
+    ? 'Summarizing chat context...'
+    : planGenRunning
+      ? 'Creating plan'
+      : 'Planning next moves';
 
   // Comment: show shell while streaming dig (no steps yet) so prose isn't in bubble below
   const showMessageSteps =

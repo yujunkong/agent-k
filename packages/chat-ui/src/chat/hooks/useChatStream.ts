@@ -712,6 +712,19 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
               debugStage: stream.stage != null ? String(stream.stage) : undefined,
             });
             break;
+          case 'compaction':
+            // Comment: CTX-004 — API wire compacted; show Summarizing chat context...
+            routeDelta({
+              compaction: {
+                level:
+                  stream.level != null ? String(stream.level) : undefined,
+                label:
+                  stream.label != null
+                    ? String(stream.label)
+                    : 'Summarizing chat context...',
+              },
+            });
+            break;
           case 'complete':
             debugLog('chat.send empty reply', '← chat.stream complete', hostRequestId, {
               contentLen: stream.content != null ? String(stream.content).length : 0

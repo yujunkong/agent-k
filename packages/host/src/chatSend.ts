@@ -1458,6 +1458,15 @@ function mapLoopEventToStream(
     case 'error':
       post({ event: 'error', error: event.error });
       break;
+    case 'compaction':
+      // Comment: CTX-004 — chat-ui shows "Summarizing chat context..." (API context only)
+      post({
+        event: 'compaction',
+        level: event.level,
+        turn: event.turn,
+        label: 'Summarizing chat context...',
+      });
+      break;
     case 'done':
       // complete/stopped posted by runHostChatSend after run() returns
       break;

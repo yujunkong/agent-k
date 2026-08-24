@@ -1,9 +1,8 @@
 /**
  * Pure Curiosity-phase builder for MessageSteps.
- * Cuts Exploring at mid-message / Edit / Command (afterStepId anchors).
+ * Arrival order only: Thought → mid-reply → explore/cards.
+ * Sole coalesce: adjacent Thinking with the same id (live stream upserts).
  */
-import { looksLikeExploreSettled } from './exploreProseHints';
-
 /** Compatible with MessageSteps.MessageStep */
 export type CuriosityStep = {
   id: string;
@@ -245,24 +244,25 @@ export function buildCuriosityPhases(
     let noteIdx = 0;
 
     /**
-     * Place one sealed prose note.
-     * turnProse is always user-visible — never fold into Thought
-     * (Thought is reasoning-only; no NLP classification here).
+     * Place one sealed prose note in arrival order.
+     * turnProse is always user-visible — never fold into Thought.
+     * Never park mid-reply in proseAfter of an action phase: MessageSteps
+     * renders ALL actions before proseAfter → Command would sit above the reply.
      */
     const placeNote = (note: TurnProseNote) => {
       const text = String(note.content || '').trim();
       if (!text) return;
       if (!cur) cur = startPhase(undefined);
       const payload = { id: note.id, content: text };
-      const settled = looksLikeExploreSettled(text);
 
-      // Comment: Edit/Ran/Subagent batches — chronological proseAfter
+      // Comment: Ran/Edit already on this phase → close it; reply starts the next block
       if (cur.actions.length > 0) {
-        cur.proseAfter.push(payload);
+        cur = startPhase(undefined);
+        cur.leadProse.push(payload);
         return;
       }
 
-      // Comment: cut open Exploring so mid-reply sits between batches (Cursor)
+      // Comment: cut open Exploring so mid-reply sits between dig batches
       if (hasExploreTools(cur) && !cur.resolved) {
         cur.resolved = true;
         cur.proseAfter.push(payload);
@@ -270,13 +270,8 @@ export function buildCuriosityPhases(
         return;
       }
 
-      if (settled && hasExploreTools(cur)) {
+      if (hasExploreTools(cur)) {
         cur.resolved = true;
-        cur.proseAfter.push(payload);
-        return;
-      }
-
-      if (cur.resolved && hasExploreTools(cur)) {
         cur.proseAfter.push(payload);
         cur = startPhase(undefined);
         return;
@@ -422,6 +417,7 @@ export function buildCuriosityPhases(
         closeExplore();
         // Comment: SUB-010 — SubagentRunRow owns its phase; later tools/Thought must
         // start *below* it (never glue Ran/Edit into the same phase → row sinks to end).
+        // Mid-reply leadProse on cur stays above this action in the same phase (sequential).
         const isSubagentRow =
           s.kind === 'subagent' ||
           s.kind === 'task' ||
@@ -442,7 +438,10 @@ export function buildCuriosityPhases(
           !cur ||
           cur.resolved ||
           (cur && hasExploreTools(cur)) ||
-          (cur && cur.openingThought)
+          (cur && cur.openingThought) ||
+          // Comment: mid-reply already on cur → Command/Edit starts below it
+          (cur && cur.leadProse.length > 0) ||
+          (cur && cur.proseAfter.length > 0)
         ) {
           cur = startPhase(undefined);
         }

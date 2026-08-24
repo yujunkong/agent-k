@@ -131,7 +131,7 @@ describe('buildCuriosityPhases Exploring cuts', () => {
     );
   });
 
-  it('does not split Ran batch when dig prose arrives between commands', () => {
+  it('splits Ran batch when mid-reply arrives between commands (sequential)', () => {
     const phases = buildCuriosityPhases(
       [
         step({
@@ -156,12 +156,58 @@ describe('buildCuriosityPhases Exploring cuts', () => {
         }
       ]
     );
-    const cmdPhases = phases.filter((p) => p.actions.length > 0);
-    expect(cmdPhases).toHaveLength(1);
-    expect(cmdPhases[0].actions.map((a) => a.id)).toEqual(['c1', 'c2']);
-    expect(cmdPhases[0].proseAfter.some((n) => n.content.includes('rewrite'))).toBe(
-      true
+    // Comment: c1 → mid-reply → c2 (never Command above the reply via proseAfter)
+    const idx = (id: string) =>
+      phases.findIndex(
+        (p) =>
+          p.actions.some((a) => a.id === id) ||
+          p.leadProse.some((n) => n.id === id) ||
+          p.proseAfter.some((n) => n.id === id)
+      );
+    expect(idx('c1')).toBeGreaterThanOrEqual(0);
+    expect(idx('p1')).toBeGreaterThan(idx('c1'));
+    expect(idx('c2')).toBeGreaterThan(idx('p1'));
+    expect(
+      phases[idx('p1')]!.leadProse.some((n) => n.content.includes('rewrite'))
+    ).toBe(true);
+  });
+
+  it('keeps Thought → mid-reply → Command in arrival order', () => {
+    const phases = buildCuriosityPhases(
+      [
+        step({
+          id: 't1',
+          kind: 'thinking',
+          detail: 'plan dig',
+          itemStatus: 'done'
+        }),
+        step({
+          id: 'c1',
+          kind: 'running',
+          toolName: 'run_terminal_cmd',
+          label: 'Ran'
+        })
+      ],
+      [
+        {
+          id: 'p1',
+          turn: 1,
+          content: '이제 빌드를 실행합니다.',
+          afterStepId: 't1'
+        }
+      ]
     );
+    const thought = phases.find((p) => p.openingThought?.id === 't1');
+    const prosePhase = phases.find((p) =>
+      p.leadProse.some((n) => n.id === 'p1')
+    );
+    const cmd = phases.find((p) => p.actions.some((a) => a.id === 'c1'));
+    expect(thought).toBeTruthy();
+    expect(prosePhase || thought).toBeTruthy();
+    // Reply is either lead on thought phase or its own phase — always before Command
+    const replyPhase = prosePhase || thought!;
+    expect(phases.indexOf(replyPhase)).toBeLessThan(phases.indexOf(cmd!));
+    expect(cmd?.proseAfter.some((n) => n.id === 'p1')).toBe(false);
   });
 
   it('cuts Exploring at Edit and Command actions', () => {

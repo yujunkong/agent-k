@@ -33,6 +33,12 @@ export type AgentLoopEvent =
   | { type: 'assistant_delta'; content: string }
   | { type: 'tool_start'; call: ToolCallRequest }
   | { type: 'tool_end'; call: ToolCallRequest; ok: boolean; error?: string }
+  /** CTX-004 / AGENT-006 — wire transcript compacted before runModel */
+  | {
+      type: 'compaction';
+      level: 'truncate' | 'drop' | 'micro_summary' | 'full';
+      turn: number;
+    }
   | { type: 'status'; status: AgentLoopStatus }
   | { type: 'error'; error: string; fatal: boolean }
   | { type: 'done'; reason: StopReason; content: string };
@@ -196,6 +202,12 @@ export class AgentLoopController {
         });
         if (assembled.compacted) {
           this.messages = assembled.messages.filter((m) => m.role !== 'system');
+          // Comment: AGENT-006 — surface Summarizing chat context... in chat UI (API wire only)
+          this.emit({
+            type: 'compaction',
+            level: assembled.compactionLevel ?? 'micro_summary',
+            turn: turns,
+          });
         }
 
         let modelResult: ModelTurnResult;

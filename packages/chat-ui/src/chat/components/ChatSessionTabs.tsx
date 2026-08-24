@@ -4,7 +4,7 @@
  */
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import type { ChatSessionMeta } from '../ChatSessionStore';
-import type { SubagentDetailTab } from './SubagentDetailView';
+import type { SubagentDetailTab } from './SubagentDetailTab';
 import {
   IconClose,
   IconHistory,

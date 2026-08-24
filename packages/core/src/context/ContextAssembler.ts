@@ -13,6 +13,7 @@ import {
   type ContextBudget,
 } from './budget';
 import { CompactionEngine } from './CompactionEngine';
+import type { CompactLevel } from './CompactionEngine';
 import type { WorkspaceContext } from './WorkspaceContext';
 
 export interface AssembleInput {
@@ -32,6 +33,8 @@ export interface AssembleResult {
   usedTokens: number;
   budget: ContextBudget;
   compacted: boolean;
+  /** Set when compacted — UI can show Summarizing chat context... */
+  compactionLevel?: CompactLevel;
   truncated: boolean;
 }
 
@@ -73,6 +76,7 @@ export class ContextAssembler {
 
     let usedTokens = estimateMessagesTokens(parts);
     let compacted = false;
+    let compactionLevel: AssembleResult['compactionLevel'];
     let messages = parts;
 
     if (input.compactIfNeeded !== false && isOverBudget(usedTokens, budget)) {
@@ -81,9 +85,17 @@ export class ContextAssembler {
       messages = result.messages;
       usedTokens = result.compactedTokens;
       compacted = true;
+      compactionLevel = result.level;
     }
 
-    return { messages, usedTokens, budget, compacted, truncated };
+    return {
+      messages,
+      usedTokens,
+      budget,
+      compacted,
+      compactionLevel,
+      truncated
+    };
   }
 
   estimate(messages: AgentMessage[]): number {

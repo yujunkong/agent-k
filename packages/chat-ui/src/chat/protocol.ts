@@ -254,9 +254,11 @@ export interface ChatStreamEvent {
   requestId: string;
   /** SUB-010 — target ChatSession (child subagent); omit = parent owner */
   sessionId?: string;
-  event: 'delta' | 'status' | 'tool.start' | 'tool.end' | 'timeline' | 'file.edit' | 'complete' | 'error' | 'subagent.event';
+  event: 'delta' | 'status' | 'tool.start' | 'tool.end' | 'timeline' | 'file.edit' | 'complete' | 'error' | 'subagent.event' | 'compaction';
   content?: string;
   status?: string;
+  /** CTX-004 compaction level when event === 'compaction' */
+  level?: string;
   toolName?: string;
   toolArgs?: string;
   toolResult?: string;

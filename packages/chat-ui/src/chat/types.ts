@@ -55,6 +55,8 @@ export interface ChatMessage {
     conversationVariantGroupId?: string;
     conversationVariantIndex?: number;
     conversationVariantCount?: number;
+    /** CTX-004 — API wire compaction in progress (UI: Summarizing chat context...) */
+    contextSummarizing?: boolean;
   };
 }
 
@@ -186,6 +188,11 @@ export interface StreamDelta {
   toolCalls?: ToolCall[];
   done?: boolean;
   error?: string;
+  /** CTX-004 — host compacted API transcript; show Summarizing chat context... briefly */
+  compaction?: {
+    level?: string;
+    label?: string;
+  };
 }
 
 export interface ProviderConfig {

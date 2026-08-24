@@ -120,14 +120,11 @@ function looksLikeDuplicateProse(aRaw: string, bRaw: string): boolean {
   const b = normalizeProse(bRaw);
   if (!a || !b) return false;
   if (a === b) return true;
-  if (a.length >= 40 && b.includes(a)) return true;
-  if (b.length >= 40 && a.includes(b)) return true;
-  const n = Math.min(160, a.length, b.length);
-  if (n >= 40 && a.slice(0, n) === b.slice(0, n)) return true;
-  if (a.length >= 60 && b.length >= 60) {
-    const m = Math.min(120, a.length, b.length);
-    if (a.slice(0, m) === b.slice(0, m)) return true;
-  }
+  // Comment: only drop when sealed mid-reply is a full prefix of the final body
+  // (same buffer grew). Do NOT use shared-head matching — that wiped distinct
+  // mid-replies that merely opened with the same ~40 chars.
+  if (a.length >= 40 && b.startsWith(a)) return true;
+  if (b.length >= 40 && a.startsWith(b)) return true;
   return false;
 }
 
@@ -243,6 +240,9 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
     ctx.updateSessionMessages(getOwnerSessionId(), updater);
   };
 
+  // Comment: CTX-004 — keep Summarizing chat context... visible briefly (compact is sync)
+  let summarizingClearTimer: ReturnType<typeof setTimeout> | undefined;
+
   debugLog('timeline-order', 'stream.session.create', {
     ownerId: getOwnerSessionId(),
     turn: streamTurn(),
@@ -335,6 +335,38 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
   const onDelta = (delta: StreamDelta) => {
     // Superseded turn only — tab switch must still apply tokens to the owner session.
     if (ctx.isStale?.()) return;
+
+    if (delta.compaction) {
+      // Comment: CTX-004 — flash Summarizing chat context... (wire compact is sync; hold ~1.2s)
+      applyOwnerMessages((prev) => {
+        const hit = lastStreaming(prev) || lastAssistant(prev);
+        if (!hit) return prev;
+        const copy = [...prev];
+        copy[hit.lastIdx] = {
+          ...hit.msg,
+          metadata: {
+            ...hit.msg.metadata,
+            contextSummarizing: true
+          }
+        };
+        return copy;
+      });
+      if (summarizingClearTimer) clearTimeout(summarizingClearTimer);
+      summarizingClearTimer = setTimeout(() => {
+        summarizingClearTimer = undefined;
+        applyOwnerMessages((prev) => {
+          const hit = lastStreaming(prev) || lastAssistant(prev);
+          if (!hit?.msg.metadata?.contextSummarizing) return prev;
+          const copy = [...prev];
+          copy[hit.lastIdx] = {
+            ...hit.msg,
+            metadata: { ...hit.msg.metadata, contextSummarizing: false }
+          };
+          return copy;
+        });
+      }, 1200);
+      return;
+    }
 
     if (delta.askQuestion?.id) {
       const q = delta.askQuestion;
@@ -949,6 +981,10 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
   const onComplete = () => {
     // Always settle the owner transcript — isStale must not leave a forever-
     // streaming bubble (tab switch / superseded turn still owns this request).
+    if (summarizingClearTimer) {
+      clearTimeout(summarizingClearTimer);
+      summarizingClearTimer = undefined;
+    }
     const ownerId = getOwnerSessionId();
     const stale = Boolean(ctx.isStale?.());
     debugLog('CHAT-007 tab stream settle', 'stream.onComplete', { ownerId, stale });
@@ -985,6 +1021,10 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         content: finalContent,
         steps,
         workItems,
+        metadata: {
+          ...newMsgs[lastIdx].metadata,
+          contextSummarizing: false
+        },
         workedDurationMs: Math.max(
           0,
           Date.now() - (newMsgs[lastIdx].timestamp || Date.now())

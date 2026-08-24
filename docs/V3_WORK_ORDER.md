@@ -229,7 +229,7 @@ Phase 0 시작 전/병행: shared 계약.
 | CTX-001 | Context budget | core | [x] |
 | CTX-002 | Read max lines | core | [x] |
 | CTX-003 | Context assembler | core | [x] |
-| CTX-004 | Compaction engine | core | [x] |
+| CTX-004 | Compaction engine | core | [x] emit compaction → host → UI "Summarizing chat context..." |
 | CTX-005 | Workspace context | core | [x] |
 | SAFE-001 | Permission gate | safety | [x] |
 | SAFE-002 | Deny globs | safety | [x] |
@@ -364,7 +364,7 @@ Phase 0 시작 전/병행: shared 계약.
 | SUB-007 | Subagent lifecycle guard | core | [x] `applySubagentPatch` |
 | SUB-008 | Subagent roles | core + chat-ui | [x] role + Explorer badge |
 | SUB-009 | Subagent description | core + host | [x] task.description → RunRow title |
-| SUB-010 | Subagent detail view | chat-ui | [x] independent child ChatSession (`sess-sub-*`); parent = RunRow + summary only; child Thought segments rotate after tools (`_thinking_sN`); parent tool body = full conclusion (no 12k stub) |
+| SUB-010 | Subagent detail view | chat-ui | [x] child `sess-sub-*` in **same** message-list (composer hidden + Back); tab only on RunRow open (no auto-tab on spawn) |
 | SUB-011 | Subagent run row | chat-ui | [x] 6-dot · title · role · Waiting |
 | SUB-012 | Subagent changes card | chat-ui | [x] `SubagentChangesCard` |
 | SUB-013 | Subagent result presentation | chat-ui | [x] `subagentResult` / workEvent |

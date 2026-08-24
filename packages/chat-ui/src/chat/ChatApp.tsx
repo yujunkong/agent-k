@@ -14,10 +14,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from 'react';
 import { ConversationTurn } from './conversation';
 import { selectActiveConversationMessages } from './conversation/conversationVariants';
-import {
-  SubagentDetailView,
-  type SubagentDetailTab
-} from './components/SubagentDetailView';
+import type { SubagentDetailTab } from './components/SubagentDetailTab';
 import { useChatStream } from './hooks/useChatStream';
 import { useChatSessions, sessionStore } from './hooks/useChatSessions';
 import {
@@ -561,6 +558,12 @@ export function ChatApp() {
   const activeSubagentIdRef = useRef<string | null>(null);
   activeSubagentIdRef.current = activeSubagentId;
 
+  // Comment: tab switch (session or subagent) — always jump to bottom
+  useLayoutEffect(() => {
+    stickToBottomRef.current = true;
+    scrollMessagesToBottom(true);
+  }, [sessionId, activeSubagentId, scrollMessagesToBottom]);
+
   useEffect(() => {
     sessionStore.setSubagentTabs(subagentTabs);
   }, [subagentTabs]);
@@ -603,8 +606,10 @@ export function ChatApp() {
       if (!tab) return;
       if (tab.parentSessionId !== sessionId) handleOpenSession(tab.parentSessionId);
       setActiveSubagentId(id);
+      stickToBottomRef.current = true;
+      scrollMessagesToBottom(true);
     },
-    [subagentTabs, sessionId, handleOpenSession]
+    [subagentTabs, sessionId, handleOpenSession, scrollMessagesToBottom]
   );
 
   const handleCloseSubagentTab = useCallback((id: string) => {
@@ -618,8 +623,11 @@ export function ChatApp() {
       handleOpenSession(id);
       // Comment: always focus composer on tab click (even when already active)
       setComposerFocusNonce((n) => n + 1);
+      // Comment: same-tab click still pins scroll (sessionId may not change)
+      stickToBottomRef.current = true;
+      scrollMessagesToBottom(true);
     },
-    [handleOpenSession]
+    [handleOpenSession, scrollMessagesToBottom]
   );
 
   // 부모 세션 삭제 시 subagent 탭 정리
@@ -687,29 +695,7 @@ export function ChatApp() {
       ) {
         childTerminalRef.current.delete(childId);
       }
-      setSubagentTabs((prev) => {
-        if (prev.some((t) => t.id === childId)) {
-          return prev.map((t) =>
-            t.id === childId
-              ? {
-                  ...t,
-                  title,
-                  parentSessionId: parentId,
-                  taskId: taskId || t.taskId
-                }
-              : t
-          );
-        }
-        return [
-          ...prev,
-          {
-            id: childId,
-            title,
-            parentSessionId: parentId,
-            taskId: taskId || undefined
-          }
-        ];
-      });
+      // Comment: SUB-010 — do not open a tab on spawn; only RunRow click adds one
       if (!childStreamSessionsRef.current.has(childId)) {
         childStreamSessionsRef.current.set(
           childId,
@@ -938,8 +924,8 @@ export function ChatApp() {
       )}
 
       {/*
-            모든 모드 공유: 하나의 메시지 리스트 + 하나의 Composer.
-            모드는 tools/prompts만 바꿈 — 별도 채팅 창 없음.
+            모든 모드 / 서브에이전트 공유: 하나의 메시지 리스트.
+            서브 상세 = child messages + Back 헤더; composer는 footer에서 숨김.
       */}
       <div
         ref={messageListRef}
@@ -948,46 +934,107 @@ export function ChatApp() {
         aria-live="polite"
         aria-relevant="additions"
         onScroll={onMessageListScroll}
+        data-ak-view={activeSubagentTab ? 'subagent' : 'main'}
       >
-        {activeSubagentTab && subagentDetailMessages ? (
-          <SubagentDetailView
-            title={activeSubagentTab.title}
-            messages={subagentDetailMessages}
-            onBack={() => setActiveSubagentId(null)}
-                onOpenFile={fileEdits.handleOpenFile}
-                onAcceptFile={fileEdits.handleAcceptFileEdit}
-                onRejectFile={fileEdits.handleRejectFileEdit}
-                onWorktreeReview={worktree.handleWorktreeReview}
-                onWorktreeApply={worktree.handleWorktreeApply}
-                onWorktreeReject={worktree.handleWorktreeReject}
-          />
-        ) : (
-        (() => {
-                const lastUserId = [...messages].reverse().find((m) => m.role === 'user')?.id;
-                const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id;
-          return messages.map((item) => (
+        {activeSubagentTab ? (
+          <div className="ak-subagent-detail__header">
+            <button
+              type="button"
+              className="ak-subagent-detail__back"
+              onClick={() => setActiveSubagentId(null)}
+            >
+              ← Back
+            </button>
+            <div className="ak-subagent-detail__titles">
+              <div className="ak-subagent-detail__title">
+                {activeSubagentTab.title}
+              </div>
+              <div className="ak-subagent-detail__status">
+                {(() => {
+                  const last =
+                    subagentDetailMessages?.[
+                      (subagentDetailMessages?.length || 0) - 1
+                    ];
+                  if (
+                    last?.role === 'assistant' &&
+                    last.status === 'streaming'
+                  ) {
+                    return 'Running…';
+                  }
+                  if (
+                    (subagentDetailMessages || []).some((m) =>
+                      (m.workItems || []).some((i) => i.status === 'error')
+                    )
+                  ) {
+                    return 'Failed';
+                  }
+                  return (subagentDetailMessages || []).length > 0
+                    ? 'Completed'
+                    : 'Waiting…';
+                })()}
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {(() => {
+          const viewMessages = activeSubagentTab
+            ? subagentDetailMessages || []
+            : messages;
+          if (activeSubagentTab && viewMessages.length === 0) {
+            return (
+              <p className="ak-subagent-detail__empty">
+                Waiting for subagent…
+              </p>
+            );
+          }
+          const lastUserId = [...viewMessages]
+            .reverse()
+            .find((m) => m.role === 'user')?.id;
+          const lastAssistantId = [...viewMessages]
+            .reverse()
+            .find((m) => m.role === 'assistant')?.id;
+          const viewStreaming = activeSubagentTab
+            ? viewMessages[viewMessages.length - 1]?.role === 'assistant' &&
+              viewMessages[viewMessages.length - 1]?.status === 'streaming'
+            : agentRunning;
+          return viewMessages.map((item) => (
             <ConversationTurn
               key={item.id}
               message={item}
               isStreaming={
-                      agentRunning && messages[messages.length - 1]?.id === item.id
+                viewStreaming &&
+                viewMessages[viewMessages.length - 1]?.id === item.id
               }
-                    isAgentRunning={agentRunning}
+              isAgentRunning={viewStreaming}
               isLastUser={item.role === 'user' && item.id === lastUserId}
-                    isLastAssistant={item.role === 'assistant' && item.id === lastAssistantId}
-                    isEditing={
-                      item.role === 'user' && item.id === editingUser?.id
-                    }
-                    editSeedNonce={
-                      item.id === editingUser?.id ? editingUser.nonce : 0
-                    }
-                    composerChrome={{
+              isLastAssistant={
+                item.role === 'assistant' && item.id === lastAssistantId
+              }
+              // Comment: SUB-010 — child prompt read-only; no compose edit/copy
+              userPromptMode={
+                activeSubagentTab ? 'expand-only' : 'default'
+              }
+              isEditing={
+                !activeSubagentTab &&
+                item.role === 'user' &&
+                item.id === editingUser?.id
+              }
+              editSeedNonce={
+                !activeSubagentTab && item.id === editingUser?.id
+                  ? editingUser.nonce
+                  : 0
+              }
+              composerChrome={
+                activeSubagentTab
+                  ? undefined
+                  : {
                       mode: modeAuto ? 'auto' : mode,
                       onModeChange: sendFlow.handleModeChange,
                       modeLabels: MODE_LABELS,
                       modeTooltips: MODE_TOOLTIPS,
                       modelLabel: provider.modelLabel,
-                      modelId: provider.modelCanonical || provider.providerModel,
+                      modelId:
+                        provider.modelCanonical || provider.providerModel,
                       modelOptions: provider.composerModelOptions,
                       onModelChange: provider.handleModelChange,
                       thinkingEffort: provider.thinkingEffort,
@@ -997,39 +1044,63 @@ export function ChatApp() {
                           : undefined,
                       thinkingOptions: provider.composerThinkingOptions,
                       onSlashCommand: sendFlow.runSlashCommand
-                    }}
-                    onBeginEdit={(id) =>
-                      setEditingUser({ id, nonce: Date.now() })
                     }
-                    onCancelEdit={() => setEditingUser(null)}
-                    onEdit={(id, content, files) => {
+              }
+              onBeginEdit={
+                activeSubagentTab
+                  ? undefined
+                  : (id) => setEditingUser({ id, nonce: Date.now() })
+              }
+              onCancelEdit={
+                activeSubagentTab ? undefined : () => setEditingUser(null)
+              }
+              onEdit={
+                activeSubagentTab
+                  ? undefined
+                  : (id, content, files) => {
                       setEditingUser(null);
                       sendFlow.handleEditMessage(id, content, files);
-                    }}
-                    onFork={sendFlow.handleFork}
-                    onStopAndPrefill={sendFlow.handleStopAndPrefill}
-              onCopy={(content) => navigator.clipboard.writeText(content)}
-              onOpenSubagent={handleOpenSubagent}
-              getSubagentRolling={getSubagentRolling}
-                    onOpenFile={fileEdits.handleOpenFile}
-                    onAcceptFile={fileEdits.handleAcceptFileEdit}
-                    onRejectFile={fileEdits.handleRejectFileEdit}
-                    onWorktreeReview={worktree.handleWorktreeReview}
-                    onWorktreeApply={worktree.handleWorktreeApply}
-                    onWorktreeReject={worktree.handleWorktreeReject}
-              onContinueMission={() => {
-                void handleSendRef.current?.(
-                  mode === 'plan'
-                    ? 'Please continue. If research is done, ask only when a decision is needed; otherwise write the plan document and show a summary + TODOs. Do not loop questions and planning by yourself.'
-                    : 'Continue. Do not stop — finish the task using the tool results above.',
-                  []
-                );
-              }}
+                    }
+              }
+              onFork={activeSubagentTab ? undefined : sendFlow.handleFork}
+              onStopAndPrefill={
+                activeSubagentTab
+                  ? undefined
+                  : sendFlow.handleStopAndPrefill
+              }
+              onCopy={
+                activeSubagentTab
+                  ? undefined
+                  : (content) => navigator.clipboard.writeText(content)
+              }
+              onOpenSubagent={
+                activeSubagentTab ? undefined : handleOpenSubagent
+              }
+              getSubagentRolling={
+                activeSubagentTab ? undefined : getSubagentRolling
+              }
+              onOpenFile={fileEdits.handleOpenFile}
+              onAcceptFile={fileEdits.handleAcceptFileEdit}
+              onRejectFile={fileEdits.handleRejectFileEdit}
+              onWorktreeReview={worktree.handleWorktreeReview}
+              onWorktreeApply={worktree.handleWorktreeApply}
+              onWorktreeReject={worktree.handleWorktreeReject}
+              onContinueMission={
+                activeSubagentTab
+                  ? undefined
+                  : () => {
+                      void handleSendRef.current?.(
+                        mode === 'plan'
+                          ? 'Please continue. If research is done, ask only when a decision is needed; otherwise write the plan document and show a summary + TODOs. Do not loop questions and planning by yourself.'
+                          : 'Continue. Do not stop — finish the task using the tool results above.',
+                        []
+                      );
+                    }
+              }
             />
           ));
-        })()
-        )}
-            {/* 최신 성장을 항상 scrollHeight에 포함하는 앵커 */}
+        })()}
+        {/* 최신 성장을 항상 scrollHeight에 포함하는 앵커 */}
         <div ref={messageEndRef} aria-hidden className="message-list-end" />
       </div>
 

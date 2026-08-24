@@ -20,6 +20,8 @@ export interface AgentTurnProps {
   isStreaming?: boolean;
   /** Assistant answer body is streaming — suppress Planning next moves */
   hasLiveAnswer?: boolean;
+  /** CTX-004 — API context compaction in progress */
+  contextSummarizing?: boolean;
   workedDurationMs?: number;
   children?: React.ReactNode;
   onOpenSubagent?: (subagentId: string, title: string) => void;
@@ -43,6 +45,7 @@ export function AgentTurn({
   liveProse,
   isStreaming = false,
   hasLiveAnswer = false,
+  contextSummarizing = false,
   workedDurationMs,
   children,
   onOpenSubagent,
@@ -66,6 +69,7 @@ export function AgentTurn({
         liveProse={liveProse}
         isStreaming={isStreaming}
         hasLiveAnswer={hasLiveAnswer}
+        contextSummarizing={contextSummarizing}
         workedDurationMs={workedDurationMs}
         onOpenSubagent={onOpenSubagent}
         getSubagentRolling={getSubagentRolling}

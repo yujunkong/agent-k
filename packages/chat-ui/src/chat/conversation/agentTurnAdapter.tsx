@@ -43,6 +43,7 @@ export function AgentTurnAdapter({
     terminalRuns?: TerminalRunPreview[];
     turnProse?: AgentTurnProps['turnProse'];
     workedDurationMs?: number;
+    metadata?: { contextSummarizing?: boolean };
   } | null;
   const lead = candidate?.role === 'assistant' && typeof candidate.title === 'string'
     ? candidate.title
@@ -56,6 +57,8 @@ export function AgentTurnAdapter({
   // Comment: stream dig + final answer inside MessageSteps (under Explored), not bubble gap
   const liveProse = isStreaming && content.trim() ? content : undefined;
   const hasLiveAnswer = Boolean(liveProse);
+  // Comment: CTX-004 — API compaction chrome (Summarizing chat context...)
+  const contextSummarizing = Boolean(candidate?.metadata?.contextSummarizing);
 
   return (
     <AgentTurn
@@ -68,6 +71,7 @@ export function AgentTurnAdapter({
       liveProse={liveProse}
       isStreaming={isStreaming}
       hasLiveAnswer={hasLiveAnswer}
+      contextSummarizing={contextSummarizing}
       workedDurationMs={candidate?.workedDurationMs}
       onOpenSubagent={onOpenSubagent}
       getSubagentRolling={getSubagentRolling}
