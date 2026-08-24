@@ -1,5 +1,5 @@
 /**
- * Context domain barrel — CTX-001…005 (+ shared AGENT-005/006).
+ * Context domain barrel — CTX-001…005 (+ re-exports CTX-006…012 barrels).
  */
 
 export {
@@ -37,3 +37,10 @@ export {
   type WorkspaceContextSnapshot,
   type WorkspaceRoot,
 } from './WorkspaceContext';
+
+/** CTX-006…008 live under src/indexing — re-exported for context consumers. */
+export * from '../indexing';
+/** CTX-009…011 live under src/prefetch. */
+export * from '../prefetch';
+/** CTX-012 lives under src/search. */
+export * from '../search';

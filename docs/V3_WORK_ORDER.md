@@ -444,13 +444,13 @@ Phase 0 시작 전/병행: shared 계약.
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| CTX-006 | Workspace index | core | [ ] |
-| CTX-007 | Codebase index | core | [ ] |
-| CTX-008 | Semantic search | core | [ ] |
-| CTX-009 | Mention extraction | core | [ ] |
-| CTX-010 | File intent | core | [ ] |
-| CTX-011 | Prefetch engine | core | [ ] |
-| CTX-012 | Chat search index | core | [ ] |
+| CTX-006 | Workspace index | core | [x] **2026-08-24** `WorkspaceIndexer` + `WorkspaceFs` port (vscode findFiles → host inject) |
+| CTX-007 | Codebase index | core | [x] **2026-08-24** `CodebaseIndexer` chunk/persist/@codebase search |
+| CTX-008 | Semantic search | core | [x] **2026-08-24** `SemanticSearch` + TF-IDF `rankByTfIdf` (ADDON-T17) |
+| CTX-009 | Mention extraction | core | [x] **2026-08-24** `MentionExtractor` @file/@folder/@symbol/@codebase |
+| CTX-010 | File intent | core | [x] **2026-08-24** `FileIntent` + `resolveFileIntent` (Plan V2 resolution core; full Plan schema stays plan/chat-ui) |
+| CTX-011 | Prefetch engine | core | [x] **2026-08-24** PrefetchEngine + ContextBlockBuilder + ide/lsp/task/StackTrace; vscode collectors → host deps |
+| CTX-012 | Chat search index | core | [x] **2026-08-24** `ChatSearchIndex` local chat/artifact/diff index |
 | HARNESS-001 | Harness enabled | core | [ ] |
 | HARNESS-002 | Verification first | core | [ ] |
 | HARNESS-003 | Prefetch | core | [ ] |
