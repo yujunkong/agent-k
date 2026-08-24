@@ -402,11 +402,17 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         allowMultiple: Boolean(q.allowMultiple),
         answered: false
       };
+      // Comment: ask_question bypasses timeline.tool — seal Thought like Read/Ran so
+      // Thought accordion is not glued open above AskQuestionCard
+      pauseThoughtSegment('askQuestion');
       // Comment: stamp / upsert AskQuestionCard — never stomp a different running ask
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
-        const steps = [...(hit.msg.steps || [])];
+        let msg = sealRunningThoughtSteps(
+          sealLeadFromMessage(hit.msg, undefined, 'askQuestion')
+        );
+        const steps = [...(msg.steps || [])];
         const byQid = steps.findIndex((s) => s.askQid === q.id);
         // Comment: only adopt a tool.start shell that has no qid yet (batch Q2+ must append)
         const byEmptyShell = steps.findIndex(
@@ -431,7 +437,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
         else steps.push(nextStep);
         const copy = [...prev];
-        copy[hit.lastIdx] = { ...hit.msg, steps };
+        copy[hit.lastIdx] = { ...msg, steps };
         return copy;
       });
       if (ownerId && ownerId !== ctx.sessionIdRef.current) {

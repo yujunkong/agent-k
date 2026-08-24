@@ -308,49 +308,62 @@ export function buildCuriosityPhases(
           const owned = out.find((p) => p.openingThought?.id === s.id);
           if (owned) {
             const ownedIdx = out.indexOf(owned);
-            // Comment: SUB-010 — never revive a sealed Thought above a later SubagentRunRow
-            const subagentAfter = out
-              .slice(ownedIdx + 1)
-              .some((p) =>
-                p.actions.some(
-                  (a) =>
-                    a.kind === 'subagent' ||
-                    a.kind === 'task' ||
-                    (a.toolName || '').toLowerCase() === 'task_run' ||
-                    (a.toolName || '').toLowerCase() === 'task'
-                )
-              );
+            // Comment: never revive a sealed Thought above a later Subagent / Ask card
+            const blockingAfter = out.slice(ownedIdx + 1).some((p) =>
+              p.actions.some(
+                (a) =>
+                  a.kind === 'subagent' ||
+                  a.kind === 'task' ||
+                  a.kind === 'asking' ||
+                  (a.toolName || '').toLowerCase() === 'task_run' ||
+                  (a.toolName || '').toLowerCase() === 'task' ||
+                  (a.toolName || '').toLowerCase() === 'ask_question'
+              )
+            );
             const sealed =
               owned.openingThought?.itemStatus === 'done' ||
               owned.openingThought?.itemStatus === 'error';
-            if (!(sealed && (live || subagentAfter))) {
+            if (!(sealed && (live || blockingAfter)) && !blockingAfter) {
               owned.openingThought = { ...s, thoughtRole: 'opening' };
               cur = owned;
               flushNotesAfter(s.id);
               continue;
             }
-            // Fall through — new phase below the subagent
+            // Fall through — new phase below the ask / subagent card
           }
           const midIdx = out.findIndex((p) =>
             p.rows.some((r) => r.type === 'thought' && r.step.id === s.id)
           );
           if (midIdx >= 0) {
             const phase = out[midIdx];
-            phase.rows = phase.rows.map((r) =>
-              r.type === 'thought' && r.step.id === s.id
-                ? {
-                    type: 'thought' as const,
-                    step: { ...s, thoughtRole: 'mid' as const }
-                  }
-                : r
+            const askOrSubAfter = out.slice(midIdx + 1).some((p) =>
+              p.actions.some(
+                (a) =>
+                  a.kind === 'subagent' ||
+                  a.kind === 'task' ||
+                  a.kind === 'asking' ||
+                  (a.toolName || '').toLowerCase() === 'ask_question' ||
+                  (a.toolName || '').toLowerCase() === 'task_run'
+              )
             );
-            cur = phase;
-            flushNotesAfter(s.id);
-            continue;
+            if (!askOrSubAfter) {
+              phase.rows = phase.rows.map((r) =>
+                r.type === 'thought' && r.step.id === s.id
+                  ? {
+                      type: 'thought' as const,
+                      step: { ...s, thoughtRole: 'mid' as const }
+                    }
+                  : r
+              );
+              cur = phase;
+              flushNotesAfter(s.id);
+              continue;
+            }
+            // Fall through — Thought below AskQuestionCard
           }
         }
 
-        // Comment: after a SubagentRunRow phase, next Thought always starts fresh below
+        // Comment: after SubagentRunRow / AskQuestionCard, next Thought starts fresh below
         const curHasSubagent =
           !!cur &&
           cur.actions.some(
@@ -360,7 +373,20 @@ export function buildCuriosityPhases(
               (a.toolName || '').toLowerCase() === 'task_run' ||
               (a.toolName || '').toLowerCase() === 'task'
           );
-        if (!cur || cur.resolved || cur.actions.length > 0 || curHasSubagent) {
+        const curHasAsk =
+          !!cur &&
+          cur.actions.some(
+            (a) =>
+              a.kind === 'asking' ||
+              (a.toolName || '').toLowerCase() === 'ask_question'
+          );
+        if (
+          !cur ||
+          cur.resolved ||
+          cur.actions.length > 0 ||
+          curHasSubagent ||
+          curHasAsk
+        ) {
           cur = startPhase({ ...s, thoughtRole: 'opening' });
         } else if (hasExploreTools(cur) && !cur.resolved) {
           const last = cur.rows[cur.rows.length - 1];
@@ -442,25 +468,37 @@ export function buildCuriosityPhases(
               a.kind === 'asking' ||
               (a.toolName || '').toLowerCase() === 'ask_question'
           );
-        // Comment: ask owns its phase; later dig/tools start *below* the card (not glued above)
         const curOnlyAsks =
           !!cur &&
           curHasAsk &&
+          !cur.openingThought &&
           !hasExploreTools(cur) &&
+          cur.leadProse.length === 0 &&
+          cur.proseAfter.length === 0 &&
           cur.actions.every(
             (a) =>
               a.kind === 'asking' ||
               (a.toolName || '').toLowerCase() === 'ask_question'
           );
+
+        // Comment: AskQuestionCard = same timeline as Ran/Subagent — own phase, no Thought glued above
+        if (isAskRow) {
+          if (!curOnlyAsks) {
+            cur = startPhase(undefined);
+          }
+          cur.actions.push(s);
+          flushNotesAfter(s.id);
+          continue;
+        }
+
         if (
           isSubagentRow ||
           curHasSubagent ||
-          (isAskRow && !curOnlyAsks) ||
-          (curHasAsk && !isAskRow) ||
+          curHasAsk ||
           !cur ||
           cur.resolved ||
           (cur && hasExploreTools(cur)) ||
-          (cur && cur.openingThought && !curOnlyAsks) ||
+          (cur && cur.openingThought) ||
           // Comment: mid-reply already on cur → Command/Edit starts below it
           (cur && cur.leadProse.length > 0) ||
           (cur && cur.proseAfter.length > 0)

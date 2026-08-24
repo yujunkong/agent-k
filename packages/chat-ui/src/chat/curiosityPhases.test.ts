@@ -271,6 +271,64 @@ describe('buildCuriosityPhases Exploring cuts', () => {
     expect(taskPhase?.openingThought).toBeUndefined();
   });
 
+  it('puts AskQuestionCard in its own phase (Thought not glued on same phase)', () => {
+    const phases = buildCuriosityPhases([
+      step({
+        id: 't1',
+        kind: 'thinking',
+        detail: 'deciding questions',
+        itemStatus: 'done'
+      }),
+      step({
+        id: 'tl_ask_scope',
+        kind: 'asking',
+        toolName: 'ask_question',
+        askQid: 'scope',
+        detail: 'Phase 2 scope?',
+        itemStatus: 'running'
+      })
+    ]);
+    const thoughtPhase = phases.find((p) => p.openingThought?.id === 't1');
+    const askPhase = phases.find((p) =>
+      p.actions.some((a) => a.id === 'tl_ask_scope')
+    );
+    expect(thoughtPhase).toBeTruthy();
+    expect(askPhase).toBeTruthy();
+    expect(thoughtPhase).not.toBe(askPhase);
+    expect(askPhase?.openingThought).toBeUndefined();
+  });
+
+  it('places next Thought below Ask (does not revive above the card)', () => {
+    const phases = buildCuriosityPhases([
+      step({
+        id: 't1',
+        kind: 'thinking',
+        detail: 'pre-ask dig',
+        itemStatus: 'done'
+      }),
+      step({
+        id: 'tl_ask_scope',
+        kind: 'asking',
+        toolName: 'ask_question',
+        askQid: 'scope',
+        detail: 'Scope?',
+        itemStatus: 'done'
+      }),
+      step({
+        id: 't2',
+        kind: 'thinking',
+        detail: 'post-answer dig',
+        itemStatus: 'running'
+      })
+    ]);
+    const askIdx = phases.findIndex((p) =>
+      p.actions.some((a) => a.id === 'tl_ask_scope')
+    );
+    const t2Idx = phases.findIndex((p) => p.openingThought?.id === 't2');
+    expect(askIdx).toBeGreaterThanOrEqual(0);
+    expect(t2Idx).toBeGreaterThan(askIdx);
+  });
+
   it('places next Thought below Subagent (does not revive sealed Thought above)', () => {
     const phases = buildCuriosityPhases([
       step({
