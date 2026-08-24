@@ -423,6 +423,9 @@ export function buildCuriosityPhases(
           s.kind === 'task' ||
           (s.toolName || '').toLowerCase() === 'task' ||
           (s.toolName || '').toLowerCase() === 'task_run';
+        const isAskRow =
+          s.kind === 'asking' ||
+          (s.toolName || '').toLowerCase() === 'ask_question';
         const curHasSubagent =
           !!cur &&
           cur.actions.some(
@@ -432,13 +435,32 @@ export function buildCuriosityPhases(
               (a.toolName || '').toLowerCase() === 'task_run' ||
               (a.toolName || '').toLowerCase() === 'task'
           );
+        const curHasAsk =
+          !!cur &&
+          cur.actions.some(
+            (a) =>
+              a.kind === 'asking' ||
+              (a.toolName || '').toLowerCase() === 'ask_question'
+          );
+        // Comment: ask owns its phase; later dig/tools start *below* the card (not glued above)
+        const curOnlyAsks =
+          !!cur &&
+          curHasAsk &&
+          !hasExploreTools(cur) &&
+          cur.actions.every(
+            (a) =>
+              a.kind === 'asking' ||
+              (a.toolName || '').toLowerCase() === 'ask_question'
+          );
         if (
           isSubagentRow ||
           curHasSubagent ||
+          (isAskRow && !curOnlyAsks) ||
+          (curHasAsk && !isAskRow) ||
           !cur ||
           cur.resolved ||
           (cur && hasExploreTools(cur)) ||
-          (cur && cur.openingThought) ||
+          (cur && cur.openingThought && !curOnlyAsks) ||
           // Comment: mid-reply already on cur → Command/Edit starts below it
           (cur && cur.leadProse.length > 0) ||
           (cur && cur.proseAfter.length > 0)

@@ -1104,19 +1104,14 @@ export function ChatApp() {
         <div ref={messageEndRef} aria-hidden className="message-list-end" />
       </div>
 
-          {/* footer — Queue + Clarifying + ChangedFilesBar + Composer */}
+          {/* footer — Queue + ChangedFilesBar + Composer (ask = timeline AskQuestionCard) */}
           <ChatComposerFooter
             msgQueue={msgQueue}
             queueTick={queueTick}
             onQueueApplyNow={sendFlow.handleQueueApplyNow}
             onQueueCancel={sendFlow.handleQueueCancel}
-            showClarifying={plan.showClarifying}
-            pendingQuestions={plan.pendingQuestions}
             mode={mode}
             activeSubagentTab={activeSubagentTab}
-            onPlanAnswer={plan.handlePlanAnswer}
-            onQuestionsComplete={plan.handleQuestionsComplete}
-            onQuestionsCancel={plan.handleQuestionsCancel}
             sessionFileEdits={fileEdits.sessionFileEdits}
             onOpenFile={fileEdits.handleOpenFile}
             onUndoAll={fileEdits.handleUndoAllEdits}

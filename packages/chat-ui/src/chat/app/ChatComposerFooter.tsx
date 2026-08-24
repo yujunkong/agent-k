@@ -1,12 +1,7 @@
 /**
- * ChatComposerFooter — footer 영역 (Queue + Clarifying dock + ChangedFilesBar + Composer)
+ * ChatComposerFooter — footer 영역 (Queue + ChangedFilesBar + Composer)
  *
- * 렌더링:
- *   - QueueUI (메시지 큐 표시)
- *   - ClarifyingQuestions dock (ask_question 응답 UI)
- *   - ChangedFilesBar (편집 파일 요약 + 체크포인트)
- *   - Composer (입력창 + 모드/모델 선택기)
- *   - subagent 탭 활성 시 placeholder 표시
+ * ask_question UI는 timeline AskQuestionCard만 사용 (Clarifying dock 중복 제거).
  */
 import React from 'react';
 import { Composer } from '../components/Composer';
@@ -14,8 +9,6 @@ import type { ModelSelectorOption } from '../components/ModelSelector';
 import { ChangedFilesBar } from '../components/ChangedFilesBar';
 import type { CheckpointSummary } from '../components/ChangedFilesBar';
 import { QueueUI } from '../components/MessageQueueUI';
-import { ClarifyingQuestions } from '../../plan/ClarifyingQuestions';
-import type { PendingQuestion } from '../../tools/session/AskQuestionTool';
 import type { FileEditPreview, Mode, ModePicker, Attachment } from '../types';
 import type { ThinkingEffort } from '../../agent/thinkingEffort';
 import type { SlashCommand } from '../composerPalette';
@@ -28,14 +21,8 @@ export interface ChatComposerFooterProps {
   queueTick: number;
   onQueueApplyNow: (messageId: string) => void;
   onQueueCancel: (messageId: string) => void;
-  // Clarifying questions
-  showClarifying: boolean;
-  pendingQuestions: PendingQuestion[];
   mode: Mode;
   activeSubagentTab: { id: string; title: string; parentSessionId: string } | null;
-  onPlanAnswer: (id: string, answer: string) => void;
-  onQuestionsComplete: () => void;
-  onQuestionsCancel: () => void;
   // ChangedFilesBar
   sessionFileEdits: FileEditPreview[];
   onOpenFile: (filePath: string) => void;
@@ -90,8 +77,7 @@ export interface ChatComposerFooterProps {
 export function ChatComposerFooter(props: ChatComposerFooterProps) {
   const {
     msgQueue, queueTick, onQueueApplyNow, onQueueCancel,
-    showClarifying, pendingQuestions, mode, activeSubagentTab,
-    onPlanAnswer, onQuestionsComplete, onQuestionsCancel,
+    activeSubagentTab,
     sessionFileEdits, onOpenFile, onUndoAll, onReview, isStreaming, onStop,
     checkpoints, onListCheckpoints, onRestoreCheckpoint, onAcceptFile, onRejectFile,
     sessionId,
@@ -108,7 +94,6 @@ export function ChatComposerFooter(props: ChatComposerFooterProps) {
 
   return (
     <footer className="chat-footer">
-      {/* 큐 — Composer 위에 고정; 메시지 리스트와 섞이지 않음 */}
       <QueueUI
         key={queueTick}
         messages={msgQueue.state.messages}
@@ -117,28 +102,6 @@ export function ChatComposerFooter(props: ChatComposerFooterProps) {
         onCancel={onQueueCancel}
       />
 
-      {/* ask_question UI — timeline AskQuestionCard owns Confirm/Skip; dock optional for plan batch */}
-      {showClarifying && pendingQuestions.length > 0 && !activeSubagentTab && mode === 'plan' && (
-        <div className="clarifying-dock" role="region" aria-label="Clarifying questions">
-          <ClarifyingQuestions
-            questions={pendingQuestions.map((q) => ({
-              id: q.id,
-              type: q.allowMultiple ? ('multiple' as const) : ('single' as const),
-              question: q.question,
-              options: q.options,
-              required: q.required,
-              answer: q.answer,
-              allowMultiple: Boolean(q.allowMultiple)
-            }))}
-            variant={mode}
-            onAnswer={onPlanAnswer}
-            onComplete={onQuestionsComplete}
-            onCancel={onQuestionsCancel}
-          />
-        </div>
-      )}
-
-      {/* 편집 파일 요약 바 */}
       <ChangedFilesBar
         files={sessionFileEdits}
         onOpenFile={onOpenFile}
@@ -153,33 +116,31 @@ export function ChatComposerFooter(props: ChatComposerFooterProps) {
         onRejectFile={onRejectFile}
       />
 
-      {/* Composer — subagent 탭 활성 중에도 마운트 유지 (모델·드래프트 상태 보존) */}
-      <div
-        className={
-          activeSubagentTab || composerHidden
-            ? 'ak-composer-host ak-composer-host--hidden'
-            : 'ak-composer-host'
-        }
-        aria-hidden={Boolean(activeSubagentTab || composerHidden)}
-      >
+      {composerHidden || activeSubagentTab ? (
+        activeSubagentTab ? (
+          <div className="composer-subagent-placeholder" role="status">
+            Viewing subagent — switch back to the parent tab to send.
+          </div>
+        ) : null
+      ) : (
         <Composer
-          sessionId={sessionId}
+          key={sessionId}
           onSend={onSend}
           disabled={disabled}
-          onStop={onStop}
           seedText={seedText}
           seedNonce={seedNonce}
           focusNonce={focusNonce}
           inlineEdit={inlineEdit}
           onClearInlineEdit={onClearInlineEdit}
           onSlashCommand={onSlashCommand}
+          onStop={onStop}
+          isStreaming={isStreaming}
           onRegenerate={onRegenerate}
           onQueueMessage={onQueueMessage}
           onResynthesize={onResynthesize}
-          isStreaming={isStreaming}
           isAwaitingUser={isAwaitingUser}
           isGeneratingPlan={isGeneratingPlan}
-          mode={modeValue}
+          modeValue={modeValue}
           onModeChange={onModeChange}
           modeLabels={modeLabels}
           modeTooltips={modeTooltips}
@@ -194,13 +155,7 @@ export function ChatComposerFooter(props: ChatComposerFooterProps) {
           contextUsageLabel={contextUsageLabel}
           contextUsageTitle={contextUsageTitle}
         />
-      </div>
-
-      {activeSubagentTab ? (
-        <div className="ak-subagent-detail__composer-placeholder" aria-hidden>
-          Agent progress — chat input stays on the main session tab
-        </div>
-      ) : null}
+      )}
     </footer>
   );
 }

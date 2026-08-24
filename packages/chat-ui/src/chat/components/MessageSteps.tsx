@@ -1591,7 +1591,7 @@ export function MessageSteps({
                   );
                   nodes.push(
                     <div
-                      key={`ask_batch_${p.id}_${key}_${batch[0].id}`}
+                      key={`ask_batch_${p.id}_${batch.map((s) => s.id).join('_')}`}
                       className="ak-ask-card-wrap ak-cards-under-action"
                     >
                       <AskQuestionCard

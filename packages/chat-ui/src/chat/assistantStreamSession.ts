@@ -402,28 +402,20 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         allowMultiple: Boolean(q.allowMultiple),
         answered: false
       };
-      // Comment: stamp / upsert AskQuestionCard step on the streaming assistant turn
+      // Comment: stamp / upsert AskQuestionCard — never stomp a different running ask
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
         const steps = [...(hit.msg.steps || [])];
         const byQid = steps.findIndex((s) => s.askQid === q.id);
-        const byAsk = steps.findIndex(
+        // Comment: only adopt a tool.start shell that has no qid yet (batch Q2+ must append)
+        const byEmptyShell = steps.findIndex(
           (s) =>
             (s.kind === 'asking' || s.toolName === 'ask_question') &&
             s.itemStatus === 'running' &&
-            !String(s.detail || '').trim()
+            !s.askQid
         );
-        const idx =
-          byQid >= 0
-            ? byQid
-            : byAsk >= 0
-              ? byAsk
-              : steps.findIndex(
-                  (s) =>
-                    (s.kind === 'asking' || s.toolName === 'ask_question') &&
-                    s.itemStatus === 'running'
-                );
+        const idx = byQid >= 0 ? byQid : byEmptyShell >= 0 ? byEmptyShell : -1;
         const nextStep = {
           id: idx >= 0 ? steps[idx].id : `tl_ask_${q.id}`,
           kind: 'asking' as const,
