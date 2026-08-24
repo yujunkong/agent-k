@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./protocol": "./src/protocol/index.ts",
+    "./plan": "./src/plan/index.ts",
     "./work-events": "./src/work-events/index.ts"
   },
   "sideEffects": false,

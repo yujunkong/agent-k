@@ -1,22 +1,16 @@
 /**
- * PlanModeControllerAdapter — the seam between the old world and Plan V2.
- *
- * Per the migration plan agreed on for this refactor: don't delete
- * PlanModeController, PlanGenerator, PlanReview.tsx, or PlanEditor.tsx.
- * Instead, run PlanSession / PlanSchemaGenerator / EvidenceEngine underneath,
- * and mirror their state into the shapes the existing UI already expects.
+ * PlanModeControllerAdapter — V1 UI seam over Plan V2 (PLAN2-015).
+ * Domain lives in @agent-k/plan; this file mirrors state for legacy chrome.
  */
 import { PlanModeController } from '../PlanModeController';
 import type { PlanDocument as LegacyPlanDocument } from '../PlanGenerator';
-import { PlanSession } from './PlanSession';
-import type { PlanDocument as PlanDocumentV2, TaskStatus } from './schema';
-import { renderPlanMarkdown } from './renderPlanMarkdown';
-import { PlanSchemaGenerator, type PlanGenerationModel } from './PlanSchemaGenerator';
-import type { FileExistenceChecker } from './validators/SemanticValidator';
-import { deriveTaskUpdates, type ObservedToolCall } from './EvidenceEngine';
-import type { FailureContext } from './FailureContext';
-import { buildExecutionPlan, type ExecutionPlan, runPlanExecution, type PlanExecutionDeps, type PlanExecutionHooks } from '../execution';
 import {
+  PlanSession,
+  PlanSchemaGenerator,
+  renderPlanMarkdown,
+  deriveTaskUpdates,
+  buildExecutionPlan,
+  runPlanExecution,
   cancelPlanExecution,
   finalizePlanExecution,
   getPersistedExecutionPlan,
@@ -24,8 +18,17 @@ import {
   recordTaskExecutionFailed,
   recordTaskExecutionStarted,
   startPlanExecution,
-  updatePlanExecutionSnapshot
-} from '../execution/planExecutionPersistence';
+  updatePlanExecutionSnapshot,
+  type PlanDocument as PlanDocumentV2,
+  type TaskStatus,
+  type PlanGenerationModel,
+  type FileExistenceChecker,
+  type ObservedToolCall,
+  type FailureContext,
+  type ExecutionPlan,
+  type PlanExecutionDeps,
+  type PlanExecutionHooks,
+} from '@agent-k/plan';
 type FailureLike = FailureContext;
 
 function toLegacyPlanDocument(

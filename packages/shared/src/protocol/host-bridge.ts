@@ -4,6 +4,14 @@
  */
 
 import type { RequestId } from '../common/ids';
+import type {
+  PlanCancelMessage,
+  PlanCardPatchMessage,
+  PlanExecuteMessage,
+  PlanExecutionErrorMessage,
+  PlanGenerateMessage,
+  PlanGenerateResultMessage,
+} from '../plan/protocol';
 import type { ChatSendPayload, ChatStopPayload } from './chat-send';
 import type {
   HostSessionsHydratePayload,
@@ -83,19 +91,23 @@ export type HostBridgeWebviewMessage =
       model?: string;
       providerType?: string;
     }
-  | {
-      type: 'plan.generate';
-      requestId: RequestId;
-      sessionId?: string;
-      [key: string]: unknown;
-    }
-  | { type: 'plan.cancel'; requestId?: RequestId }
-  | { type: 'plan.execute'; requestId: RequestId; [key: string]: unknown }
+  | PlanGenerateMessage
+  | PlanCancelMessage
+  | PlanExecuteMessage
   | { type: 'worktree.review'; requestId?: RequestId; subagentId: string }
   | { type: 'worktree.apply'; requestId?: RequestId; subagentId: string }
   | { type: 'worktree.reject'; requestId?: RequestId; subagentId: string }
   | { type: 'checkpoint.list' }
-  | { type: 'checkpoint.restore'; id: string; reason?: string };
+  | { type: 'checkpoint.restore'; id: string; reason?: string }
+  /** TOOL-007 — user Confirm on AskQuestionCard */
+  | {
+      type: 'chat.answer';
+      qid: string;
+      answer: string;
+      question?: string;
+    }
+  /** TOOL-007 — user Skip / idle auto-skip */
+  | { type: 'chat.question.cancel'; qid: string; reason?: string };
 
 /** Host → Webview messages for HOST bridge features. */
 export type HostBridgeHostMessage =
@@ -180,19 +192,9 @@ export type HostBridgeHostMessage =
       source: string;
       error?: string;
     }
-  | {
-      type: 'plan.generate.result';
-      requestId: RequestId;
-      sessionId?: string;
-      error?: string;
-      aborted?: boolean;
-      [key: string]: unknown;
-    }
-  | {
-      type: 'plan.execution.error';
-      requestId: RequestId;
-      error: string;
-    }
+  | PlanGenerateResultMessage
+  | PlanExecutionErrorMessage
+  | PlanCardPatchMessage
   | {
       type: 'worktree.review.result';
       requestId: string;

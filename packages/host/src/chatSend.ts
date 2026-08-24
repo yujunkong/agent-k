@@ -1068,6 +1068,76 @@ export async function runHostChatSend(
               }
             : undefined,
         };
+
+        // Comment: TOOL-007 — wait for AskQuestionCard Confirm/Skip (do not use stub payload tool)
+        if (name === 'ask_question') {
+          const {
+            parseAskQuestionItems,
+            waitForAskAnswer,
+          } = await import('./askQuestionWaiters');
+          const items = parseAskQuestionItems(
+            args && typeof args === 'object'
+              ? (args as Record<string, unknown>)
+              : {},
+          );
+          if (!items.length) {
+            return {
+              success: false,
+              error:
+                'ask_question requires a non-empty question (or questions[])',
+            };
+          }
+          try {
+            const answers: Array<{
+              qid: string;
+              question: string;
+              answer: string;
+              allowMultiple?: boolean;
+            }> = [];
+            for (const item of items) {
+              postStream({
+                event: 'ask_question',
+                qid: item.qid,
+                question: item.question,
+                options: item.options,
+                required: true,
+                allowMultiple: item.allowMultiple,
+              });
+              const answer = await waitForAskAnswer(item.qid, item.question, {
+                requestId,
+              });
+              answers.push({
+                qid: item.qid,
+                question: item.question,
+                answer,
+                allowMultiple: item.allowMultiple,
+              });
+            }
+            if (answers.length === 1) {
+              return {
+                success: true,
+                data: {
+                  question: answers[0].question,
+                  answer: answers[0].answer,
+                  qid: answers[0].qid,
+                  allowMultiple: answers[0].allowMultiple,
+                },
+              };
+            }
+            return {
+              success: true,
+              data: { answers, count: answers.length },
+            };
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            return {
+              success: false,
+              error: msg,
+              data: { status: 'cancelled' },
+            };
+          }
+        }
+
         const result = await executeTool(registry, name, args, toolCtx);
 
         hostLog(

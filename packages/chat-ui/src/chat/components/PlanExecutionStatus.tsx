@@ -2,12 +2,12 @@
  * Compact plan DAG execution progress — "Executing 2/4 · Task title"
  */
 import React from 'react';
-import type { ExecutionPlan } from '../../plan/execution/types';
+import type { ExecutionPlan } from '../../plan/execution';
 import {
   buildPlanExecutionSteps,
   formatPlanExecutionProgress,
   isPlanExecutionActive
-} from '../../plan/execution/planExecutionPresentation';
+} from '../../plan/execution';
 import { PlanningStatus, type PlanningStep } from './PlanningStatus';
 
 interface PlanExecutionStatusProps {

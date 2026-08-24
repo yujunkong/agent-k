@@ -1,9 +1,7 @@
 /**
- * PlanReview - 사용자 리뷰 UI (C5-T06)
- *
- * - Steps 체크리스트
- * - Approve & Execute / Request Changes
- * - Plan 본문은 에디터에서 열기 (웹뷰 textarea 대신)
+ * PlanReview - legacy overlay (PLAN-CARD-005: superseded by PlanCard).
+ * Kept for reference / optional Open-in-Editor markdown path; ChatModeChrome
+ * no longer mounts this component.
  */
 import React, { useEffect, useState } from 'react';
 import type { PlanDocument } from './PlanGenerator';

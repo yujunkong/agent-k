@@ -10,10 +10,10 @@ import {
   recordTaskExecutionFailed,
   recordTaskExecutionStarted,
   startPlanExecution,
-  updatePlanExecutionSnapshot
-} from '../../plan/execution/planExecutionPersistence';
-import type { ExecutionPlan } from '../../plan/execution';
-import { toObservedToolCall } from '../../plan/session';
+  updatePlanExecutionSnapshot,
+  type ExecutionPlan,
+  toObservedToolCall,
+} from '../../plan/session';
 import {
   applyWorkEvent,
   settleWorkEvents,
@@ -310,6 +310,17 @@ export function useChatHostBridge(p: UseChatHostBridgeParams): void {
       if (ownerSessionId === sessionIdRef.current) {
         setError(String(data.error || 'Plan execution failed.'));
       }
+    },
+    'plan.card.patch': (data) => {
+      plan.applyCardPatch({
+        planId: data.planId as string | undefined,
+        phase: data.phase as string | undefined,
+        taskStatuses: data.taskStatuses as
+          | Array<{ taskId: string; status: string }>
+          | undefined,
+        statusText: data.statusText as string | undefined,
+        document: data.document as import('@agent-k/plan').PlanDocument | undefined,
+      });
     },
     'plan.execution.diagnostic': (_data) => {
       // workEvent 변형이 타임라인 행을 처리 — no-op

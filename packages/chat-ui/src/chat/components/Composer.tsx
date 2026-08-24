@@ -1676,8 +1676,9 @@ export function Composer({
                   onChange={onModelChange}
                   disabled={isStreaming}
                   label={modelLabel}
-                  // Mid-thread pencil edit opens down; footer new-input opens up.
-                  menuPlacement={isInlineEdit ? 'down' : 'up'}
+                  // Comment: empty chat puts composer at top → auto opens down;
+                  // active footer at bottom → auto opens up. Inline-edit forces down.
+                  menuPlacement={isInlineEdit ? 'down' : 'auto'}
                 />
               ) : (
                 <span className="composer-model" title={modelLabel}>

@@ -137,7 +137,47 @@ async function dispatch(
         'chat.send stop',
         `requestId=${String(stopBody?.requestId || '')}`,
       );
+      try {
+        const { cancelAskQuestionsForRequest } = await import(
+          './askQuestionWaiters'
+        );
+        if (stopBody?.requestId) {
+          cancelAskQuestionsForRequest(
+            String(stopBody.requestId),
+            'chat.stop',
+          );
+        }
+      } catch {
+        /* ignore */
+      }
       stopHostChatSend(ctx.chatSend, stopBody);
+      return;
+    }
+
+    case 'chat.answer': {
+      const { resolveAskAnswer } = await import('./askQuestionWaiters');
+      const qid = String(msg.qid || '');
+      const answer = String(msg.answer || '');
+      const question = msg.question != null ? String(msg.question) : '';
+      // Comment: deliver Q+A text so the model sees both in the tool result
+      const payload =
+        question.trim()
+          ? `Q: ${question.trim()}\nA: ${answer}`
+          : answer;
+      const ok = resolveAskAnswer(qid, payload);
+      hostLog(
+        'ask_question',
+        `chat.answer qid=${qid} ok=${ok} answerLen=${answer.length}`,
+      );
+      return;
+    }
+
+    case 'chat.question.cancel': {
+      const { cancelAskQuestion } = await import('./askQuestionWaiters');
+      const qid = String(msg.qid || '');
+      const reason = String(msg.reason || 'ask_question skipped');
+      const ok = cancelAskQuestion(qid, reason);
+      hostLog('ask_question', `chat.question.cancel qid=${qid} ok=${ok}`);
       return;
     }
 
@@ -168,7 +208,8 @@ async function dispatch(
       } else if ('key' in msg && typeof msg.key === 'string') {
         await handleConfigUpdate(msg.key, msg.value);
       }
-      sendConfigHydrate(webview);
+      // Comment: echoOnly — avoid stale VS Code/project re-read flipping Composer model back
+      sendConfigHydrate(webview, { echoOnly: true });
       return;
     }
 
@@ -263,6 +304,16 @@ async function dispatch(
       await runPlanGenerate(ctx.planGenerate, {
         requestId: msg.requestId as RequestId,
         sessionId: msg.sessionId,
+        goal: typeof msg.goal === 'string' ? msg.goal : undefined,
+        researchContext:
+          typeof msg.researchContext === 'string' ? msg.researchContext : undefined,
+        rejectionFeedback:
+          typeof msg.rejectionFeedback === 'string'
+            ? msg.rejectionFeedback
+            : undefined,
+        baseUrl: typeof msg.baseUrl === 'string' ? msg.baseUrl : undefined,
+        apiKey: typeof msg.apiKey === 'string' ? msg.apiKey : undefined,
+        model: typeof msg.model === 'string' ? msg.model : undefined,
       });
       return;
 
@@ -271,7 +322,17 @@ async function dispatch(
       return;
 
     case 'plan.execute':
-      await runHostPlanExecute({ webview }, { requestId: msg.requestId as RequestId });
+      await runHostPlanExecute(
+        { webview },
+        {
+          requestId: msg.requestId as RequestId,
+          sessionId: msg.sessionId,
+          parentTurnId: msg.parentTurnId,
+          executionPlan: msg.executionPlan as never,
+          taskIds: msg.taskIds,
+          repoRoot: msg.repoRoot,
+        },
+      );
       return;
 
     case 'worktree.review':

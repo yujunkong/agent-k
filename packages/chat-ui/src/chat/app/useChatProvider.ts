@@ -18,6 +18,7 @@ import type { ChatSession } from '../ChatSessionStore';
 import {
   getComposerModels,
   getUnifiedComposerModels,
+  persistProviderModel,
   refreshComposerModels
 } from '../providerModels';
 import { resolveSendCredentials } from '../resolveSendCredentials';
@@ -255,20 +256,28 @@ export function useChatProvider(): UseChatProviderReturn {
   );
 
   /**
-   * Composer 모델 변경 → resolve connection into React + tab session.
+   * Composer 모델 변경 → resolve connection into React + tab session +
+   * VS Code settings.json (`agent-k.provider.model` via MODEL-007).
    * Must fill baseUrl/apiKey or chat.send fails with a silent frozen turn.
-   * Prefer connection/profile resolve; activate only as last resort inside
-   * resolveSendCredentials (avoids stomping other tabs via config listeners).
    */
   const handleModelChange = useCallback((next: string) => {
     if (!next) return;
+    const picked = String(next).trim();
+    if (!picked) return;
     const creds = resolveSendCredentials({
-      model: next,
+      model: picked,
       baseUrl: providerBaseUrlRef.current,
       apiKey: providerApiKeyRef.current,
       type: providerTypeRef.current
     });
-    const model = creds.model || next;
+    // Comment: user pick wins — only adopt resolved id when it matches the same model
+    const resolved = String(creds.model || '').trim();
+    const model =
+      resolved &&
+      (normalizeModelId(resolved) === normalizeModelId(picked) ||
+        resolved === picked)
+        ? resolved
+        : picked;
     setProviderModel(model);
     setProviderType(creds.type);
     setProviderBaseUrl(creds.baseUrl);
@@ -283,6 +292,15 @@ export function useChatProvider(): UseChatProviderReturn {
       type: creds.type,
       baseUrl: creds.baseUrl,
       apiKey: creds.apiKey
+    });
+    // Comment: last pick → Global settings.json (host config.update)
+    persistProviderModel(model);
+    // Comment: ensure endpoint fields persist even when no profile matched
+    configManager.update({
+      'agent-k.provider.model': model,
+      'agent-k.provider.type': creds.type,
+      'agent-k.provider.baseUrl': creds.baseUrl,
+      ...(creds.apiKey ? { 'agent-k.provider.apiKey': creds.apiKey } : {}),
     });
   }, [persistProviderToSession]);
 

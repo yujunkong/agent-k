@@ -29,6 +29,11 @@ export interface ChatMessage {
     thoughtRole?: 'opening' | 'mid';
     itemStatus: 'running' | 'done' | 'error';
     durationMs?: number;
+    /** ask_question — MCQ options / answer for AskQuestionCard */
+    options?: string[];
+    answer?: string;
+    allowMultiple?: boolean;
+    askQid?: string;
   }>;
   /** Explicit tool work rows for WorkTimeline — not guessed from `steps`. */
   workItems?: ConversationWorkEvent[];
@@ -149,6 +154,11 @@ export interface TimelineDelta {
   id?: string;
   subagentId?: string;
   parentTurnId?: string;
+  /** ask_question — MCQ options / answer for AskQuestionCard */
+  options?: string[];
+  answer?: string;
+  allowMultiple?: boolean;
+  askQid?: string;
 }
 
 export interface StreamDelta {

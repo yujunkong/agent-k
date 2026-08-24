@@ -1,22 +1,7 @@
 /**
- * Plan session — public entry points.
- *
- * See PlanModeControllerAdapter.ts for how this coexists with the existing
- * PlanModeController / PlanGenerator / PlanReview.tsx / PlanEditor.tsx
- * without deleting or rewriting them.
+ * Thin re-export — Plan V2 domain lives in @agent-k/plan (Phase 6 extract).
+ * PlanModeControllerAdapter stays here (V1 UI seam).
  */
-export * from './schema';
-export * from './PlanEvent';
-export * from './PlanSession';
-export * from './PlanPhaseTransitions';
-export * from './FailureContext';
-export * from './EvidenceEngine';
-export * from './renderPlanMarkdown';
-export { PlanSchemaGenerator, type PlanGenerationModel, type PlanGenerationMessage } from './PlanSchemaGenerator';
-export { LiteLLMPlanModel } from './LiteLLMPlanModel';
+
+export * from '@agent-k/plan/session';
 export { PlanModeControllerAdapter } from './PlanModeControllerAdapter';
-export { toObservedToolCall } from './toObservedToolCall';
-export { validateSchema, parseModelJson } from './validators/SchemaValidator';
-export { validateSemantics, type FileExistenceChecker } from './validators/SemanticValidator';
-export { resolvePlanFileTargets, listUnresolvedPlanFileTargets } from './resolvePlanFileTargets';
-export * from '../execution';

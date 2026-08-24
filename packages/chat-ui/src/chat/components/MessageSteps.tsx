@@ -1,6 +1,7 @@
 import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { FileEditPreviewView } from './FileEditPreviewView';
 import { TerminalRunCard } from './TerminalRunCard';
+import { AskQuestionCard } from './AskQuestionCard';
 import { PlanningTailRow } from './ExploreChrome';
 import { SubagentRunRow } from './SubagentRunRow';
 import { StreamingMarkdown } from '../StreamingMarkdown';
@@ -48,6 +49,13 @@ export interface MessageStep {
   subagentId?: string;
   role?: string;
   description?: string;
+  /** ask_question — option labels for AskQuestionCard */
+  options?: string[];
+  /** ask_question — user selection (settled) */
+  answer?: string;
+  allowMultiple?: boolean;
+  /** ask_question waiter id (qid) for answer stamping */
+  askQid?: string;
 }
 
 type ExploreRow = { type: 'tool' | 'thought' | 'prose'; step: MessageStep };
@@ -149,6 +157,15 @@ function isNoiseAction(s: MessageStep): boolean {
 function isShellStep(s: MessageStep): boolean {
   const n = s.toolName || '';
   return n === 'run_terminal_cmd' || n === 'terminal_output' || s.kind === 'running';
+}
+
+/** ask_question with real prompt text — empty asks are suppressed (no ghost card). */
+function isAskStep(s: MessageStep): boolean {
+  if (s.kind !== 'asking' && (s.toolName || '').toLowerCase() !== 'ask_question') {
+    return false;
+  }
+  const q = String(s.detail || s.description || '').trim();
+  return q.length > 0;
 }
 
 /** Canonical parent header only — not raw task_run tool.start (call_*). */
@@ -404,20 +421,24 @@ function formatRollingTool(s: MessageStep): string {
 function summarizeActions(steps: MessageStep[]): string {
   // Comment: caller already strips editing + shell (cards own those); title is ask/task/other only
   const tools = actionSteps(steps).filter(
-    (s) => s.kind !== 'editing' && !isShellStep(s) && !isTaskStep(s)
+    (s) =>
+      s.kind !== 'editing' &&
+      !isShellStep(s) &&
+      !isTaskStep(s) &&
+      !isAskStep(s) &&
+      // Comment: empty ask_question leftovers must not become "Asked a question"
+      !(s.kind === 'asking' || (s.toolName || '').toLowerCase() === 'ask_question')
   );
   if (!tools.length) return '';
-  const asks = tools.filter((s) => s.kind === 'asking');
   const tasks = tools.filter(
     (s) =>
       s.kind === 'task' ||
       s.toolName === 'task' ||
       s.toolName === 'task_run'
   );
-  if (tasks.length && !asks.length && tasks.length === tools.length) {
+  if (tasks.length && tasks.length === tools.length) {
     return tasks.length === 1 ? 'Started an agent' : `Started ${tasks.length} agents`;
   }
-  if (asks.length) return 'Asked a question';
   return tools.length === 1 ? 'Used 1 tool' : `Used ${tools.length} tools`;
 }
 
@@ -1418,7 +1439,12 @@ export function MessageSteps({
         const shellActions = p.actions.filter(isShellStep);
         const taskActions = p.actions.filter(isTaskStep);
         const actions = p.actions.filter(
-          (a) => a.kind !== 'editing' && !isShellStep(a) && !isTaskStep(a)
+          (a) =>
+            a.kind !== 'editing' &&
+            !isShellStep(a) &&
+            !isTaskStep(a) &&
+            !isAskStep(a) &&
+            !(a.kind === 'asking' || (a.toolName || '').toLowerCase() === 'ask_question')
         );
         const actionLive = actions.some((a) => a.itemStatus === 'running');
         const actionHasError = actions.some((a) => a.itemStatus === 'error');
@@ -1544,11 +1570,46 @@ export function MessageSteps({
               {(() => {
                 const nodes: React.ReactNode[] = [];
                 let miscBuf: MessageStep[] = [];
+                let askBuf: MessageStep[] = [];
                 const termByAction = new Map(
                   shellCards
                     .filter((c) => c.run)
                     .map((c) => [c.action.id, c.run!] as const)
                 );
+                // Comment: consecutive asks → one AskQuestionCard + one Confirm
+                const flushAsks = (key: string) => {
+                  if (!askBuf.length) return;
+                  const batch = askBuf;
+                  askBuf = [];
+                  const live = batch.some((s) => s.itemStatus === 'running');
+                  const durationMs = batch.reduce(
+                    (max, s) =>
+                      s.durationMs != null && s.durationMs > max
+                        ? s.durationMs
+                        : max,
+                    0
+                  );
+                  nodes.push(
+                    <div
+                      key={`ask_batch_${p.id}_${key}_${batch[0].id}`}
+                      className="ak-ask-card-wrap ak-cards-under-action"
+                    >
+                      <AskQuestionCard
+                        items={batch.map((s) => ({
+                          askQid: s.askQid,
+                          question: String(
+                            s.detail || s.description || ''
+                          ).trim(),
+                          options: s.options,
+                          answer: s.answer,
+                          allowMultiple: s.allowMultiple,
+                        }))}
+                        live={live}
+                        durationMs={durationMs > 0 ? durationMs : undefined}
+                      />
+                    </div>
+                  );
+                };
                 const flushMisc = (key: string) => {
                   if (!miscBuf.length) return;
                   const batch = miscBuf;
@@ -1583,9 +1644,13 @@ export function MessageSteps({
                     </ChevronRow>
                   );
                 };
+                const flushAhead = (key: string) => {
+                  flushAsks(key);
+                  flushMisc(key);
+                };
                 for (const a of p.actions) {
                   if (isTaskStep(a)) {
-                    flushMisc(a.id);
+                    flushAhead(a.id);
                     const sid =
                       a.subagentId ||
                       (a.id.startsWith('tl_subagent_')
@@ -1607,7 +1672,7 @@ export function MessageSteps({
                     continue;
                   }
                   if (isShellStep(a)) {
-                    flushMisc(a.id);
+                    flushAhead(a.id);
                     const run = termByAction.get(a.id);
                     if (run) {
                       nodes.push(
@@ -1643,10 +1708,23 @@ export function MessageSteps({
                     }
                     continue;
                   }
+                  if (isAskStep(a)) {
+                    flushMisc(a.id);
+                    askBuf.push(a);
+                    continue;
+                  }
+                  // Comment: bare ask_question with no prompt — never show "Asked a question"
+                  if (
+                    a.kind === 'asking' ||
+                    (a.toolName || '').toLowerCase() === 'ask_question'
+                  ) {
+                    continue;
+                  }
                   if (a.kind === 'editing') continue;
+                  flushAsks(a.id);
                   miscBuf.push(a);
                 }
-                flushMisc('tail');
+                flushAhead('tail');
                 if (orphanTerms.length > 0) {
                   nodes.push(
                     <div

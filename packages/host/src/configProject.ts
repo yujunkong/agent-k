@@ -18,8 +18,19 @@ import {
 } from './configBridge';
 
 /** Push effective config values into webview. */
-export function sendConfigHydrate(webview: vscode.Webview | undefined): void {
+export function sendConfigHydrate(
+  webview: vscode.Webview | undefined,
+  opts?: { /** After webview config.update — echo store; do not re-read disk/VS Code (stale race). */ echoOnly?: boolean },
+): void {
   if (!webview) return;
+  if (opts?.echoOnly) {
+    // Comment: composer model pick must not be stomped by stale Global/project settings
+    void webview.postMessage({
+      type: 'config.hydrate',
+      values: hostConfigStore.getAll(),
+    });
+    return;
+  }
   hostConfigStore.syncFromVSCode(readAgentKFromVSCode());
   void applyProjectConfigFromDisk().finally(() => {
     void webview.postMessage({

@@ -87,15 +87,16 @@ export function shouldReplaceComposerCatalog(providerType?: string): boolean {
 
 /** Activate the resolved connection for a (possibly canonical) model id. */
 export function persistProviderModel(model: string): void {
-  const activated = resolveAndActivateModel(model);
+  const requested = String(model || '').trim();
+  if (!requested) return;
+  const activated = resolveAndActivateModel(requested);
   if (!activated) {
-    const profile = findProviderProfileForModel(model);
+    const profile = findProviderProfileForModel(requested);
     if (profile) activateProviderProfile(profile.id);
-    else {
-      configManager.update({ 'agent-k.provider.model': model });
-      persistToHost({ 'agent-k.provider.model': model });
-    }
   }
+  // Comment: activate writes profile.model — always re-stamp the user's pick afterward
+  configManager.update({ 'agent-k.provider.model': requested });
+  persistToHost({ 'agent-k.provider.model': requested });
   syncCatalogFromUnified();
 }
 

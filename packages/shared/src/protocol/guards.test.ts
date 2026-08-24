@@ -65,6 +65,8 @@ describe('SHARED-001 protocol guards', () => {
     expect(HOST_TO_WEBVIEW_TYPES).toContain('host.hello');
     expect(HOST_TO_WEBVIEW_TYPES).toContain('chat.stream');
     expect(HOST_TO_WEBVIEW_TYPES).toContain('config.hydrate');
+    expect(HOST_TO_WEBVIEW_TYPES).toContain('plan.generate.result');
+    expect(HOST_TO_WEBVIEW_TYPES).toContain('plan.card.patch');
     expect(HOST_TO_WEBVIEW_TYPES).toContain('checkpoint.listResult');
     // Catalogs stay unique.
     expect(new Set(WEBVIEW_TO_HOST_TYPES).size).toBe(WEBVIEW_TO_HOST_TYPES.length);

@@ -370,11 +370,12 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
 
     if (delta.askQuestion?.id) {
       const q = delta.askQuestion;
-      const normalized = normalizeMcqQuestion(
-        q.question ||
-          'A decision is needed. Pick an option below, or type your own under Other.',
-        q.options
-      );
+      const rawQuestion = String(q.question || '').trim();
+      // Comment: no fabricated prompt — empty ask_question must not paint a card
+      if (!rawQuestion) {
+        return;
+      }
+      const normalized = normalizeMcqQuestion(rawQuestion, q.options);
       if (ctx.mode === 'plan') {
         ctx.planController.enterQuestionsStage();
       }
@@ -401,6 +402,46 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         allowMultiple: Boolean(q.allowMultiple),
         answered: false
       };
+      // Comment: stamp / upsert AskQuestionCard step on the streaming assistant turn
+      applyOwnerMessages((prev) => {
+        const hit = lastStreaming(prev);
+        if (!hit) return prev;
+        const steps = [...(hit.msg.steps || [])];
+        const byQid = steps.findIndex((s) => s.askQid === q.id);
+        const byAsk = steps.findIndex(
+          (s) =>
+            (s.kind === 'asking' || s.toolName === 'ask_question') &&
+            s.itemStatus === 'running' &&
+            !String(s.detail || '').trim()
+        );
+        const idx =
+          byQid >= 0
+            ? byQid
+            : byAsk >= 0
+              ? byAsk
+              : steps.findIndex(
+                  (s) =>
+                    (s.kind === 'asking' || s.toolName === 'ask_question') &&
+                    s.itemStatus === 'running'
+                );
+        const nextStep = {
+          id: idx >= 0 ? steps[idx].id : `tl_ask_${q.id}`,
+          kind: 'asking' as const,
+          label: 'ask_question',
+          toolName: 'ask_question',
+          detail: normalized.question,
+          options: normalized.options,
+          allowMultiple: Boolean(q.allowMultiple),
+          askQid: q.id,
+          itemStatus: 'running' as const,
+          turn: idx >= 0 ? steps[idx].turn : streamTurn(),
+        };
+        if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
+        else steps.push(nextStep);
+        const copy = [...prev];
+        copy[hit.lastIdx] = { ...hit.msg, steps };
+        return copy;
+      });
       if (ownerId && ownerId !== ctx.sessionIdRef.current) {
         ctx.parkedAwaitingRef.current = {
           sessionId: ownerId,
@@ -740,7 +781,11 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
                 ? steps[idx]?.thoughtRole ?? 'opening'
                 : steps[idx]?.thoughtRole),
           itemStatus: tl.itemStatus,
-          durationMs: durationMs ?? steps[idx]?.durationMs
+          durationMs: durationMs ?? steps[idx]?.durationMs,
+          options: tl.options ?? steps[idx]?.options,
+          answer: tl.answer ?? steps[idx]?.answer,
+          allowMultiple: tl.allowMultiple ?? steps[idx]?.allowMultiple,
+          askQid: tl.askQid ?? steps[idx]?.askQid,
         };
         if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
         else steps.push(nextStep);

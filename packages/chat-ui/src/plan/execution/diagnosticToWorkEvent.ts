@@ -3,7 +3,7 @@
  * Keeps plan execution visible in the same Turn event pipeline as tool/subagent work.
  */
 import type { ConversationWorkEvent, ConversationWorkStatus } from '../../chat/conversation/conversationWorkEvent';
-import type { AnyPlanDiagnosticEvent } from './executionDiagnostics';
+import type { AnyPlanDiagnosticEvent } from '@agent-k/plan';
 
 function statusFromDiagnostic(event: AnyPlanDiagnosticEvent): ConversationWorkStatus {
   switch (event.status) {

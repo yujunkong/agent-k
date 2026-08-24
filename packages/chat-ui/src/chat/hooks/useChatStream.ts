@@ -406,14 +406,41 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
               toolName,
               stream.kind != null ? String(stream.kind) : undefined
             );
+            const parsedArgs = parseToolArgs(stream.toolArgs);
             const detail =
               (stream.detail != null && String(stream.detail).trim()) ||
               detailFromToolArgs(toolName, stream.toolArgs) ||
               undefined;
+            // Comment: ask_question without a real prompt must not create a ghost card
+            if (
+              (toolName === 'ask_question' || kind === 'asking') &&
+              !String(detail || '').trim()
+            ) {
+              break;
+            }
+            let askOptions: string[] | undefined;
+            let askAllowMultiple: boolean | undefined;
+            if (toolName === 'ask_question' && parsedArgs) {
+              const batch = Array.isArray(parsedArgs.questions)
+                ? parsedArgs.questions
+                : null;
+              const optSrc =
+                parsedArgs.options ??
+                (batch?.[0] && typeof batch[0] === 'object'
+                  ? (batch[0] as Record<string, unknown>).options
+                  : undefined);
+              if (Array.isArray(optSrc)) {
+                askOptions = optSrc.map((o) => String(o));
+              }
+              askAllowMultiple = Boolean(
+                parsedArgs.allow_multiple ??
+                  parsedArgs.allowMultiple ??
+                  parsedArgs.multiple
+              );
+            }
             // Comment: full path for clickable Read / Grepped links (detail is basename).
             const openPath =
-              openPathFromToolArgs(toolName, parseToolArgs(stream.toolArgs)) ||
-              undefined;
+              openPathFromToolArgs(toolName, parsedArgs) || undefined;
             // Comment: SUB — child tools must carry subagentId for detail-tab collect
             const subagentId =
               stream.subagentId != null && String(stream.subagentId).trim()
@@ -461,7 +488,9 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
                 itemStatus: 'running',
                 id,
                 subagentId,
-                parentTurnId
+                parentTurnId,
+                ...(askOptions ? { options: askOptions } : {}),
+                ...(askAllowMultiple ? { allowMultiple: true } : {})
               }
             });
             break;
@@ -691,21 +720,26 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
           case 'ask_question':
             // Pause idle watchdog while host waits on user (can be minutes)
             clearIdle();
-            // Pause "Streaming…" chrome — user must answer ClarifyingQuestions
-            routeDelta({
-              status: 'asking',
-              askQuestion: {
-                id: String(stream.qid || ''),
-                question: String(stream.question || ''),
-                options: Array.isArray(stream.options)
-                  ? stream.options.map((o: unknown) => String(o))
-                  : undefined,
-                required: stream.required !== false,
-                allowMultiple: Boolean(
-                  stream.allowMultiple ?? stream.allow_multiple
-                )
-              },
-            });
+            {
+              const askQ = String(stream.question || '').trim();
+              // Comment: empty ask must not flip chrome to asking / paint a card
+              if (!askQ) break;
+              // Pause "Streaming…" chrome — user must answer ClarifyingQuestions
+              routeDelta({
+                status: 'asking',
+                askQuestion: {
+                  id: String(stream.qid || ''),
+                  question: askQ,
+                  options: Array.isArray(stream.options)
+                    ? stream.options.map((o: unknown) => String(o))
+                    : undefined,
+                  required: stream.required !== false,
+                  allowMultiple: Boolean(
+                    stream.allowMultiple ?? stream.allow_multiple
+                  )
+                }
+              });
+            }
             break;
           case 'debug.stage':
             routeDelta({

@@ -31,16 +31,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { PlanModeController } from '../../plan/PlanModeController';
 import type { PlanStage } from '../../plan/PlanModeController';
 import { PlanModeControllerAdapter, toObservedToolCall } from '../../plan/session';
-import type { ExecutionPlan } from '../../plan/execution';
+import type { ExecutionPlan, PlanGenerationResult } from '../../plan/session';
 import {
   finalizePlanExecution,
   recordTaskExecutionFailed,
   recordTaskExecutionStarted,
   startPlanExecution,
-  updatePlanExecutionSnapshot
-} from '../../plan/execution/planExecutionPersistence';
-import { shouldShowPlanExecutionBar } from '../../plan/execution/planExecutionPresentation';
-import type { PlanGenerationResult } from '../../plan/session/PlanSchemaGenerator';
+  updatePlanExecutionSnapshot,
+  shouldShowPlanExecutionBar,
+} from '../../plan/session';
 import {
   PLAN_GENERATE_TIMEOUT_MESSAGE,
   createPlanGenerateWatchdog
@@ -48,6 +47,12 @@ import {
 import { planGenerator } from '../../plan/PlanGenerator';
 import { askQuestionTool } from '../../tools/session/AskQuestionTool';
 import type { PendingQuestion } from '../../tools/session/AskQuestionTool';
+import {
+  setAskQuestionCardHandlers,
+  type AskCardConfirmPayload,
+  type AskCardSelectPayload,
+  type AskCardSkipPayload,
+} from '../askQuestionCardBridge';
 import {
   extractPlanMarkdownFromMessage,
   findLatestPlanMarkdown,
@@ -130,6 +135,17 @@ export interface UseChatPlanModeReturn {
   setShowClarifying: Dispatch<SetStateAction<boolean>>;
   showPlanReview: boolean;
   setShowPlanReview: Dispatch<SetStateAction<boolean>>;
+  /** Live status line on PlanCard (from plan.card.patch). */
+  cardStatusText: string | undefined;
+  setCardStatusText: Dispatch<SetStateAction<string | undefined>>;
+  planCardTick: number;
+  applyCardPatch: (data: {
+    planId?: string;
+    phase?: string;
+    taskStatuses?: Array<{ taskId: string; status: string }>;
+    statusText?: string;
+    document?: import('@agent-k/plan').PlanDocument;
+  }) => void;
   pendingQuestions: PendingQuestion[];
   setPendingQuestions: Dispatch<SetStateAction<PendingQuestion[]>>;
   generatingPlan: boolean;
@@ -184,7 +200,7 @@ export interface UseChatPlanModeReturn {
   handleQuestionsCancel: () => void;
   handlePlanEdit: (content: string) => void;
   handleOpenPlanInEditor: (content: string) => void;
-  handlePlanApprove: (_content: string) => void;
+  handlePlanApprove: (taskIds?: string[]) => void;
   handlePlanReject: (reason?: string) => void;
   handlePlanReviewClose: () => void;
   handleOpenReview: () => void;
@@ -220,6 +236,9 @@ export function useChatPlanMode(params: UseChatPlanModeParams): UseChatPlanModeR
   const [planStage, setPlanStage] = useState<PlanStage>('research');
   const [showClarifying, setShowClarifying] = useState(false);
   const [showPlanReview, setShowPlanReview] = useState(false);
+  const [cardStatusText, setCardStatusText] = useState<string | undefined>();
+  /** Bump when session mutates so PlanCard re-reads adapter SoT. */
+  const [planCardTick, setPlanCardTick] = useState(0);
   const [pendingQuestions, setPendingQuestions] = useState<PendingQuestion[]>([]);
   const [generatingPlan, setGeneratingPlan] = useState(false);
 
@@ -848,48 +867,199 @@ export function useChatPlanMode(params: UseChatPlanModeParams): UseChatPlanModeR
 
   // ─── handlePlanAnswer ────────────────────────────────────
 
+  /** Stamp selection on timeline only — Confirm delivers to the agent. */
+  const stampAskStep = useCallback(
+    (
+      id: string,
+      answer: string,
+      opts?: { done?: boolean; options?: string[] }
+    ) => {
+      const qMeta = pendingQuestionsRef.current.find((q) => q.id === id);
+      const qText = String(qMeta?.question || '').trim();
+      setMessagesRef.current((prev) => {
+        let changed = false;
+        const out = prev.map((m) => {
+          if (m.role !== 'assistant' || !m.steps?.length) return m;
+          let local = false;
+          let stamped = false;
+          const steps = m.steps.map((s) => {
+            const isAsk =
+              s.kind === 'asking' ||
+              (s.toolName || '').toLowerCase() === 'ask_question';
+            if (!isAsk) return s;
+            if (s.askQid && s.askQid !== id && s.answer && opts?.done) return s;
+            const byQid = s.askQid === id;
+            const byPrompt =
+              !s.askQid &&
+              qText &&
+              String(s.detail || '').trim() === qText;
+            const fallback =
+              !stamped && !s.askQid && s.itemStatus === 'running';
+            if (!byQid && !byPrompt && !fallback) return s;
+            stamped = true;
+            local = true;
+            changed = true;
+            return {
+              ...s,
+              askQid: s.askQid || id,
+              answer,
+              itemStatus: opts?.done ? ('done' as const) : s.itemStatus,
+              options:
+                s.options?.length
+                  ? s.options
+                  : opts?.options?.length
+                    ? opts.options
+                    : qMeta?.options?.map(String),
+            };
+          });
+          return local ? { ...m, steps } : m;
+        });
+        return changed ? out : prev;
+      });
+    },
+    [setMessagesRef]
+  );
+
+  const deliverAskToAgent = useCallback(
+    (qid: string, answer: string, question: string) => {
+      try {
+        getVsCodeApi()?.postMessage?.({
+          type: 'chat.answer',
+          qid,
+          answer,
+          question,
+        });
+      } catch {
+        /* ignore */
+      }
+      askQuestionTool.answerQuestion(qid, answer);
+    },
+    []
+  );
+
   const handlePlanAnswer = useCallback(
     (id: string, answer: string) => {
       const next = pendingQuestionsRef.current.map((q) =>
-        q.id === id ? { ...q, answer, answered: true } : q
+        q.id === id ? { ...q, answer, answered: false } : q
       );
       pendingQuestionsRef.current = next;
       setPendingQuestions(next);
       planController.answerQuestion(id, answer);
+      // Comment: selection only — keep card live until Confirm / Skip
+      stampAskStep(id, answer, { done: false });
+    },
+    [planController, stampAskStep]
+  );
 
-      if (mode === 'plan') return;
+  const handleAskCardConfirm = useCallback(
+    (p: AskCardConfirmPayload) => {
+      let next = pendingQuestionsRef.current;
+      for (const a of p.answers) {
+        next = next.map((q) =>
+          q.id === a.qid ? { ...q, answer: a.answer, answered: true } : q
+        );
+        planController.answerQuestion(a.qid, a.answer);
+        stampAskStep(a.qid, a.answer, { done: true });
+        deliverAskToAgent(a.qid, a.answer, a.question);
 
-      try {
-        getVsCodeApi()?.postMessage?.({ type: 'chat.answer', qid: id, answer });
-      } catch { /* ignore */ }
-      askQuestionTool.answerQuestion(id, answer);
-
-      // Debug 모드: 가설 선택 브리지
-      if (mode === 'debug' && debugControllerRef.current?.getStage() === 'hypothesis') {
-        const match =
-          debugControllerRef.current.getHypotheses().find((h) => h.title === answer) ||
-          debugControllerRef.current.getHypotheses().find((h) => answer.includes(h.title));
-        if (match) {
-          try {
-            debugControllerRef.current.selectHypothesis(match.id);
-            setDebugTick((t) => t + 1);
-          } catch { /* ignore */ }
+        if (mode === 'debug' && debugControllerRef.current?.getStage() === 'hypothesis') {
+          const match =
+            debugControllerRef.current.getHypotheses().find((h) => h.title === a.answer) ||
+            debugControllerRef.current
+              .getHypotheses()
+              .find((h) => a.answer.includes(h.title));
+          if (match) {
+            try {
+              debugControllerRef.current.selectHypothesis(match.id);
+              setDebugTick((t) => t + 1);
+            } catch {
+              /* ignore */
+            }
+          }
         }
       }
+      pendingQuestionsRef.current = next;
+      setPendingQuestions(next);
 
-      const remainingUnanswered = next.filter((q) => q.required !== false && !(q.answer || '').trim()).length;
-      if (remainingUnanswered > 0) return;
+      const remaining = next.filter(
+        (q) => q.required !== false && !q.answered
+      ).length;
+      if (remaining > 0) return;
+
       sealAskingSteps();
       setShowClarifying(false);
       setAwaitingUser(false);
+      setPendingQuestions([]);
     },
-    [planController, mode, debugControllerRef, setDebugTick, sealAskingSteps, setAwaitingUser]
+    [
+      planController,
+      stampAskStep,
+      deliverAskToAgent,
+      mode,
+      debugControllerRef,
+      setDebugTick,
+      sealAskingSteps,
+      setAwaitingUser,
+    ]
   );
+
+  const handleAskCardSkip = useCallback(
+    (p: AskCardSkipPayload) => {
+      const skipLabel =
+        p.reason === 'timeout' ? '(skipped — no response)' : '(skipped)';
+      let next = pendingQuestionsRef.current;
+      for (const item of p.items) {
+        next = next.map((q) =>
+          q.id === item.qid
+            ? { ...q, answer: skipLabel, answered: true }
+            : q
+        );
+        stampAskStep(item.qid, skipLabel, { done: true });
+        // Comment: resolve as skipped so AgentLoop continues (do not reject tool)
+        deliverAskToAgent(item.qid, skipLabel, item.question);
+      }
+      pendingQuestionsRef.current = next;
+      setPendingQuestions(next);
+
+      const remaining = next.filter(
+        (q) => q.required !== false && !q.answered
+      ).length;
+      if (remaining > 0) return;
+      sealAskingSteps();
+      setShowClarifying(false);
+      setAwaitingUser(false);
+      setPendingQuestions([]);
+    },
+    [
+      stampAskStep,
+      deliverAskToAgent,
+      sealAskingSteps,
+      setAwaitingUser,
+    ]
+  );
+
+  // Comment: AskQuestionCard bridge — select / Confirm / Skip
+  useEffect(() => {
+    setAskQuestionCardHandlers({
+      onSelect: (p: AskCardSelectPayload) => {
+        handlePlanAnswer(p.qid, p.answer);
+      },
+      onConfirm: handleAskCardConfirm,
+      onSkip: handleAskCardSkip,
+    });
+    return () => setAskQuestionCardHandlers({});
+  }, [handlePlanAnswer, handleAskCardConfirm, handleAskCardSkip]);
 
   // ─── handleQuestionsComplete ──────────────────────────────
 
   const handleQuestionsComplete = useCallback(() => {
     if (mode !== 'plan') {
+      // Comment: deliver any remaining answers then close (dock Complete path)
+      for (const q of pendingQuestionsRef.current) {
+        const answer = (q.answer || '').trim();
+        if (!answer || !q.answered) continue;
+        deliverAskToAgent(q.id, answer, q.question);
+      }
       sealAskingSteps();
       setShowClarifying(false);
       setAwaitingUser(false);
@@ -902,7 +1072,12 @@ export function useChatPlanMode(params: UseChatPlanModeParams): UseChatPlanModeR
         for (const q of pendingQuestionsRef.current) {
           const answer = (q.answer || '').trim();
           if (!answer) continue;
-          api?.postMessage?.({ type: 'chat.answer', qid: q.id, answer });
+          api?.postMessage?.({
+            type: 'chat.answer',
+            qid: q.id,
+            answer,
+            question: q.question,
+          });
         }
       } catch { /* ignore */ }
       sealAskingSteps();
@@ -921,10 +1096,18 @@ export function useChatPlanMode(params: UseChatPlanModeParams): UseChatPlanModeR
       messagesRef.current = kept;
       setMessagesRef.current(kept);
     }
+    // Comment: Prefer answers over cancel so host waiters resume with Q/A
     try {
       const api = getVsCodeApi();
       for (const q of pendingQuestionsRef.current) {
-        api?.postMessage?.({ type: 'chat.question.cancel', qid: q.id });
+        const answer = (q.answer || '').trim() || '(skipped)';
+        api?.postMessage?.({
+          type: 'chat.answer',
+          qid: q.id,
+          answer,
+          question: q.question,
+        });
+        askQuestionTool.answerQuestion(q.id, answer);
       }
     } catch { /* ignore */ }
 
@@ -935,7 +1118,7 @@ export function useChatPlanMode(params: UseChatPlanModeParams): UseChatPlanModeR
     setShowPlanReview(false);
     setPendingQuestions([]);
     sealAskingSteps();
-    promotePlanOnCompleteRef.current = false;
+  promotePlanOnCompleteRef.current = false;
     beginPlanGenerationUi();
 
     const qa = planController
@@ -978,7 +1161,8 @@ export function useChatPlanMode(params: UseChatPlanModeParams): UseChatPlanModeR
   }, [
     planController, mode, streamingRef, messagesRef, setMessagesRef, sealAskingSteps,
     planAdapter, requestPlanGenerate, commitPlanResult, beginPlanGenerationUi,
-    endPlanGenerationUi, sessionIdRef, stopHandlerRef, sendEpochRef, setAwaitingUser, setError
+    endPlanGenerationUi, sessionIdRef, stopHandlerRef, sendEpochRef, setAwaitingUser, setError,
+    deliverAskToAgent,
   ]);
 
   const handleQuestionsCancel = useCallback(() => {
@@ -1048,7 +1232,7 @@ export function useChatPlanMode(params: UseChatPlanModeParams): UseChatPlanModeR
 
   // ─── Plan Approve / Reject / Review ──────────────────────
 
-  const handlePlanApprove = useCallback((_content: string) => {
+  const handlePlanApprove = useCallback((taskIds?: string[]) => {
     void (async () => {
       try {
         const researchContext =
@@ -1067,7 +1251,7 @@ export function useChatPlanMode(params: UseChatPlanModeParams): UseChatPlanModeR
             rejectionFeedback: planAdapter.session.getState().rejectionFeedback.slice(-1)[0]
           })
         });
-        await planAdapter.approve();
+        await planAdapter.approve(taskIds);
         await planController.advanceToBuild();
         setShowPlanReview(false);
         setPlanStage('build');
@@ -1115,6 +1299,40 @@ export function useChatPlanMode(params: UseChatPlanModeParams): UseChatPlanModeR
     setShowPlanReview(false);
   }, []);
 
+  /** PLAN-CARD-004 — merge host plan.card.patch into session + chrome. */
+  const applyCardPatch = useCallback(
+    (data: {
+      planId?: string;
+      phase?: string;
+      taskStatuses?: Array<{ taskId: string; status: string }>;
+      statusText?: string;
+      document?: import('@agent-k/plan').PlanDocument;
+    }) => {
+      if (typeof data.statusText === 'string') setCardStatusText(data.statusText);
+      const adapter = planAdapter;
+      if (data.taskStatuses?.length) {
+        for (const row of data.taskStatuses) {
+          try {
+            const from =
+              adapter.session.getState().taskStatus[row.taskId] ?? 'pending';
+            adapter.session.recordEvent({
+              type: 'task.status.changed',
+              taskId: row.taskId,
+              from: from as never,
+              to: row.status as never,
+              timestamp: Date.now(),
+            });
+          } catch {
+            /* phase guard may reject — ignore */
+          }
+        }
+      }
+      // Comment: nudge React — adapters are mutable SoT
+      setPlanCardTick((n) => n + 1);
+    },
+    [planAdapter],
+  );
+
   const handleOpenReview = useCallback(() => {
     if (planStage === 'review') {
       const doc = planController.getState().planDocument?.content?.trim();
@@ -1139,29 +1357,18 @@ export function useChatPlanMode(params: UseChatPlanModeParams): UseChatPlanModeR
     parkPlanForSession(sessionIdRef.current);
   }, [planController, planAdapter, messagesRef, parkPlanForSession, sessionIdRef, setAwaitingUser]);
 
-  // 복구: Plan이 보이지만 stage가 stuck → 자동 Review 열기
+  // PLAN-CARD-005 — markdown planPromote heuristics retired; structured PlanCard only.
+  // Legacy looksLikePlanDocument auto-open kept behind explicit reopen (onOpenReview).
   useEffect(() => {
-    if (mode !== 'plan') return;
-    if (streamingRef.current) return;
-    if (showPlanReview) return;
-    if (planAdapter.session.getPlan()) return;
-    const stage = planStage;
-    if (stage !== 'planning' && stage !== 'questions' && stage !== 'research') return;
-    const md = findLatestPlanMarkdown(messagesRef.current);
-    if (!md || !looksLikePlanDocument(md)) return;
-    if (md === lastPromotedPlanRef.current) return;
-    const t = window.setTimeout(() => {
-      if (planStageRef.current === 'review') return;
-      promotePlanToReview(md);
-    }, 400);
-    return () => window.clearTimeout(t);
-  }, [mode, planStage, messagesRef, streamingRef, showPlanReview, promotePlanToReview, planAdapter]);
+    /* no-op: do not auto-promote chat markdown into review */
+  }, []);
 
   return {
     planStage, setPlanStage,
     planStageRef,
     showClarifying, setShowClarifying,
     showPlanReview, setShowPlanReview,
+    cardStatusText, setCardStatusText, applyCardPatch, planCardTick,
     pendingQuestions, setPendingQuestions,
     pendingQuestionsRef,
     generatingPlan, setGeneratingPlan,

@@ -1,7 +1,7 @@
 /**
  * ChatApp — 메인 채팅 애플리케이션 orchestrator (C5-C7 UI 통합)
  *
- * mode=plan  → PlanModeHeader + ClarifyingQuestions/PlanReview
+ * mode=plan  → sticky PlanCard (Build / Reject / PlanView / Discard)
  * mode=debug → DebugModeUI 패널
  * ⚙️ 설정   → SettingsPanel
  * ask_question 도구 → ClarifyingQuestions 모달
@@ -888,11 +888,11 @@ export function ChatApp() {
             onPlanApprove={plan.handlePlanApprove}
             onPlanReject={plan.handlePlanReject}
             onPlanEdit={plan.handlePlanEdit}
-            onOpenPlanInEditor={
-              plan.planAdapter.session.getPlan() ? undefined : plan.handleOpenPlanInEditor
-            }
+            onOpenPlanInEditor={plan.handleOpenPlanInEditor}
             onPlanReviewClose={plan.handlePlanReviewClose}
             onVerifyTask={plan.handleVerifyTaskManually}
+            cardStatusText={plan.cardStatusText}
+            planCardTick={plan.planCardTick}
             debugController={debug.debugController}
             onSelectHypothesis={debug.handleSelectHypothesis}
             onConfirmFix={debug.handleConfirmFix}

@@ -1,7 +1,25 @@
 # @agent-k/plan
 
-Plan V1/V2 + execution (2nd-wave; stub until Phase 6).
+Plan Card domain: **PlanSession + PlanEvent** (SoT) + execution engine.
 
-**Status:** skeleton (S-00x). No Feature logic yet — transplant starts at Phase 0.
+## Pipeline
 
-See `docs/V3_WORK_ORDER.md` and `docs/AGENT-K-MONOREPO-FINAL.md`.
+```text
+plan.generate (host)
+  → PlanSchemaGenerator (constrained JSON)
+  → PlanDocument
+  → plan.generate.result → chat-ui PlanCard
+
+PlanCard Build
+  → plan.execute (optional taskIds)
+  → buildExecutionPlan + runPlanExecution
+  → plan.card.patch (task status)
+```
+
+## Rules (R-004)
+
+- Markdown is render-only (`renderPlanMarkdown`).
+- Mutations only via `PlanSession.recordEvent()`.
+- No React / vscode in this package.
+
+See `docs/V3_WORK_ORDER.md` Phase 6 Track 0–4.

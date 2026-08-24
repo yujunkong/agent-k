@@ -227,6 +227,17 @@ export const shortDetail = (
     return cmd.length > 160 ? `${cmd.slice(0, 157)}…` : cmd;
   }
 
+  if (name === 'ask_question') {
+    const batch = Array.isArray(a.questions) ? a.questions : null;
+    let q = String(a.question ?? a.prompt ?? a.text ?? '').trim();
+    if (!q && batch && batch[0] && typeof batch[0] === 'object') {
+      const first = batch[0] as Record<string, unknown>;
+      q = String(first.question ?? first.prompt ?? first.text ?? '').trim();
+    }
+    if (!q) return undefined;
+    return q.length > 100 ? `${q.slice(0, 97)}…` : q;
+  }
+
   if (name === 'todo_write') {
     if (Array.isArray(a.todos)) return `${a.todos.length} todo(s)`;
     const text = String(a.text ?? a.content ?? '').trim();

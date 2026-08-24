@@ -43,7 +43,7 @@ import { resolveSendCredentials } from '../resolveSendCredentials';
 import { debugLog, debugWarn } from '../debugLog';
 import {
   startPlanExecution
-} from '../../plan/execution/planExecutionPersistence';
+} from '../../plan/execution';
 import type { ChatMessage, Mode, Attachment, ModePicker } from '../types';
 import type { SendEpochMap, SessionTurnMap, SessionStepStartMap } from '../sendEpoch';
 import type { PlanModeController } from '../../plan/PlanModeController';

@@ -127,7 +127,9 @@ export function ModelSelector({
       // Prefer down (pencil edit); flip up only when below is too tight.
       openUp = spaceBelow < 140 && spaceAbove > spaceBelow + 24;
     } else {
-      openUp = spaceAbove >= 140 || spaceAbove >= spaceBelow;
+      // Comment: empty-state composer sits near the top — prefer the side with
+      // more room (below). Footer at bottom usually has spaceAbove >> spaceBelow.
+      openUp = spaceAbove > spaceBelow && spaceAbove >= 120;
     }
     const available = openUp ? spaceAbove : spaceBelow;
     // Never exceed remaining panel space (Math.max(120, …) was overflowing + clipping).

@@ -75,6 +75,8 @@ export const WEBVIEW_TO_HOST_TYPES = [
   'worktree.reject',
   'checkpoint.list',
   'checkpoint.restore',
+  'chat.answer',
+  'chat.question.cancel',
 ] as const satisfies ReadonlyArray<WebviewToHostMessage['type']>;
 
 /** Closed list of host→webview `type` discriminants. */
@@ -96,6 +98,7 @@ export const HOST_TO_WEBVIEW_TYPES = [
   'model.context',
   'plan.generate.result',
   'plan.execution.error',
+  'plan.card.patch',
   'worktree.review.result',
   'worktree.apply.result',
   'worktree.reject.result',

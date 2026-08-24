@@ -65,8 +65,7 @@ function parseAskItems(input: ToolInput): ParsedAskItem[] {
     }
   }
   if (!questionText) {
-    questionText =
-      'A decision is needed about scope or priority. Pick an option below, or type your own under Other.';
+    return [];
   }
   return [
     {
@@ -89,6 +88,13 @@ export class AskQuestionTool {
 
   async execute(input: ToolInput): Promise<ToolOutput> {
     const items = parseAskItems(input);
+    if (items.length === 0) {
+      return {
+        success: false,
+        error:
+          'ask_question requires a non-empty question (or questions[]). Do not call ask_question without a real decision.',
+      };
+    }
     const timeoutMs =
       typeof input.timeoutMs === 'number' ? (input.timeoutMs as number) : 600_000;
 

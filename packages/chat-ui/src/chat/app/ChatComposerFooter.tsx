@@ -117,8 +117,8 @@ export function ChatComposerFooter(props: ChatComposerFooterProps) {
         onCancel={onQueueCancel}
       />
 
-      {/* ask_question UI — Composer 바로 위 고정 (스크롤 off-screen 방지) */}
-      {showClarifying && pendingQuestions.length > 0 && !activeSubagentTab && (
+      {/* ask_question UI — timeline AskQuestionCard owns Confirm/Skip; dock optional for plan batch */}
+      {showClarifying && pendingQuestions.length > 0 && !activeSubagentTab && mode === 'plan' && (
         <div className="clarifying-dock" role="region" aria-label="Clarifying questions">
           <ClarifyingQuestions
             questions={pendingQuestions.map((q) => ({

@@ -36,7 +36,7 @@ export interface PlanExecutePayload {
   /** Owning chat session/tab for isolation. */
   sessionId?: string;
   parentTurnId: string;
-  executionPlan: import('../plan/execution/types').ExecutionPlan;
+  executionPlan: import('@agent-k/plan').ExecutionPlan;
   /** Workspace root from plan generation — validated against host folder at execution. */
   repoRoot?: string;
   model?: string;

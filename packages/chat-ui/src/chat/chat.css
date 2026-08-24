@@ -6334,6 +6334,192 @@ body.vscode-dark .composer-chip--snippet,
   border-left: 1px solid var(--vscode-panel-border, #333);
 }
 
+/* ── AskQuestionCard (timeline durable ask + selected) ── */
+.ak-ask-card-wrap {
+  margin: 6px 0 10px;
+  max-width: 100%;
+}
+
+.ak-ask-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.12));
+  background: var(--vscode-editor-inactiveSelectionBackground, rgba(127, 127, 127, 0.08));
+}
+
+.ak-ask-card--live {
+  border-color: var(--vscode-focusBorder, #007fd4);
+}
+
+.ak-ask-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ak-ask-card__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground, #999);
+}
+
+.ak-ask-card__ms {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #888);
+  opacity: 0.85;
+}
+
+.ak-ask-card__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ak-ask-card__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ak-ask-card__item + .ak-ask-card__item {
+  padding-top: 10px;
+  border-top: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.08));
+}
+
+.ak-ask-card__item-idx {
+  color: var(--vscode-descriptionForeground, #999);
+  font-variant-numeric: tabular-nums;
+}
+
+.ak-ask-card__prompt {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--vscode-foreground, #ccc);
+}
+
+.ak-ask-card__multi-hint {
+  color: var(--vscode-descriptionForeground, #999);
+  font-size: 12px;
+}
+
+.ak-ask-card__options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ak-ask-card__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--vscode-foreground, #ccc);
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+.ak-ask-card__option:disabled {
+  cursor: default;
+}
+
+.ak-ask-card__option:not(:disabled):hover {
+  background: var(--vscode-list-hoverBackground, rgba(127, 127, 127, 0.12));
+}
+
+.ak-ask-card__option.is-selected {
+  opacity: 1;
+  background: var(--vscode-list-activeSelectionBackground, rgba(0, 127, 212, 0.18));
+  color: var(--vscode-list-activeSelectionForeground, inherit);
+}
+
+.ak-ask-card__option-mark {
+  flex: 0 0 auto;
+  width: 1em;
+  opacity: 0.7;
+}
+
+.ak-ask-card__option.is-selected .ak-ask-card__option-mark {
+  opacity: 1;
+}
+
+.ak-ask-card__option-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ak-ask-card__answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  padding-top: 4px;
+  border-top: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.1));
+  font-size: 12.5px;
+}
+
+.ak-ask-card__answer-label {
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground, #999);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.ak-ask-card__answer-text {
+  color: var(--vscode-foreground, #ddd);
+}
+
+.ak-ask-card__waiting {
+  margin: 0;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #999);
+  font-style: italic;
+}
+
+.ak-ask-card__countdown {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-charts-orange, #e2a108);
+}
+
+.ak-ask-card__other {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.12));
+  background: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-input-foreground, #ccc);
+  font: inherit;
+  font-size: 12.5px;
+  resize: vertical;
+}
+
+.ak-ask-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
 /* ── Clarifying questions (Plan / Debug ask_question) ── */
 .mode-chrome--questions {
   max-height: 320px;
@@ -6508,3 +6694,161 @@ body.vscode-dark .composer-chip--snippet,
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* PLAN-CARD — Cursor-style plan artifact in chrome */
+.ak-plan-card {
+  margin: 8px 12px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--vscode-panel-border, #555);
+  border-radius: 8px;
+  background: var(--vscode-editor-background, #1e1e1e);
+  color: var(--vscode-foreground, #ccc);
+}
+.ak-plan-card__header { margin-bottom: 10px; }
+.ak-plan-card__title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  justify-content: space-between;
+}
+.ak-plan-card__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.ak-plan-card__chip {
+  flex-shrink: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-panel-border, #555);
+  opacity: 0.85;
+}
+.ak-plan-card__chip--executing { border-color: var(--vscode-charts-blue, #4fc1ff); }
+.ak-plan-card__chip--completed { border-color: var(--vscode-charts-green, #89d185); }
+.ak-plan-card__chip--failed { border-color: var(--vscode-charts-red, #f14c4c); }
+.ak-plan-card__goal,
+.ak-plan-card__status {
+  margin: 6px 0 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+.ak-plan-card__tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ak-plan-card__task {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--vscode-editor-foreground, #fff) 4%, transparent);
+}
+.ak-plan-card__task-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.ak-plan-card__task-title { flex: 1; font-weight: 500; }
+.ak-plan-card__task-status {
+  font-size: 10px;
+  opacity: 0.7;
+  text-transform: lowercase;
+}
+.ak-plan-card__task-desc {
+  margin: 4px 0 0 24px;
+  font-size: 11.5px;
+  opacity: 0.75;
+  line-height: 1.4;
+}
+.ak-plan-card__risks { margin-top: 10px; font-size: 12px; }
+.ak-plan-card__risks-toggle {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.85;
+}
+.ak-plan-card__btn--active {
+  border-color: var(--vscode-focusBorder, #007fd4);
+}
+
+.ak-plan-card__view {
+  margin-top: 10px;
+  border: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.ak-plan-card__view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.1));
+}
+
+.ak-plan-card__view-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground, #999);
+}
+
+.ak-plan-card__view-tools {
+  display: flex;
+  gap: 6px;
+}
+
+.ak-plan-card__view-body {
+  max-height: min(42vh, 420px);
+  overflow: auto;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.ak-plan-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ak-divider, var(--vscode-panel-border, #555));
+}
+.ak-plan-card__btn {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--vscode-panel-border, #555);
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #ccc);
+  cursor: pointer;
+}
+.ak-plan-card__btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ak-plan-card__btn--primary {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+  border-color: transparent;
+}
+.ak-plan-card__btn--danger { color: var(--vscode-charts-red, #f14c4c); }
+.ak-plan-card__reject textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  font: inherit;
+  font-size: 12px;
+}
+.ak-plan-card__verify { margin-top: 10px; font-size: 12px; }

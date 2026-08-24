@@ -44,9 +44,10 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **Phase 6** — PLAN-* (Plan V1/V2).  
+**바로 다음:** **Phase 6 Track 0/1** — Plan Card canonical (shared protocol → `packages/plan` extract).  
 Phase 5 SUB-001…014 `[x]` (core runner + host createSubagentHost + chat-ui RunRow).  
-**주의:** 「안정 표면 (2026-08-23)」 절 — Phase 0–3 UI/스트림은 최소 침습만.
+**주의:** 「안정 표면 (2026-08-23)」 절 — Phase 0–3 UI/스트림은 최소 침습만.  
+**Plan canonical:** Timeline **PlanCard** + `PlanSession`/`PlanEvent` (R-004). V1 markdown SoT / `PlanReview` overlay는 본선 제외.
 
 ---
 
@@ -374,49 +375,102 @@ Phase 0 시작 전/병행: shared 계약.
 
 ---
 
-## Phase 6 — Plan V1/V2 + Execution (R-004)
+## Phase 6 — Plan Card + Execution (R-004)
 
-**완료/원칙:** Plan state machine 준수. prompt 한 방 대체 금지.
+**Canonical:** Timeline **PlanCard** (UX SoT) + `packages/plan` `PlanSession`/`PlanEvent` (domain SoT).  
+Structured `PlanDocument`만 SoT — markdown은 render 파생물. prompt 한 방 대체 금지.  
+**V1 본선 제외:** PLAN-001/002/004/010 풀포트 안 함. Clarifying/storage/promote/editor는 카드·Track에 재매핑.  
+MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이식 금지, wiring만.
+
+### R-004 ↔ session phase mapping
+
+| R-004 | PlanSession phase | Card UX |
+|-------|-------------------|---------|
+| PlanCreated | idle | (none) |
+| Researching | research | clarifying gate optional |
+| Planned | planning | generating → card mount |
+| Reviewing | review | PlanCard editable |
+| Approved | (approve event → executing) | Build clicked |
+| Executing | executing | live task rows |
+| Verifying | executing + task awaiting_verification/verified | Evidence / manual verify |
+| Completed / Failed / Cancelled | completed / failed | status chip |
+
+### Track 0 — Protocol / shared
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| PLAN-001 | Plan Mode controller | plan | [ ] |
-| PLAN-002 | Research | plan | [ ] |
-| PLAN-003 | Clarifying Questions | plan | [ ] |
-| PLAN-004 | Plan generation | plan | [ ] |
-| PLAN-005 | Plan review | plan | [ ] |
-| PLAN-006 | Plan storage | plan | [ ] |
-| PLAN-007 | Plan promotion | plan | [ ] |
-| PLAN-008 | Plan editor / history | plan | [ ] |
-| PLAN-009 | Plan enforcement / context injection | plan | [ ] |
-| PLAN-010 | Failure recovery / complexity / todo branching | plan | [ ] |
-| PLAN2-001 | PlanSession | plan | [ ] |
-| PLAN2-002 | PlanEvent | plan | [ ] |
-| PLAN2-003 | PlanPhaseTransitions | plan | [ ] |
-| PLAN2-004 | PlanV2Generator | plan | [ ] |
-| PLAN2-005 | LiteLLMPlanModel | plan | [ ] |
-| PLAN2-006 | WorkspaceContext | plan | [ ] |
-| PLAN2-007 | EvidenceEngine | plan | [ ] |
-| PLAN2-008 | FailureContext | plan | [ ] |
-| PLAN2-009 | SchemaValidator | plan | [ ] |
-| PLAN2-010 | SemanticValidator | plan | [ ] |
-| PLAN2-011 | File intent resolution | plan | [ ] |
-| PLAN2-012 | Markdown rendering | plan | [ ] |
-| PLAN2-013 | Observed tool call | plan | [ ] |
-| PLAN2-014 | Plan watchdog | plan | [ ] |
-| PLAN2-015 | PlanModeControllerAdapter | plan | [ ] |
-| EXEC-001 | Execution Plan build | plan | [ ] |
-| EXEC-002 | Execution Context validation | plan | [ ] |
-| EXEC-003 | Execution Plan validation | plan | [ ] |
-| EXEC-004 | Plan phase mapping | plan | [ ] |
-| EXEC-005 | Task inference | plan | [ ] |
-| EXEC-006 | Task prompt generation | plan | [ ] |
-| EXEC-007 | Task scheduler | plan | [ ] |
-| EXEC-008 | Plan execution engine | plan | [ ] |
-| EXEC-009 | Execution persistence | plan | [ ] |
-| EXEC-010 | Execution diagnostics | plan | [ ] |
-| EXEC-011 | Execution presentation | plan | [ ] |
-| EXEC-012 | Subagent task bridge | plan | [ ] |
+| SHARED-PLAN-001 | PlanDocument / PlanTask / TaskStatus types | shared | [x] |
+| SHARED-PLAN-002 | plan.generate / execute / card.patch protocol | shared | [x] |
+
+### Track 1 — Domain → `packages/plan`
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| PLAN2-001 | PlanSession | plan | [x] extract |
+| PLAN2-002 | PlanEvent | plan | [x] extract |
+| PLAN2-003 | PlanPhaseTransitions | plan | [x] extract |
+| PLAN2-006 | WorkspaceContext | plan | [x] extract |
+| PLAN2-007 | EvidenceEngine | plan | [x] extract |
+| PLAN2-008 | FailureContext | plan | [x] extract |
+| PLAN2-009 | SchemaValidator | plan | [x] extract |
+| PLAN2-010 | SemanticValidator | plan | [x] extract |
+| PLAN2-011 | File intent resolution | plan | [x] extract |
+| PLAN2-004 | PlanV2Generator | plan | [x] extract |
+| PLAN2-005 | LiteLLMPlanModel | plan | [x] extract |
+| PLAN2-012 | Markdown rendering | plan | [x] extract |
+| PLAN2-013 | Observed tool call | plan | [x] extract |
+| PLAN2-014 | Plan watchdog | plan | [x] |
+| EXEC-001 | Execution Plan build | plan | [x] extract |
+| EXEC-002 | Execution Context validation | plan | [x] extract |
+| EXEC-003 | Execution Plan validation | plan | [x] extract |
+| EXEC-004 | Plan phase mapping | plan | [x] extract |
+| EXEC-005 | Task inference | plan | [x] extract |
+| EXEC-006 | Task prompt generation | plan | [x] extract |
+| EXEC-007 | Task scheduler | plan | [x] extract |
+| EXEC-008 | Plan execution engine | plan | [x] extract |
+| EXEC-009 | Execution persistence | plan | [x] extract |
+| EXEC-010 | Execution diagnostics | plan | [x] extract |
+| EXEC-012 | Subagent task bridge | plan | [x] extract |
+| PLAN-006 | Plan storage (`.agentk/plans/`) | plan | [x] |
+| PLAN2-015 | PlanModeControllerAdapter (temp V1 bridge) | plan + chat-ui | [x] chat-ui seam |
+
+### Track 2 — Host 실루프
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| HOST-008b | planGenerate/planExecute → `@agent-k/plan` | host | [x] |
+
+### Track 3 — PlanCard UI
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| PLAN-CARD-001 | Timeline PlanCard shell | chat-ui | [x] chrome sticky card |
+| PLAN-CARD-002 | Card edit + partial Build (`taskIds`) | chat-ui | [x] |
+| PLAN-CARD-003 | Build / Reject / Discard / Reopen + Clarifying gate | chat-ui | [x] |
+| PLAN-CARD-004 | Live exec status on card (absorb status bar) | chat-ui | [x] card.patch |
+| PLAN-CARD-005 | Remove PlanReview overlay + planPromote heuristics | chat-ui | [x] |
+| PLAN-003 | Clarifying Questions (card gate) | chat-ui | [x] existing dock |
+| PLAN-005 | Plan review (= PLAN-CARD-*) | chat-ui | [x] |
+| PLAN-007 | Promotion (`plan.approved` + MODE-009) | host/core | [x] approve path |
+| PLAN-008 | Editor (inline card + optional Open in Editor) | chat-ui | [x] |
+| PLAN-009 | Enforcement / context injection | core thin | [~] MODE sticky; full inject later |
+| EXEC-011 | Execution presentation (card patches) | chat-ui | [x] |
+
+### Track 4 — 통합
+
+| Feature ID | 제목 | 패키지 | 상태 |
+|------------|------|--------|------|
+| INT-002 | PlanCard → Build → Subagent → Worktree → Review → Adopt | integration | [~] host main-task stub; SUB bridge next |
+| TEST-006 | Plan session / card patch / execution | tests | [x] `@agent-k/plan` planCard.test.ts |
+
+### V1 deferred (본선 제외)
+
+| Feature ID | 제목 | 상태 |
+|------------|------|------|
+| PLAN-001 | Plan Mode controller (V1 FSM) | [~] deferred — adapter only |
+| PLAN-002 | Research phase module | [~] deferred — mode tools |
+| PLAN-004 | V1 markdown PlanGenerator | [~] deferred — V2 generator |
+| PLAN-010 | Failure/complexity/todo branching | [~] deferred — FailureContext/Evidence |
 
 ---
 
@@ -528,7 +582,7 @@ Phase 0 시작 전/병행: shared 계약.
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
 | INT-001 | Provider → Agent → Tool → Context → Chat E2E | integration | [ ] |
-| INT-002 | Plan → Task → Subagent → Worktree → Review → Adopt | integration | [ ] |
+| INT-002 | Plan → Task → Subagent → Worktree → Review → Adopt | integration | [~] PlanCard+host stub; full SUB/worktree later |
 | INT-003 | Auto Mode → Agent/Plan/Debug/Ask 전환 | integration | [ ] |
 | INT-004 | Streaming → Stop → Queue → Regenerate | integration | [ ] |
 | INT-005 | Inline Edit → Diff → Apply | integration | [ ] |
@@ -548,7 +602,7 @@ Phase 0 시작 전/병행: shared 계약.
 | TEST-003 | Core / Harness | tests | [ ] |
 | TEST-004 | Host | tests | [ ] |
 | TEST-005 | Mode | tests | [ ] |
-| TEST-006 | Plan Execution / Plan V2 | tests | [ ] |
+| TEST-006 | Plan Execution / Plan V2 | tests | [x] `@agent-k/plan` planCard.test.ts |
 | TEST-007 | Provider | tests | [ ] |
 | TEST-008 | Tools / Conversation | tests | [ ] |
 
@@ -568,7 +622,7 @@ Phase 0 시작 전/병행: shared 계약.
 2. Phase 3 UI 잔여 미룸: **CONV-014 → SUB 이후**, **CONV-016 → checkpoint 이후**. CONV-013 완료.
 3. **코드 TODO:** STREAM-004 follow-up prior (`content || turnProse`) · HOST-002 final-cut RCA — **안정 표면 최소 침습**
 4. HARNESS-007 nudge 효과 확인 (선택)
-5. **Phase 5** — SUB-001…014 `[x]` → 다음 **Phase 6 PLAN-***
-6. HOST-002/008 실루프는 AGENT-* / PLAN-* 이후 본문 교체
+5. **Phase 6** — Track 0 shared → Track 1 `packages/plan` → Track 2 HOST-008b → Track 3 PlanCard
+6. HOST-002 RCA는 별도; HOST-008b는 Plan Card extract와 함께 본문 교체
 
 **에이전트:** 위 「안정 표면」을 읽고 수정할 것. 잘 되는 UI/스트림을 넓게 건드리지 말 것. Phase 4 worktree는 `packages/worktree` (+ host thin adapter).

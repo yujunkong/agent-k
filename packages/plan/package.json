@@ -2,12 +2,27 @@
   "name": "@agent-k/plan",
   "version": "0.0.0",
   "private": true,
-  "description": "Plan V1/V2 + execution (2nd-wave; stub until Phase 6).",
+  "description": "Plan V2 session + execution (Plan Card domain). No React / vscode.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./*": "./src/*"
+    "./session": "./src/session/index.ts",
+    "./execution": "./src/execution/index.ts"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agent-k/shared": "*",
+    "@agent-k/providers": "*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
 }
