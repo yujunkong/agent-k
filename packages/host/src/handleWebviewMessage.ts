@@ -331,6 +331,16 @@ async function dispatch(
           executionPlan: msg.executionPlan as never,
           taskIds: msg.taskIds,
           repoRoot: msg.repoRoot,
+          // Comment: INT-002 — provider creds for real SubagentHost / main AgentLoop
+          model: typeof msg.model === 'string' ? msg.model : undefined,
+          baseUrl: typeof msg.baseUrl === 'string' ? msg.baseUrl : undefined,
+          apiKey: typeof msg.apiKey === 'string' ? msg.apiKey : undefined,
+          providerType:
+            typeof msg.providerType === 'string' ? msg.providerType : undefined,
+          thinkingEffort:
+            typeof msg.thinkingEffort === 'string'
+              ? msg.thinkingEffort
+              : undefined,
         },
       );
       return;

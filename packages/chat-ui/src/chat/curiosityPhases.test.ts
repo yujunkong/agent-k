@@ -197,7 +197,9 @@ describe('buildCuriosityPhases Exploring cuts', () => {
         }
       ]
     );
-    const thought = phases.find((p) => p.openingThought?.id === 't1');
+    const thought = phases.find((p) =>
+      p.actions.some((a) => a.kind === 'thinking' && a.id === 't1')
+    );
     const prosePhase = phases.find((p) =>
       p.leadProse.some((n) => n.id === 'p1')
     );
@@ -261,17 +263,20 @@ describe('buildCuriosityPhases Exploring cuts', () => {
         itemStatus: 'running'
       })
     ]);
-    const thoughtPhase = phases.find((p) => p.openingThought?.id === 't1');
+    // Comment: Thought is an action card; Subagent starts the next phase
+    const thoughtPhase = phases.find((p) =>
+      p.actions.some((a) => a.kind === 'thinking' && a.id === 't1')
+    );
     const taskPhase = phases.find((p) =>
       p.actions.some((a) => a.id === 'tl_subagent_x')
     );
     expect(thoughtPhase).toBeTruthy();
     expect(taskPhase).toBeTruthy();
     expect(thoughtPhase).not.toBe(taskPhase);
-    expect(taskPhase?.openingThought).toBeUndefined();
+    expect(taskPhase?.actions.some((a) => a.kind === 'thinking')).toBe(false);
   });
 
-  it('puts AskQuestionCard in its own phase (Thought not glued on same phase)', () => {
+  it('stacks Thought + Ask as sequential action cards (same phase walk)', () => {
     const phases = buildCuriosityPhases([
       step({
         id: 't1',
@@ -288,14 +293,12 @@ describe('buildCuriosityPhases Exploring cuts', () => {
         itemStatus: 'running'
       })
     ]);
-    const thoughtPhase = phases.find((p) => p.openingThought?.id === 't1');
-    const askPhase = phases.find((p) =>
-      p.actions.some((a) => a.id === 'tl_ask_scope')
-    );
-    expect(thoughtPhase).toBeTruthy();
-    expect(askPhase).toBeTruthy();
-    expect(thoughtPhase).not.toBe(askPhase);
-    expect(askPhase?.openingThought).toBeUndefined();
+    expect(phases).toHaveLength(1);
+    expect(phases[0].openingThought).toBeUndefined();
+    expect(phases[0].actions.map((a) => a.id)).toEqual([
+      't1',
+      'tl_ask_scope'
+    ]);
   });
 
   it('places next Thought below Ask (does not revive above the card)', () => {
@@ -321,12 +324,14 @@ describe('buildCuriosityPhases Exploring cuts', () => {
         itemStatus: 'running'
       })
     ]);
-    const askIdx = phases.findIndex((p) =>
-      p.actions.some((a) => a.id === 'tl_ask_scope')
-    );
-    const t2Idx = phases.findIndex((p) => p.openingThought?.id === 't2');
-    expect(askIdx).toBeGreaterThanOrEqual(0);
-    expect(t2Idx).toBeGreaterThan(askIdx);
+    const actions = phases.flatMap((p) => p.actions.map((a) => a.id));
+    expect(actions.indexOf('tl_ask_scope')).toBeLessThan(actions.indexOf('t2'));
+    expect(actions.indexOf('t1')).toBeLessThan(actions.indexOf('tl_ask_scope'));
+    // Comment: sealed t1 must not absorb t2 content
+    const t1 = phases
+      .flatMap((p) => p.actions)
+      .find((a) => a.id === 't1');
+    expect(t1?.detail).toBe('pre-ask dig');
   });
 
   it('places next Thought below Subagent (does not revive sealed Thought above)', () => {
@@ -352,15 +357,16 @@ describe('buildCuriosityPhases Exploring cuts', () => {
         itemStatus: 'running'
       })
     ]);
-    const ids = phases.map((p) => ({
-      thought: p.openingThought?.id,
-      tasks: p.actions.map((a) => a.id)
-    }));
-    expect(ids[0]?.thought).toBe('t1');
-    expect(ids[1]?.tasks).toContain('tl_subagent_x');
-    expect(ids[2]?.thought).toBe('t2');
-    // t1 must not absorb t2
-    expect(phases[0].openingThought?.detail).toBe('spawn decision');
+    const flat = phases.flatMap((p) =>
+      p.actions.map((a) => ({ id: a.id, kind: a.kind, detail: a.detail }))
+    );
+    expect(flat.map((x) => x.id)).toEqual([
+      't1',
+      'tl_subagent_x',
+      't2'
+    ]);
+    expect(flat[0]?.detail).toBe('spawn decision');
+    expect(flat[2]?.detail).toBe('waiting on child');
   });
 
   it('puts post-spawn Ran in a phase below Subagent (not glued under it)', () => {

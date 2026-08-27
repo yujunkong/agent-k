@@ -34,6 +34,13 @@ export const extname = (p: string) => {
   const i = b.lastIndexOf('.');
   return i > 0 ? b.slice(i) : '';
 };
+/** POSIX / Windows absolute — webview-safe (hostApi transitively bundled) */
+export const isAbsolute = (p: string) => {
+  if (!p) return false;
+  const s = String(p);
+  if (s.startsWith('/') || s.startsWith('\\')) return true;
+  return /^[A-Za-z]:[\\/]/.test(s);
+};
 
 export default {
   execFileSync,
@@ -55,4 +62,5 @@ export default {
   dirname,
   basename,
   extname,
+  isAbsolute,
 };

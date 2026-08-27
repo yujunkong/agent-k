@@ -44,10 +44,13 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **Phase 6 Track 0/1** — Plan Card canonical (shared protocol → `packages/plan` extract).  
-Phase 5 SUB-001…014 `[x]` (core runner + host createSubagentHost + chat-ui RunRow).  
+**바로 다음:** **HARNESS-002/004** (verify micro-loop) → **STREAM-004** (prior content).  
+Phase 6 Track 0–4 `[x]` (PlanCard + `packages/plan` + HOST-008b + INT-002 SubagentHost wire).  
 **주의:** 「안정 표면 (2026-08-23)」 절 — Phase 0–3 UI/스트림은 최소 침습만.  
-**Plan canonical:** Timeline **PlanCard** + `PlanSession`/`PlanEvent` (R-004). V1 markdown SoT / `PlanReview` overlay는 본선 제외.
+**Plan canonical:** Timeline **PlanCard** + `PlanSession`/`PlanEvent` (R-004). V1 markdown SoT / `PlanReview` overlay는 본선 제외.  
+**Agent loop:** Claude Code식 gather→act→verify (루프는 가볍게). Plan FSM / Evidence replan은 **Plan 실행 경로만** — 일상 AgentLoop에 올리지 않음. 상세 「Claude Code → agent-k」 절.  
+**HARNESS-005 `[x]`:** `ProjectRulesLoader` — AGENTS.md / `.agentk/rules` / `.cursor/rules` → ContextAssembler sticky (compact 밖, 매 턴 재주입).
+**PLAN-009 `[x]`:** `formatApprovedPlanBlock` → planExecute main/subagent AgentLoop sticky; plan mode write gate (`planStage` → ToolRegistry + `planWriteGate`).
 
 ---
 
@@ -449,18 +452,18 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 | PLAN-CARD-003 | Build / Reject / Discard / Reopen + Clarifying gate | chat-ui | [x] |
 | PLAN-CARD-004 | Live exec status on card (absorb status bar) | chat-ui | [x] card.patch |
 | PLAN-CARD-005 | Remove PlanReview overlay + planPromote heuristics | chat-ui | [x] |
-| PLAN-003 | Clarifying Questions (card gate) | chat-ui | [x] existing dock |
+| PLAN-003 | Clarifying Questions (AskQuestionCard gate) | chat-ui | [x] timeline card (dock 제거) |
 | PLAN-005 | Plan review (= PLAN-CARD-*) | chat-ui | [x] |
 | PLAN-007 | Promotion (`plan.approved` + MODE-009) | host/core | [x] approve path |
 | PLAN-008 | Editor (inline card + optional Open in Editor) | chat-ui | [x] |
-| PLAN-009 | Enforcement / context injection | core thin | [~] MODE sticky; full inject later |
+| PLAN-009 | Enforcement / context injection | core thin | [x] approved plan → AgentLoop sticky inject; plan mode write gate (planStage → ToolRegistry + planWriteGate) |
 | EXEC-011 | Execution presentation (card patches) | chat-ui | [x] |
 
 ### Track 4 — 통합
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| INT-002 | PlanCard → Build → Subagent → Worktree → Review → Adopt | integration | [~] host main-task stub; SUB bridge next |
+| INT-002 | PlanCard → Build → Subagent → Worktree → Review → Adopt | integration | [x] host `createWiredSubagentHost` + planExecute (no force-main stub) |
 | TEST-006 | Plan session / card patch / execution | tests | [x] `@agent-k/plan` planCard.test.ts |
 
 ### V1 deferred (본선 제외)
@@ -505,13 +508,13 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 | CTX-010 | File intent | core | [x] **2026-08-24** `FileIntent` + `resolveFileIntent` (Plan V2 resolution core; full Plan schema stays plan/chat-ui) |
 | CTX-011 | Prefetch engine | core | [x] **2026-08-24** PrefetchEngine + ContextBlockBuilder + ide/lsp/task/StackTrace; vscode collectors → host deps |
 | CTX-012 | Chat search index | core | [x] **2026-08-24** `ChatSearchIndex` local chat/artifact/diff index |
-| HARNESS-001 | Harness enabled | core | [ ] |
-| HARNESS-002 | Verification first | core | [ ] |
+| HARNESS-001 | Harness enabled | core | [ ] flag — tools/context/env wrap (Claude: agentic harness) |
+| HARNESS-002 | Verification first | core | [ ] Claude verify phase + `/goal`-like exit checks |
 | HARNESS-003 | Prefetch | core | [ ] |
-| HARNESS-004 | Verification micro-loop | core | [ ] |
-| HARNESS-005 | Project rules loader | core | [ ] |
+| HARNESS-004 | Verification micro-loop | core | [ ] fail → continue work (not Plan FSM replan) |
+| HARNESS-005 | Project rules loader | core | [x] **2026-08-27** `ProjectRulesLoader` + ContextAssembler/AgentLoop inject (AGENTS.md / `.agentk/rules` / `.cursor/rules`, compact 밖) |
 | HARNESS-006 | Routing heuristics | core | [ ] |
-| HARNESS-007 | Context rules / Cursor pattern / UX helpers | core | [~] **2026-08-22** search-before-read nudge (no read fail); CursorPattern 강화는 chat-ui harness |
+| HARNESS-007 | Context rules / Cursor pattern / UX helpers | core | [~] **2026-08-22** search-before-read nudge; rules persistence는 HARNESS-005 |
 | BROWSER-001 | Browser session | core (+ chat-ui preview) | [ ] |
 | BROWSER-002 | Browser automation | core (+ chat-ui preview) | [ ] |
 | BROWSER-003 | Browser evidence | core (+ chat-ui preview) | [ ] |
@@ -582,7 +585,7 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
 | INT-001 | Provider → Agent → Tool → Context → Chat E2E | integration | [ ] |
-| INT-002 | Plan → Task → Subagent → Worktree → Review → Adopt | integration | [~] PlanCard+host stub; full SUB/worktree later |
+| INT-002 | Plan → Task → Subagent → Worktree → Review → Adopt | integration | [x] host wired SubagentHost + registry |
 | INT-003 | Auto Mode → Agent/Plan/Debug/Ask 전환 | integration | [ ] |
 | INT-004 | Streaming → Stop → Queue → Regenerate | integration | [ ] |
 | INT-005 | Inline Edit → Diff → Apply | integration | [ ] |
@@ -616,13 +619,48 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 - `UI-001~023` / `UI-024`는 Master 요약 섹션이라 범위 티켓으로 유지.
 - `MODE` / `DEBUG` / `REL` / 잔여 `CFG` / `UXPROV`는 §38 본문에 묶음이 없어 논리 Phase에 배치함.
 
+## Claude Code → agent-k (2026-08-27) — 가져올 것 / 안 가져올 것
+
+참조: [How Claude Code works](https://code.claude.com/docs/en/how-claude-code-works) · [goal](https://code.claude.com/docs/en/goal) · CLAUDE.md / compaction / subagents 절.
+
+### 원칙 (합의)
+
+| Claude Code | agent-k 적용 |
+|-------------|--------------|
+| 루프 = **gather → act → verify** (Plan phase 강제 없음) | **Agent 모드** AgentLoop는 이 3단계만. 매 턴 FSM replan 금지 |
+| 하니스 = tools + context + execution env | HARNESS-* · SAFE checkpoint · SUB isolation — 루프 본체보다 여기를 세게 |
+| 재계획 = Esc / 스티어링 텍스트 (시스템 auto-replan 이벤트 없음) | Stop · queue · AskQuestion = 개입 채널. Evidence auto-replan은 **Plan execute/verify만** |
+| 지속 규칙 = CLAUDE.md (compact 밖) | **HARNESS-005** project rules / AGENTS.md / `.agentk/rules` — 대화 히스토리에 지시 의존 금지 |
+| compact: tool output 먼저 지움 → 요약; thrash면 에러 후 정지 | AGENT-006/007 `[x]` 유지; thrash cap은 HARNESS/CTX 보강 |
+| Subagent = 별도 context, 부모엔 요약만 | SUB-* · INT-002 `[x]` — 탐색/쓰기 위임으로 메인 컨텍스트 절약 (이미 있음) |
+| Plan permission = 탐색·제안, 소스 미편집 | PlanCard + Execute 승인 전엔 write 금지 (MODE/PLAN-009) |
+| `/goal` = 종료 조건 주기 평가 | HARNESS-002/004 verify micro-loop · Plan task verification — PlanSession 전체를 `/goal`로 대체하지 않음 |
+
+### 안 가져올 것
+
+- 일상 AgentLoop에 EvidenceEngine / PlanSession 전이를 매 스텝 올림 (오버엔지니어링).
+- “replan”을 별도 프로토콜 이벤트로 일반 chat에 도입 (스티어링으로 충분).
+- PlanCard를 없애고 Claude처럼 Plan을 순수 대화만으로 — IDE 카드 UX(View/Execute/Skip)는 유지 (R-004).
+
+### Feature 매핑 (작업 큐)
+
+1. ~~**HARNESS-005** — rules loader + inject (compact 밖 SoT)~~ `[x]`
+2. ~~**PLAN-009** — approved plan context inject / enforcement~~ `[x]`
+3. **HARNESS-002 / 004** — verification-first + micro-loop ← Claude verify / `/goal` 철학
+4. **STREAM-004** — prior `content \|\| turnProse` (안정 표면)
+5. **HOST-002** — final-cut RCA only
+6. (선택) chatSend → `createWiredSubagentHost` dedupe
+
+---
+
 ## 다음으로 할 일
 
-1. **2026-08-23** — HOST-002 final-answer 중도 끊김 **원인 분석** (`finishReason` / `complete diag` / `streamedChars` vs `finalBodyLen`). 확정 전 이어쓰기·휴리스틱 패치 금지.
-2. Phase 3 UI 잔여 미룸: **CONV-014 → SUB 이후**, **CONV-016 → checkpoint 이후**. CONV-013 완료.
-3. **코드 TODO:** STREAM-004 follow-up prior (`content || turnProse`) · HOST-002 final-cut RCA — **안정 표면 최소 침습**
-4. HARNESS-007 nudge 효과 확인 (선택)
-5. **Phase 6** — Track 0 shared → Track 1 `packages/plan` → Track 2 HOST-008b → Track 3 PlanCard
-6. HOST-002 RCA는 별도; HOST-008b는 Plan Card extract와 함께 본문 교체
+1. **HARNESS-002 → 004** — verification-first + micro-loop (Plan task verify와 정렬; 일반 Agent는 gather/act/verify만).
+2. **STREAM-004** — follow-up prior (`content || turnProse join`) — 안정 표면 최소 침습.
+4. **HOST-002** — final-answer 중도 끊김 RCA — 확정 전 휴리스틱 패치 금지.
+5. Phase 3 미룸: **CONV-014** · **CONV-016**. Phase 7+ INLINE / REVIEW / MCP / SKILL / MEM.
+6. (선택) chatSend ↔ `createWiredSubagentHost` 공유.
 
-**에이전트:** 위 「안정 표면」을 읽고 수정할 것. 잘 되는 UI/스트림을 넓게 건드리지 말 것. Phase 4 worktree는 `packages/worktree` (+ host thin adapter).
+**최근 세션:** PLAN-009 approved plan inject · HARNESS-005 ProjectRulesLoader · AskQuestionCard Thought-cut · PlanCard · INT-002 · Claude Code harness 원칙.
+
+**에이전트:** 위 「안정 표면」+「Claude Code → agent-k」를 읽고 수정할 것. Agent 루프에 Plan FSM을 넓게 넣지 말 것. Phase 4 worktree는 `packages/worktree` (+ host thin adapter).

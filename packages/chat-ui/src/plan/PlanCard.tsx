@@ -1,6 +1,9 @@
 /**
- * PLAN-CARD-001…004 — Cursor-style Plan card (timeline/chrome SoT UX).
- * Structured PlanDocument only — markdown is render-only (PlanView preview).
+ * PLAN-CARD-001…004 — Cursor-style Plan artifact card (chrome SoT UX).
+ *
+ * Collapsed by default: summary + meta + View plan / Execute / Skip.
+ * Full task board stays behind "Details" (command/diff card pattern).
+ * Structured PlanDocument is SoT — markdown is PlanView preview only.
  */
 import React, { useMemo, useState } from 'react';
 import { renderPlanMarkdown, type PlanDocument, type TaskStatus } from '@agent-k/plan';
@@ -25,13 +28,16 @@ export interface PlanCardProps {
   statusText?: string;
   questionsAnswered?: boolean;
   tasksAwaitingVerification?: Array<{ id: string; title: string }>;
+  /** Execute plan (full or partial taskIds). */
   onBuild: (taskIds?: string[]) => void;
+  /** Regenerate with feedback. */
   onReject: (reason?: string) => void;
+  /** Skip / park plan without executing. */
   onDiscard?: () => void;
   onVerifyTask?: (taskId: string) => void;
   /** Optional: open the same plan.md in the VS Code editor */
   onOpenInEditor?: () => void;
-  /** When true, hide Build (already executing). */
+  /** When true, disable Execute (already executing). */
   buildDisabled?: boolean;
 }
 
@@ -67,13 +73,15 @@ export function PlanCard({
   onOpenInEditor,
   buildDisabled = false,
 }: PlanCardProps) {
-  // Comment: unchecked = excluded from partial Build (Cursor-style scope)
+  // Comment: unchecked = excluded from partial Execute (Cursor-style scope)
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set());
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [risksOpen, setRisksOpen] = useState(false);
-  // Comment: PlanView — inline plan.md preview (not SoT; structured doc is)
+  // Comment: View plan — inline plan.md preview (structured doc remains SoT)
   const [viewOpen, setViewOpen] = useState(false);
+  // Comment: Details — task checkboxes / risks (hidden by default like Terminal/FileEdit)
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const selectedIds = useMemo(
     () => document.tasks.filter((t) => !excluded.has(t.id)).map((t) => t.id),
@@ -85,6 +93,14 @@ export function PlanCard({
     [document, researchContext, taskStatus],
   );
 
+  const doneCount = useMemo(() => {
+    if (!taskStatus) return 0;
+    return document.tasks.filter((t) => {
+      const st = taskStatus[t.id];
+      return st === 'verified' || st === 'satisfied';
+    }).length;
+  }, [document.tasks, taskStatus]);
+
   const toggleTask = (id: string) => {
     setExcluded((prev) => {
       const next = new Set(prev);
@@ -94,98 +110,115 @@ export function PlanCard({
     });
   };
 
-  const canBuild =
+  const canExecute =
     questionsAnswered &&
     selectedIds.length > 0 &&
     !buildDisabled &&
     (phase === 'review' || phase === 'planning');
 
-  const handleBuild = () => {
-    if (!canBuild) return;
+  const handleExecute = () => {
+    if (!canExecute) return;
     // Comment: omit taskIds when all selected → full plan approve
     const all = selectedIds.length === document.tasks.length;
     onBuild(all ? undefined : selectedIds);
   };
 
+  const summary = (document.summary || document.goal || 'Plan').trim();
+  const taskMeta =
+    phase === 'executing' || phase === 'completed' || phase === 'failed'
+      ? `${doneCount}/${document.tasks.length} steps`
+      : `${document.tasks.length} step${document.tasks.length === 1 ? '' : 's'}`;
+
   return (
     <section className="ak-plan-card" aria-label="Plan card">
       <header className="ak-plan-card__header">
         <div className="ak-plan-card__title-row">
-          <h3 className="ak-plan-card__title">{document.summary || document.goal}</h3>
+          <span className="ak-plan-card__badge" aria-hidden>
+            Plan
+          </span>
+          <h3 className="ak-plan-card__title">{summary}</h3>
           <span className={`ak-plan-card__chip ak-plan-card__chip--${phase}`}>
             {STATUS_CHIP[phase]}
           </span>
         </div>
-        {statusText ? (
-          <p className="ak-plan-card__status">{statusText}</p>
-        ) : (
-          <p className="ak-plan-card__goal">{document.goal}</p>
-        )}
+        <p className="ak-plan-card__meta">
+          {statusText?.trim() || taskMeta}
+          {document.goal && document.summary && document.goal !== document.summary
+            ? ` · ${document.goal}`
+            : ''}
+        </p>
       </header>
 
-      <ul className="ak-plan-card__tasks">
-        {document.tasks.map((task) => {
-          const st = taskRowStatus(task.id, taskStatus);
-          const checked = !excluded.has(task.id);
-          return (
-            <li key={task.id} className={`ak-plan-card__task ak-plan-card__task--${st}`}>
-              <label className="ak-plan-card__task-label">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={phase === 'executing' || phase === 'completed'}
-                  onChange={() => toggleTask(task.id)}
-                />
-                <span className="ak-plan-card__task-title">{task.title}</span>
-                <span className="ak-plan-card__task-status">{st}</span>
-              </label>
-              {task.description ? (
-                <p className="ak-plan-card__task-desc">{task.description}</p>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-
-      {document.risks.length > 0 ? (
-        <div className="ak-plan-card__risks">
-          <button
-            type="button"
-            className="ak-plan-card__risks-toggle"
-            onClick={() => setRisksOpen((v) => !v)}
-          >
-            Risks ({document.risks.length}) {risksOpen ? '▾' : '▸'}
-          </button>
-          {risksOpen ? (
-            <ul>
-              {document.risks.map((r) => (
-                <li key={r.id}>
-                  <strong>{r.risk}</strong>
-                  {r.mitigation ? ` — ${r.mitigation}` : ''}
+      {/* Comment: Cursor default — summary + actions; tasks behind Details */}
+      {detailsOpen ? (
+        <>
+          <ul className="ak-plan-card__tasks">
+            {document.tasks.map((task) => {
+              const st = taskRowStatus(task.id, taskStatus);
+              const checked = !excluded.has(task.id);
+              return (
+                <li
+                  key={task.id}
+                  className={`ak-plan-card__task ak-plan-card__task--${st}`}
+                >
+                  <label className="ak-plan-card__task-label">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={phase === 'executing' || phase === 'completed'}
+                      onChange={() => toggleTask(task.id)}
+                    />
+                    <span className="ak-plan-card__task-title">{task.title}</span>
+                    <span className="ak-plan-card__task-status">{st}</span>
+                  </label>
+                  {task.description ? (
+                    <p className="ak-plan-card__task-desc">{task.description}</p>
+                  ) : null}
                 </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ) : null}
-
-      {tasksAwaitingVerification.length > 0 && onVerifyTask ? (
-        <div className="ak-plan-card__verify">
-          <p>Manual verify needed:</p>
-          <ul>
-            {tasksAwaitingVerification.map((t) => (
-              <li key={t.id}>
-                {t.title}{' '}
-                <button type="button" onClick={() => onVerifyTask(t.id)}>
-                  Mark verified
-                </button>
-              </li>
-            ))}
+              );
+            })}
           </ul>
-        </div>
+
+          {document.risks.length > 0 ? (
+            <div className="ak-plan-card__risks">
+              <button
+                type="button"
+                className="ak-plan-card__risks-toggle"
+                onClick={() => setRisksOpen((v) => !v)}
+              >
+                Risks ({document.risks.length}) {risksOpen ? '▾' : '▸'}
+              </button>
+              {risksOpen ? (
+                <ul>
+                  {document.risks.map((r) => (
+                    <li key={r.id}>
+                      <strong>{r.risk}</strong>
+                      {r.mitigation ? ` — ${r.mitigation}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+
+          {tasksAwaitingVerification.length > 0 && onVerifyTask ? (
+            <div className="ak-plan-card__verify">
+              <p>Manual verify needed:</p>
+              <ul>
+                {tasksAwaitingVerification.map((t) => (
+                  <li key={t.id}>
+                    {t.title}{' '}
+                    <button type="button" onClick={() => onVerifyTask(t.id)}>
+                      Mark verified
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
-      {/* Comment: PlanView — rendered plan.md preview (SoT remains PlanDocument) */}
       {viewOpen ? (
         <div className="ak-plan-card__view" aria-label="plan.md preview">
           <div className="ak-plan-card__view-header">
@@ -235,7 +268,11 @@ export function PlanCard({
             >
               Send feedback
             </button>
-            <button type="button" className="ak-plan-card__btn" onClick={() => setRejectOpen(false)}>
+            <button
+              type="button"
+              className="ak-plan-card__btn"
+              onClick={() => setRejectOpen(false)}
+            >
               Cancel
             </button>
           </div>
@@ -245,32 +282,53 @@ export function PlanCard({
           <button
             type="button"
             className="ak-plan-card__btn ak-plan-card__btn--primary"
-            disabled={!canBuild}
-            onClick={handleBuild}
+            disabled={!canExecute}
+            onClick={handleExecute}
+            title="Approve and execute this plan"
           >
-            Build{selectedIds.length < document.tasks.length ? ` (${selectedIds.length})` : ''}
-          </button>
-          <button
-            type="button"
-            className="ak-plan-card__btn"
-            disabled={phase === 'executing'}
-            onClick={() => setRejectOpen(true)}
-          >
-            Reject
+            Execute
+            {detailsOpen && selectedIds.length < document.tasks.length
+              ? ` (${selectedIds.length})`
+              : ''}
           </button>
           <button
             type="button"
             className={`ak-plan-card__btn${viewOpen ? ' ak-plan-card__btn--active' : ''}`}
             onClick={() => setViewOpen((v) => !v)}
             aria-pressed={viewOpen}
+            title="Preview plan.md"
           >
-            PlanView
+            View plan
           </button>
           {onDiscard ? (
-            <button type="button" className="ak-plan-card__btn ak-plan-card__btn--danger" onClick={onDiscard}>
-              Discard
+            <button
+              type="button"
+              className="ak-plan-card__btn"
+              disabled={phase === 'executing'}
+              onClick={onDiscard}
+              title="Skip this plan without executing"
+            >
+              Skip
             </button>
           ) : null}
+          <button
+            type="button"
+            className={`ak-plan-card__btn${detailsOpen ? ' ak-plan-card__btn--active' : ''}`}
+            onClick={() => setDetailsOpen((v) => !v)}
+            aria-pressed={detailsOpen}
+            title="Show tasks and risks"
+          >
+            {detailsOpen ? 'Hide details' : 'Details'}
+          </button>
+          <button
+            type="button"
+            className="ak-plan-card__btn"
+            disabled={phase === 'executing'}
+            onClick={() => setRejectOpen(true)}
+            title="Reject and regenerate with feedback"
+          >
+            Reject
+          </button>
         </div>
       )}
     </section>

@@ -29,7 +29,8 @@ describe('classifyWorkType', () => {
   it('maps thinking onto the unified timeline and ignores plan/ask chrome', () => {
     expect(classifyWorkType(undefined, 'thinking')).toBe('thinking');
     expect(classifyWorkType(undefined, 'planning')).toBeNull();
-    expect(classifyWorkType('ask_question', 'asking')).toBeNull();
+    expect(classifyWorkType('ask_question', 'asking')).toBe('ask');
+    expect(classifyWorkType(undefined, 'asking')).toBe('ask');
     expect(classifyWorkType('todo_write', 'session')).toBeNull();
   });
 

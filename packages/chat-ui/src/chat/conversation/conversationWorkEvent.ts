@@ -24,7 +24,9 @@ export type ConversationWorkType =
   | 'verify'
   | 'generic'
   | 'subagent'
-  | 'plan';
+  | 'plan'
+  /** AskQuestionCard — card boundary (cuts Thought like edit/terminal). */
+  | 'ask';
 
 export type ConversationWorkStatus = 'pending' | 'running' | 'complete' | 'error';
 
@@ -65,7 +67,8 @@ export const WORK_TYPE_LABEL: Record<ConversationWorkType, string> = {
   verify: 'Verify',
   generic: 'Work',
   subagent: 'Subagent',
-  plan: 'Plan'
+  plan: 'Plan',
+  ask: 'Ask'
 };
 
 const CANONICAL_TYPES = new Set<string>([
@@ -77,20 +80,19 @@ const CANONICAL_TYPES = new Set<string>([
   'verify',
   'generic',
   'subagent',
-  'plan'
+  'plan',
+  'ask'
 ]);
 
-/** Chrome that must not become a timeline row. Thinking is a first-class row. */
+/** Chrome that must not become a timeline row. Thinking / Ask are first-class. */
 const NON_WORK_KINDS = new Set([
   'planning',
-  'asking',
   'done',
   'session',
   'error'
 ]);
 
 const NON_WORK_TOOLS = new Set([
-  'ask_question',
   'todo_write',
   'switch_mode',
   'checkpoint_create',
@@ -125,6 +127,9 @@ export function classifyWorkType(
 
   const name = String(toolName || '').toLowerCase();
   if (NON_WORK_TOOLS.has(name)) return null;
+
+  // Comment: AskQuestionCard = card boundary (same Thought-cut as edit/terminal)
+  if (name === 'ask_question' || kind === 'asking') return 'ask';
 
   if (VERIFY_TOOLS.has(name)) return 'verify';
   if (READ_TOOLS.has(name)) return 'read';
@@ -249,12 +254,17 @@ export function upsertWorkEvents(
   const prev = events[idx];
   const prevTerminal = isTerminalWorkStatus(prev.status);
   const incomingLive = incoming.status === 'running' || incoming.status === 'pending';
-  // Comment: explore soft-pause seals Thought then resumes same id — allow thinking reopen
+  // Comment: explore soft-pause may resume same Thought id — but NEVER across a later
+  // card/tool (Ask/Ran/Edit/Read). That glues new Thinking into the tag *above* the card.
+  const hasBlockerAfter = events
+    .slice(idx + 1)
+    .some((event) => event.type !== 'thinking');
   const thinkingResume =
     prev.type === 'thinking' &&
     incoming.type === 'thinking' &&
     prevTerminal &&
-    incomingLive;
+    incomingLive &&
+    !hasBlockerAfter;
   // A late "running" ping must not resurrect a finished header/tool (except Thought resume).
   const status =
     prevTerminal && incomingLive && !thinkingResume ? prev.status : incoming.status;

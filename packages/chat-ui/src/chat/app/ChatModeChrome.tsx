@@ -85,7 +85,7 @@ export function ChatModeChrome(props: ChatModeChromeProps) {
 
   return (
     <>
-      {/* PLAN-CARD — Build / Reject / PlanView / Discard live here */}
+      {/* PLAN-CARD — Execute / View plan / Skip (+ Details / Reject) */}
       {showCard && structured ? (
         <PlanCard
           document={structured}

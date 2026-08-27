@@ -7,6 +7,7 @@
 import {
   AgentLoopController,
   modeRegistry,
+  planWriteGate,
   resolveTurnTimeoutMs,
   type AgentLoopEvent,
   type AgentMessage,
@@ -160,6 +161,8 @@ export async function runHostChatSend(
     payload.sessionId != null ? String(payload.sessionId).trim() : undefined;
 
   const mode = (payload.mode || 'agent') as AgentMode;
+  // Comment: PLAN-009 — plan stage drives write-tool visibility + permission gate
+  const planStage = payload.planStage || 'research';
   const cfg = vscode.workspace.getConfiguration('agent-k');
   const baseUrl = String(
     payload.baseUrl || cfg.get('provider.baseUrl') || '',
@@ -228,7 +231,7 @@ export async function runHostChatSend(
 
   const registry = new ToolRegistry();
   registerBuiltinTools(registry);
-  const toolSchemas = registry.getSchemas(mode);
+  const toolSchemas = registry.getSchemas(mode, { planStage });
   const root = workspaceRoot();
   const toolCtxBase: ToolContext = {
     workspaceRoot: root,
@@ -347,7 +350,7 @@ export async function runHostChatSend(
       }
       const childMode = modeForSubagentRole(context.task.role);
       const childModeConfig = modeRegistry.getModeConfig(childMode);
-      const childSchemas = registry.getSchemas(childMode);
+      const childSchemas = registry.getSchemas(childMode, { planStage });
       // Comment: reset each model round so every tool wave seals Thought
       let toolsBegan = false;
       return new AgentLoopController(
@@ -1284,6 +1287,10 @@ export async function runHostChatSend(
       },
 
       checkPermission: async ({ toolName, args }) => {
+        // Comment: PLAN-009 — defense-in-depth when plan stage ≠ build
+        const planGate = planWriteGate(mode, planStage, toolName);
+        if (!planGate.allowed) return 'deny';
+
         const path =
           typeof args.path === 'string'
             ? args.path
@@ -1312,6 +1319,8 @@ export async function runHostChatSend(
       systemPrompt: modeConfig.systemPrompt,
       contextBudgetTokens: modeConfig.contextBudget,
       parallelTools: true,
+      // Comment: HARNESS-005 — AGENTS.md / .agentk/rules outside compaction
+      workspaceRoot: root || undefined,
     },
   );
 

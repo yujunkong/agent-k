@@ -67,6 +67,20 @@ export interface AgentLoopConfig {
   contextBudgetTokens?: number;
   doomLoopThreshold?: number;
   parallelTools?: boolean;
+  /**
+   * HARNESS-005 — workspace root for AGENTS.md / `.agentk/rules` inject.
+   * Rules re-enter the protected system slot every turn (survive compaction).
+   */
+  workspaceRoot?: string;
+  /** Explicit project rules text (skips fs when set). */
+  projectRules?: string;
+  /** Extra sticky context merged after rules. */
+  stickyContext?: string;
+  /**
+   * PLAN-009 — approved plan block (formatter output from @agent-k/plan).
+   * Re-injected each turn into protected system slot.
+   */
+  approvedPlanBlock?: string;
 }
 
 export interface AgentLoopDeps {
@@ -129,6 +143,10 @@ export class AgentLoopController {
       contextBudgetTokens: config.contextBudgetTokens ?? 100_000,
       doomLoopThreshold: config.doomLoopThreshold ?? 3,
       parallelTools: config.parallelTools ?? true,
+      workspaceRoot: config.workspaceRoot,
+      projectRules: config.projectRules,
+      stickyContext: config.stickyContext,
+      approvedPlanBlock: config.approvedPlanBlock,
     };
     this.doom = new DoomLoopDetector(this.config.doomLoopThreshold);
     this.assembler = new ContextAssembler(this.config.contextBudgetTokens);
@@ -199,6 +217,11 @@ export class AgentLoopController {
           messages: this.messages,
           budget: this.compaction.contextBudget,
           compactIfNeeded: true,
+          // Comment: HARNESS-005 — rules outside compaction (re-inject each turn)
+          workspaceRoot: this.config.workspaceRoot,
+          projectRules: this.config.projectRules,
+          stickyContext: this.config.stickyContext,
+          approvedPlanBlock: this.config.approvedPlanBlock,
         });
         if (assembled.compacted) {
           this.messages = assembled.messages.filter((m) => m.role !== 'system');

@@ -44,6 +44,38 @@ describe('context domain (CTX-001…005)', () => {
     expect(result.messages.some((m) => m.role === 'user')).toBe(true);
   });
 
+  it('HARNESS-005 injects PROJECT RULES into protected system slot', () => {
+    const assembler = new ContextAssembler(8_000);
+    const result = assembler.assemble({
+      mode: 'agent',
+      systemPrompt: 'You are a test agent.',
+      messages: [{ role: 'user', content: 'hello' }],
+      projectRules: 'Always write tests.',
+      compactIfNeeded: false,
+    });
+    const system = result.messages.find((m) => m.role === 'system');
+    expect(system?.content).toContain('## PROJECT RULES');
+    expect(system?.content).toContain('Always write tests.');
+    expect(system?.metadata?.protected).toBe(true);
+  });
+
+  it('PLAN-009 injects APPROVED PLAN before PROJECT RULES', () => {
+    const assembler = new ContextAssembler(8_000);
+    const result = assembler.assemble({
+      mode: 'agent',
+      systemPrompt: 'You are a test agent.',
+      messages: [{ role: 'user', content: 'hello' }],
+      approvedPlanBlock: '## APPROVED PLAN\n\nGoal: ship',
+      projectRules: 'Always write tests.',
+      compactIfNeeded: false,
+    });
+    const system = String(result.messages.find((m) => m.role === 'system')?.content);
+    const planIdx = system.indexOf('## APPROVED PLAN');
+    const rulesIdx = system.indexOf('## PROJECT RULES');
+    expect(planIdx).toBeGreaterThanOrEqual(0);
+    expect(rulesIdx).toBeGreaterThan(planIdx);
+  });
+
   it('AGENT-007 preserves tool_call pairs during compaction', () => {
     const messages: AgentMessage[] = [
       { role: 'system', content: 'sys', metadata: { protected: true } },

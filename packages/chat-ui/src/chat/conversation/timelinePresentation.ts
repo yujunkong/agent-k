@@ -129,6 +129,8 @@ export function mapWorkTypeToStepKind(
       return 'verify';
     case 'plan':
       return 'plan';
+    case 'ask':
+      return 'generic';
     case 'read':
     case 'search':
       return 'tool';

@@ -15,13 +15,29 @@ import {
 import { CompactionEngine } from './CompactionEngine';
 import type { CompactLevel } from './CompactionEngine';
 import type { WorkspaceContext } from './WorkspaceContext';
+import {
+  formatProjectRulesBlock,
+  resolveProjectRulesContent,
+} from '../harness/ProjectRulesLoader';
 
 export interface AssembleInput {
   mode: AgentMode;
   systemPrompt: string;
   messages: AgentMessage[];
-  /** Extra sticky context (rules, memories, workspace). */
+  /** Extra sticky context (memories, workspace extras). */
   stickyContext?: string;
+  /**
+   * HARNESS-005 — workspace root for project rules (AGENTS.md / .agentk/rules).
+   * Re-loaded each assemble into the protected system slot (compact-outside SoT).
+   */
+  workspaceRoot?: string;
+  /** Explicit rules text — skips fs when set. */
+  projectRules?: string;
+  /**
+   * PLAN-009 — approved plan sticky block (ExecutionPlan formatter output).
+   * Re-injected each assemble into the protected system slot (compact-outside SoT).
+   */
+  approvedPlanBlock?: string;
   workspace?: WorkspaceContext;
   budget?: ContextBudget;
   /** When true, run CompactionEngine if over soft threshold. */
@@ -50,7 +66,21 @@ export class ContextAssembler {
 
     let system = input.systemPrompt.trim();
     const workspaceBlock = input.workspace?.toPromptBlock() ?? '';
-    const sticky = [input.stickyContext?.trim(), workspaceBlock]
+    // Comment: HARNESS-005 — PROJECT RULES outside compaction (re-inject every turn)
+    const projectRulesBlock = formatProjectRulesBlock(
+      resolveProjectRulesContent({
+        workspaceRoot: input.workspaceRoot,
+        projectRules: input.projectRules,
+      })
+    );
+    // Comment: PLAN-009 — approved plan before project rules (task scope → workspace rules)
+    const approvedPlanBlock = input.approvedPlanBlock?.trim() ?? '';
+    const sticky = [
+      input.stickyContext?.trim(),
+      approvedPlanBlock,
+      projectRulesBlock,
+      workspaceBlock,
+    ]
       .filter(Boolean)
       .join('\n\n');
 

@@ -97,6 +97,54 @@ function thoughtIdForSeg(turn: number, seg: number): string {
   return seg <= 0 ? `tl_thinking_${turn}` : `tl_thinking_${turn}_s${seg}`;
 }
 
+/** Ask / Ran / Edit / Subagent — Thought above these must not keep growing. */
+function isThoughtOrderBlocker(s: {
+  kind?: string;
+  toolName?: string;
+}): boolean {
+  const kind = String(s.kind || '');
+  const n = String(s.toolName || '').toLowerCase();
+  if (kind === 'asking' || n === 'ask_question') return true;
+  if (
+    kind === 'subagent' ||
+    kind === 'task' ||
+    n === 'task_run' ||
+    n === 'task'
+  ) {
+    return true;
+  }
+  return STREAM_TOOL_KINDS.has(kind);
+}
+
+/** True when `thoughtId` already has Ask/Ran/Edit below it in arrival order. */
+function thoughtHasBlockersAfter(
+  steps: ChatMessage['steps'] | undefined,
+  thoughtId: string
+): boolean {
+  if (!steps?.length || !thoughtId) return false;
+  const idx = steps.findIndex(
+    (s) => s.id === thoughtId && s.kind === 'thinking'
+  );
+  if (idx < 0) return false;
+  return steps.slice(idx + 1).some(isThoughtOrderBlocker);
+}
+
+/** Highest `_sN` (or 0 for opening) among tl_thinking_<turn> ids. */
+function maxThoughtSegForTurn(
+  steps: ChatMessage['steps'] | undefined,
+  turn: number
+): number {
+  let max = -1;
+  const re = new RegExp(`^tl_thinking_${turn}(?:_s(\\d+))?$`);
+  for (const s of steps || []) {
+    if (s.kind !== 'thinking') continue;
+    const m = String(s.id || '').match(re);
+    if (!m) continue;
+    max = Math.max(max, m[1] ? Number(m[1]) : 0);
+  }
+  return max;
+}
+
 function normalizeProse(text: string): string {
   return text
     .replace(/\r\n/g, '\n')
@@ -422,8 +470,9 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
             !s.askQid
         );
         const idx = byQid >= 0 ? byQid : byEmptyShell >= 0 ? byEmptyShell : -1;
+        const askId = idx >= 0 ? steps[idx].id : `tl_ask_${q.id}`;
         const nextStep = {
-          id: idx >= 0 ? steps[idx].id : `tl_ask_${q.id}`,
+          id: askId,
           kind: 'asking' as const,
           label: 'ask_question',
           toolName: 'ask_question',
@@ -436,8 +485,24 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         };
         if (idx >= 0) steps[idx] = { ...steps[idx], ...nextStep };
         else steps.push(nextStep);
+        // Comment: workItems ask row = Thought-cut barrier (same as Read/Edit in sealStale)
+        const now = Date.now();
+        const askEvent: ConversationWorkEvent = {
+          id: askId,
+          type: 'ask',
+          status: 'running',
+          label: 'Ask',
+          toolName: 'ask_question',
+          detail: normalized.question,
+          startedAt: now
+        };
+        msg = withWorkEvent({ ...msg, steps }, askEvent);
+        msg = {
+          ...msg,
+          workItems: sealStaleThoughtsBeforeTools(msg.workItems || [], now)
+        };
         const copy = [...prev];
-        copy[hit.lastIdx] = { ...msg, steps };
+        copy[hit.lastIdx] = msg;
         return copy;
       });
       if (ownerId && ownerId !== ctx.sessionIdRef.current) {
@@ -693,10 +758,33 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
             seg: thoughtSeg,
             reason: liveMid ? 'alias-live' : 'sealed-same-id'
           });
+        } else if (
+          thoughtHasBlockersAfter(hitPeek?.msg.steps, id)
+        ) {
+          // Comment: Ask/Ran already below this id — never reopen the accordion above
+          if (thoughtBlocked) thoughtBlocked = false;
+          thoughtOpen = true;
+          thoughtSeg += 1;
+          id = thoughtIdForSeg(tl.turn ?? streamTurn(), thoughtSeg);
+          remappedThinkingId = true;
+          debugLog('timeline-order', 'thought.reopen-timeline', {
+            ownerId,
+            hostId: tl.id,
+            id,
+            seg: thoughtSeg,
+            reason: 'blockers-after'
+          });
         } else if (thoughtBlocked) {
-          // Comment: tools already paused Thought; host sent a fresh id — keep it
+          // Comment: tools already paused Thought; host sent a fresh id — keep it,
+          // but advance seg so later delta.reasoning cannot reopen opening Thought.
           thoughtBlocked = false;
           thoughtOpen = true;
+          const turnForSeg = tl.turn ?? streamTurn();
+          const maxSeg = maxThoughtSegForTurn(
+            hitPeek?.msg.steps,
+            turnForSeg
+          );
+          if (thoughtSeg <= maxSeg) thoughtSeg = maxSeg + 1;
         }
       }
       if (!starts[id]) starts[id] = now;
@@ -855,49 +943,84 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         thoughtOpen = true;
       }
       const turn = streamTurn();
-      const id = thoughtIdForSeg(turn, thoughtSeg);
-      const role: 'opening' | 'mid' = thoughtSeg > 0 ? 'mid' : 'opening';
+      // Comment: peek owner steps — avoid reopening a Thought that already has Ask/Ran below
+      const ownerIdPeek = getOwnerSessionId();
+      const ownerMsgsPeek =
+        ownerIdPeek && typeof ctx.getSessionMessages === 'function'
+          ? ctx.getSessionMessages(ownerIdPeek)
+          : ctx.messagesRef.current;
+      const hitPeek = lastStreaming(ownerMsgsPeek || []);
+      const maxSeg = maxThoughtSegForTurn(hitPeek?.msg.steps, turn);
+      if (thoughtSeg < maxSeg) thoughtSeg = maxSeg;
+      let id = thoughtIdForSeg(turn, thoughtSeg);
+      if (thoughtHasBlockersAfter(hitPeek?.msg.steps, id)) {
+        thoughtSeg += 1;
+        id = thoughtIdForSeg(turn, thoughtSeg);
+        debugLog('timeline-order', 'thought.rotate-past-blockers', {
+          ownerId: ownerIdPeek,
+          id,
+          seg: thoughtSeg
+        });
+      }
       const now = Date.now();
       const starts = stepStarts();
       if (!starts[id]) starts[id] = now;
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
+        // Comment: inside updater — rotate again if Ask landed between peek and commit
+        let liveId = id;
+        let liveSeg = thoughtSeg;
+        if (thoughtHasBlockersAfter(hit.msg.steps, liveId)) {
+          liveSeg += 1;
+          liveId = thoughtIdForSeg(turn, liveSeg);
+          thoughtSeg = liveSeg;
+          if (!starts[liveId]) starts[liveId] = now;
+          debugLog('timeline-order', 'thought.rotate-past-blockers', {
+            ownerId: getOwnerSessionId(),
+            id: liveId,
+            seg: liveSeg,
+            where: 'apply'
+          });
+        }
         // Comment: seal older Thoughts only — keep current segment live (Thinking clock grows)
-        let msg = sealRunningThoughtSteps(hit.msg, now, id);
+        let msg = sealRunningThoughtSteps(hit.msg, now, liveId);
         msg = {
           ...msg,
           workItems: sealStaleThoughtsBeforeTools(msg.workItems || [], now)
         };
-        const prevEvent = (msg.workItems || []).find((event) => event.id === id);
+        const liveRole: 'opening' | 'mid' = liveSeg > 0 ? 'mid' : 'opening';
+        const prevEvent = (msg.workItems || []).find(
+          (event) => event.id === liveId
+        );
         const prevDetail = prevEvent?.detail || '';
         const thinkingEvent: ConversationWorkEvent = {
           ...(prevEvent ||
             beginWorkEvent({
-              id,
+              id: liveId,
               timelineKind: 'thinking',
-              now: starts[id]
+              now: starts[liveId]
             })!),
-          id,
+          id: liveId,
           type: 'thinking',
           status: 'running',
           label: 'Thought',
           detail: prevDetail + delta.reasoning,
-          startedAt: prevEvent?.startedAt ?? starts[id],
+          startedAt: prevEvent?.startedAt ?? starts[liveId],
           // Comment: clear completedAt if a prior soft seal left this id complete
           completedAt: undefined
         };
         const msgWithWork = withWorkEvent(msg, thinkingEvent);
         const steps = [...(msgWithWork.steps || [])];
-        const idx = steps.findIndex((s) => s.id === id);
+        const idx = steps.findIndex((s) => s.id === liveId);
         const prevStepDetail = idx >= 0 ? steps[idx].detail || '' : '';
         const nextStep = {
-          id,
+          id: liveId,
           kind: 'thinking' as const,
           label: 'Thought',
           detail: prevStepDetail + delta.reasoning,
           turn,
-          thoughtRole: role,
+          thoughtRole: liveRole,
           itemStatus: 'running' as const,
           // Comment: drop premature durationMs so title stays Thinking until real seal
           durationMs: undefined as number | undefined
@@ -911,9 +1034,9 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
         }
         debugLog('timeline-order', 'thought.append', {
           ownerId: getOwnerSessionId(),
-          id,
-          seg: thoughtSeg,
-          role,
+          id: liveId,
+          seg: liveSeg,
+          role: liveRole,
           detailLen: (prevStepDetail + delta.reasoning).length
         });
         const copy = [...prev];

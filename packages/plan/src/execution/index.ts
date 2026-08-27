@@ -5,6 +5,7 @@ export * from './mapPlanPhase';
 export * from './buildExecutionPlan';
 export * from './taskScheduler';
 export * from './planTaskPrompt';
+export * from './formatApprovedPlanBlock';
 export * from './subagentTaskBridge';
 export * from './planExecutionEngine';
 export * from './planExecutionPersistence';

@@ -1649,6 +1649,34 @@ export function MessageSteps({
                   flushMisc(key);
                 };
                 for (const a of p.actions) {
+                  // Comment: CONV-014 — Thought as sequential card (same walk as Ask/Ran)
+                  if (a.kind === 'thinking') {
+                    flushAhead(a.id);
+                    const reasoning = (a.detail || '').trim();
+                    const thoughtLive = a.itemStatus === 'running';
+                    if (!reasoning && !thoughtLive) continue;
+                    const thoughtKey = `thought_card_${p.id}_${a.id}`;
+                    const thoughtExpanded =
+                      (thoughtLive && !isPlanGenerateStep(a)) ||
+                      (openThought[thoughtKey] ?? false);
+                    nodes.push(
+                      <ChevronRow
+                        key={thoughtKey}
+                        title={formatThoughtTitle(a, thoughtLive)}
+                        expanded={thoughtExpanded}
+                        live={!!thoughtLive}
+                        onToggle={() =>
+                          setOpenThought((prev) => ({
+                            ...prev,
+                            [thoughtKey]: !thoughtExpanded
+                          }))
+                        }
+                      >
+                        <ThoughtBody text={reasoning} live={!!thoughtLive} />
+                      </ChevronRow>
+                    );
+                    continue;
+                  }
                   if (isTaskStep(a)) {
                     flushAhead(a.id);
                     const sid =

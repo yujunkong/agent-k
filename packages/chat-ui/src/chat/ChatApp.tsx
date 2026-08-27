@@ -1,7 +1,7 @@
 /**
  * ChatApp — 메인 채팅 애플리케이션 orchestrator (C5-C7 UI 통합)
  *
- * mode=plan  → sticky PlanCard (Build / Reject / PlanView / Discard)
+ * mode=plan  → sticky PlanCard (Execute / View plan / Skip)
  * mode=debug → DebugModeUI 패널
  * ⚙️ 설정   → SettingsPanel
  * ask_question 도구 → ClarifyingQuestions 모달

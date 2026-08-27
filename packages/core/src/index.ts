@@ -6,6 +6,7 @@
 export * from './types';
 export * from './config';
 export * from './context';
+export * from './harness';
 export * from './indexing';
 export * from './prefetch';
 export * from './search';

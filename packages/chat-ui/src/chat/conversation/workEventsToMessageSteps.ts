@@ -35,6 +35,8 @@ function mapKind(event: ConversationWorkEvent): string {
       return 'thinking';
     case 'subagent':
       return 'subagent';
+    case 'ask':
+      return 'asking';
     case 'generic':
       return 'working';
     default:

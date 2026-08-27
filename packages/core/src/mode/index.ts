@@ -23,3 +23,7 @@ export {
   type PlanToAgentHandoffResult,
   type PlanSchemaStickyStage,
 } from './ModeRegistry';
+export {
+  isWriteLikeToolName,
+  planWriteGate,
+} from './planWriteGate';

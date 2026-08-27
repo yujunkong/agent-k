@@ -1,6 +1,6 @@
 /**
  * Pure Curiosity-phase builder for MessageSteps.
- * Arrival order only: Thought → mid-reply → explore/cards.
+ * Arrival order: Thought/Ask/Ran as sequential action cards; Exploring nests mid-Thought.
  * Sole coalesce: adjacent Thinking with the same id (live stream upserts).
  */
 /** Compatible with MessageSteps.MessageStep */
@@ -304,20 +304,61 @@ export function buildCuriosityPhases(
         const live = s.itemStatus === 'running';
         if (!text && !live) continue;
 
+        const thoughtStep: CuriosityStep = { ...s, thoughtRole: 'mid' };
+        let placed = false;
+
+        // Comment: upsert Thought already parked as a sequential action card
         if (s.id) {
+          for (let pi = 0; pi < out.length && !placed; pi++) {
+            const phase = out[pi];
+            const ai = phase.actions.findIndex(
+              (a) => a.kind === 'thinking' && a.id === s.id
+            );
+            if (ai < 0) continue;
+            const laterBlocks = phase.actions.slice(ai + 1).some(
+              (a) =>
+                a.kind === 'asking' ||
+                a.kind === 'subagent' ||
+                a.kind === 'task' ||
+                (a.toolName || '').toLowerCase() === 'ask_question' ||
+                (a.toolName || '').toLowerCase() === 'task_run' ||
+                (a.toolName || '').toLowerCase() === 'task'
+            );
+            const laterPhaseBlocks = out.slice(pi + 1).some((p) =>
+              p.actions.some(
+                (a) =>
+                  a.kind === 'asking' ||
+                  a.kind === 'subagent' ||
+                  a.kind === 'task' ||
+                  (a.toolName || '').toLowerCase() === 'ask_question' ||
+                  (a.toolName || '').toLowerCase() === 'task_run'
+              )
+            );
+            // Comment: Ask/Subagent after this card → new Thought segment below (do not revive)
+            if (laterBlocks || laterPhaseBlocks) break;
+            const sealed =
+              phase.actions[ai].itemStatus === 'done' ||
+              phase.actions[ai].itemStatus === 'error';
+            if (sealed && live) break;
+            phase.actions[ai] = mergeThoughtStep(phase.actions[ai], thoughtStep);
+            cur = phase;
+            placed = true;
+          }
+        }
+
+        // Comment: legacy openingThought upsert (Thought→Explore promote path)
+        if (!placed && s.id) {
           const owned = out.find((p) => p.openingThought?.id === s.id);
           if (owned) {
             const ownedIdx = out.indexOf(owned);
-            // Comment: never revive a sealed Thought above a later Subagent / Ask card
             const blockingAfter = out.slice(ownedIdx + 1).some((p) =>
               p.actions.some(
                 (a) =>
                   a.kind === 'subagent' ||
                   a.kind === 'task' ||
                   a.kind === 'asking' ||
-                  (a.toolName || '').toLowerCase() === 'task_run' ||
-                  (a.toolName || '').toLowerCase() === 'task' ||
-                  (a.toolName || '').toLowerCase() === 'ask_question'
+                  (a.toolName || '').toLowerCase() === 'ask_question' ||
+                  (a.toolName || '').toLowerCase() === 'task_run'
               )
             );
             const sealed =
@@ -326,11 +367,13 @@ export function buildCuriosityPhases(
             if (!(sealed && (live || blockingAfter)) && !blockingAfter) {
               owned.openingThought = { ...s, thoughtRole: 'opening' };
               cur = owned;
-              flushNotesAfter(s.id);
-              continue;
+              placed = true;
             }
-            // Fall through — new phase below the ask / subagent card
           }
+        }
+
+        // Comment: mid Thought nested under Exploring
+        if (!placed && s.id) {
           const midIdx = out.findIndex((p) =>
             p.rows.some((r) => r.type === 'thought' && r.step.id === s.id)
           );
@@ -349,86 +392,79 @@ export function buildCuriosityPhases(
             if (!askOrSubAfter) {
               phase.rows = phase.rows.map((r) =>
                 r.type === 'thought' && r.step.id === s.id
-                  ? {
-                      type: 'thought' as const,
-                      step: { ...s, thoughtRole: 'mid' as const }
-                    }
+                  ? { type: 'thought' as const, step: thoughtStep }
                   : r
               );
               cur = phase;
-              flushNotesAfter(s.id);
-              continue;
+              placed = true;
             }
-            // Fall through — Thought below AskQuestionCard
           }
         }
 
-        // Comment: after SubagentRunRow / AskQuestionCard, next Thought starts fresh below
-        const curHasSubagent =
-          !!cur &&
-          cur.actions.some(
-            (a) =>
-              a.kind === 'subagent' ||
-              a.kind === 'task' ||
-              (a.toolName || '').toLowerCase() === 'task_run' ||
-              (a.toolName || '').toLowerCase() === 'task'
-          );
-        const curHasAsk =
-          !!cur &&
-          cur.actions.some(
-            (a) =>
-              a.kind === 'asking' ||
-              (a.toolName || '').toLowerCase() === 'ask_question'
-          );
-        if (
-          !cur ||
-          cur.resolved ||
-          cur.actions.length > 0 ||
-          curHasSubagent ||
-          curHasAsk
-        ) {
-          cur = startPhase({ ...s, thoughtRole: 'opening' });
-        } else if (hasExploreTools(cur) && !cur.resolved) {
+        if (!placed && cur && hasExploreTools(cur) && !cur.resolved && cur.actions.length === 0) {
           const last = cur.rows[cur.rows.length - 1];
           if (last?.type === 'thought') {
-            last.step = mergeThoughtStep(last.step, {
-              ...s,
-              thoughtRole: 'mid'
-            });
+            last.step = mergeThoughtStep(last.step, thoughtStep);
           } else {
-            cur.rows.push({
-              type: 'thought',
-              step: { ...s, thoughtRole: 'mid' }
-            });
+            cur.rows.push({ type: 'thought', step: thoughtStep });
           }
-        } else if (
-          cur.openingThought &&
-          cur.openingThought.id &&
-          s.id &&
-          cur.openingThought.id !== s.id
-        ) {
-          const sealedOpen =
-            cur.openingThought.itemStatus === 'done' ||
-            cur.openingThought.itemStatus === 'error';
-          if (sealedOpen) {
-            // Comment: sealed Thought stays closed — next dig is a new phase
-            cur = startPhase({ ...s, thoughtRole: 'opening' });
+          placed = true;
+        }
+
+        // Comment: CONV-014 — Thought = sequential action card (same walk as Ask/Ran)
+        if (!placed) {
+          const curCardStack =
+            !!cur &&
+            !cur.openingThought &&
+            !hasExploreTools(cur) &&
+            cur.leadProse.length === 0 &&
+            cur.proseAfter.length === 0 &&
+            cur.actions.every(
+              (a) =>
+                a.kind === 'thinking' ||
+                a.kind === 'asking' ||
+                (a.toolName || '').toLowerCase() === 'ask_question'
+            );
+          if (!cur || cur.resolved || !curCardStack) {
+            cur = startPhase(undefined);
+          }
+          const lastAct = cur.actions[cur.actions.length - 1];
+          if (
+            lastAct?.kind === 'thinking' &&
+            lastAct.id &&
+            s.id &&
+            lastAct.id === s.id
+          ) {
+            cur.actions[cur.actions.length - 1] = mergeThoughtStep(
+              lastAct,
+              thoughtStep
+            );
           } else {
-            // Comment: consecutive live openings with no tools — merge fragments
-            cur.openingThought = mergeThoughtStep(cur.openingThought, {
-              ...s,
-              thoughtRole: 'opening'
-            });
+            cur.actions.push(thoughtStep);
           }
-        } else {
-          cur.openingThought = { ...s, thoughtRole: 'opening' };
         }
         flushNotesAfter(s.id);
         continue;
       }
 
       if (isExploreStep(s)) {
-        if (cur && cur.actions.length > 0) {
+        // Comment: Thought cards alone → promote to openingThought for Exploring chrome
+        if (
+          cur &&
+          cur.actions.length > 0 &&
+          cur.actions.every((a) => a.kind === 'thinking') &&
+          !hasExploreTools(cur)
+        ) {
+          const [first, ...rest] = cur.actions;
+          cur.openingThought = { ...first, thoughtRole: 'opening' };
+          cur.actions = [];
+          for (const t of rest) {
+            cur.rows.push({
+              type: 'thought',
+              step: { ...t, thoughtRole: 'mid' }
+            });
+          }
+        } else if (cur && cur.actions.length > 0) {
           cur = startPhase(undefined);
         } else if (!cur || cur.resolved) {
           cur = startPhase(undefined);
@@ -468,22 +504,34 @@ export function buildCuriosityPhases(
               a.kind === 'asking' ||
               (a.toolName || '').toLowerCase() === 'ask_question'
           );
-        const curOnlyAsks =
+        // Comment: Thought+Ask share one card-stack phase (arrival order in actions walk)
+        const curCardStack =
           !!cur &&
-          curHasAsk &&
           !cur.openingThought &&
           !hasExploreTools(cur) &&
           cur.leadProse.length === 0 &&
           cur.proseAfter.length === 0 &&
           cur.actions.every(
             (a) =>
+              a.kind === 'thinking' ||
+              a.kind === 'asking' ||
+              (a.toolName || '').toLowerCase() === 'ask_question'
+          );
+        const curOnlyAsks =
+          !!cur &&
+          curHasAsk &&
+          curCardStack &&
+          cur.actions.every(
+            (a) =>
               a.kind === 'asking' ||
               (a.toolName || '').toLowerCase() === 'ask_question'
           );
 
-        // Comment: AskQuestionCard = same timeline as Ran/Subagent — own phase, no Thought glued above
+        // Comment: AskQuestionCard = sequential action card like Ran/Edit (arrival order in walk)
         if (isAskRow) {
-          if (!curOnlyAsks) {
+          if (!curCardStack && !curOnlyAsks) {
+            cur = startPhase(undefined);
+          } else if (!cur) {
             cur = startPhase(undefined);
           }
           cur.actions.push(s);
@@ -499,7 +547,8 @@ export function buildCuriosityPhases(
           cur.resolved ||
           (cur && hasExploreTools(cur)) ||
           (cur && cur.openingThought) ||
-          // Comment: mid-reply already on cur → Command/Edit starts below it
+          // Comment: Thought cards already on stack → Ran/Edit starts below
+          (cur && cur.actions.some((a) => a.kind === 'thinking')) ||
           (cur && cur.leadProse.length > 0) ||
           (cur && cur.proseAfter.length > 0)
         ) {
