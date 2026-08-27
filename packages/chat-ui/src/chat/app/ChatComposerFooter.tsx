@@ -140,7 +140,8 @@ export function ChatComposerFooter(props: ChatComposerFooterProps) {
           onResynthesize={onResynthesize}
           isAwaitingUser={isAwaitingUser}
           isGeneratingPlan={isGeneratingPlan}
-          modeValue={modeValue}
+          // Comment: Composer expects `mode` (ModePicker); footer keeps modeValue (+auto)
+          mode={modeValue}
           onModeChange={onModeChange}
           modeLabels={modeLabels}
           modeTooltips={modeTooltips}

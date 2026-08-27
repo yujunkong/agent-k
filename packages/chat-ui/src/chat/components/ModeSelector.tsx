@@ -43,12 +43,15 @@ function ModeIcon({ mode, size = 14 }: { mode: ModePicker; size?: number }) {
  * Native <select> cannot show per-option icons — custom menu matches Cursor.
  */
 export function ModeSelector({
-  value,
+  value: valueProp,
   onChange,
   disabled,
   labels,
   tooltips
 }: ModeSelectorProps) {
+  // Comment: missing mode prop must not collapse the pill to icon-less empty
+  const value: ModePicker =
+    valueProp && MODES.includes(valueProp) ? valueProp : 'agent';
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const listId = useId();
