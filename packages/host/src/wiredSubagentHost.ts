@@ -47,6 +47,7 @@ import {
   type SubagentHost,
 } from './subagentHost';
 import { registerSubagentWorktree } from './subagentWorktreeRegistry';
+import { getMcpToolBridge } from './mcpHost';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -93,6 +94,9 @@ export type WiredSubagentHostOptions = {
    * Re-injected into AgentLoop protected system slot each turn.
    */
   getApprovedPlanBlock?: (taskId: string) => string | undefined;
+  /** HARNESS-002/004 — verify-first + post-edit micro-loop (mirrors chat.send). */
+  verificationFirst?: boolean;
+  verificationMicroLoop?: boolean;
 };
 
 // ─── mergeToolCallDeltas (copied from chatSend — SUB-010 streaming contract) ──
@@ -181,6 +185,8 @@ export function createWiredSubagentHost(
     workspaceRoot: root,
     mode: 'agent',
     debugLogs: [],
+    // Comment: MCP-001 — same MCP bridge as chatSend
+    mcp: getMcpToolBridge(),
     // Comment: TOOL — wire VS Code diagnostics into read_lints (mirrors chatSend pattern)
     readLints: async (paths) => {
       const out: Array<{
@@ -650,6 +656,8 @@ export function createWiredSubagentHost(
           // Comment: HARNESS-005 / PLAN-009 — rules + approved plan outside compaction
           workspaceRoot: root,
           approvedPlanBlock: opts.getApprovedPlanBlock?.(context.task.id),
+          verificationFirst: opts.verificationFirst,
+          verificationMicroLoop: opts.verificationMicroLoop,
         },
       );
     },

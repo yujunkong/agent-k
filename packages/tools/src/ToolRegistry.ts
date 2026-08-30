@@ -16,6 +16,44 @@ const WRITE_TOOL_NAMES = new Set([
   'todo_write',
 ]);
 
+/** HARNESS-001 — tier A/C allowlists (B = all tools). */
+const TIER_A_TOOLS = new Set([
+  'grep',
+  'glob',
+  'list_dir',
+  'read_file',
+  'read_files',
+  'codebase_search',
+  'edit_file',
+  'write_file',
+  'run_terminal_cmd',
+  'read_lints',
+  'ask_question',
+  'todo_write',
+  'lsp_definition',
+  'lsp_references',
+]);
+
+const TIER_C_TOOLS = new Set([
+  'grep',
+  'glob',
+  'list_dir',
+  'read_file',
+  'read_files',
+  'codebase_search',
+  'lsp_definition',
+  'lsp_references',
+]);
+
+function isAllowedForHarnessTier(
+  toolName: string,
+  tier: 'A' | 'B' | 'C',
+): boolean {
+  if (tier === 'B') return true;
+  if (tier === 'C') return TIER_C_TOOLS.has(toolName);
+  return TIER_A_TOOLS.has(toolName);
+}
+
 export class ToolRegistry {
   private readonly tools = new Map<string, ToolDefinition>();
 
@@ -73,6 +111,14 @@ export class ToolRegistry {
     mode: AgentMode,
     opts?: GetSchemasOptions
   ): boolean {
+    if (
+      opts?.harnessEnabled !== false &&
+      opts?.modelTier &&
+      !isAllowedForHarnessTier(tool.name, opts.modelTier)
+    ) {
+      return false;
+    }
+
     const planStage = opts?.planStage || 'research';
     const planBuild = mode === 'plan' && planStage === 'build';
     const writeLike =

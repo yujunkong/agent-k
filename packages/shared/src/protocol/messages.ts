@@ -77,6 +77,9 @@ export const WEBVIEW_TO_HOST_TYPES = [
   'checkpoint.restore',
   'chat.answer',
   'chat.question.cancel',
+  'mcp.reload',
+  'mcp.connect',
+  'mcp.disconnect',
 ] as const satisfies ReadonlyArray<WebviewToHostMessage['type']>;
 
 /** Closed list of host→webview `type` discriminants. */

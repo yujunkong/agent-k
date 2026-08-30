@@ -44,13 +44,13 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** **HARNESS-002/004** (verify micro-loop) → **STREAM-004** (prior content).  
+**바로 다음:** Phase 8 잔여 (**TEL** → SKILL/MEM → BON…) · Phase 7 **REVIEW** spine · INLINE-005~007.  
 Phase 6 Track 0–4 `[x]` (PlanCard + `packages/plan` + HOST-008b + INT-002 SubagentHost wire).  
 **주의:** 「안정 표면 (2026-08-23)」 절 — Phase 0–3 UI/스트림은 최소 침습만.  
 **Plan canonical:** Timeline **PlanCard** + `PlanSession`/`PlanEvent` (R-004). V1 markdown SoT / `PlanReview` overlay는 본선 제외.  
 **Agent loop:** Claude Code식 gather→act→verify (루프는 가볍게). Plan FSM / Evidence replan은 **Plan 실행 경로만** — 일상 AgentLoop에 올리지 않음. 상세 「Claude Code → agent-k」 절.  
-**HARNESS-005 `[x]`:** `ProjectRulesLoader` — AGENTS.md / `.agentk/rules` / `.cursor/rules` → ContextAssembler sticky (compact 밖, 매 턴 재주입).
-**PLAN-009 `[x]`:** `formatApprovedPlanBlock` → planExecute main/subagent AgentLoop sticky; plan mode write gate (`planStage` → ToolRegistry + `planWriteGate`).
+**제품 현황 요약:** 루트 [`README.md`](../README.md) (Phase 대시보드 + 쓸 수 있는 것 / 안 된 것).  
+**HARNESS-001~006 `[x]`** (007 `[~]`) · **MCP-001~006 `[x]`** · **PLAN-009 `[x]`** · **INLINE-001~004 `[x]`** · REVIEW / TEL / BROWSER 등 Phase 8 잔여 `[ ]`.
 
 ---
 
@@ -481,11 +481,11 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| INLINE-001 | Inline Edit command | host/core + chat-ui(UI) | [ ] |
-| INLINE-002 | Selection context | host/core + chat-ui(UI) | [ ] |
-| INLINE-003 | Inline edit generation | host/core + chat-ui(UI) | [ ] |
-| INLINE-004 | Inline edit diff | host/core + chat-ui(UI) | [ ] |
-| INLINE-005 | Inline edit review | host/core + chat-ui(UI) | [ ] |
+| INLINE-001 | Inline Edit command | host/core + chat-ui(UI) | [x] **2026-08-27** `InlineEditController` + activate register |
+| INLINE-002 | Selection context | host/core + chat-ui(UI) | [x] **2026-08-27** selection capture → `inline.edit.request` |
+| INLINE-003 | Inline edit generation | host/core + chat-ui(UI) | [x] **2026-08-27** `ChatSendPayload.inlineEdit` + AgentLoop inject |
+| INLINE-004 | Inline edit diff | host/core + chat-ui(UI) | [x] **2026-08-27** `file.edit` `source: inlineEdit` tag |
+| INLINE-005 | Inline edit review | host/core + chat-ui(UI) | [~] UI logic exists; checkpoint host stub |
 | INLINE-006 | Selection diff apply | host/core + chat-ui(UI) | [ ] |
 | INLINE-007 | Inline Completion | host/core + chat-ui(UI) | [ ] |
 | REVIEW-001 | Code Review session | core/host (+ chat-ui) | [ ] |
@@ -508,25 +508,25 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 | CTX-010 | File intent | core | [x] **2026-08-24** `FileIntent` + `resolveFileIntent` (Plan V2 resolution core; full Plan schema stays plan/chat-ui) |
 | CTX-011 | Prefetch engine | core | [x] **2026-08-24** PrefetchEngine + ContextBlockBuilder + ide/lsp/task/StackTrace; vscode collectors → host deps |
 | CTX-012 | Chat search index | core | [x] **2026-08-24** `ChatSearchIndex` local chat/artifact/diff index |
-| HARNESS-001 | Harness enabled | core | [ ] flag — tools/context/env wrap (Claude: agentic harness) |
-| HARNESS-002 | Verification first | core | [ ] Claude verify phase + `/goal`-like exit checks |
-| HARNESS-003 | Prefetch | core | [ ] |
-| HARNESS-004 | Verification micro-loop | core | [ ] fail → continue work (not Plan FSM replan) |
+| HARNESS-001 | Harness enabled | core | [x] **2026-08-27** enabled gate → tier tools + prompt inject + verify toggles |
+| HARNESS-002 | Verification first | core | [x] **2026-08-27** verification-first prompt + `/goal`-like exit gate (AgentLoop) |
+| HARNESS-003 | Prefetch | core | [x] **2026-08-27** PrefetchEngine → chatSend sticky/user inject (host IDE deps) |
+| HARNESS-004 | Verification micro-loop | core | [x] **2026-08-27** post edit/write `read_lints` inject → continue work (not Plan replan) |
 | HARNESS-005 | Project rules loader | core | [x] **2026-08-27** `ProjectRulesLoader` + ContextAssembler/AgentLoop inject (AGENTS.md / `.agentk/rules` / `.cursor/rules`, compact 밖) |
-| HARNESS-006 | Routing heuristics | core | [ ] |
-| HARNESS-007 | Context rules / Cursor pattern / UX helpers | core | [~] **2026-08-22** search-before-read nudge; rules persistence는 HARNESS-005 |
+| HARNESS-006 | Routing heuristics | core | [x] **2026-08-27** `routeByHeuristics` → model tier in chatSend |
+| HARNESS-007 | Context rules / Cursor pattern / UX helpers | core | [~] **2026-08-27** CursorPattern + TurnStructure inject; search-before-read nudge |
 | BROWSER-001 | Browser session | core (+ chat-ui preview) | [ ] |
 | BROWSER-002 | Browser automation | core (+ chat-ui preview) | [ ] |
 | BROWSER-003 | Browser evidence | core (+ chat-ui preview) | [ ] |
 | BROWSER-004 | Browser preview | core (+ chat-ui preview) | [ ] |
 | DESIGN-001 | Design Mode | core (+ chat-ui) | [ ] |
 | DESIGN-002 | Design inspection workflow | core (+ chat-ui) | [ ] |
-| MCP-001 | MCP client | core | [ ] |
-| MCP-002 | MCP reload | core | [ ] |
-| MCP-003 | MCP connect | core | [ ] |
-| MCP-004 | MCP disconnect | core | [ ] |
-| MCP-005 | MCP permissions | core | [ ] |
-| MCP-006 | Stdio MCP session / bootstrap / parse | core | [ ] |
+| MCP-001 | MCP client | core | [x] **2026-08-27** `MCPClient` + stdio session + host bootstrap |
+| MCP-002 | MCP reload | core | [x] **2026-08-27** `mcp.reload` + `agent-k.mcp.reload` |
+| MCP-003 | MCP connect | core | [x] **2026-08-27** connect one from settings |
+| MCP-004 | MCP disconnect | core | [x] **2026-08-27** disconnect all/one |
+| MCP-005 | MCP permissions | core | [x] **2026-08-27** `checkMcpToolPermission` + feature flag |
+| MCP-006 | Stdio MCP session / bootstrap / parse | core | [x] **2026-08-27** `StdioMcpSession` + `bootstrapMcp` + `parseMcpServersMap` (shared) |
 | SKILL-001 | Skills system | core | [ ] |
 | SKILL-002 | Skill discovery/loading | core | [ ] |
 | SKILL-003 | Skill feature flag | core | [ ] |
@@ -646,7 +646,7 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 
 1. ~~**HARNESS-005** — rules loader + inject (compact 밖 SoT)~~ `[x]`
 2. ~~**PLAN-009** — approved plan context inject / enforcement~~ `[x]`
-3. **HARNESS-002 / 004** — verification-first + micro-loop ← Claude verify / `/goal` 철학
+3. ~~**HARNESS-002 / 004** — verification-first + micro-loop~~ `[x]`
 4. **STREAM-004** — prior `content \|\| turnProse` (안정 표면)
 5. **HOST-002** — final-cut RCA only
 6. (선택) chatSend → `createWiredSubagentHost` dedupe
@@ -655,12 +655,14 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 
 ## 다음으로 할 일
 
-1. **HARNESS-002 → 004** — verification-first + micro-loop (Plan task verify와 정렬; 일반 Agent는 gather/act/verify만).
-2. **STREAM-004** — follow-up prior (`content || turnProse join`) — 안정 표면 최소 침습.
-4. **HOST-002** — final-answer 중도 끊김 RCA — 확정 전 휴리스틱 패치 금지.
-5. Phase 3 미룸: **CONV-014** · **CONV-016**. Phase 7+ INLINE / REVIEW / MCP / SKILL / MEM.
-6. (선택) chatSend ↔ `createWiredSubagentHost` 공유.
+1. **Phase 8 잔여** — TEL-001~003 → SKILL/MEM → BON/SCM → BROWSER/DESIGN/GH/ART.
+2. **Phase 7 REVIEW** — REVIEW-004 checkpoint → REVIEW-001~002 `openReview` loop → REVIEW-006 apply.
+3. **INLINE-005~007** — review lifecycle + SelectionDiffApply + completion provider.
+4. **STREAM-004** — follow-up prior (`content || turnProse join`) — 안정 표면 최소 침습.
+5. **HOST-002** — final-answer 중도 끊김 RCA — 확정 전 휴리스틱 패치 금지.
+6. Phase 3 미룸: **CONV-014** · **CONV-016**.
+7. (선택) chatSend ↔ `createWiredSubagentHost` 공유.
 
-**최근 세션:** PLAN-009 approved plan inject · HARNESS-005 ProjectRulesLoader · AskQuestionCard Thought-cut · PlanCard · INT-002 · Claude Code harness 원칙.
+**최근 세션:** MCP-001~006 · HARNESS-001/003/006 · INLINE-001~004 host spine · PLAN-009 · HARNESS-002/004.
 
 **에이전트:** 위 「안정 표면」+「Claude Code → agent-k」를 읽고 수정할 것. Agent 루프에 Plan FSM을 넓게 넣지 말 것. Phase 4 worktree는 `packages/worktree` (+ host thin adapter).

@@ -76,6 +76,18 @@ describe('context domain (CTX-001…005)', () => {
     expect(rulesIdx).toBeGreaterThan(planIdx);
   });
 
+  it('HARNESS-002 injects verification-first protocol by default', () => {
+    const assembler = new ContextAssembler(8_000);
+    const result = assembler.assemble({
+      mode: 'agent',
+      systemPrompt: 'You are a test agent.',
+      messages: [{ role: 'user', content: 'hello' }],
+      compactIfNeeded: false,
+    });
+    const system = String(result.messages.find((m) => m.role === 'system')?.content);
+    expect(system).toContain('Verification-First Protocol');
+  });
+
   it('AGENT-007 preserves tool_call pairs during compaction', () => {
     const messages: AgentMessage[] = [
       { role: 'system', content: 'sys', metadata: { protected: true } },

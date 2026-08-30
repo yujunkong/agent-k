@@ -16,6 +16,10 @@ import {
   updateUsageStatusBar,
 } from './runtimeSingletons';
 import { getHostLog, hostLog } from './hostLog';
+import {
+  bootstrapMcpOnActivate,
+  shutdownMcp,
+} from './mcpHost';
 
 let provider: ChatViewProvider | undefined;
 
@@ -34,6 +38,10 @@ export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvid
       : '0.0.0';
 
   provider = new ChatViewProvider(context.extensionUri, extensionVersion);
+  provider.wireInlineEditBridge();
+  context.subscriptions.push(
+    provider.getInlineEditController().register(context),
+  );
 
   // Register BEFORE any work that can throw — Activity Bar view must resolve.
   context.subscriptions.push(
@@ -51,6 +59,14 @@ export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvid
   });
   bindAgentKConfigBridge(context);
   bindProjectConfig(context);
+
+  // Comment: MCP-001/002 — best-effort connect from agent-k.mcp.servers
+  void bootstrapMcpOnActivate();
+  context.subscriptions.push({
+    dispose: () => {
+      void shutdownMcp();
+    },
+  });
 
   // HOST-006 — usage status bar (best-effort).
   try {
@@ -87,5 +103,6 @@ export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvid
 export function deactivateAgentK(): void {
   setProjectConfigPostToWebview(undefined);
   setUsageStatusBarItem(undefined);
+  void shutdownMcp();
   provider = undefined;
 }

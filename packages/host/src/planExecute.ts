@@ -10,6 +10,7 @@
 import type { RequestId } from '@agent-k/shared';
 import {
   AgentLoopController,
+  extractHarnessConfig,
   modeRegistry,
   resolveTurnTimeoutMs,
 } from '@agent-k/core';
@@ -38,6 +39,7 @@ import * as path from 'node:path';
 import { hostLog, hostLogError } from './hostLog';
 import { createWiredSubagentHost } from './wiredSubagentHost';
 import { registerSubagentWorktree } from './subagentWorktreeRegistry';
+import { getMcpToolBridge } from './mcpHost';
 
 export type PlanExecuteHostContext = {
   webview: vscode.Webview | undefined;
@@ -106,6 +108,7 @@ async function runMainPlanTask(opts: {
     workspaceRoot: repoRoot,
     mode: 'agent',
     debugLogs: [],
+    mcp: getMcpToolBridge(),
     readLints: async (paths) => {
       const out: Array<{
         path: string;
@@ -137,6 +140,19 @@ async function runMainPlanTask(opts: {
   };
 
   const cfg = vscode.workspace.getConfiguration('agent-k');
+  const harnessCfg = extractHarnessConfig({
+    'agent-k.harness.enabled': cfg.get('agent-k.harness.enabled'),
+    'agent-k.harness.verificationFirst': cfg.get(
+      'agent-k.harness.verificationFirst',
+    ),
+    'agent-k.harness.verificationMicroLoop': cfg.get(
+      'agent-k.harness.verificationMicroLoop',
+    ),
+  });
+  const harnessVerifyFirst =
+    harnessCfg.enabled && harnessCfg.verificationFirst;
+  const harnessMicroLoop =
+    harnessCfg.enabled && harnessCfg.verificationMicroLoop;
   const configuredTimeout = Number(cfg.get('turnTimeoutMs'));
   const isLocalLlm = /127\.0\.0\.1|localhost/i.test(baseUrl);
   let turnTimeoutMs = resolveTurnTimeoutMs(
@@ -264,6 +280,9 @@ async function runMainPlanTask(opts: {
       workspaceRoot: repoRoot || undefined,
       // Comment: PLAN-009 — full approved plan re-injected each turn
       approvedPlanBlock,
+      // Comment: HARNESS-002/004 — verify on plan main tasks too
+      verificationFirst: harnessVerifyFirst,
+      verificationMicroLoop: harnessMicroLoop,
     },
   );
 
@@ -312,6 +331,19 @@ export async function runHostPlanExecute(
   }
 
   const cfg = vscode.workspace.getConfiguration('agent-k');
+  const harnessCfg = extractHarnessConfig({
+    'agent-k.harness.enabled': cfg.get('agent-k.harness.enabled'),
+    'agent-k.harness.verificationFirst': cfg.get(
+      'agent-k.harness.verificationFirst',
+    ),
+    'agent-k.harness.verificationMicroLoop': cfg.get(
+      'agent-k.harness.verificationMicroLoop',
+    ),
+  });
+  const harnessVerifyFirst =
+    harnessCfg.enabled && harnessCfg.verificationFirst;
+  const harnessMicroLoop =
+    harnessCfg.enabled && harnessCfg.verificationMicroLoop;
   const baseUrl = String(
     message.baseUrl || cfg.get('provider.baseUrl') || '',
   ).replace(/\/$/, '');
@@ -376,6 +408,8 @@ export async function runHostPlanExecute(
     // Comment: PLAN-009 — per-task approved plan sticky for subagent loops
     getApprovedPlanBlock: (taskId) =>
       formatApprovedPlanBlock(runnable, { currentTaskId: taskId }),
+    verificationFirst: harnessVerifyFirst,
+    verificationMicroLoop: harnessMicroLoop,
   });
 
   hostLog(

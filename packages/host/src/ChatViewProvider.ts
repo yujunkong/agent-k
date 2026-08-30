@@ -14,6 +14,15 @@ import {
 import { getWebviewHtml } from './webviewHtml';
 import { rememberEditorCopy } from './editorCopyStash';
 import { hostLog } from './hostLog';
+import {
+  InlineEditController,
+  type InlineEditRequest,
+} from './inline/InlineEditController';
+import {
+  connectMcpServer,
+  disconnectMcp,
+  reloadMcpFromSettings,
+} from './mcpHost';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   /** Must match contributes.views id in extensions/agent-k/package.json. */
@@ -31,6 +40,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     { abort: AbortController; sessionId: string }
   >();
   private readonly planGenerateCancelledIds = new Set<string>();
+
+  /** INLINE-001 — selection edit bridge. */
+  private readonly inlineEditController = new InlineEditController();
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -203,7 +215,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   public requestInlineEdit(): void {
-    void vscode.window.showInformationMessage('[Agent K] Inline Edit (INLINE-* pending)');
+    void this.inlineEditController.runFromActiveEditor();
+  }
+
+  /** Wire inline edit → webview (called from activate). */
+  public wireInlineEditBridge(): void {
+    this.inlineEditController.setHandler(async (request: InlineEditRequest) => {
+      await this.focusChatView();
+      void this.postMessage(this.inlineEditController.toChatPayload(request));
+    });
+  }
+
+  /** For activate registration. */
+  public getInlineEditController(): InlineEditController {
+    return this.inlineEditController;
   }
 
   public openPlanCreate(): void {
@@ -235,15 +260,25 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   public mcpReload(): void {
-    void vscode.window.showInformationMessage('[Agent K] MCP Reload (MCP-* pending)');
+    void reloadMcpFromSettings()
+      .then((status) => {
+        const summary =
+          status.map((s) => `${s.name}:${s.status}`).join(', ') || '(none)';
+        void vscode.window.showInformationMessage(`MCP reload: ${summary}`);
+      })
+      .catch((err) => {
+        void vscode.window.showErrorMessage(
+          `MCP reload failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
   }
 
   public mcpConnect(): void {
-    void vscode.window.showInformationMessage('[Agent K] MCP Connect (MCP-* pending)');
+    void connectMcpServer();
   }
 
   public mcpDisconnect(): void {
-    void vscode.window.showInformationMessage('[Agent K] MCP Disconnect (MCP-* pending)');
+    void disconnectMcp();
   }
 
   public runBestOfN(): void {

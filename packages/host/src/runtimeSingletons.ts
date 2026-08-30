@@ -11,9 +11,15 @@ export const debugLogServer = {
   stop: (): void => undefined,
 };
 
-/** Placeholder until MCP-* client exists. */
+/** MCP-* client — prefer mcpHost.getMcpClient(); kept for legacy imports. */
+export { getMcpClient as mcpClientSingleton } from './mcpHost';
+
+/** @deprecated use getMcpToolBridge / getMcpClient from mcpHost */
 export const mcpClient = {
-  disconnectAll: async (): Promise<void> => undefined,
+  disconnectAll: async (): Promise<void> => {
+    const { shutdownMcp } = await import('./mcpHost');
+    await shutdownMcp();
+  },
 };
 
 /** Placeholder until TEL-* usage tracker exists. */

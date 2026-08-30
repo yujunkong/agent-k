@@ -11,6 +11,7 @@
 export * from './common/errors';
 export * from './common/ids';
 export * from './common/mode';
+export * from './mcp';
 export * from './plan';
 export * from './protocol';
 export * from './work-events';

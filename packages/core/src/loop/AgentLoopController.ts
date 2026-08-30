@@ -26,6 +26,17 @@ import {
 } from './searchBeforeRead';
 import { StreamingToolExecutor } from './StreamingToolExecutor';
 import { resolveTurnTimeoutMs, RunTimeoutGuard } from './turnTimeout';
+import {
+  createVerifyExitState,
+  evaluateVerifyExit,
+  extractEditedFilePath,
+  formatPostEditVerificationFailure,
+  markPathEdited,
+  markPathVerified,
+  parseLintErrorsFromToolResult,
+  PostEditVerificationTracker,
+  type VerifyExitState,
+} from '../harness';
 
 export type AgentLoopEvent =
   | { type: 'turn_start'; turn: number }
@@ -81,6 +92,14 @@ export interface AgentLoopConfig {
    * Re-injected each turn into protected system slot.
    */
   approvedPlanBlock?: string;
+  /** HARNESS-002 — verification-first prompt + exit checks (default on). */
+  verificationFirst?: boolean;
+  /** HARNESS-004 — post edit/write read_lints micro-loop (default on). */
+  verificationMicroLoop?: boolean;
+  /** HARNESS-001 — master harness flag (tier tools + prompt inject). */
+  harnessEnabled?: boolean;
+  /** HARNESS-001/006 — model tier for tool whitelist. */
+  modelTier?: 'A' | 'B' | 'C';
 }
 
 export interface AgentLoopDeps {
@@ -130,6 +149,10 @@ export class AgentLoopController {
   private searchNudgeSent = false;
   /** Latest user prompt for path-hint skip. */
   private lastUserPrompt = '';
+  /** HARNESS-002 — tracks unverified edits for /goal-like exit gate. */
+  private verifyExitState: VerifyExitState = createVerifyExitState();
+  /** HARNESS-004 — per-file lint retry counter. */
+  private postEditVerify = new PostEditVerificationTracker();
 
   constructor(deps: AgentLoopDeps, config: AgentLoopConfig = {}) {
     this.deps = deps;
@@ -147,6 +170,10 @@ export class AgentLoopController {
       projectRules: config.projectRules,
       stickyContext: config.stickyContext,
       approvedPlanBlock: config.approvedPlanBlock,
+      verificationFirst: config.verificationFirst,
+      verificationMicroLoop: config.verificationMicroLoop,
+      harnessEnabled: config.harnessEnabled,
+      modelTier: config.modelTier,
     };
     this.doom = new DoomLoopDetector(this.config.doomLoopThreshold);
     this.assembler = new ContextAssembler(this.config.contextBudgetTokens);
@@ -172,6 +199,9 @@ export class AgentLoopController {
     this.searchSatisfied = false;
     this.searchNudgeSent = false;
     this.lastUserPrompt = String(input.prompt || '');
+    // Comment: HARNESS-002/004 — fresh verify state per run
+    this.verifyExitState = createVerifyExitState();
+    this.postEditVerify = new PostEditVerificationTracker();
     this.status = 'running';
     this.doom.reset();
     this.emit({ type: 'status', status: 'running' });
@@ -222,6 +252,8 @@ export class AgentLoopController {
           projectRules: this.config.projectRules,
           stickyContext: this.config.stickyContext,
           approvedPlanBlock: this.config.approvedPlanBlock,
+          verificationFirst: this.config.verificationFirst,
+          harnessEnabled: this.config.harnessEnabled,
         });
         if (assembled.compacted) {
           this.messages = assembled.messages.filter((m) => m.role !== 'system');
@@ -270,6 +302,29 @@ export class AgentLoopController {
         }
 
         if (toolCalls.length === 0) {
+          // Comment: HARNESS-002 — /goal-like exit gate before completing
+          const exitCheck = evaluateVerifyExit({
+            verificationFirst: this.config.verificationFirst !== false,
+            content,
+            state: this.verifyExitState,
+            turn: turns,
+            maxTurns: this.config.maxTurns,
+          });
+          if (exitCheck.block && exitCheck.nudge) {
+            this.messages.push({
+              role: 'assistant',
+              content,
+              metadata: { turn: turns },
+            });
+            this.messages.push({
+              role: 'user',
+              content: exitCheck.nudge,
+              metadata: { turn: turns, type: 'verify_exit_nudge' },
+            });
+            this.emit({ type: 'turn_end', turn: turns });
+            continue;
+          }
+
           finalContent = content;
           this.messages.push({
             role: 'assistant',
@@ -404,6 +459,11 @@ export class AgentLoopController {
         signal,
       });
 
+      const editedPath = extractEditedFilePath(call.name, call.arguments);
+      if (result.success && editedPath) {
+        markPathEdited(this.verifyExitState, editedPath);
+      }
+
       if (isSearchTool(call.name)) {
         this.searchSatisfied = true;
       }
@@ -411,11 +471,42 @@ export class AgentLoopController {
       const outcome = result.success ? 'ok' : result.error || 'error';
       this.doom.recordCall(call.name, call.arguments, outcome);
 
-      const body = result.success
+      let body = result.success
         ? typeof result.data === 'string'
           ? result.data
           : JSON.stringify(result.data ?? null)
         : `Error: ${result.error ?? 'tool failed'}`;
+
+      // Comment: HARNESS-004 — post edit/write lint micro-loop (fail → continue work)
+      if (
+        result.success &&
+        editedPath &&
+        this.config.verificationMicroLoop !== false
+      ) {
+        try {
+          const lintResult = await this.deps.executeTool({
+            name: 'read_lints',
+            args: { paths: [editedPath] },
+            callId: `${call.id}_verify`,
+            signal,
+          });
+          const lintErrors = parseLintErrorsFromToolResult(lintResult);
+          if (lintErrors.length > 0) {
+            const attempt = this.postEditVerify.nextAttempt(editedPath);
+            body =
+              `${body}\n\n` +
+              formatPostEditVerificationFailure(
+                lintErrors,
+                attempt - 1,
+                this.postEditVerify.maxAttempts,
+              );
+          } else {
+            markPathVerified(this.verifyExitState, editedPath);
+          }
+        } catch {
+          /* verification must not break tool batch */
+        }
+      }
 
       this.messages.push({
         role: 'tool',

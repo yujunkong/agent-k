@@ -19,6 +19,9 @@ import {
   formatProjectRulesBlock,
   resolveProjectRulesContent,
 } from '../harness/ProjectRulesLoader';
+import { injectVerificationFirst } from '../harness/VerificationFirstPrompt';
+import { injectCursorPattern } from '../harness/CursorPattern';
+import { injectTurnStructure } from '../harness/PromptTurnStructure';
 
 export interface AssembleInput {
   mode: AgentMode;
@@ -33,6 +36,10 @@ export interface AssembleInput {
   workspaceRoot?: string;
   /** Explicit rules text — skips fs when set. */
   projectRules?: string;
+  /** HARNESS-002 — inject verification-first protocol into system prompt. */
+  verificationFirst?: boolean;
+  /** HARNESS-001/007 — inject cursor pattern + turn structure when enabled. */
+  harnessEnabled?: boolean;
   /**
    * PLAN-009 — approved plan sticky block (ExecutionPlan formatter output).
    * Re-injected each assemble into the protected system slot (compact-outside SoT).
@@ -65,6 +72,14 @@ export class ContextAssembler {
     const parts: AgentMessage[] = [];
 
     let system = input.systemPrompt.trim();
+    // Comment: HARNESS-002 — gather→act→verify prompt (protected system slot)
+    if (input.verificationFirst !== false) {
+      system = injectVerificationFirst(system);
+    }
+    if (input.harnessEnabled !== false) {
+      system = injectCursorPattern(system);
+      system = injectTurnStructure(system);
+    }
     const workspaceBlock = input.workspace?.toPromptBlock() ?? '';
     // Comment: HARNESS-005 — PROJECT RULES outside compaction (re-inject every turn)
     const projectRulesBlock = formatProjectRulesBlock(

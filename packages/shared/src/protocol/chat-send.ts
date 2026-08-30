@@ -18,6 +18,19 @@ export interface ChatSendImagePayload {
   mimeType: string;
 }
 
+/** INLINE-003 — scoped editor selection edit request. */
+export interface ChatInlineEditPayload {
+  instruction: string;
+  selectedText: string;
+  uri: string;
+  languageId: string;
+  /** 0-based VS Code line/character */
+  startLine: number;
+  startColumn: number;
+  endLine: number;
+  endColumn: number;
+}
+
 /**
  * Webview → Host: tool-mediated agent send.
  * Provider fields are optional until PROVIDER-* / HOST-002 wire them.
@@ -38,6 +51,8 @@ export interface ChatSendPayload {
   images?: ChatSendImagePayload[];
   /** Owning chat session id (parent). Host tags child streams separately. */
   sessionId?: string;
+  /** INLINE-003 — selection-scoped edit for this turn. */
+  inlineEdit?: ChatInlineEditPayload;
 }
 
 /** Webview → Host: stop in-flight chat.send for a request. */

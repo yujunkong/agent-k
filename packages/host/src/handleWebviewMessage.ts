@@ -49,6 +49,11 @@ import {
   handleWorktreeReviewMessage,
 } from './subagentWorktreeBridge';
 import { hostLog, hostLogError } from './hostLog';
+import {
+  connectMcpServer,
+  disconnectMcp,
+  reloadMcpFromSettings,
+} from './mcpHost';
 import type * as vscode from 'vscode';
 
 export type HostMessageRouterContext = {
@@ -355,6 +360,22 @@ async function dispatch(
 
     case 'worktree.reject':
       await handleWorktreeRejectMessage(webview, msg as unknown as Record<string, unknown>);
+      return;
+
+    case 'mcp.reload':
+      await reloadMcpFromSettings();
+      return;
+
+    case 'mcp.connect':
+      await connectMcpServer(
+        typeof msg.name === 'string' ? msg.name : undefined,
+      );
+      return;
+
+    case 'mcp.disconnect':
+      await disconnectMcp(
+        typeof msg.name === 'string' ? msg.name : undefined,
+      );
       return;
 
     case 'checkpoint.list':

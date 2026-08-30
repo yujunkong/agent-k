@@ -140,6 +140,10 @@ export interface TodoItem {
 export interface GetSchemasOptions {
   /** Plan FSM stage — write tools only when `build`. */
   planStage?: string;
+  /** HARNESS-001 — tier whitelist (B = no extra filter). */
+  modelTier?: 'A' | 'B' | 'C';
+  /** When false, skip tier whitelist even if modelTier set. */
+  harnessEnabled?: boolean;
 }
 
 /** OpenAI-style function schema returned to the model. */

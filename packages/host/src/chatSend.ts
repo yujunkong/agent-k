@@ -6,11 +6,19 @@
 
 import {
   AgentLoopController,
+  PrefetchEngine,
+  extractHarnessConfig,
+  formatInlineEditStickyContext,
+  formatInlineEditSystemContext,
+  inferTierFromModelId,
   modeRegistry,
   planWriteGate,
+  prependPrefetchToUserPrompt,
   resolveTurnTimeoutMs,
+  routeByHeuristics,
   type AgentLoopEvent,
   type AgentMessage,
+  type InlineEditAgentRequest,
   type ModelTurnResult,
 } from '@agent-k/core';
 import {
@@ -36,6 +44,8 @@ import {
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { hostLog, hostLogError } from './hostLog';
+import { createPrefetchIdeDeps } from './prefetchDeps';
+import { getMcpToolBridge } from './mcpHost';
 import { isTrueEmptyModelReply } from './chatSendEmpty';
 import { shortDetail, toolKind } from './timelineLabels';
 import {
@@ -92,6 +102,27 @@ function mergeToolCallDeltas(
 function workspaceRoot(): string {
   const folder = vscode.workspace.workspaceFolders?.[0];
   return folder?.uri.fsPath ?? process.cwd();
+}
+
+/** INLINE-003 — normalize shared inlineEdit payload for AgentLoop inject. */
+function parseInlineEditPayload(
+  raw: ChatSendPayload['inlineEdit'],
+): InlineEditAgentRequest | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const instruction = String(raw.instruction ?? '').trim();
+  const selectedText = String(raw.selectedText ?? '');
+  const uri = String(raw.uri ?? '').trim();
+  if (!uri || !selectedText) return null;
+  return {
+    instruction,
+    selectedText,
+    uri,
+    languageId: String(raw.languageId ?? 'text').trim() || 'text',
+    startLine: Number(raw.startLine) || 0,
+    startColumn: Number(raw.startColumn) || 0,
+    endLine: Number(raw.endLine) || 0,
+    endColumn: Number(raw.endColumn) || 0,
+  };
 }
 
 /**
@@ -199,6 +230,31 @@ export async function runHostChatSend(
   );
 
   const modeConfig = modeRegistry.getModeConfig(mode);
+  const harnessCfg = extractHarnessConfig({
+    'agent-k.harness.enabled': cfg.get('agent-k.harness.enabled'),
+    'agent-k.harness.verificationFirst': cfg.get(
+      'agent-k.harness.verificationFirst',
+    ),
+    'agent-k.harness.verificationMicroLoop': cfg.get(
+      'agent-k.harness.verificationMicroLoop',
+    ),
+    'agent-k.harness.prefetchEnabled': cfg.get(
+      'agent-k.harness.prefetchEnabled',
+    ),
+  });
+  const harnessEnabled = harnessCfg.enabled;
+  const harnessVerifyFirst = harnessEnabled && harnessCfg.verificationFirst;
+  const harnessMicroLoop = harnessEnabled && harnessCfg.verificationMicroLoop;
+  const harnessPrefetch = harnessEnabled && harnessCfg.prefetchEnabled;
+  const routing = routeByHeuristics({
+    userMessage: String(
+      [...(payload.messages || [])].reverse().find((m) => m.role === 'user')
+        ?.content || '',
+    ),
+    currentTier: inferTierFromModelId(model),
+    mode,
+  });
+  const modelTier = harnessEnabled ? routing.tier : 'B';
   const maxTurns = Math.min(
     100,
     Math.max(5, Number(cfg.get('agent.maxTurns')) || modeConfig.maxTurns),
@@ -231,12 +287,21 @@ export async function runHostChatSend(
 
   const registry = new ToolRegistry();
   registerBuiltinTools(registry);
-  const toolSchemas = registry.getSchemas(mode, { planStage });
+  const schemaOpts = {
+    planStage,
+    modelTier,
+    harnessEnabled,
+  };
+  const toolSchemas = registry.getSchemas(mode, schemaOpts);
   const root = workspaceRoot();
+  const inlineEditReq = parseInlineEditPayload(payload.inlineEdit);
+  const inlineEditActive = inlineEditReq != null;
   const toolCtxBase: ToolContext = {
     workspaceRoot: root,
     mode,
     debugLogs: [],
+    // Comment: MCP-001 — inject host MCP client into tool executors
+    mcp: getMcpToolBridge(),
     // Comment: TOOL — wire VS Code diagnostics into read_lints
     readLints: async (paths) => {
       const out: Array<{
@@ -350,7 +415,7 @@ export async function runHostChatSend(
       }
       const childMode = modeForSubagentRole(context.task.role);
       const childModeConfig = modeRegistry.getModeConfig(childMode);
-      const childSchemas = registry.getSchemas(childMode, { planStage });
+      const childSchemas = registry.getSchemas(childMode, schemaOpts);
       // Comment: reset each model round so every tool wave seals Thought
       let toolsBegan = false;
       return new AgentLoopController(
@@ -666,6 +731,11 @@ export async function runHostChatSend(
           maxTurns: SUBAGENT_MAX_TURNS,
           turnTimeoutMs,
           systemPrompt: childModeConfig.systemPrompt,
+          workspaceRoot: root || undefined,
+          verificationFirst: harnessVerifyFirst,
+          verificationMicroLoop: harnessMicroLoop,
+          harnessEnabled,
+          modelTier,
         },
       );
     },
@@ -1254,6 +1324,7 @@ export async function runHostChatSend(
               event: 'file.edit',
               edit: {
                 path: editPath,
+                ...(inlineEditActive ? { source: 'inlineEdit' as const } : {}),
                 absPath:
                   data.absPath != null ? String(data.absPath) : undefined,
                 checkpointId:
@@ -1316,11 +1387,21 @@ export async function runHostChatSend(
       mode,
       maxTurns,
       turnTimeoutMs,
-      systemPrompt: modeConfig.systemPrompt,
       contextBudgetTokens: modeConfig.contextBudget,
       parallelTools: true,
       // Comment: HARNESS-005 — AGENTS.md / .agentk/rules outside compaction
       workspaceRoot: root || undefined,
+      // Comment: HARNESS-002/004 — verify-first prompt + post-edit micro-loop
+      verificationFirst: harnessVerifyFirst,
+      verificationMicroLoop: harnessMicroLoop,
+      harnessEnabled,
+      modelTier,
+      stickyContext: inlineEditReq
+        ? formatInlineEditStickyContext(inlineEditReq)
+        : undefined,
+      systemPrompt: inlineEditReq
+        ? `${modeConfig.systemPrompt}\n\n${formatInlineEditSystemContext(inlineEditReq)}`
+        : modeConfig.systemPrompt,
     },
   );
 
@@ -1338,15 +1419,29 @@ export async function runHostChatSend(
       content: String(m.content || ''),
     }));
 
-  const lastUser =
+  const lastUserRaw =
     [...(payload.messages || [])]
       .reverse()
       .find((m) => m.role === 'user')?.content || '';
 
+  let runPrompt = String(lastUserRaw);
+  if (harnessPrefetch) {
+    try {
+      const prefetchEngine = new PrefetchEngine(
+        { enabled: true, ideContextEnabled: true },
+        createPrefetchIdeDeps(root),
+      );
+      const prefetchRaw = await prefetchEngine.prefetch(runPrompt, mode);
+      runPrompt = prependPrefetchToUserPrompt(runPrompt, prefetchRaw);
+    } catch {
+      /* prefetch must not block send */
+    }
+  }
+
   try {
     postStream({ event: 'status', status: 'running' });
     const result = await loop.run({
-      prompt: String(lastUser),
+      prompt: runPrompt,
       signal: abort.signal,
       messages: prior.length ? prior : undefined,
     });

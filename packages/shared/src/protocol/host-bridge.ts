@@ -107,7 +107,13 @@ export type HostBridgeWebviewMessage =
       question?: string;
     }
   /** TOOL-007 — user Skip / idle auto-skip */
-  | { type: 'chat.question.cancel'; qid: string; reason?: string };
+  | { type: 'chat.question.cancel'; qid: string; reason?: string }
+  /** MCP-002 — reload servers from settings */
+  | { type: 'mcp.reload' }
+  /** MCP-003 — connect one (optional name) */
+  | { type: 'mcp.connect'; name?: string }
+  /** MCP-004 — disconnect all or one */
+  | { type: 'mcp.disconnect'; name?: string };
 
 /** Host → Webview messages for HOST bridge features. */
 export type HostBridgeHostMessage =
