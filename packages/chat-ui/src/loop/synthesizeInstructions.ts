@@ -3,7 +3,7 @@
  *
  * Interrupt 발생 시 시스템 노트 + 이전 상태 요약 주입
  */
-import type { AgentMessage } from './AgentLoopController';
+import type { AgentMessage } from './agentMessage';
 
 export interface SynthesizeInput {
   interruptedMessage: string;

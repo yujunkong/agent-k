@@ -25,7 +25,7 @@ import { selectActiveConversationMessages } from '../conversation/conversationVa
 import { formatAttachmentsForPayload } from '../attachmentFormat';
 import { formatInlineEditForPayload, toInlineEditAgentRequest, type InlineEditContext } from '../inlineEdit';
 import { buildResynthesizeMessages } from '../../loop/synthesizeInstructions';
-import type { AgentMessage } from '../../loop/AgentLoopController';
+import type { AgentMessage } from '../../loop/agentMessage';
 import { MessageQueue } from '../../loop/MessageQueue';
 import { StopHandler } from '../../loop/StopHandler';
 import { createAssistantStreamSession } from '../assistantStreamSession';

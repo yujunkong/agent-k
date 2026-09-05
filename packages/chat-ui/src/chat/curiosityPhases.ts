@@ -160,11 +160,10 @@ export function coalesceAdjacentThinkingSteps(
       ...s,
       id: prev.id || s.id,
       detail,
-      itemStatus: running
-        ? 'running'
-        : s.itemStatus === 'error' || prev.itemStatus === 'error'
-          ? 'error'
-          : 'done',
+      // Both steps are 'running' here — done/error cases were handled (and
+      // continued) by the sealed-Thought guard above, so `running` is always
+      // true at this point. The old dead else-branch never executed.
+      itemStatus: 'running',
       durationMs,
       label: prev.label || s.label
     };

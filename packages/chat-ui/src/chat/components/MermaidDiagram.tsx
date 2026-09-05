@@ -70,7 +70,7 @@ export function MermaidDiagram({ definition, streaming }: MermaidDiagramProps) {
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [showSource, setShowSource] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const idRef = useRef(`mermaid-${Math.random().toString(36).slice(2, 8)}`);
 
   useEffect(() => {

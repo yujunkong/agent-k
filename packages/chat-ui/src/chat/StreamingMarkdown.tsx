@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import type { JSX } from 'react';
 import { CodeBlock } from './components/CodeBlock';
 import { MermaidDiagram } from './components/MermaidDiagram';
 import { repairCollapsedMarkdown } from './repairMarkdown';

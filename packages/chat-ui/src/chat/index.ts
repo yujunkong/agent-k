@@ -9,14 +9,9 @@
  * - UI-001…UI-024 / CURSOR-* presentation chrome
  */
 
-export { ChatApp, Shell } from './Shell';
-export { Composer } from './Composer';
-export { MessageList } from './MessageList';
 export {
   getVsCodeApi,
   setVsCodeApiForTests,
   type VsCodeApi,
 } from './vscodeApi';
-export { SettingsPanel, modelSettingsFromConfig } from './SettingsPanel';
-export type { ModelSettings } from './SettingsPanel';
 export * from './components';

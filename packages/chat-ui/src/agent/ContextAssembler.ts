@@ -47,10 +47,8 @@ export class ContextAssembler {
   constructor(memoryStore?: MemoryStore) {
     // RW-C7-09: activate 주입 스토어 우선, 없으면 no-op SecretStorage 폴백
     const runtimeStore = RuntimeServices.getMemoryStore();
-    this.memoryStore = memoryStore || runtimeStore || new MemoryStore(
-      { get: async () => undefined, store: async () => {}, delete: async () => {} } as any,
-      { subscriptions: [], workspaces: [], secrets: { get: async () => undefined, store: async () => {}, delete: async () => {} } } as any
-    );
+    // Webview MemoryStore stub takes no constructor args (host owns the real store).
+    this.memoryStore = memoryStore || runtimeStore || new MemoryStore();
   }
 
   /** 턴 조립 시 RuntimeServices에 스토어가 나중에 주입된 경우 반영 */
@@ -99,7 +97,15 @@ export class ContextAssembler {
     try {
       const registry = getSkillRegistry();
       const tierA = configManager.get('agent-k.harness.tierA') === true;
-      const injected = registry.injectPinnedSkills(systemPrompt, tierA);
+      // Webview stub registry ({list,get}) has no injectPinnedSkills — the host
+      // owns the real registry. Call kept as-is: it throws and the catch below
+      // swallows it (existing runtime behavior, do not "fix" into a no-op).
+      const injected = (registry as unknown as {
+        injectPinnedSkills: (
+          prompt: string,
+          tierA: boolean
+        ) => { prompt: string; warnings: string[] };
+      }).injectPinnedSkills(systemPrompt, tierA);
       systemPrompt = injected.prompt;
       if (injected.warnings.length > 0 && options?.additionalRules) {
         options.additionalRules.push(...injected.warnings);
@@ -175,7 +181,13 @@ Use only read/search tools (and ask_question / todo_write when appropriate).`;
       {
         name: 'memories',
         budgetPercent: 2,
-        content: memoryStore.injectMemoriesIntoPrompt('', Math.floor(this.maxTokens * 0.02)).trim() || '(no memories)',
+        // Webview MemoryStore stub has no injectMemoriesIntoPrompt — this call
+        // throws and buildHarnessTurnContext's caller (useChatSendFlow) swallows
+        // it, skipping harness injection. Preserved deliberately: making it a
+        // no-op would let assemble() succeed and CHANGE the send payload.
+        content: (memoryStore as MemoryStore & {
+          injectMemoriesIntoPrompt: (prefix: string, budgetTokens: number) => string;
+        }).injectMemoriesIntoPrompt('', Math.floor(this.maxTokens * 0.02)).trim() || '(no memories)',
         priority: 70,
         protected_: false
       },

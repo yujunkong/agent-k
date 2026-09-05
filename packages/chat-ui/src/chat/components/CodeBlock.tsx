@@ -32,7 +32,7 @@ export function CodeBlock({ language, code, streaming }: CodeBlockProps) {
   const [highlighted, setHighlighted] = useState<string>('');
   const [ready, setReady] = useState(isHighlighterReady());
   const [copied, setCopied] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const requestGen = useRef(0);
   let lang = normalizeLang(language);
   if (
