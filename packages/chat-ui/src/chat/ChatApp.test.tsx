@@ -1,22 +1,83 @@
 /**
  * CHAT-001 / CHAT-002 — ChatApp unit tests (jsdom).
+ *
+ * Rewritten against the CURRENT product contract (v3.0 port):
+ *   - Mount posts `model.context.refresh` + `host.sessions.ready` (no `ui.ready`,
+ *     no `host.hello` handshake — composer is not handshake-gated).
+ *   - `chat.send` uses the SHARED-001 nested payload `{ payload: { requestId, ... } }`.
+ *   - `config.update` is the batch `{ values: {...} }` shape (SettingsUI.persistToHost).
+ *   - No `data-testid` chrome — assertions use roles / text / stable classes.
  */
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { PROTOCOL_VERSION } from '@agent-k/shared';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatApp } from './ChatApp';
 import { setVsCodeApiForTests, type VsCodeApi } from './vscodeApi';
 
-function isDisabled(el: HTMLElement): boolean {
-  return (el as HTMLButtonElement | HTMLTextAreaElement).disabled === true;
+function isPostedType(m: unknown, type: string): boolean {
+  return typeof m === 'object' && m !== null && (m as { type?: string }).type === type;
 }
+
+function postedOfType<T = Record<string, unknown>>(posted: unknown[], type: string): T[] {
+  return posted.filter((m) => isPostedType(m, type)) as T[];
+}
+
+/** Host → webview config hydration (same shape the extension host posts). */
+function hydrateProviderConfig() {
+  window.dispatchEvent(
+    new MessageEvent('message', {
+      data: {
+        type: 'config.hydrate',
+        values: {
+          'agent-k.provider.model': 'local-qwen',
+          'agent-k.provider.baseUrl': 'http://127.0.0.1:4000',
+        },
+      },
+    }),
+  );
+}
+
+/** Wait until the composer model picker reflects the hydrated model. */
+async function waitForHydratedModel() {
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: 'Model: local-qwen' })).toBeTruthy();
+  });
+}
+
+type ChatSendMsg = {
+  payload: {
+    requestId: string;
+    model: string;
+    baseUrl: string;
+    messages: Array<{ role: string; content: string }>;
+  };
+};
 
 describe('CHAT-001 ChatApp shell', () => {
   let posted: unknown[];
 
+  /** Type into the composer and submit; resolves once chat.send is posted. */
+  async function sendViaComposer(text: string): Promise<ChatSendMsg> {
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: text } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    let sent: ChatSendMsg | undefined;
+    await waitFor(() => {
+      sent = postedOfType(posted, 'chat.send')[0] as ChatSendMsg | undefined;
+      expect(sent).toBeTruthy();
+    });
+    return sent!;
+  }
+
+  /** Hydrate provider credentials, then send through the composer. */
+  async function hydrateAndSend(text: string) {
+    hydrateProviderConfig();
+    await waitForHydratedModel();
+    return sendViaComposer(text);
+  }
+
   beforeEach(() => {
     posted = [];
+    localStorage.clear();
     const api: VsCodeApi = {
       postMessage: (message: unknown) => {
         posted.push(message);
@@ -25,181 +86,149 @@ describe('CHAT-001 ChatApp shell', () => {
       setState: () => undefined,
     };
     setVsCodeApiForTests(api);
+    // SettingsUI.persistToHost posts via window.parent.postMessage (not the
+    // acquireVsCodeApi singleton) — capture that channel too.
+    vi.spyOn(window, 'postMessage').mockImplementation((m) => {
+      posted.push(m);
+    });
   });
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
     setVsCodeApiForTests(undefined);
   });
 
-  it('posts ui.ready and renders shell chrome', () => {
+  it('posts model.context.refresh + host.sessions.ready on mount and renders shell chrome', () => {
     render(<ChatApp />);
-    expect(posted).toEqual([
-      { type: 'ui.ready', protocolVersion: PROTOCOL_VERSION },
-    ]);
-    expect(screen.getByTestId('chat-app')).toBeTruthy();
-    expect(screen.getByTestId('chat-shell')).toBeTruthy();
-    expect(screen.getByTestId('chat-composer')).toBeTruthy();
-    expect(screen.getAllByText('Agent K').length).toBeGreaterThan(0);
+
+    // Mount contract (useChatProvider / useChatSessions) — no ui.ready, no handshake.
+    expect(posted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'model.context.refresh',
+          providerType: 'litellm',
+          baseUrl: '',
+          model: '',
+        }),
+        expect.objectContaining({ type: 'host.sessions.ready' }),
+      ]),
+    );
+
+    // Shell chrome — stable classes (no data-testid in current product).
+    expect(document.querySelector('.chat-container')).toBeTruthy();
+    expect(document.querySelector('.chat-shell')).toBeTruthy();
+    expect(document.querySelector('.chat-rail')).toBeTruthy();
+    expect(document.querySelector('.message-list')).toBeTruthy();
+    // Composer is present and enabled on mount (not handshake-gated).
+    expect(screen.getByRole('textbox')).toBeTruthy();
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false);
   });
 
-  it('enables composer after host.hello', async () => {
+  it('enables composer on input and swaps Send for Stop while a stream is active', async () => {
     render(<ChatApp />);
-    expect(isDisabled(screen.getByTestId('chat-send'))).toBe(true);
 
+    // Textarea is enabled on mount; Send is gated only by empty input (canSend),
+    // not by any host handshake.
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement;
+    expect(input.disabled).toBe(false);
+    const send = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+
+    await hydrateAndSend('stream me');
+
+    // Drive the stream through the real host contract: chat.stream keyed by the
+    // requestId the webview just posted.
+    const sent = postedOfType<{ payload: { requestId: string } }>(posted, 'chat.send')[0];
     window.dispatchEvent(
       new MessageEvent('message', {
         data: {
-          type: 'host.hello',
-          protocolVersion: PROTOCOL_VERSION,
-          extensionVersion: '0.0.0-test',
+          type: 'chat.stream',
+          payload: { requestId: sent.payload.requestId, event: 'delta', content: 'partial answer' },
         },
       }),
     );
 
+    // composerBusy → Send control is replaced by Stop chrome.
     await waitFor(() => {
-      expect(screen.getByTestId('chat-shell-status').getAttribute('data-state')).toBe(
-        'ok',
-      );
+      expect(screen.getAllByRole('button', { name: 'Stop' }).length).toBeGreaterThan(0);
     });
-    expect(isDisabled(screen.getByTestId('chat-input'))).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
   });
 
-  it('CHAT-002 sends chat.send and shows user bubble', async () => {
+  it('CHAT-002 sends chat.send (nested SHARED-001 payload) and shows user bubble', async () => {
     render(<ChatApp />);
-    window.dispatchEvent(
-      new MessageEvent('message', {
-        data: {
-          type: 'host.hello',
-          protocolVersion: PROTOCOL_VERSION,
-          extensionVersion: '0.0.0-test',
-        },
-      }),
-    );
-    await waitFor(() => {
-      expect(isDisabled(screen.getByTestId('chat-input'))).toBe(false);
-    });
+    const sent = await hydrateAndSend('hello from test');
 
-    fireEvent.change(screen.getByTestId('chat-input'), {
-      target: { value: 'hello from test' },
-    });
-    fireEvent.click(screen.getByTestId('chat-send'));
+    // User bubble renders the raw input text (tab title shows it too).
+    const bubble = document.querySelector('.user-turn__text');
+    expect(bubble?.textContent).toBe('hello from test');
 
-    expect(screen.getByText('hello from test')).toBeTruthy();
-    const sendMsg = posted.find(
-      (m) =>
-        typeof m === 'object' &&
-        m !== null &&
-        (m as { type?: string }).type === 'chat.send',
-    ) as {
-      type: string;
-      payload: { messages: Array<{ content: string }> };
-    };
-    expect(sendMsg.payload.messages[0]?.content).toBe('hello from test');
+    // Nested payload shape — host reads msg.payload (flat send crashed → stuck stream).
+    expect(sent.payload.requestId).toMatch(/^host_/);
+    expect(sent.payload.model).toBe('local-qwen');
+    expect(sent.payload.baseUrl).toBe('http://127.0.0.1:4000');
+    const lastMsg = sent.payload.messages[sent.payload.messages.length - 1];
+    expect(lastMsg.role).toBe('user');
+    // Harness/context assembly may prefix the outbound payload — assert containment.
+    expect(lastMsg.content).toContain('hello from test');
   });
 
-  it('shows assistant line from chat.stream error', async () => {
+  it('shows the error line from a chat.stream error event', async () => {
     render(<ChatApp />);
-    window.dispatchEvent(
-      new MessageEvent('message', {
-        data: {
-          type: 'host.hello',
-          protocolVersion: PROTOCOL_VERSION,
-          extensionVersion: '0.0.0-test',
-        },
-      }),
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId('chat-shell-status').getAttribute('data-state')).toBe(
-        'ok',
-      );
-    });
+    await hydrateAndSend('trigger an error');
 
+    const sent = postedOfType<{ payload: { requestId: string } }>(posted, 'chat.send')[0];
     window.dispatchEvent(
       new MessageEvent('message', {
         data: {
           type: 'chat.stream',
           payload: {
-            requestId: 'r1',
+            requestId: sent.payload.requestId,
             event: 'error',
-            error: 'Agent loop not wired yet (AGENT-001 pending).',
+            error: 'Host tool loop exploded in test',
           },
         },
       }),
     );
 
+    // onError paints the error banner (role="alert") and the assistant error turn.
     await waitFor(() => {
-      expect(screen.getByText(/Agent loop not wired yet/)).toBeTruthy();
+      expect(screen.getByRole('alert').textContent).toContain('Host tool loop exploded in test');
     });
   });
 
-  it('SET-001 opens Settings panel from header button', async () => {
+  it('SET-001 opens the Settings panel from the header More menu', async () => {
     render(<ChatApp />);
-    window.dispatchEvent(
-      new MessageEvent('message', {
-        data: {
-          type: 'host.hello',
-          protocolVersion: PROTOCOL_VERSION,
-          extensionVersion: '0.0.0-test',
-        },
-      }),
-    );
-    await waitFor(() => {
-      expect(isDisabled(screen.getByTestId('chat-input'))).toBe(false);
-    });
 
-    fireEvent.click(screen.getByTestId('chat-settings-btn'));
-    expect(screen.getByTestId('settings-panel')).toBeTruthy();
-    expect(screen.getByTestId('settings-models-tab')).toBeTruthy();
+    // Settings lives behind the tab-strip "More" menu (no dedicated gear button).
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Settings' }));
+
+    // Overlay dialog + redesigned settings hub with the AI Providers tab active.
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeTruthy();
+    expect(document.querySelector('.settings-panel')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /AI Providers/ })).toBeTruthy();
   });
 
-  it('SET-002 saves model via config.update and hydrates composer', async () => {
+  it('SET-002 saves settings via the batch config.update contract', async () => {
     render(<ChatApp />);
-    window.dispatchEvent(
-      new MessageEvent('message', {
-        data: {
-          type: 'host.hello',
-          protocolVersion: PROTOCOL_VERSION,
-          extensionVersion: '0.0.0-test',
-        },
-      }),
+
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('button', { name: /Queue/ }));
+
+    const debounce = screen.getByRole('spinbutton') as HTMLInputElement;
+    fireEvent.change(debounce, { target: { value: '450' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    // Batch contract: { type:'config.update', values: {...} } (SettingsUI.persistToHost).
+    const updates = postedOfType<{ type: string; values?: Record<string, unknown> }>(
+      posted,
+      'config.update',
     );
-    await waitFor(() => {
-      expect(isDisabled(screen.getByTestId('chat-input'))).toBe(false);
-    });
-
-    window.dispatchEvent(
-      new MessageEvent('message', {
-        data: {
-          type: 'config.hydrate',
-          values: {
-            'agent-k.provider.model': 'local-qwen',
-            'agent-k.provider.baseUrl': 'http://127.0.0.1:4000',
-          },
-        },
-      }),
-    );
-    await waitFor(() => {
-      expect((screen.getByTestId('chat-model') as HTMLInputElement).value).toBe(
-        'local-qwen',
-      );
-    });
-
-    fireEvent.click(screen.getByTestId('chat-settings-btn'));
-    fireEvent.change(screen.getByTestId('settings-model'), {
-      target: { value: 'gpt-4o-mini' },
-    });
-    fireEvent.click(screen.getByTestId('settings-save'));
-
-    const updates = posted.filter(
-      (m) =>
-        typeof m === 'object' &&
-        m !== null &&
-        (m as { type?: string }).type === 'config.update',
-    ) as Array<{ type: string; key: string; value: unknown }>;
     expect(
-      updates.some((u) => u.key === 'provider.model' && u.value === 'gpt-4o-mini'),
+      updates.some((u) => u.values && u.values['agent-k.queue.debounceMs'] === 450),
     ).toBe(true);
   });
-
 });

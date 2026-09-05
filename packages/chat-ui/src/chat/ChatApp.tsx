@@ -401,7 +401,7 @@ export function ChatApp() {
     const end = messageEndRef.current;
     const run = () => {
       if (!force && !stickToBottomRef.current) return;
-      if (end) end.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' });
+      if (end) end.scrollIntoView?.({ block: 'end', inline: 'nearest', behavior: 'auto' });
       if (list) list.scrollTop = list.scrollHeight;
     };
     requestAnimationFrame(() => requestAnimationFrame(run));
