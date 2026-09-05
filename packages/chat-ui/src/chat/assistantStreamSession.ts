@@ -267,6 +267,9 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
   let thoughtSeg = 0;
   let thoughtOpen = false;
   let thoughtBlocked = false;
+  // Comment: clearContent-alone soft-pause (CONV-014) resumes the SAME Thought id;
+  // tool/subagent pauses rotate to a mid segment. Set by pauseThoughtSegment reason.
+  let thoughtSoftPause = false;
 
   /** Freeze owner at create — tab switch must not retarget this stream. */
   const ownerIdFrozen = String(
@@ -314,6 +317,7 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
     });
     thoughtOpen = false;
     thoughtBlocked = true;
+    thoughtSoftPause = reason === 'clearContent';
   };
 
   const sealLeadFromMessage = (
@@ -544,8 +548,9 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
     // Comment: tool.start packs clearContent + timeline(detail) together.
     // Early-return here used to skip the timeline upsert → bare "Read"/"Grepped".
     if (delta.clearContent && !delta.timeline) {
-      // Comment: never hard-rotate on clear alone — same Thought id resumes after tools
-      pauseThoughtSegment('clearContent');
+      // Comment: never hard-rotate on clear alone — same Thought id resumes after tools.
+      // clearContent + workEvent (tool row sealed) is a TOOL pause → next reasoning rotates.
+      pauseThoughtSegment(delta.workEvent ? 'clearContent.tool' : 'clearContent');
       applyOwnerMessages((prev) => {
         const hit = lastStreaming(prev);
         if (!hit) return prev;
@@ -929,10 +934,13 @@ export function createAssistantStreamSession(ctx: AssistantStreamCtx): {
     }
 
     if (delta.reasoning) {
-      // Comment: after tools, rotate to mid Thought (Exploring nest) — do not append to top Thinking
+      // Comment: after tools, rotate to mid Thought (Exploring nest) — do not append to top Thinking.
+      // Exception: clearContent-alone soft-pause resumes the SAME id (line ~547 contract);
+      // tool/subagent pauses still rotate.
       if (thoughtBlocked) {
         thoughtBlocked = false;
-        thoughtSeg += 1;
+        if (!thoughtSoftPause) thoughtSeg += 1;
+        thoughtSoftPause = false;
         debugLog('timeline-order', 'thought.reopen', {
           ownerId: getOwnerSessionId(),
           seg: thoughtSeg,

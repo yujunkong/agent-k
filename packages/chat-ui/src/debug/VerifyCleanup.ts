@@ -2,7 +2,9 @@
  * VerifyCleanup - 검증 + 청소 (C6-T12 / RW-C6-06-R2)
  * remainingMarkers=-1 더미 제거 — 워크스페이스 실스캔.
  */
-import * as vscode from 'vscode';
+// B-2 boundary: chat-ui must not statically import `vscode`.
+// Lazy-require inside scanWorkspace (same pattern as RemoveInstrumentationTool) —
+// webview / unit-test hosts without vscode get a no-op scan instead of a load error.
 import { RemoveInstrumentationTool } from '../tools/debug/RemoveInstrumentationTool';
 
 export interface VerifyResult {
@@ -24,6 +26,16 @@ export class VerifyCleanup {
    * Scan workspace text files for DEBUG_INSTRUMENT markers.
    */
   async scanWorkspace(hypothesisId?: string): Promise<{ remaining: number; files: string[] }> {
+    let vscode: typeof import('vscode') | undefined;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      vscode = require('vscode') as typeof import('vscode');
+    } catch {
+      /* no vscode host (webview / unit tests) — no-op scan */
+    }
+    if (!vscode?.workspace?.findFiles || !vscode?.workspace?.fs) {
+      return { remaining: 0, files: [] };
+    }
     const pattern = '**/*.{ts,tsx,js,jsx,py,go,rs}';
     const uris = await vscode.workspace.findFiles(pattern, '**/node_modules/**', 500);
     let remaining = 0;
