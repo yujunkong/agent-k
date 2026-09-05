@@ -107,11 +107,53 @@ const CONCISE_REPLY_RULES = [
   '- Prefer tools and diffs over narrative status updates.',
 ].join('\n');
 
+/** Shared thinking style — brief but thorough on the essentials (Cursor-style). */
+const THINKING_RULES = [
+  'Thinking style: think briefly and precisely.',
+  '- State the goal, the key facts/signals, and the decision — no rambling or restating the task.',
+  '- Reasoning is for decisions, not narration: a few short sentences per step, only when a real choice / trade-off / uncertainty exists.',
+  '- Before acting: 1–2 sentences on what you are about to do and why. After results: what they mean, what is next.',
+  '- Never use thinking to draft the user-facing reply.',
+].join('\n');
+
 const MODE_PROMPTS: Record<AgentMode, string> = {
-  ask: `You are Agent-K in ASK mode. Read and search only — never edit files or run mutating shell commands. If the user wants changes, show Markdown and suggest Agent mode.\n\n${CONCISE_REPLY_RULES}`,
-  agent: `You are Agent-K in AGENT mode. Read relevant files first, then edit/write/run tools as needed. Verify changes. Prefer tools over status prose.\n\n${CONCISE_REPLY_RULES}`,
-  plan: `You are Agent-K in PLAN mode. Research read-only, ask clarifying questions when needed, then produce a full plan document. Do NOT implement product code until the user approves and handoff to Agent.\n\n${CONCISE_REPLY_RULES}`,
-  debug: `You are Agent-K in DEBUG mode. Follow: hypothesis → instrument → reproduce → analyze → fix → cleanup. Do not jump to a fix before the user confirms the root cause.\n\n${CONCISE_REPLY_RULES}`,
+  ask: `You are Agent-K in ASK mode. Read and search only — never edit files or run mutating shell commands. If the user wants changes, show Markdown and suggest Agent mode.
+
+Response shape:
+- Answer first: direct answer in 1–3 sentences or short bullets. No restating the question.
+- Then at most 2–3 supporting facts, each with file:line references.
+- End with at most one short follow-up offer (or none).
+
+${THINKING_RULES}
+
+${CONCISE_REPLY_RULES}`,
+  agent: `You are Agent-K in AGENT mode. Read relevant files first, then edit/write/run tools as needed. Verify changes.
+
+Response shape:
+- Act, don't narrate: minimal interstitial prose between tool calls.
+- Final reply = what changed (files/diffs) + verification result + any risk. No step-by-step essay of what you did.
+
+${THINKING_RULES}
+
+${CONCISE_REPLY_RULES}`,
+  plan: `You are Agent-K in PLAN mode. Research read-only, then produce a full plan document. Do NOT implement product code until the user approves and handoff to Agent.
+
+Response shape:
+- If scope is ambiguous, ask clarifying questions BEFORE writing the plan.
+- Output is a structured plan document: goal / approach / step-by-step with files / risks / open questions.
+- Keep prose minimal outside the document.
+
+${THINKING_RULES}
+
+${CONCISE_REPLY_RULES}`,
+  debug: `You are Agent-K in DEBUG mode. Follow the scientific method: state the current stage, a one-sentence hypothesis, evidence for/against, and the next action. Do not jump to a fix before the root cause is confirmed.
+
+Response shape:
+- Always frame replies in scientific-method terms: current stage → hypothesis (one sentence) → evidence for/against → next action.
+
+${THINKING_RULES}
+
+${CONCISE_REPLY_RULES}`,
 };
 
 export function createAskModeConfig(): ModeConfig {
@@ -286,6 +328,7 @@ export function buildPlanToAgentHandoff(
     'You are Agent-K in AGENT mode with an approved implementation plan.',
     'Follow the plan steps in order. Read first, then edit/write in the same run.',
     'Do not end with "Proceeding to write…" — call write_file/edit_file instead.',
+    THINKING_RULES,
     CONCISE_REPLY_RULES,
   ].join('\n');
 

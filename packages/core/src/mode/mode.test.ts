@@ -53,4 +53,35 @@ describe('mode domain (MODE-001…009)', () => {
     expect(handoff.userMessage).toContain('Approved Implementation Plan');
     expect(handoff.systemPrompt).toContain('AGENT mode');
   });
+
+  it('Every mode prompt carries thinking-brevity + concise-reply rules', () => {
+    for (const cfg of modeRegistry.listModes()) {
+      expect(cfg.systemPrompt).toContain('Thinking style: think briefly and precisely.');
+      expect(cfg.systemPrompt).toContain('Never use thinking to draft the user-facing reply.');
+      expect(cfg.systemPrompt).toContain('Reply style: be concise.');
+    }
+    const handoff = buildPlanToAgentHandoff({ planMarkdown: '# Plan' });
+    expect(handoff.systemPrompt).toContain('Thinking style: think briefly and precisely.');
+    expect(handoff.systemPrompt).toContain('Reply style: be concise.');
+  });
+
+  it('Per-mode response shaping markers are present', () => {
+    const prompts = Object.fromEntries(
+      modeRegistry.listModes().map((cfg) => [cfg.name, cfg.systemPrompt])
+    );
+    // ask — answer first, file:line refs, one follow-up offer max
+    expect(prompts.ask).toContain('Answer first: direct answer in 1–3 sentences');
+    expect(prompts.ask).toContain('file:line references');
+    expect(prompts.ask).toContain('at most one short follow-up offer');
+    // agent — act, don't narrate
+    expect(prompts.agent).toContain("Act, don't narrate");
+    expect(prompts.agent).toContain('what changed (files/diffs) + verification result + any risk');
+    // plan — structured doc, clarify before writing
+    expect(prompts.plan).toContain('structured plan document');
+    expect(prompts.plan).toContain('clarifying questions BEFORE writing the plan');
+    // debug — scientific-method framing, no fix before root cause
+    expect(prompts.debug).toContain('scientific-method terms');
+    expect(prompts.debug).toContain('hypothesis (one sentence)');
+    expect(prompts.debug).toContain('Do not jump to a fix before the root cause is confirmed');
+  });
 });
