@@ -41,6 +41,7 @@ import { configManager } from '../../core/ConfigManager';
 import { sessionStore } from '../hooks/useChatSessions';
 import { resolveSendCredentials } from '../resolveSendCredentials';
 import { debugLog, debugWarn } from '../debugLog';
+import { assistantOutboundContent, serializePriorMessages } from './priorSerialization';
 import {
   startPlanExecution
 } from '../../plan/execution';
@@ -467,9 +468,18 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
       const contextMessages = selectActiveConversationMessages(
         nextMessages.filter((m) => m.id !== assistantMsg.id)
       );
-      const apiMessages = contextMessages.map((m) =>
-        m.id === userMsg.id ? { ...m, content: payload } : m
-      );
+      // STREAM-004: seal 후 prior assistant는 content:'' + turnProse만 남을 수 있다.
+      // outbound 직렬화에서 봉인된 prose를 content로 복원 (user payload는 그대로).
+      const apiMessages: ChatMessage[] = contextMessages.map((m) => {
+        if (m.id === userMsg.id) return { ...m, content: payload };
+        if (m.role === 'assistant') return { ...m, content: assistantOutboundContent(m) };
+        return m;
+      });
+      debugLog('chat.send', 'prior serialize', {
+        ownerId,
+        msgs: apiMessages.length,
+        contentLen: apiMessages.reduce((n, m) => n + m.content.length, 0)
+      });
 
       // After await prefetch the user may have switched tabs — never paint A onto B.
       // Sync messagesRef BEFORE sendMessage so early onError can find the streaming bubble.
@@ -638,17 +648,17 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
 
       if (!instruction.trim()) return;
 
-      const prior = raw.filter((m) => !(m.role === 'assistant' && m.status === 'streaming'));
       const agentMsgs: AgentMessage[] = [
-        ...prior.map((m) => ({
-          role: m.role as AgentMessage['role'],
-          content: m.content,
-          name: undefined
-        })),
+        ...serializePriorMessages(raw),
         ...(last?.role === 'assistant'
           ? [{ role: 'assistant' as const, content: interruptedExtra || '(interrupted before any text)', name: undefined }]
           : [])
       ];
+      debugLog('chat.send', 'resynthesize prior serialize', {
+        ownerId: sessionIdRef.current,
+        msgs: agentMsgs.length,
+        contentLen: agentMsgs.reduce((n, m) => n + m.content.length, 0)
+      });
 
       const rebuilt = buildResynthesizeMessages(
         agentMsgs,
