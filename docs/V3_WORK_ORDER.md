@@ -546,9 +546,9 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 | BON-004 | Adopt winner | worktree | [ ] |
 | BON-005 | Worktree isolation for candidates | worktree | [ ] |
 | SCM-001 | Commit message generator | worktree/host | [ ] |
-| TEL-001 | Cost tracker | core | [ ] |
-| TEL-002 | Status bar cost | core | [ ] |
-| TEL-003 | Telemetry collector | core | [ ] |
+| TEL-001 | Cost tracker | core | [x] **2026-09-12** `CostTracker` + `BudgetStorage` port (v2.1 C4-T26 이식; localStorage → port + 메모리 폴백) |
+| TEL-002 | Status bar cost | core | [x] **2026-09-12** `StatusBarCost` + `SessionUsageTracker` (v2.1 ADDON-T11 이식); StatusBarItem 바인딩 → host 후속 |
+| TEL-003 | Telemetry collector | core | [x] **2026-09-12** `TelemetryCollector` 턴/도구/토큰 로그 (v2.1 C4-T25 이식) |
 
 ---
 
@@ -655,7 +655,7 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 
 ## 다음으로 할 일
 
-1. **Phase 8 잔여** — TEL-001~003 → SKILL/MEM → BON/SCM → BROWSER/DESIGN/GH/ART.
+1. **Phase 8 잔여** — SKILL/MEM → BON/SCM → BROWSER/DESIGN/GH/ART. (TEL-001~003 `[x]` 2026-09-12)
 2. **Phase 7 REVIEW** — REVIEW-004 checkpoint → REVIEW-001~002 `openReview` loop → REVIEW-006 apply.
 3. **INLINE-005~007** — review lifecycle + SelectionDiffApply + completion provider.
 4. ~~**STREAM-004** — follow-up prior (`content || turnProse join`)~~ `[x]` (`a8f890c`).
