@@ -65,7 +65,7 @@ Phase 6 Track 0–4 `[x]` (PlanCard + `packages/plan` + HOST-008b + INT-002 Suba
 | CONV-013 | Work timeline (= MessageSteps 본체) | [x] | **완료** |
 | CONV-016 | ChangedFiles 바 | [~] | **미룸** — 바 OK / 내부 동작은 checkpoint 이후 |
 | HOST-002 | incomplete stream 로그 | [~] | RCA |
-| STREAM-004 / CHAT send | **TODO:** 같은 탭 follow-up에서 UI엔 대화가 보이는데 모델이 prior를 모름 — `chat.send`가 `content`만 직렬화하고, `sealBodyBeforeTools` 후 assistant `content:''` + `turnProse`만 남는 경우 prior가 빈 문자열로 감 | [ ] | prior 직렬화: `content \|\| turnProse join` (+ 필요 시 prior attachment); `useChatStream` / `useChatSendFlow`; 재현 로그 `msgs=N` + contentLen |
+| STREAM-004 / CHAT send | follow-up prior 직렬화 `content \|\| turnProse join` | [x] | **완료** (`a8f890c`, 2026-08-30) |
 
 **메모:** explore Thought pause는 기적용.  
 **TODO (나중):** 같은 탭 history lossy — UI=`content`+`turnProse`, API=`content`만 → tool-heavy 턴 follow-up 시 모델이 위 대화를 모름. New Chat 격리는 정상(CHAT-009).
@@ -302,7 +302,7 @@ Phase 0 시작 전/병행: shared 계약.
 | STREAM-001 | Assistant stream session | chat-ui (표시) | [x] createAssistantStreamSession + ownerSessionId routing; tab settle/error; unit tests. core runtime → REL/useChatStream 별도 |
 | STREAM-002 | Turn state | chat-ui (표시) | [-] **스킵** — phase rail/label 미배선; Thought/Exploring/Ran 등 MessageSteps가 바로 표시. `deriveTurnStatus` unused 유지. REL-004 core [x] |
 | STREAM-003 | Send epoch | chat-ui (표시) | [x] SendEpochMap per-tab; wired in send/stop/resynth. Runtime = REL-005 [x] |
-| STREAM-004 | Streaming buffer stabilization | chat-ui (표시) | [x] single-buffer contract (dedupe + sealBodyBeforeTools); REL-003 debounce core [x]. **TODO:** seal 후 `content:''`/`turnProse`만 있을 때 follow-up `chat.send` prior 빈약 — Session WIP 2026-08-23 |
+| STREAM-004 | Streaming buffer stabilization | chat-ui (표시) | [x] single-buffer contract (dedupe + sealBodyBeforeTools); REL-003 debounce core [x]. prior 직렬화 `content \|\| turnProse` — **2026-08-30 완료** (`a8f890c`) |
 | STREAM-005 | Prose sealing | chat-ui | [x] sealTurnProse.ts (=v2.1) + STREAM-004 seal contract tests |
 | STREAM-006 | Regenerate turn | chat-ui | [x] regenerateTurn moveUserTurnToEnd (edit=regen); unit tests; REL-006 core [x] |
 | STREAM-007 | Stop / cancellation | chat-ui | [x] StopHandler keep\|discard + send-flow; unit tests. cancelInFlight → loop/core later |
@@ -647,7 +647,7 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 1. ~~**HARNESS-005** — rules loader + inject (compact 밖 SoT)~~ `[x]`
 2. ~~**PLAN-009** — approved plan context inject / enforcement~~ `[x]`
 3. ~~**HARNESS-002 / 004** — verification-first + micro-loop~~ `[x]`
-4. **STREAM-004** — prior `content \|\| turnProse` (안정 표면)
+4. ~~**STREAM-004** — prior `content \|\| turnProse` (안정 표면)~~ `[x]` (`a8f890c`)
 5. **HOST-002** — final-cut RCA only
 6. (선택) chatSend → `createWiredSubagentHost` dedupe
 
@@ -658,11 +658,11 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 1. **Phase 8 잔여** — TEL-001~003 → SKILL/MEM → BON/SCM → BROWSER/DESIGN/GH/ART.
 2. **Phase 7 REVIEW** — REVIEW-004 checkpoint → REVIEW-001~002 `openReview` loop → REVIEW-006 apply.
 3. **INLINE-005~007** — review lifecycle + SelectionDiffApply + completion provider.
-4. **STREAM-004** — follow-up prior (`content || turnProse join`) — 안정 표면 최소 침습.
+4. ~~**STREAM-004** — follow-up prior (`content || turnProse join`)~~ `[x]` (`a8f890c`).
 5. **HOST-002** — final-answer 중도 끊김 RCA — 확정 전 휴리스틱 패치 금지.
 6. Phase 3 미룸: **CONV-014** · **CONV-016**.
 7. (선택) chatSend ↔ `createWiredSubagentHost` 공유.
 
-**최근 세션:** MCP-001~006 · HARNESS-001/003/006 · INLINE-001~004 host spine · PLAN-009 · HARNESS-002/004.
+**최근 세션:** MCP-001~006 · HARNESS-001~006 · INLINE-001~004 host spine · PLAN-009 · STREAM-004 prior 직렬화 (`a8f890c`) · chat-ui typecheck 52→0 · 모드별 응답 셰이핑 (MODE-*).
 
 **에이전트:** 위 「안정 표면」+「Claude Code → agent-k」를 읽고 수정할 것. Agent 루프에 Plan FSM을 넓게 넣지 말 것. Phase 4 worktree는 `packages/worktree` (+ host thin adapter).
