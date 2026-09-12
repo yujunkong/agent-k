@@ -17,3 +17,4 @@ export * from './mode';
 export * from './debug';
 export * from './reliability';
 export * from './subagent';
+export * from './telemetry';
