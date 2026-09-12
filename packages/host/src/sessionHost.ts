@@ -9,6 +9,7 @@ import type {
 } from '@agent-k/shared';
 import * as vscode from 'vscode';
 import { hostLog } from './hostLog';
+import { listCheckpoints, restoreCheckpoint as restoreCheckpointFromSpine } from './checkpointHost';
 
 /** In-memory session bag (workspaceState persistence deferred to SessionManager). */
 class HostSessionStore {
@@ -38,12 +39,17 @@ class HostSessionStore {
 
 const sessionStore = new HostSessionStore();
 
-/** Checkpoint list is empty until SAFE-006 CheckpointManager exists. */
+/** Checkpoint list — real checkpoints from the host checkpoint spine (INLINE-005). */
 export function sendCheckpointList(webview: vscode.Webview | undefined): void {
   if (!webview) return;
   void webview.postMessage({
     type: 'checkpoint.listResult',
-    checkpoints: [],
+    checkpoints: listCheckpoints().map((c) => ({
+      id: c.id,
+      label: c.label,
+      timestamp: c.timestamp,
+      fileCount: c.fileSnapshots.length,
+    })),
   });
 }
 
@@ -74,11 +80,7 @@ export function persistSessionsToHost(
   sessionStore.hydrateFrom(payload.sessions, payload.currentId);
 }
 
-/** Checkpoint restore stub (SAFE-006). */
+/** Checkpoint restore — real fs apply via the host checkpoint spine (INLINE-005). */
 export async function restoreCheckpoint(id: string, reason?: string): Promise<void> {
-  void id;
-  void reason;
-  void vscode.window.showWarningMessage(
-    'Agent K: checkpoint restore pending (SAFE-006).',
-  );
+  await restoreCheckpointFromSpine(id, reason);
 }

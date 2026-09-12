@@ -485,15 +485,15 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 | INLINE-002 | Selection context | host/core + chat-ui(UI) | [x] **2026-08-27** selection capture → `inline.edit.request` |
 | INLINE-003 | Inline edit generation | host/core + chat-ui(UI) | [x] **2026-08-27** `ChatSendPayload.inlineEdit` + AgentLoop inject |
 | INLINE-004 | Inline edit diff | host/core + chat-ui(UI) | [x] **2026-08-27** `file.edit` `source: inlineEdit` tag |
-| INLINE-005 | Inline edit review | host/core + chat-ui(UI) | [~] UI logic exists; checkpoint host stub |
-| INLINE-006 | Selection diff apply | host/core + chat-ui(UI) | [ ] |
-| INLINE-007 | Inline Completion | host/core + chat-ui(UI) | [ ] |
-| REVIEW-001 | Code Review session | core/host (+ chat-ui) | [ ] |
-| REVIEW-002 | Agent Review loop | core/host (+ chat-ui) | [ ] |
-| REVIEW-003 | Review apply policy | core/host (+ chat-ui) | [ ] |
-| REVIEW-004 | Review checkpoint | core/host (+ chat-ui) | [ ] |
-| REVIEW-005 | Review diff | core/host (+ chat-ui) | [ ] |
-| REVIEW-006 | Accept / Apply / Undo | core/host (+ chat-ui) | [ ] |
+| INLINE-005 | Inline edit review | host/core + chat-ui(UI) | [x] **2026-09-12** host checkpoint spine (`checkpointHost.ts`) — restore 실 fs 적용 + list 교체 |
+| INLINE-006 | Selection diff apply | host/core + chat-ui(UI) | [x] **2026-09-12** `SelectionDiffApply` host 이식 + `agent-k.selectionDiff` register (v2.1 이식) |
+| INLINE-007 | Inline Completion | host/core + chat-ui(UI) | [x] **2026-09-12** `AgentKInlineCompletionProvider` host 이식 + activate register (v2.1 이식) |
+| REVIEW-001 | Code Review session | core/host (+ chat-ui) | [x] **2026-09-12** `AgentReviewLoop` reviewDiff/static hints (v2.1 C7-T11 이식) |
+| REVIEW-002 | Agent Review loop | core/host (+ chat-ui) | [x] **2026-09-12** `reviewWithLM` static+LM merge + `parseReviewFindingsJson` (v2.1 ADDON-T14 이식) |
+| REVIEW-003 | Review apply policy | core/host (+ chat-ui) | [x] **2026-09-12** `AcceptFix` accept/acceptBatch + lint 검증 (v2.1 C7-T13 이식) |
+| REVIEW-004 | Review checkpoint | core/host (+ chat-ui) | [x] **2026-09-12** host checkpoint spine — `ApplySelected` 적용 전 checkpoint + `restoreCheckpoint` 실 fs 적용 |
+| REVIEW-005 | Review diff | core/host (+ chat-ui) | [x] **2026-09-12** `PendingStore` + `getFileDiff`/`getFullDiff` (v2.1 C2-T15 이식) |
+| REVIEW-006 | Accept / Apply / Undo | core/host (+ chat-ui) | [x] **2026-09-12** `CheckboxSync` + `ApplySelected` + `UndoManager` (v2.1 C2-T13/16/17 이식) |
 
 ---
 
@@ -656,13 +656,12 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 ## 다음으로 할 일
 
 1. ~~**Phase 8 잔여**~~ — TEL/SKILL/MEM/BON/SCM/BROWSER/DESIGN/GH/ART 도메인 `[x]` (2026-09-12). 잔여: BROWSER-004 preview UI · ART-002 갤러리 UI · ART-003 open command · GH-002 token.
-2. **Phase 7 REVIEW** — REVIEW-004 checkpoint → REVIEW-001~002 `openReview` loop → REVIEW-006 apply.
-3. **INLINE-005~007** — review lifecycle + SelectionDiffApply + completion provider.
-4. ~~**STREAM-004** — follow-up prior (`content || turnProse join`)~~ `[x]` (`a8f890c`).
-5. **HOST-002** — final-answer 중도 끊김 RCA — 확정 전 휴리스틱 패치 금지.
-6. Phase 3 미룸: **CONV-014** · **CONV-016**.
-7. (선택) chatSend ↔ `createWiredSubagentHost` 공유.
+2. ~~**Phase 7 REVIEW**~~ — REVIEW-001~006 + INLINE-005~007 `[x]` (2026-09-12). 잔여: chat-ui Review/Finding UI 배선.
+3. **HOST-002** — final-answer 중도 끊김 RCA — 확정 전 휴리스틱 패치 금지.
+4. Phase 3 미룸: **CONV-014** · **CONV-016**.
+5. **Phase 10 통합 검증** — INT-001, 003~009 (INT-002만 `[x]`).
+6. (선택) chatSend ↔ `createWiredSubagentHost` 공유.
 
-**최근 세션:** MCP-001~006 · HARNESS-001~006 · INLINE-001~004 host spine · PLAN-009 · STREAM-004 prior 직렬화 (`a8f890c`) · chat-ui typecheck 52→0 · 모드별 응답 셰이핑 (MODE-*) · TEL-001~003 · SKILL-001~003 · MEM-001~004 · BON-001~005 · SCM-001 · BROWSER-001~003 · DESIGN-001~002 · GH-001~003 · ART-001 (2026-09-12).
+**최근 세션:** STREAM-004 prior 직렬화 (`a8f890c`) · chat-ui typecheck 52→0 · 모드별 응답 셰이핑 (MODE-*) · TEL-001~003 · SKILL-001~003 · MEM-001~004 · BON-001~005 · SCM-001 · BROWSER-001~003 · DESIGN-001~002 · GH-001~003 · ART-001 · REVIEW-001~006 · INLINE-005~007 host spine (2026-09-12).
 
 **에이전트:** 위 「안정 표면」+「Claude Code → agent-k」를 읽고 수정할 것. Agent 루프에 Plan FSM을 넓게 넣지 말 것. Phase 4 worktree는 `packages/worktree` (+ host thin adapter).

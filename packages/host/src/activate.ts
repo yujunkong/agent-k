@@ -20,6 +20,8 @@ import {
   bootstrapMcpOnActivate,
   shutdownMcp,
 } from './mcpHost';
+import { SelectionDiffApply } from './inline/SelectionDiffApply';
+import { AgentKInlineCompletionProvider } from './inline/InlineCompletionProvider';
 
 let provider: ChatViewProvider | undefined;
 
@@ -42,6 +44,14 @@ export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvid
   context.subscriptions.push(
     provider.getInlineEditController().register(context),
   );
+
+  // INLINE-006/007 — selection diff + inline completion (best-effort register).
+  try {
+    new SelectionDiffApply().register(context);
+    new AgentKInlineCompletionProvider().register(context);
+  } catch {
+    /* non-fatal — inline UX is best-effort */
+  }
 
   // Register BEFORE any work that can throw — Activity Bar view must resolve.
   context.subscriptions.push(
