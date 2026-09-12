@@ -76,6 +76,16 @@ export {
 } from './registry';
 export { AdoptWinner, type AdoptionResult, type AdoptableTrial } from './AdoptWinner';
 export { BestOfN, type BoNTrial, type BoNConfig, type BoNTrialRunner } from './BestOfN';
+export {
+  CommitMessageGenerator,
+  type ChangeSummary,
+  type CommitMessageOptions,
+  type CommitResult,
+  type DiffSummary,
+  type GeneratedCommitMessage,
+  type GeneratedPRDescription,
+  type MessageGeneratorLM,
+} from './CommitMessageGenerator';
 export { StalenessChecker } from './staleness';
 export {
   handleWorktreeReviewMessage,

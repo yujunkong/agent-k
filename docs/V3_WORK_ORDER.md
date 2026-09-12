@@ -515,39 +515,39 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 | HARNESS-005 | Project rules loader | core | [x] **2026-08-27** `ProjectRulesLoader` + ContextAssembler/AgentLoop inject (AGENTS.md / `.agentk/rules` / `.cursor/rules`, compact 밖) |
 | HARNESS-006 | Routing heuristics | core | [x] **2026-08-27** `routeByHeuristics` → model tier in chatSend |
 | HARNESS-007 | Context rules / Cursor pattern / UX helpers | core | [~] **2026-08-27** CursorPattern + TurnStructure inject; search-before-read nudge |
-| BROWSER-001 | Browser session | core (+ chat-ui preview) | [ ] |
-| BROWSER-002 | Browser automation | core (+ chat-ui preview) | [ ] |
-| BROWSER-003 | Browser evidence | core (+ chat-ui preview) | [ ] |
-| BROWSER-004 | Browser preview | core (+ chat-ui preview) | [ ] |
-| DESIGN-001 | Design Mode | core (+ chat-ui) | [ ] |
-| DESIGN-002 | Design inspection workflow | core (+ chat-ui) | [ ] |
+| BROWSER-001 | Browser session | core (+ chat-ui preview) | [x] **2026-09-12** `BrowserSessionManager` 세션 풀/LRU (v2.1 C7-T02 이식; Playwright optional) |
+| BROWSER-002 | Browser automation | core (+ chat-ui preview) | [x] **2026-09-12** `BrowserTools` navigate/click/scroll/wait/screenshot/evaluate (v2.1 C7-T01 이식) |
+| BROWSER-003 | Browser evidence | core (+ chat-ui preview) | [x] **2026-09-12** `BrowserEvidenceCollector` screenshot/console/network (v2.1 C6-T29 이식) |
+| BROWSER-004 | Browser preview | core (+ chat-ui preview) | [~] store 도메인 완료 — preview UI는 chat-ui 후속 |
+| DESIGN-001 | Design Mode | core (+ chat-ui) | [x] **2026-09-12** `DesignModeOverlay` 주석/좌표/스냅샷 (v2.1 C7-T03 이식) |
+| DESIGN-002 | Design inspection workflow | core (+ chat-ui) | [x] **2026-09-12** `DesignModeContext` 컨텍스트 주입 (v2.1 C7-T04 이식); overlay UI는 chat-ui 후속 |
 | MCP-001 | MCP client | core | [x] **2026-08-27** `MCPClient` + stdio session + host bootstrap |
 | MCP-002 | MCP reload | core | [x] **2026-08-27** `mcp.reload` + `agent-k.mcp.reload` |
 | MCP-003 | MCP connect | core | [x] **2026-08-27** connect one from settings |
 | MCP-004 | MCP disconnect | core | [x] **2026-08-27** disconnect all/one |
 | MCP-005 | MCP permissions | core | [x] **2026-08-27** `checkMcpToolPermission` + feature flag |
 | MCP-006 | Stdio MCP session / bootstrap / parse | core | [x] **2026-08-27** `StdioMcpSession` + `bootstrapMcp` + `parseMcpServersMap` (shared) |
-| SKILL-001 | Skills system | core | [ ] |
-| SKILL-002 | Skill discovery/loading | core | [ ] |
-| SKILL-003 | Skill feature flag | core | [ ] |
-| MEM-001 | Memories | core | [ ] |
-| MEM-002 | SecretStorage integration | core | [ ] |
-| MEM-003 | Memory feature flag | core | [ ] |
-| MEM-004 | Auto memory detector | core | [ ] |
-| GH-001 | GitHub agent workflow | core/host | [ ] |
-| GH-002 | GitHub token | core/host | [ ] |
-| GH-003 | PR/Issue workflow | core/host | [ ] |
-| ART-001 | Artifact store | core (+ chat-ui gallery) | [ ] |
-| ART-002 | Artifact gallery | core (+ chat-ui gallery) | [ ] |
-| ART-003 | Artifact open command | core (+ chat-ui gallery) | [ ] |
-| BON-001 | Best-of-N execution | worktree | [ ] |
-| BON-002 | Candidate comparison | worktree | [ ] |
-| BON-003 | Candidate diff | worktree | [ ] |
-| BON-004 | Adopt winner | worktree | [ ] |
-| BON-005 | Worktree isolation for candidates | worktree | [ ] |
-| SCM-001 | Commit message generator | worktree/host | [ ] |
+| SKILL-001 | Skills system | core | [x] **2026-09-12** `SkillRegistry` (v2.1 C7-T19 이식; load/pin/unpin/inject + secret 마스킹) |
+| SKILL-002 | Skill discovery/loading | core | [x] **2026-09-12** `loadAll`/`reload`/`injectPinnedSkills` + Tier A 캡 경고 |
+| SKILL-003 | Skill feature flag | core | [x] **2026-09-12** `checkSkillFeature` gate |
+| MEM-001 | Memories | core | [x] **2026-09-12** `MemoryStore` 슬롯 예산 + `injectMemoriesIntoPrompt` (v2.1 C7-T14 이식) |
+| MEM-002 | SecretStorage integration | core | [x] **2026-09-12** `SecretStoragePort` port (vscode 어댑터 → host 주입) |
+| MEM-003 | Memory feature flag | core | [x] **2026-09-12** `checkMemoryFeature` gate |
+| MEM-004 | Auto memory detector | core | [x] **2026-09-12** `AutoMemoryDetector` 명시 저장/선호/반복 패턴 (v2.1 C4-T20 이식) |
+| GH-001 | GitHub agent workflow | core/host | [x] **2026-09-12** `GitHubAgent` auth/issues/PRs (v2.1 이식; gh CLI) |
+| GH-002 | GitHub token | core/host | [~] gh CLI auth 위임 — 별도 token 관리는 PROVIDER-017 범위 |
+| GH-003 | PR/Issue workflow | core/host | [x] **2026-09-12** `createPR`/`createIssue`/`getPRReviews`/review comment (v2.1 이식) |
+| ART-001 | Artifact store | core (+ chat-ui gallery) | [x] **2026-09-12** `ArtifactStore` save/persist/delete (v2.1 C7-T16 이식) |
+| ART-002 | Artifact gallery | core (+ chat-ui gallery) | [~] `exportGallery` markdown 완료 — 갤러리 UI는 chat-ui 후속 |
+| ART-003 | Artifact open command | core (+ chat-ui gallery) | [~] store 도메인 완료 — open command는 host 후속 |
+| BON-001 | Best-of-N execution | worktree | [x] **2026-09-12** `BestOfN` fan-out + `BoNTrialRunner` 주입 (v2.1 C7-T08 이식) |
+| BON-002 | Candidate comparison | worktree | [x] **2026-09-12** `getWinner` 성공+토큰 효율 비교 |
+| BON-003 | Candidate diff | worktree | [x] **2026-09-12** `getTrialDiff`/`getWinnerDiff` |
+| BON-004 | Adopt winner | worktree | [x] **2026-09-12** `adoptWinner` 승자 유지/패자 cleanup + `AdoptWinner` main adopt |
+| BON-005 | Worktree isolation for candidates | worktree | [x] **2026-09-12** 후보 worktree `assertManagedWorktree` 검증 |
+| SCM-001 | Commit message generator | worktree/host | [x] **2026-09-12** `CommitMessageGenerator` staged/branch diff + LM/fallback (v2.1 C7-T24 이식; runGit argv) |
 | TEL-001 | Cost tracker | core | [x] **2026-09-12** `CostTracker` + `BudgetStorage` port (v2.1 C4-T26 이식; localStorage → port + 메모리 폴백) |
-| TEL-002 | Status bar cost | core | [x] **2026-09-12** `StatusBarCost` + `SessionUsageTracker` (v2.1 ADDON-T11 이식); StatusBarItem 바인딩 → host 후속 |
+| TEL-002 | Status bar cost | core | [x] **2026-09-12** `StatusBarCost` + `SessionUsageTracker` (v2.1 ADDON-T11 이식); host `runtimeSingletons` 실트래커 교체 + `chatSend` usage feed 완료 |
 | TEL-003 | Telemetry collector | core | [x] **2026-09-12** `TelemetryCollector` 턴/도구/토큰 로그 (v2.1 C4-T25 이식) |
 
 ---
@@ -655,7 +655,7 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 
 ## 다음으로 할 일
 
-1. **Phase 8 잔여** — SKILL/MEM → BON/SCM → BROWSER/DESIGN/GH/ART. (TEL-001~003 `[x]` 2026-09-12)
+1. ~~**Phase 8 잔여**~~ — TEL/SKILL/MEM/BON/SCM/BROWSER/DESIGN/GH/ART 도메인 `[x]` (2026-09-12). 잔여: BROWSER-004 preview UI · ART-002 갤러리 UI · ART-003 open command · GH-002 token.
 2. **Phase 7 REVIEW** — REVIEW-004 checkpoint → REVIEW-001~002 `openReview` loop → REVIEW-006 apply.
 3. **INLINE-005~007** — review lifecycle + SelectionDiffApply + completion provider.
 4. ~~**STREAM-004** — follow-up prior (`content || turnProse join`)~~ `[x]` (`a8f890c`).
@@ -663,6 +663,6 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 6. Phase 3 미룸: **CONV-014** · **CONV-016**.
 7. (선택) chatSend ↔ `createWiredSubagentHost` 공유.
 
-**최근 세션:** MCP-001~006 · HARNESS-001~006 · INLINE-001~004 host spine · PLAN-009 · STREAM-004 prior 직렬화 (`a8f890c`) · chat-ui typecheck 52→0 · 모드별 응답 셰이핑 (MODE-*).
+**최근 세션:** MCP-001~006 · HARNESS-001~006 · INLINE-001~004 host spine · PLAN-009 · STREAM-004 prior 직렬화 (`a8f890c`) · chat-ui typecheck 52→0 · 모드별 응답 셰이핑 (MODE-*) · TEL-001~003 · SKILL-001~003 · MEM-001~004 · BON-001~005 · SCM-001 · BROWSER-001~003 · DESIGN-001~002 · GH-001~003 · ART-001 (2026-09-12).
 
 **에이전트:** 위 「안정 표면」+「Claude Code → agent-k」를 읽고 수정할 것. Agent 루프에 Plan FSM을 넓게 넣지 말 것. Phase 4 worktree는 `packages/worktree` (+ host thin adapter).

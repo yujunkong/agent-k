@@ -28,6 +28,7 @@ import {
   resolveThinkingCapability,
 } from '@agent-k/providers';
 import { PermissionGate } from '@agent-k/safety';
+import { sessionUsageTracker, updateUsageStatusBar } from './runtimeSingletons';
 import type {
   AgentMode,
   ChatSendPayload,
@@ -473,6 +474,18 @@ export async function runHostChatSend(
               }
               if (chunk.toolCalls?.length) {
                 mergeToolCallDeltas(toolAcc, chunk.toolCalls);
+              }
+              // TEL-002: feed stream usage into session tracker (best-effort)
+              if (chunk.usage) {
+                try {
+                  sessionUsageTracker.recordUsage(
+                    chunk.usage.promptTokens || 0,
+                    chunk.usage.completionTokens || 0,
+                  );
+                  updateUsageStatusBar();
+                } catch {
+                  /* usage tracking is best-effort */
+                }
               }
             }
             const toolCalls = [...toolAcc.values()]
@@ -970,6 +983,18 @@ export async function runHostChatSend(
               // Comment: log-only — do not guess length-cut / auto-continue without evidence
               if (chunk.finishReason) {
                 finishReason = String(chunk.finishReason);
+              }
+              // TEL-002: feed stream usage into session tracker (best-effort)
+              if (chunk.usage) {
+                try {
+                  sessionUsageTracker.recordUsage(
+                    chunk.usage.promptTokens || 0,
+                    chunk.usage.completionTokens || 0,
+                  );
+                  updateUsageStatusBar();
+                } catch {
+                  /* usage tracking is best-effort */
+                }
               }
             }
           } finally {

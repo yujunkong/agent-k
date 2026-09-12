@@ -18,3 +18,8 @@ export * from './debug';
 export * from './reliability';
 export * from './subagent';
 export * from './telemetry';
+export * from './skills';
+export * from './memories';
+export * from './artifacts';
+export * from './browser';
+export * from './github';

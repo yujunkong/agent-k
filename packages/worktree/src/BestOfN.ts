@@ -5,6 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { WorktreeManager, type WorktreeInfo } from './WorktreeManager';
+import { assertManagedWorktree } from './pathValidation';
 
 export interface BoNTrial {
   id: string;
@@ -70,6 +71,11 @@ export class BestOfN {
       )
     );
 
+    // BON-005: every candidate must live inside the managed worktree root
+    for (const wt of worktrees) {
+      if (wt) assertManagedWorktree(this.manager.root, wt.path);
+    }
+
     const trialPromises = worktrees.map(async (wt, i) => {
       if (!wt) return null;
 
@@ -106,6 +112,19 @@ export class BestOfN {
 
   getResults(): BoNTrial[] {
     return [...this.trials];
+  }
+
+  /** BON-003: unified diff of a candidate worktree vs its HEAD. */
+  getTrialDiff(trialId: string): string {
+    const trial = this.trials.find((t) => t.id === trialId);
+    if (!trial) return '';
+    return this.manager.diff(trial.worktree.path);
+  }
+
+  /** BON-003: diff of the winning candidate (empty when no winner). */
+  getWinnerDiff(): string {
+    const winner = this.getWinner();
+    return winner ? this.getTrialDiff(winner.id) : '';
   }
 
   getWinner(): BoNTrial | null {

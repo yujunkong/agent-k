@@ -4,6 +4,7 @@
  */
 
 import * as vscode from 'vscode';
+import { SessionUsageTracker } from '@agent-k/core';
 
 /** Placeholder until DEBUG-* DebugLogServer exists. */
 export const debugLogServer = {
@@ -22,12 +23,8 @@ export const mcpClient = {
   },
 };
 
-/** Placeholder until TEL-* usage tracker exists. */
-export const sessionUsageTracker = {
-  getTotals: (): { totalTokens: number } => ({ totalTokens: 0 }),
-  formatStatusBar: (): string => 'Agent K',
-  formatTooltip: (): string => 'Agent K usage (pending)',
-};
+/** TEL-002 — real session usage tracker (core); StatusBarItem bound in activate. */
+export const sessionUsageTracker = new SessionUsageTracker();
 
 export let usageStatusBarItem: vscode.StatusBarItem | undefined;
 

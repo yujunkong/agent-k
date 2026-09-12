@@ -77,6 +77,11 @@ export class WorktreeManager {
     this.repoRoot = path.resolve(repoRoot);
   }
 
+  /** Read-only repo root — used by BON-005 candidate isolation checks. */
+  get root(): string {
+    return this.repoRoot;
+  }
+
   private git(args: string[], cwd = this.repoRoot, maxBuffer?: number): string {
     return runGit(args, { cwd, maxBuffer });
   }
