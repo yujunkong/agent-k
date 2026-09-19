@@ -91,7 +91,6 @@ export function JsonConfigTab() {
 
   return (
     <div className="settings-tab-content">
-      <h3>JSON Config</h3>
       <p style={{ fontSize: 12, opacity: 0.75, marginTop: 0 }}>
         워크스페이스 <code>{PROJECT_CONFIG_PATH}</code>으로 설정을 관리합니다.
         VS Code 설정보다 우선하며, 저장 시 즉시 적용됩니다. API 키는 파일에

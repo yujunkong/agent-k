@@ -233,7 +233,6 @@ export function ModelsTab() {
 
   return (
     <div className="settings-tab-content">
-      <h3>AI Providers</h3>
       <p className="settings-hint">
         Add a standard provider (OpenAI, Claude, OpenAI Compatible, OpenRouter, Ollama, LM Studio, …), then Save. Agent K detects the type, loads models, and prefers a healthy endpoint when the same model exists in more than one place.
       </p>
