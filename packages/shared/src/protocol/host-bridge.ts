@@ -47,6 +47,16 @@ export interface CheckpointListItem {
   fileCount?: number;
 }
 
+/** SET-013 — Settings → Rules tab row (basic `.agentrules` or custom `.agentk/rules/*`). */
+export interface RuleListItem {
+  id: string;
+  kind: 'basic' | 'custom';
+  fileName: string;
+  title: string;
+  path: string;
+  exists: boolean;
+}
+
 /** Webview → Host messages beyond Phase 0 hello/chat/session core. */
 export type HostBridgeWebviewMessage =
   | { type: 'config.update'; key: string; value: unknown }
@@ -113,7 +123,13 @@ export type HostBridgeWebviewMessage =
   /** MCP-003 — connect one (optional name) */
   | { type: 'mcp.connect'; name?: string }
   /** MCP-004 — disconnect all or one */
-  | { type: 'mcp.disconnect'; name?: string };
+  | { type: 'mcp.disconnect'; name?: string }
+  /** SET-013 — Settings → Rules tab list/load/save/create/delete. */
+  | { type: 'rules.list'; requestId: RequestId }
+  | { type: 'rules.load'; requestId: RequestId; id: string }
+  | { type: 'rules.save'; requestId: RequestId; id: string; content: string }
+  | { type: 'rules.create'; requestId: RequestId; title?: string }
+  | { type: 'rules.delete'; requestId: RequestId; id: string };
 
 /** Host → Webview messages for HOST bridge features. */
 export type HostBridgeHostMessage =
@@ -226,7 +242,51 @@ export type HostBridgeHostMessage =
       success: boolean;
       error?: string;
     }
-  | { type: 'checkpoint.listResult'; checkpoints: CheckpointListItem[] };
+  | { type: 'checkpoint.listResult'; checkpoints: CheckpointListItem[] }
+  /** SET-013 — Rules tab responses. */
+  | {
+      type: 'rules.listed';
+      requestId: RequestId;
+      rules: RuleListItem[];
+      otherFiles: string[];
+      error?: string;
+    }
+  | {
+      type: 'rules.loaded';
+      requestId: RequestId;
+      id?: string;
+      content?: string;
+      path?: string;
+      exists?: boolean;
+      kind?: 'basic' | 'custom';
+      title?: string;
+      fileName?: string;
+      error?: string;
+    }
+  | {
+      type: 'rules.saved';
+      requestId: RequestId;
+      ok: boolean;
+      id?: string;
+      path?: string;
+      title?: string;
+      error?: string;
+    }
+  | {
+      type: 'rules.created';
+      requestId: RequestId;
+      ok: boolean;
+      rule?: RuleListItem;
+      content?: string;
+      error?: string;
+    }
+  | {
+      type: 'rules.deleted';
+      requestId: RequestId;
+      ok: boolean;
+      id?: string;
+      error?: string;
+    };
 
 /** Re-export chat/session core for host router convenience. */
 export type CoreWebviewMessage =

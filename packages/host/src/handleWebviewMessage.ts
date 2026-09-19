@@ -54,6 +54,13 @@ import {
   disconnectMcp,
   reloadMcpFromSettings,
 } from './mcpHost';
+import {
+  handleRulesCreate,
+  handleRulesDelete,
+  handleRulesList,
+  handleRulesLoad,
+  handleRulesSave,
+} from './rulesHost';
 import type * as vscode from 'vscode';
 
 export type HostMessageRouterContext = {
@@ -384,6 +391,27 @@ async function dispatch(
 
     case 'checkpoint.restore':
       await restoreCheckpoint(msg.id, msg.reason);
+      return;
+
+    // SET-013 — Settings → Rules tab (project rules list/load/save/create/delete).
+    case 'rules.list':
+      await handleRulesList(webview, msg.requestId);
+      return;
+
+    case 'rules.load':
+      await handleRulesLoad(webview, msg.requestId, msg.id);
+      return;
+
+    case 'rules.save':
+      await handleRulesSave(webview, msg.requestId, msg.id, msg.content);
+      return;
+
+    case 'rules.create':
+      await handleRulesCreate(webview, msg.requestId, msg.title ?? '');
+      return;
+
+    case 'rules.delete':
+      await handleRulesDelete(webview, msg.requestId, msg.id);
       return;
 
     default:

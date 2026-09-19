@@ -80,6 +80,11 @@ export const WEBVIEW_TO_HOST_TYPES = [
   'mcp.reload',
   'mcp.connect',
   'mcp.disconnect',
+  'rules.list',
+  'rules.load',
+  'rules.save',
+  'rules.create',
+  'rules.delete',
 ] as const satisfies ReadonlyArray<WebviewToHostMessage['type']>;
 
 /** Closed list of host→webview `type` discriminants. */
@@ -106,4 +111,9 @@ export const HOST_TO_WEBVIEW_TYPES = [
   'worktree.apply.result',
   'worktree.reject.result',
   'checkpoint.listResult',
+  'rules.listed',
+  'rules.loaded',
+  'rules.saved',
+  'rules.created',
+  'rules.deleted',
 ] as const satisfies ReadonlyArray<HostToWebviewMessage['type']>;
