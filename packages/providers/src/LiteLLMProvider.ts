@@ -104,6 +104,7 @@ export class LiteLLMProvider implements LLMProviderInterface {
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let sawDone = false;
 
       try {
         while (true) {
@@ -118,6 +119,7 @@ export class LiteLLMProvider implements LLMProviderInterface {
             if (!line.startsWith('data: ')) continue;
             const data = line.slice(6).trim();
             if (data === '[DONE]') {
+              sawDone = true;
               yield { done: true };
               return;
             }
@@ -162,6 +164,11 @@ export class LiteLLMProvider implements LLMProviderInterface {
               // Skip malformed SSE JSON chunks
             }
           }
+        }
+        // HOST-002: server closed SSE without [DONE] — surface the cut signature
+        // (deltas already streamed; host logs only, never retries).
+        if (!sawDone) {
+          yield { done: true, incomplete: true };
         }
       } finally {
         reader.releaseLock();

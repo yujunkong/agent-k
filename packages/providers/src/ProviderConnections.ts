@@ -405,7 +405,11 @@ export function migrateFlatSettingsToConnections(): void {
   const uniq = [...new Set(models)];
 
   // Nothing useful in flat settings → leave empty (true "No providers yet").
-  if (!baseUrl && uniq.length === 0 && !apiKey && !rawType) return;
+  // A models-only list is a composer catalog, not a provider — require an
+  // endpoint (baseUrl / type / apiKey) before synthesizing a connection.
+  // (MODEL-006/007 RCA: models-only migration created a phantom connection
+  // that polluted the unified registry over manual setAvailableModels.)
+  if (!baseUrl && !apiKey && !rawType) return;
 
   const detected = baseUrl ? detectProviderType(baseUrl).type : 'litellm';
   const type: ProviderType =

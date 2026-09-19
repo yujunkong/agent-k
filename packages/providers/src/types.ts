@@ -62,6 +62,8 @@ export interface StreamChunk {
   error?: string;
   usage?: { promptTokens?: number; completionTokens?: number };
   finishReason?: string;
+  /** True when the SSE stream closed without [DONE] (HOST-002 stream-cut signature). */
+  incomplete?: boolean;
 }
 
 export type ProviderEventType = 'registered' | 'updated' | 'removed' | 'activated' | 'error';
