@@ -5,6 +5,9 @@ node_modules/
 .DS_Store
 *.local.json
 
+# ─── pi runtime (settings + artifacts; extension source lives in ../pi-agent-k) ───
+.pi/
+
 # ─── build / package outputs (not source) ───
 dist/
 out/
