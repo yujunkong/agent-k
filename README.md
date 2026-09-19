@@ -131,7 +131,7 @@ SET-001~013 `[x]` 탭 셸 (Models/Context/Features/Harness/MCP/…); 일부는 h
 | STREAM-004 | ~~follow-up prior 직렬화~~ — 완료 (`a8f890c`) |
 | HOST-002 | ~~final-answer 중도 끊김 RCA~~ — RCA 확정 + `incomplete` 계약 + 회귀 테스트 (2026-09-19) |
 | CONV-014 / 016 | ~~Thought soft-pause 잔여 · ChangedFiles 바 내부~~ — 완료 (2026-09-19) |
-| 횡단 | ~~chat-ui 경계 침식~~ — 정리 완료 (2026-09-19: vscode/fs/child_process/network 0건 + `boundary.test.ts` 가드) · 프로토콜 드리프트 · harness D1 config 버그 |
+| 횡단 | ~~chat-ui 경계 침식~~ — 정리 완료 (2026-09-19: vscode/fs/child_process/network 0건 + `boundary.test.ts` 가드) · 프로토콜 드리프트(`rules.*` 해소, `plan.save/load`·`host.bestOfN` 잔여) · harness D1 config 버그 |
 
 ---
 
@@ -161,7 +161,7 @@ docs/                        # Master, Work Order, Monorepo, Plan
 1. **BROWSER-004** live session source (Playwright) · **GH-002** token · **BON** AgentLoop runner  
 2. **HARNESS-007** core/chat-ui 프롬프트 헬퍼 단일화 (harness D7/D16)  
 3. **harness D1** config read 버그 수정 — 마스터 스위치 복구  
-4. **프로토콜 드리프트** — `plan.save/load`, `host.bestOfN` 등 유실 메시지 배선  
+4. **프로토콜 드리프트** — ~~`rules.*`~~ `[x]` (2026-09-19) · `plan.save/load`, `host.bestOfN` 등 유실 메시지 배선  
 5. ~~**chat-ui 경계 침식** 정리~~ `[x]` (2026-09-19)  
 
 ---
