@@ -44,13 +44,13 @@
 | S-011 | .cursor/rules/*.mdc (Monorepo Part C) | .cursor/rules | [x] |
 | S-012 | README 빌드/실행 최소 안내 | root | [x] |
 
-**바로 다음:** Phase 8 잔여 (**TEL** → SKILL/MEM → BON…) · Phase 7 **REVIEW** spine · INLINE-005~007.  
+**바로 다음:** Phase 8 잔여 — **BROWSER-004** live session source · **GH-002** token · **BON** AgentLoop runner. Phase 7 REVIEW UI 배선 · Phase 10 통합 검증 완료 (2026-09-19).  
 Phase 6 Track 0–4 `[x]` (PlanCard + `packages/plan` + HOST-008b + INT-002 SubagentHost wire).  
 **주의:** 「안정 표면 (2026-08-23)」 절 — Phase 0–3 UI/스트림은 최소 침습만.  
 **Plan canonical:** Timeline **PlanCard** + `PlanSession`/`PlanEvent` (R-004). V1 markdown SoT / `PlanReview` overlay는 본선 제외.  
 **Agent loop:** Claude Code식 gather→act→verify (루프는 가볍게). Plan FSM / Evidence replan은 **Plan 실행 경로만** — 일상 AgentLoop에 올리지 않음. 상세 「Claude Code → agent-k」 절.  
 **제품 현황 요약:** 루트 [`README.md`](../README.md) (Phase 대시보드 + 쓸 수 있는 것 / 안 된 것).  
-**HARNESS-001~006 `[x]`** (007 `[~]`) · **MCP-001~006 `[x]`** · **PLAN-009 `[x]`** · **INLINE-001~004 `[x]`** · REVIEW / TEL / BROWSER 등 Phase 8 잔여 `[ ]`.
+**HARNESS-001~006 `[x]`** (007 `[~]`) · **MCP-001~006 `[x]`** · **PLAN-009 `[x]`** · **INLINE-001~007 `[x]`** · **REVIEW-001~006 `[x]`** · **INT-001~009 `[x]`** (domain 통합, 2026-09-19).
 
 ---
 
@@ -90,8 +90,8 @@ Phase 6 Track 0–4 `[x]` (PlanCard + `packages/plan` + HOST-008b + INT-002 Suba
 
 ### 의도적 미룸 (지금 손대지 말 것)
 
-- **CONV-014** 잔여(메인=서브 detail 동일) → **SUB-\*** 이후
-- **CONV-016** 바 내부 동작(열기/체크포인트 연동) → **checkpoint 이후** (바 노출만 OK)
+- ~~**CONV-014** 잔여(메인=서브 detail 동일) → **SUB-\*** 이후~~ `[x]` (2026-09-19)
+- ~~**CONV-016** 바 내부 동작(열기/체크포인트 연동) → **checkpoint 이후**~~ `[x]` (2026-09-19)
 - **STREAM-002** phase rail → 스킵 유지
 - **CONV-017** / **CHAT-010** → 스킵 유지
 
@@ -118,11 +118,11 @@ Phase 0 시작 전/병행: shared 계약.
 |------------|------|--------|------|
 | EXT-001 | Extension activation | extensions/agent-k + host | [x] |
 | EXT-002 | Chat View | extensions/agent-k + host | [x] |
-| EXT-003 | Command registration | extensions/agent-k + host | [x] |
+| EXT-003 | Command registration | extensions/agent-k + host | [x] **2026-09-19** 커맨드 표면 완성 — Plan Build/Review(editor), Review(`ui.review.open`+findings), Artifacts(`ui.artifacts.open`), Browser(`ui.browser.open`), Debug/Switch Mode(`mode.switch`), New Chat(`session.new`) 배선; BoN은 placeholder runner |
 | EXT-004 | CSP / nonce / Webview security | extensions/agent-k + host | [x] |
 | EXT-005 | Workspace path abstraction | extensions/agent-k + host | [x] |
 | HOST-001 | ChatViewProvider | host | [x] |
-| HOST-002 | Chat send bridge | host | [~] AgentLoop wired; **2026-08-22** empty-reply/tool diag; final-cut **RCA → 08-23** (이어쓰기 추측 패치 철회) |
+| HOST-002 | Chat send bridge | host | [x] AgentLoop wired; final-cut **RCA 확정** (서버 SSE `[DONE]` 미수신) — provider `incomplete` 계약 + host 정밀 로그 (재시도 없음); 회귀 `streamCut.test.ts` (2026-09-19) |
 | HOST-003 | Composer host | host | [x] |
 | HOST-004 | Config bridge | host | [x] |
 | HOST-005 | Project config bridge | host | [x] |
@@ -322,9 +322,9 @@ Phase 0 시작 전/병행: shared 계약.
 | CONV-011 | Worktree diff presentation | chat-ui | [x] DiffReviewPanel (=v2.1) + ChangedFilesBar; smoke test. WT apply → Phase 4 |
 | CONV-012 | Change summary normalization | chat-ui | [x] normalizeChangeSummary (+ unit tests) |
 | CONV-013 | Work timeline | chat-ui | [x] = MessageSteps 본체 (Exploring/Explored·Thought·Ran·Edited·liveProse). 별도 컴포넌트 없음 |
-| CONV-014 | Timeline step card | chat-ui | [~] **미룸** — 서브에이전트(Phase 5 SUB-*) 이후. 메인 chrome은 018/019로 확인됨; detail=메인 동일성은 SUB 이후 |
+| CONV-014 | Timeline step card | chat-ui | [x] **2026-09-19** turn-on-tool-lifecycle 패치 (main loop `tool.start/end` turn 스탬프 = wiredSubagentHost parity) + `thoughtShellOrder.test.ts` 회귀 2건; SUB-* 완료로 조건 충족 |
 | CONV-015 | Explore Chrome | chat-ui | [x] ExploreChrome kept for nested group/thought rows; main+detail = MessageSteps |
-| CONV-016 | Changed Files bar | chat-ui | [~] **미룸** — 바 노출 OK, 클릭/열기 등 동작 안 함 → **checkpoint 이후** (SAFE/WT 연동) |
+| CONV-016 | Changed Files bar | chat-ui | [x] **2026-09-19** checkpoint spine 완료로 조건 충족 — 바 인터랙티브(열기/Review/Checkpoints dropdown/restore) + `convUiCards.smoke.test.tsx` 3건 |
 | CONV-017 | Change Summary card | chat-ui | [-] **스킵** — 세션 변경 목록은 CONV-016 ChangedFilesBar만 사용 (턴 안 요약 카드 불필요) |
 | CONV-018 | Terminal Run Card | chat-ui | [x] host `terminal.run` + Ran 카드 — **2026-08-23 화면 확인 완료** |
 | CONV-019 | File Edit Card | chat-ui | [x] before→after + Shiki extract fix + 전체 lines/접힘~4줄 스크롤 — **2026-08-23 화면 확인 완료** |
@@ -518,7 +518,7 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 | BROWSER-001 | Browser session | core (+ chat-ui preview) | [x] **2026-09-12** `BrowserSessionManager` 세션 풀/LRU (v2.1 C7-T02 이식; Playwright optional) |
 | BROWSER-002 | Browser automation | core (+ chat-ui preview) | [x] **2026-09-12** `BrowserTools` navigate/click/scroll/wait/screenshot/evaluate (v2.1 C7-T01 이식) |
 | BROWSER-003 | Browser evidence | core (+ chat-ui preview) | [x] **2026-09-12** `BrowserEvidenceCollector` screenshot/console/network (v2.1 C6-T29 이식) |
-| BROWSER-004 | Browser preview | core (+ chat-ui preview) | [~] store 도메인 완료 — preview UI는 chat-ui 후속 |
+| BROWSER-004 | Browser preview | core (+ chat-ui preview) | [~] **2026-09-19** preview UI 배선 완료 (`ui.browser.open` + `BrowserPreview` 패널) — live session source는 Playwright(BROWSER-001~003) 후속 |
 | DESIGN-001 | Design Mode | core (+ chat-ui) | [x] **2026-09-12** `DesignModeOverlay` 주석/좌표/스냅샷 (v2.1 C7-T03 이식) |
 | DESIGN-002 | Design inspection workflow | core (+ chat-ui) | [x] **2026-09-12** `DesignModeContext` 컨텍스트 주입 (v2.1 C7-T04 이식); overlay UI는 chat-ui 후속 |
 | MCP-001 | MCP client | core | [x] **2026-08-27** `MCPClient` + stdio session + host bootstrap |
@@ -538,8 +538,8 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 | GH-002 | GitHub token | core/host | [~] gh CLI auth 위임 — 별도 token 관리는 PROVIDER-017 범위 |
 | GH-003 | PR/Issue workflow | core/host | [x] **2026-09-12** `createPR`/`createIssue`/`getPRReviews`/review comment (v2.1 이식) |
 | ART-001 | Artifact store | core (+ chat-ui gallery) | [x] **2026-09-12** `ArtifactStore` save/persist/delete (v2.1 C7-T16 이식) |
-| ART-002 | Artifact gallery | core (+ chat-ui gallery) | [~] `exportGallery` markdown 완료 — 갤러리 UI는 chat-ui 후속 |
-| ART-003 | Artifact open command | core (+ chat-ui gallery) | [~] store 도메인 완료 — open command는 host 후속 |
+| ART-002 | Artifact gallery | core (+ chat-ui gallery) | [x] **2026-09-19** host `ui.artifacts.open` emit + webview seed 배선 (갤러리 UI + AcceptFix diff 연동) |
+| ART-003 | Artifact open command | core (+ chat-ui gallery) | [x] **2026-09-19** `openArtifacts()` → `ui.artifacts.open` 배선 |
 | BON-001 | Best-of-N execution | worktree | [x] **2026-09-12** `BestOfN` fan-out + `BoNTrialRunner` 주입 (v2.1 C7-T08 이식) |
 | BON-002 | Candidate comparison | worktree | [x] **2026-09-12** `getWinner` 성공+토큰 효율 비교 |
 | BON-003 | Candidate diff | worktree | [x] **2026-09-12** `getTrialDiff`/`getWinnerDiff` |
@@ -584,15 +584,15 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 
 | Feature ID | 제목 | 패키지 | 상태 |
 |------------|------|--------|------|
-| INT-001 | Provider → Agent → Tool → Context → Chat E2E | integration | [ ] |
+| INT-001 | Provider → Agent → Tool → Context → Chat E2E | integration | [x] domain 통합 — `core/integration/integration.test.ts` (mode→context→tool 체인) |
 | INT-002 | Plan → Task → Subagent → Worktree → Review → Adopt | integration | [x] host wired SubagentHost + registry |
-| INT-003 | Auto Mode → Agent/Plan/Debug/Ask 전환 | integration | [ ] |
-| INT-004 | Streaming → Stop → Queue → Regenerate | integration | [ ] |
-| INT-005 | Inline Edit → Diff → Apply | integration | [ ] |
-| INT-006 | Provider failure → fallback/routing | integration | [ ] |
-| INT-007 | Worktree partial failure → rollback/recovery | integration | [ ] |
-| INT-008 | Cost/Telemetry 동작 | integration | [ ] |
-| INT-009 | Hooks + Verification micro-loop | integration | [ ] |
+| INT-003 | Auto Mode → Agent/Plan/Debug/Ask 전환 | integration | [x] domain 통합 — mode registry 전환/allowlist (`integration.test.ts`) |
+| INT-004 | Streaming → Stop → Queue → Regenerate | integration | [x] domain 통합 — `chat-ui/loop/streamingIntegration.test.ts` (5 tests) |
+| INT-005 | Inline Edit → Diff → Apply | integration | [x] domain 통합 — `chat-ui/chat/inlineEditIntegration.test.ts` (5 tests) |
+| INT-006 | Provider failure → fallback/routing | integration | [x] domain 통합 — routing degrade (`integration.test.ts`) |
+| INT-007 | Worktree partial failure → rollback/recovery | integration | [x] domain 통합 — `worktree/rollback.integration.test.ts` (5 tests) |
+| INT-008 | Cost/Telemetry 동작 | integration | [x] domain 통합 — tracker→status bar→telemetry (`integration.test.ts`) |
+| INT-009 | Hooks + Verification micro-loop | integration | [x] domain 통합 — hooks block + micro-loop (`integration.test.ts`) |
 
 ---
 
@@ -648,20 +648,21 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 2. ~~**PLAN-009** — approved plan context inject / enforcement~~ `[x]`
 3. ~~**HARNESS-002 / 004** — verification-first + micro-loop~~ `[x]`
 4. ~~**STREAM-004** — prior `content \|\| turnProse` (안정 표면)~~ `[x]` (`a8f890c`)
-5. **HOST-002** — final-cut RCA only
+5. ~~**HOST-002** — final-cut RCA only~~ `[x]` (2026-09-19)
 6. (선택) chatSend → `createWiredSubagentHost` dedupe
 
 ---
 
 ## 다음으로 할 일
 
-1. ~~**Phase 8 잔여**~~ — TEL/SKILL/MEM/BON/SCM/BROWSER/DESIGN/GH/ART 도메인 `[x]` (2026-09-12). 잔여: BROWSER-004 preview UI · ART-002 갤러리 UI · ART-003 open command · GH-002 token.
-2. ~~**Phase 7 REVIEW**~~ — REVIEW-001~006 + INLINE-005~007 `[x]` (2026-09-12). 잔여: chat-ui Review/Finding UI 배선.
-3. **HOST-002** — final-answer 중도 끊김 RCA — 확정 전 휴리스틱 패치 금지.
-4. Phase 3 미룸: **CONV-014** · **CONV-016**.
-5. **Phase 10 통합 검증** — INT-001, 003~009 (INT-002만 `[x]`).
-6. (선택) chatSend ↔ `createWiredSubagentHost` 공유.
+1. ~~**Phase 8 잔여**~~ — TEL/SKILL/MEM/BON/SCM/BROWSER/DESIGN/GH/ART 도메인 `[x]` (2026-09-12). 잔여: BROWSER-004 live session source · GH-002 token · BON AgentLoop runner.
+2. ~~**Phase 7 REVIEW**~~ — REVIEW-001~006 + INLINE-005~007 `[x]` (2026-09-12). ~~잔여: chat-ui Review/Finding UI 배선~~ `[x]` (2026-09-19 `ui.review.open` + findings).
+3. ~~**HOST-002** — final-answer 중도 끊김 RCA~~ `[x]` — RCA 확정 + `incomplete` 계약 + 회귀 테스트 (2026-09-19).
+4. ~~Phase 3 미룸: **CONV-014** · **CONV-016**~~ `[x]` (2026-09-19).
+5. ~~**Phase 10 통합 검증** — INT-001, 003~009~~ `[x]` — domain 통합 테스트 전부 PASS (2026-09-19, INT-005 신규 추가).
+6. ~~**chat-ui 경계 침식 정리**~~ `[x]` (2026-09-19) — vscode/fs/child_process/network **0건** + dead code 18개 제거 + deps 선언(core→safety, chat-ui→providers) + `boundary.test.ts` 가드.
+7. (선택) chatSend ↔ `createWiredSubagentHost` 공유.
 
-**최근 세션:** STREAM-004 prior 직렬화 (`a8f890c`) · chat-ui typecheck 52→0 · 모드별 응답 셰이핑 (MODE-*) · TEL-001~003 · SKILL-001~003 · MEM-001~004 · BON-001~005 · SCM-001 · BROWSER-001~003 · DESIGN-001~002 · GH-001~003 · ART-001 · REVIEW-001~006 · INLINE-005~007 host spine (2026-09-12).
+**최근 세션:** STREAM-004 prior 직렬화 (`a8f890c`) · chat-ui typecheck 52→0 · 모드별 응답 셰이핑 (MODE-*) · TEL-001~003 · SKILL-001~003 · MEM-001~004 · BON-001~005 · SCM-001 · BROWSER-001~003 · DESIGN-001~002 · GH-001~003 · ART-001 · REVIEW-001~006 · INLINE-005~007 host spine (2026-09-12) · **HOST-002 RCA 확정 + `incomplete` 계약** · **INT-001/003~009 domain 통합 테스트** · **REVIEW/ARTIFACTS/BROWSER host 배선 + EXT-003 커맨드 표면** · **CONV-014/016 완료** · **chat-ui 경계 침식 정리 (B-2 위반 0건)** (2026-09-19).
 
 **에이전트:** 위 「안정 표면」+「Claude Code → agent-k」를 읽고 수정할 것. Agent 루프에 Plan FSM을 넓게 넣지 말 것. Phase 4 worktree는 `packages/worktree` (+ host thin adapter).
