@@ -393,7 +393,7 @@ async function dispatch(
       await restoreCheckpoint(msg.id, msg.reason);
       return;
 
-    // SET-013 — Settings → Rules tab (project rules list/load/save/create/delete).
+    // SET-011 — Settings → Rules tab (project rules list/load/save/create/delete).
     case 'rules.list':
       await handleRulesList(webview, msg.requestId);
       return;

@@ -1,5 +1,5 @@
 /**
- * SET-013 — Settings → Rules tab host handlers (v2.1 rulesHostHandlers parity).
+ * SET-011 — Settings → Rules tab host handlers (v2.1 rulesHostHandlers parity).
  *
  * Messages: rules.list / rules.load / rules.save / rules.create / rules.delete
  * Responses: rules.listed / rules.loaded / rules.saved / rules.created / rules.deleted
@@ -10,6 +10,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import type { RuleListItem } from '@agent-k/shared';
 import {
   AGENTK_DIR,
   DEFAULT_RULES_FILE,
@@ -22,15 +23,6 @@ import {
 import { resolveRuleId, uniqueCustomFileName } from './rulesHostPure';
 
 export { DEFAULT_RULES_FILE };
-
-export interface RuleListItem {
-  id: string;
-  kind: 'basic' | 'custom';
-  fileName: string;
-  title: string;
-  path: string;
-  exists: boolean;
-}
 
 function workspaceRoot(): string | undefined {
   return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;

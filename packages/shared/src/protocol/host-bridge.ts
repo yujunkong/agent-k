@@ -47,7 +47,7 @@ export interface CheckpointListItem {
   fileCount?: number;
 }
 
-/** SET-013 — Settings → Rules tab row (basic `.agentrules` or custom `.agentk/rules/*`). */
+/** SET-011 — Settings → Rules tab row (basic `.agentrules` or custom `.agentk/rules/*`). */
 export interface RuleListItem {
   id: string;
   kind: 'basic' | 'custom';
@@ -124,7 +124,7 @@ export type HostBridgeWebviewMessage =
   | { type: 'mcp.connect'; name?: string }
   /** MCP-004 — disconnect all or one */
   | { type: 'mcp.disconnect'; name?: string }
-  /** SET-013 — Settings → Rules tab list/load/save/create/delete. */
+  /** SET-011 — Settings → Rules tab list/load/save/create/delete. */
   | { type: 'rules.list'; requestId: RequestId }
   | { type: 'rules.load'; requestId: RequestId; id: string }
   | { type: 'rules.save'; requestId: RequestId; id: string; content: string }
@@ -243,7 +243,7 @@ export type HostBridgeHostMessage =
       error?: string;
     }
   | { type: 'checkpoint.listResult'; checkpoints: CheckpointListItem[] }
-  /** SET-013 — Rules tab responses. */
+  /** SET-011 — Rules tab responses. */
   | {
       type: 'rules.listed';
       requestId: RequestId;

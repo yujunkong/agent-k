@@ -1,10 +1,10 @@
 /**
- * SET-013 — Rules tab pure helpers (v2.1 rulesHostHandlers parity).
+ * SET-011 — Rules tab pure helpers (v2.1 rulesHostHandlers parity).
  */
 import { describe, it, expect } from 'vitest';
 import { resolveRuleId, slugFromTitle, uniqueCustomFileName } from './rulesHostPure';
 
-describe('SET-013 rules helpers', () => {
+describe('SET-011 rules helpers', () => {
   it('resolves basic rule ids', () => {
     expect(resolveRuleId('/w', 'basic')).toEqual({
       abs: '/w/.agentrules',

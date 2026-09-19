@@ -661,7 +661,7 @@ MODE-003/007/009 · HOST-008 bridge · STREAM-008 · REL-002는 `[x]` — 재이
 4. ~~Phase 3 미룸: **CONV-014** · **CONV-016**~~ `[x]` (2026-09-19).
 5. ~~**Phase 10 통합 검증** — INT-001, 003~009~~ `[x]` — domain 통합 테스트 전부 PASS (2026-09-19, INT-005 신규 추가).
 6. ~~**chat-ui 경계 침식 정리**~~ `[x]` (2026-09-19) — vscode/fs/child_process/network **0건** + dead code 18개 제거 + deps 선언(core→safety, chat-ui→providers) + `boundary.test.ts` 가드.
-7. ~~**SET-013 Rules 탭 host IO**~~ `[x]` (2026-09-19) — `rules.*` 프로토콜 배선 (v2.1 rulesHostHandlers 이식).
+7. ~~**SET-011 Rules 탭 host IO**~~ `[x]` (2026-09-19) — `rules.*` 프로토콜 배선 (v2.1 rulesHostHandlers 이식).
 8. (선택) chatSend ↔ `createWiredSubagentHost` 공유.
 
 **최근 세션:** STREAM-004 prior 직렬화 (`a8f890c`) · chat-ui typecheck 52→0 · 모드별 응답 셰이핑 (MODE-*) · TEL-001~003 · SKILL-001~003 · MEM-001~004 · BON-001~005 · SCM-001 · BROWSER-001~003 · DESIGN-001~002 · GH-001~003 · ART-001 · REVIEW-001~006 · INLINE-005~007 host spine (2026-09-12) · **HOST-002 RCA 확정 + `incomplete` 계약** · **INT-001/003~009 domain 통합 테스트** · **REVIEW/ARTIFACTS/BROWSER host 배선 + EXT-003 커맨드 표면** · **CONV-014/016 완료** · **chat-ui 경계 침식 정리 (B-2 위반 0건)** · **SET-011 Rules 탭 host IO 배선** (2026-09-19).

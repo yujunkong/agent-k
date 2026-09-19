@@ -1,5 +1,5 @@
 /**
- * SET-013 — pure rule-id/path helpers (no vscode/fs; testable).
+ * SET-011 — pure rule-id/path helpers (no vscode/fs; testable).
  * v2.1 `rulesHostHandlers` parity.
  */
 import * as path from 'path';
