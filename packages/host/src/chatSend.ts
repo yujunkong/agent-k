@@ -984,6 +984,14 @@ export async function runHostChatSend(
               if (chunk.finishReason) {
                 finishReason = String(chunk.finishReason);
               }
+              // HOST-002: precise stream-cut signature (server closed SSE without [DONE])
+              if (chunk.incomplete) {
+                hostLog(
+                  'chat.send empty reply',
+                  `stream cut without [DONE] requestId=${requestId} turn=${turn} contentLen=${content.length} reasoningLen=${reasoning.length}`,
+                  true,
+                );
+              }
               // TEL-002: feed stream usage into session tracker (best-effort)
               if (chunk.usage) {
                 try {
@@ -1405,7 +1413,7 @@ export async function runHostChatSend(
         if (event.type === 'turn_start') {
           currentTurn = event.turn;
         }
-        mapLoopEventToStream(event, postStream);
+        mapLoopEventToStream(event, postStream, currentTurn);
       },
     },
     {
@@ -1593,6 +1601,7 @@ async function loadChatSendImageParts(
 function mapLoopEventToStream(
   event: AgentLoopEvent,
   post: (e: Record<string, unknown>) => void,
+  currentTurn?: number,
 ): void {
   switch (event.type) {
     case 'status':
@@ -1624,6 +1633,10 @@ function mapLoopEventToStream(
         toolName: name,
         kind,
         detail,
+        // CONV-014 — turn must ride tool lifecycle: webview defaults turn=1,
+        // which regrouped later-turn shells into the turn-1 bucket (stuck above
+        // later Thought cards). Matches wiredSubagentHost tool.start parity.
+        turn: currentTurn ?? 1,
         // Keep raw args for webview fallback; prefer `detail` for Cursor chrome.
         toolArgs: JSON.stringify(args),
       });
@@ -1649,6 +1662,7 @@ function mapLoopEventToStream(
         toolName: name,
         kind: toolKind(name),
         detail,
+        turn: currentTurn ?? 1,
         toolArgs: JSON.stringify(args),
         error: event.error,
       });
