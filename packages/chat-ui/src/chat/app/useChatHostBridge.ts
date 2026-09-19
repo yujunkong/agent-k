@@ -41,6 +41,8 @@ export interface UseChatHostBridgeParams {
   setComposerSeed: (seed: { text: string; nonce: number } | null) => void;
   /** Bump → Composer focuses textarea (host focus.input / tab click). */
   setComposerFocusNonce: React.Dispatch<React.SetStateAction<number>>;
+  /** EXT-003 mode.switch (no target) — cycle the mode pill. */
+  cycleMode: () => void;
   handleNewChat: () => void;
   applyHostHydration: (metas: ChatSessionMeta[]) => void;
   updateSessionMessages: (
@@ -63,6 +65,7 @@ export function useChatHostBridge(p: UseChatHostBridgeParams): void {
     setInlineEditSeed,
     setComposerSeed,
     setComposerFocusNonce,
+    cycleMode,
     handleNewChat,
     applyHostHydration,
     updateSessionMessages,
@@ -80,6 +83,15 @@ export function useChatHostBridge(p: UseChatHostBridgeParams): void {
     },
     'session.new': () => {
       handleNewChat();
+    },
+    // EXT-003 — command palette mode switch (target mode or cycle).
+    'mode.switch': (data) => {
+      const target = typeof data.mode === 'string' ? data.mode : undefined;
+      if (target === 'ask' || target === 'agent' || target === 'plan' || target === 'debug') {
+        setMode(target);
+      } else {
+        cycleMode();
+      }
     },
     'ui.history.open': () => {
       panels.setShowHistory(true);
@@ -110,8 +122,16 @@ export function useChatHostBridge(p: UseChatHostBridgeParams): void {
         );
       }
     },
-    'ui.artifacts.open': () => {
+    'ui.artifacts.open': (data) => {
+      // ART-002 — host may seed the gallery; otherwise keep the local store.
+      if (Array.isArray(data.artifacts)) {
+        panels.setArtifacts(data.artifacts as import('../../artifacts/ArtifactStore').Artifact[]);
+      }
       panels.setShowArtifacts(true);
+    },
+    // BROWSER-004 — BrowserPreview panel (live session source pending Playwright).
+    'ui.browser.open': () => {
+      panels.setShowBrowser(true);
     },
     'settings.open': (data) => {
       if (typeof data.tab === 'string') {

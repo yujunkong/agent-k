@@ -32,7 +32,7 @@ import {
   estimateMessagesTokens,
 } from './chatAppHelpers';
 import { configManager } from '../core/ConfigManager';
-import type { ChatMessage, Mode } from './types';
+import type { ChatMessage, Mode, ModePicker } from './types';
 import './chat.css';
 
 import { SettingsPanel } from '../settings/SettingsPanel';
@@ -40,6 +40,7 @@ import { HistoryPanel } from './components/HistoryPanel';
 import { DesignModePanel } from '../browser/DesignModePanel';
 import { FindingList } from '../review/FindingList';
 import { ArtifactGallery } from '../artifacts/ArtifactGallery';
+import { BrowserPreview } from '../browser/BrowserPreview';
 import { UXForMediumPanel } from '../harness/UXForMediumPanel';
 import type { HarnessUXState, UXEventType } from '../harness/UXForMedium';
 import { ChatSessionTabs } from './components/ChatSessionTabs';
@@ -771,6 +772,14 @@ export function ChatApp() {
   const contextUsageTitle = `~${usedTokens.toLocaleString()} / ${contextBudget.toLocaleString()} tokens`;
 
   // ─── Host 메시지 처리 ─────────────────────────────────────────
+  // EXT-003 — host mode.switch (no target) cycles auto → agent → plan → debug → ask.
+  const cycleMode = useCallback(() => {
+    const order: ModePicker[] = ['auto', 'agent', 'plan', 'debug', 'ask'];
+    const current: ModePicker = modeAuto ? 'auto' : mode;
+    const next = order[(order.indexOf(current) + 1) % order.length];
+    sendFlow.handleModeChange(next);
+  }, [mode, modeAuto, sendFlow]);
+
   useChatHostBridge({
     sessionIdRef,
     setMode,
@@ -778,6 +787,7 @@ export function ChatApp() {
     setInlineEditSeed,
     setComposerSeed,
     setComposerFocusNonce,
+    cycleMode,
     handleNewChat,
     applyHostHydration,
     updateSessionMessages,
@@ -870,6 +880,23 @@ export function ChatApp() {
               artifacts={panels.artifacts}
               onClose={() => panels.setShowArtifacts(false)}
             />
+          )}
+
+          {/* Browser preview (BROWSER-004) — live session source pending Playwright */}
+          {panels.showBrowser && (
+            <div style={{ padding: 8, borderBottom: '1px solid var(--vscode-panel-border, #444)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <strong>Browser</strong>
+                <button type="button" onClick={() => panels.setShowBrowser(false)}>Close</button>
+              </div>
+              <BrowserPreview
+                sessionId=""
+                sessionInfo={null}
+                onNavigate={() => {}}
+                onScreenshotRefresh={async () => null}
+                isConnected={false}
+              />
+            </div>
           )}
 
           {/* 모드 크롬 (Plan/Debug/Reproduce/PlanReview) */}

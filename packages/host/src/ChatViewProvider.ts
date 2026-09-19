@@ -23,6 +23,9 @@ import {
   disconnectMcp,
   reloadMcpFromSettings,
 } from './mcpHost';
+import { readPlanFromEditor } from './planEditorHost';
+import { runReviewAndOpenPanel } from './reviewHost';
+import { BestOfN, WorktreeManager } from '@agent-k/worktree';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   /** Must match contributes.views id in extensions/agent-k/package.json. */
@@ -139,10 +142,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     };
   }
 
-  // ─── EXT-003 command stubs (HOST-*/PLAN-*/MCP-* fill behavior later) ───
+  // ─── EXT-003 command surface (v2.1 parity + v3.0 adaptations) ───
 
   public newSession(): void {
     void this.focusChatView();
+    // v2.1 parity: webview forks a new tab (CHAT-009).
+    void this.postMessage({ type: 'session.new' });
   }
 
   public openSettings(tab?: string): void {
@@ -161,6 +166,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   public switchMode(): void {
     void this.focusChatView();
+    // v2.1 parity: webview cycles the mode pill (auto → agent → plan → debug → ask).
+    void this.postMessage({ type: 'mode.switch' });
   }
 
   public focusInput(): void {
@@ -235,28 +242,68 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     void this.focusChatView();
   }
 
-  public buildPlanFromEditor(_uri?: vscode.Uri): void {
-    void vscode.window.showInformationMessage('[Agent K] Build Plan (PLAN-* pending)');
+  /** EXT-003 — read `plan_*.md` from the editor and start Build in the webview. */
+  public async buildPlanFromEditor(uri?: vscode.Uri): Promise<void> {
+    const payload = await readPlanFromEditor(uri);
+    if (!payload) {
+      void vscode.window.showWarningMessage(
+        'Agent K: open a plan_*.md file under `.agentk/plans`, then run Build.',
+      );
+      return;
+    }
+    await this.focusChatView();
+    void this.postMessage({
+      type: 'plan.buildFromEditor',
+      content: payload.content,
+      slug: payload.slug,
+      title: payload.title,
+      filePath: payload.filePath,
+    });
   }
 
-  public openPlanReviewFromEditor(_uri?: vscode.Uri): void {
-    void vscode.window.showInformationMessage('[Agent K] Plan Review (PLAN-* pending)');
+  /** EXT-003 — read `plan_*.md` from the editor and open Review in the webview. */
+  public async openPlanReviewFromEditor(uri?: vscode.Uri): Promise<void> {
+    const payload = await readPlanFromEditor(uri);
+    if (!payload) {
+      void vscode.window.showWarningMessage(
+        'Agent K: open a plan_*.md file under `.agentk/plans`, then open Review.',
+      );
+      return;
+    }
+    await this.focusChatView();
+    void this.postMessage({
+      type: 'plan.openReviewFromEditor',
+      content: payload.content,
+      slug: payload.slug,
+      title: payload.title,
+      filePath: payload.filePath,
+    });
   }
 
   public openDebug(): void {
     void this.focusChatView();
+    // v3.0 adaptation: Debug mode exists as a first-class mode — switch to it.
+    void this.postMessage({ type: 'mode.switch', mode: 'debug' });
   }
 
+  /** REVIEW-002 — run diff review (+ optional LM pass) and seed FindingList. */
   public openReview(): void {
     void this.focusChatView();
+    void runReviewAndOpenPanel((message) => {
+      void this.postMessage(message);
+    });
   }
 
+  /** BROWSER-004 — open the BrowserPreview panel (session source pending Playwright). */
   public openBrowserSession(): void {
     void this.focusChatView();
+    void this.postMessage({ type: 'ui.browser.open' });
   }
 
+  /** ART-002/003 — open the Artifacts gallery panel. */
   public openArtifacts(): void {
     void this.focusChatView();
+    void this.postMessage({ type: 'ui.artifacts.open' });
   }
 
   public mcpReload(): void {
@@ -281,8 +328,50 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     void disconnectMcp();
   }
 
-  public runBestOfN(): void {
-    void vscode.window.showInformationMessage('[Agent K] Best-of-N (BON-* pending)');
+  /**
+   * BON-001~005 — Best-of-N fan-out over managed worktrees.
+   * Trial runner is the domain placeholder (stages the task file); the
+   * AgentLoop-backed runner is a follow-up. Worktrees are cleaned up after
+   * the run so the command never leaves stray candidates behind.
+   */
+  public async runBestOfN(): Promise<void> {
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!root) {
+      void vscode.window.showWarningMessage(
+        '[Agent K] Open a workspace folder first.',
+      );
+      return;
+    }
+    const task = await vscode.window.showInputBox({
+      prompt: 'Best-of-N task',
+      placeHolder: 'Describe the task to stage in parallel worktrees',
+    });
+    if (!task?.trim()) return;
+    const cfg = vscode.workspace.getConfiguration('agent-k');
+    const model = String(cfg.get('provider.model') || 'gpt-4o-mini');
+    const manager = new WorktreeManager(root);
+    const bon = new BestOfN(manager);
+    try {
+      const trials = await bon.run({
+        n: 2,
+        models: [model],
+        prompts: [task.trim()],
+        task: task.trim(),
+      });
+      const summary =
+        trials.map((t) => `${t.id}:${t.status}`).join(', ') || '(none)';
+      void vscode.window.showInformationMessage(
+        `Agent K Best-of-N: ${summary} (trial runner placeholder — BON AgentLoop wiring pending)`,
+      );
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        `Best-of-N failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      await bon.cleanup().catch(() => {
+        /* best-effort cleanup */
+      });
+    }
   }
 
   /**

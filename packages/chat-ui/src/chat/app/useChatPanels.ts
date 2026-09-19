@@ -72,6 +72,9 @@ export interface UseChatPanelsReturn {
   setShowArtifacts: Dispatch<SetStateAction<boolean>>;
   artifacts: Artifact[];
   setArtifacts: Dispatch<SetStateAction<Artifact[]>>;
+  // Browser preview (BROWSER-004)
+  showBrowser: boolean;
+  setShowBrowser: Dispatch<SetStateAction<boolean>>;
 }
 
 export function useChatPanels(params: UseChatPanelsParams): UseChatPanelsReturn {
@@ -85,6 +88,7 @@ export function useChatPanels(params: UseChatPanelsParams): UseChatPanelsReturn 
   const [reviewFindings, setReviewFindings] = useState<ReviewFinding[]>([]);
   const [showArtifacts, setShowArtifacts] = useState(false);
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [showBrowser, setShowBrowser] = useState(false);
 
   // AcceptFix 인스턴스 — 컴포넌트 생명주기와 동일하게 유지
   const [acceptFix] = useState(() => new AcceptFix());
@@ -174,6 +178,8 @@ export function useChatPanels(params: UseChatPanelsParams): UseChatPanelsReturn 
     showArtifacts,
     setShowArtifacts,
     artifacts,
-    setArtifacts
+    setArtifacts,
+    showBrowser,
+    setShowBrowser
   };
 }
