@@ -141,38 +141,6 @@ function testViaExtensionHost(
   });
 }
 
-async function testViaDirectFetch(
-  baseUrl: string,
-  apiKey: string,
-  model?: string,
-  extraHeaders?: Record<string, string>
-): Promise<{ ok: boolean; status?: number; detail: string; modelIds?: string[] }> {
-  const root = baseUrl.replace(/\/$/, '');
-  const headers: Record<string, string> = { ...(extraHeaders || {}) };
-  if (apiKey && !headers.Authorization && !headers['x-api-key']) {
-    headers.Authorization = `Bearer ${apiKey}`;
-  }
-  const response = await fetch(`${root}/v1/models`, { headers, signal: AbortSignal.timeout(8000) });
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    if (response.status === 401 || response.status === 403) {
-      detail += ' — Auth failed. Check API Key, or use a local endpoint that does not require auth.';
-    } else if (response.status === 429) {
-      detail += ' — Rate limited. Retry in a moment.';
-    }
-    return { ok: false, status: response.status, detail };
-  }
-  const data = await response.json();
-  const modelIds: string[] = (data?.data || []).map((m: { id?: string }) => m.id).filter(Boolean);
-  const found = model ? modelIds.includes(model) : false;
-  const detail = model && found
-    ? `OK — model "${model}" listed (${modelIds.length} models)`
-    : modelIds.length > 0
-      ? `OK — ${modelIds.length} models discovered`
-      : 'OK — server reachable (no models in list). Add a model name manually.';
-  return { ok: found || modelIds.length > 0 || !model, status: response.status, detail, modelIds };
-}
-
 export type ProviderModelsResult = {
   ok: boolean;
   status?: number;
@@ -195,20 +163,16 @@ export async function fetchProviderModels(opts?: {
   const apiKey = String(opts?.apiKey ?? configManager.get('agent-k.provider.apiKey') ?? '');
   const model = String(opts?.model ?? '');
   if (!baseUrl) return withHealth({ ok: false, detail: 'Base URL is empty', modelIds: [] });
+  // B-2: no network from the webview — the host owns the provider probe.
+  const api = getVsCodeApi();
+  if (!api) {
+    return withHealth({ ok: false, detail: 'Extension host unavailable', modelIds: [] });
+  }
   try {
-    let result: { ok: boolean; status?: number; detail: string; modelIds?: string[] };
-    const api = getVsCodeApi();
-    if (api) result = await testViaExtensionHost(baseUrl, apiKey, model || undefined, opts?.extraHeaders);
-    else result = await testViaDirectFetch(baseUrl, apiKey, model || undefined, opts?.extraHeaders);
+    const result = await testViaExtensionHost(baseUrl, apiKey, model || undefined, opts?.extraHeaders);
     return withHealth({ ok: result.ok, status: result.status, detail: result.detail, modelIds: result.modelIds || [] });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    try {
-      const fallback = await testViaDirectFetch(baseUrl, apiKey, model || undefined, opts?.extraHeaders);
-      return withHealth({ ok: fallback.ok, status: fallback.status, detail: fallback.detail, modelIds: fallback.modelIds || [] });
-    } catch (inner: unknown) {
-      return withHealth({ ok: false, detail: inner instanceof Error ? inner.message : msg || 'Connection failed', modelIds: [] });
-    }
+    return withHealth({ ok: false, detail: e instanceof Error ? e.message : String(e), modelIds: [] });
   }
 }
 

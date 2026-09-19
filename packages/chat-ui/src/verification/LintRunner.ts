@@ -1,5 +1,7 @@
 /**
- * LintRunner - vscode.languages.getDiagnostics 파싱 (C2-T19)
+ * LintRunner - lint diagnostics surface (C2-T19).
+ * B-2: the webview cannot read fs/vscode — the host owns lint execution
+ * (`read_lints` micro-loop). runLint degrades to [] in the webview.
  */
 export interface LintError {
   file: string;
@@ -11,78 +13,9 @@ export interface LintError {
 }
 
 export class LintRunner {
-  async runLint(filePaths: string[]): Promise<LintError[]> {
-    const errors: LintError[] = [];
-
-    // Stub: In real VS Code extension, use vscode.languages.getDiagnostics()
-    // For now, scan files for basic syntax issues
-    for (const filePath of filePaths) {
-      try {
-        const fs = require('fs');
-        if (!fs.existsSync(filePath)) continue;
-
-        const ext = filePath.split('.').pop()?.toLowerCase();
-        if (ext === 'ts' || ext === 'tsx' || ext === 'js' || ext === 'jsx') {
-          const content = fs.readFileSync(filePath, 'utf-8');
-          const tsErrors = this.checkTypeScript(content, filePath);
-          errors.push(...tsErrors);
-        }
-      } catch { /* ignore */ }
-    }
-
-    return errors;
-  }
-
-  private checkTypeScript(content: string, filePath: string): LintError[] {
-    const errors: LintError[] = [];
-    const lines = content.split('\n');
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const lineNum = i + 1;
-
-      // Check for common issues
-      if (line.includes('any ') && !line.includes('// eslint-disable')) {
-        errors.push({
-          file: filePath,
-          line: lineNum,
-          column: line.indexOf('any') + 1,
-          message: 'Unexpected use of `any` type. Consider using a more specific type.',
-          severity: 'warning',
-          code: 'no-explicit-any'
-        });
-      }
-
-      if (line.match(/console\.(log|warn|error)\(/) && !line.includes('// eslint-disable')) {
-        errors.push({
-          file: filePath,
-          line: lineNum,
-          column: line.indexOf('console') + 1,
-          message: 'Unexpected console statement. Remove before committing.',
-          severity: 'warning',
-          code: 'no-console'
-        });
-      }
-
-      // Detect unused variables (simple heuristic: declared but only used once)
-      const declaredVar = line.match(/(?:const|let|var)\s+(\w+)/);
-      if (declaredVar) {
-        const varName = declaredVar[1];
-        const usageCount = (content.match(new RegExp(varName, 'g')) || []).length;
-        if (usageCount <= 1) {
-          errors.push({
-            file: filePath,
-            line: lineNum,
-            column: line.indexOf(varName) + 1,
-            message: `Variable '${varName}' is declared but never used.`,
-            severity: 'warning',
-            code: 'no-unused-vars'
-          });
-        }
-      }
-    }
-
-    return errors;
+  /** Host-owned lint execution — webview returns no diagnostics. */
+  async runLint(_filePaths: string[]): Promise<LintError[]> {
+    return [];
   }
 
   /**

@@ -3,13 +3,19 @@
  * AgentLoop / PlanStorage가 fake extension.exports 없이 실 인스턴스에 접근.
  * Comment: RW-C5-06-R2 / RW-C6-04-R2 / RW-C7-03-R2 완료 착각 방지용 배선.
  */
-import type * as vscode from 'vscode';
 import type { MemoryStore } from '../memories/MemoryStore';
-import type { CheckpointManager } from '../checkpoint/CheckpointManager';
 
-let workspaceState: vscode.Memento | undefined;
+/**
+ * Minimal workspace-state surface (VS Code Memento shape).
+ * B-2: chat-ui must not import `vscode` — the host injects the real Memento.
+ */
+export interface WorkspaceStatePort {
+  get<T>(key: string, defaultValue?: T): T | undefined;
+  update(key: string, value: unknown): Thenable<void>;
+}
+
+let workspaceState: WorkspaceStatePort | undefined;
 let memoryStore: MemoryStore | undefined;
-let checkpointManager: CheckpointManager | undefined;
 
 /** Reproduce wait bridge (RW-C6-05-R2) */
 type ReproduceResolver = (confirmed: boolean) => void;
@@ -40,11 +46,11 @@ let askQuestionNotifier: ((q: PendingAskQuestion) => void) | undefined;
 let currentAskRequestId: string | undefined;
 
 export const RuntimeServices = {
-  setWorkspaceState(state: vscode.Memento): void {
+  setWorkspaceState(state: WorkspaceStatePort): void {
     workspaceState = state;
   },
 
-  getWorkspaceState(): vscode.Memento | undefined {
+  getWorkspaceState(): WorkspaceStatePort | undefined {
     return workspaceState;
   },
 
@@ -55,15 +61,6 @@ export const RuntimeServices = {
 
   getMemoryStore(): MemoryStore | undefined {
     return memoryStore;
-  },
-
-  /** C4-T03: checkpoint_create / restore 공유 인스턴스 */
-  setCheckpointManager(mgr: CheckpointManager): void {
-    checkpointManager = mgr;
-  },
-
-  getCheckpointManager(): CheckpointManager | undefined {
-    return checkpointManager;
   },
 
   /**

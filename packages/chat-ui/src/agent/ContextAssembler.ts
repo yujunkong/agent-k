@@ -18,7 +18,7 @@ import { injectDesignSlogans } from '../harness/DesignSlogans';
 import { injectCursorPattern } from '../harness/CursorPattern';
 import { injectTurnStructure } from '../harness/PromptTurnStructure';
 import { injectDontDoMedium } from '../harness/DontDoMedium';
-import { getProjectRulesCached, formatProjectRulesBlock } from '../harness/ProjectRulesLoader';
+import { formatProjectRulesBlock } from '../harness/ProjectRulesLoader';
 import type { InlineEditAgentRequest } from '../chat/inlineEdit';
 import {
   formatInlineEditStickyContext,
@@ -57,21 +57,12 @@ export class ContextAssembler {
   }
 
   /**
-   * ADDON-T08: explicit projectRules wins; else lazily read vscode's workspace root
-   * (try/catch — unavailable in unit tests / webview) and load rules files from fs.
-   * Never throws.
+   * ADDON-T08: explicit projectRules wins; otherwise empty.
+   * B-2: the webview cannot read fs/vscode — the host injects project rules
+   * into the API payload (core ContextAssembler), so no local lookup here.
    */
   private resolveProjectRules(explicit?: string): string {
-    if (explicit) return explicit;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const vscode = require('vscode');
-      const root = vscode?.workspace?.workspaceFolders?.[0]?.uri?.fsPath;
-      if (!root) return '';
-      return getProjectRulesCached(root);
-    } catch {
-      return '';
-    }
+    return explicit || '';
   }
 
   assemble(

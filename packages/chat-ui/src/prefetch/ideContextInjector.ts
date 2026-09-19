@@ -1,8 +1,9 @@
 /**
- * ADDON-T05: IDE context collection (diagnostics / git / symbols)
- * Never throws to the agent loop — failures become empty strings.
+ * ADDON-T05: IDE context collection (diagnostics / git / symbols).
+ * B-2: the webview cannot touch vscode/child_process — collectors are
+ * injected by the host. Without injected deps every collector degrades to ''.
+ * Never throws to the agent loop.
  */
-import { execFileSync } from 'child_process';
 import type { ContextItemKey } from './taskContextStrategy';
 import { collectLspCursorContext } from './lspCursorContext';
 import type { LspCursorContextDeps } from './lspCursorContext';
@@ -21,94 +22,22 @@ export interface IdeContextCollectorDeps {
   cwd?: string;
 }
 
-function safeTruncate(text: string, max = 3000): string {
-  if (text.length <= max) return text;
-  return text.slice(0, max) + '\n...(truncated)';
+/** Default git diff — host-owned; webview returns '' (no child_process). */
+export function collectGitDiffSync(_cwd?: string, _maxChars = 3000): string {
+  return '';
 }
 
-/** Default git diff HEAD (best-effort, no throw). */
-export function collectGitDiffSync(cwd?: string, maxChars = 3000): string {
-  try {
-    const out = execFileSync('git', ['diff', 'HEAD', '--stat', '-U3'], {
-      encoding: 'utf-8',
-      cwd: cwd || process.cwd(),
-      timeout: 5000,
-      maxBuffer: 512 * 1024,
-    });
-    return safeTruncate(String(out || '').trim(), maxChars);
-  } catch {
-    return '';
-  }
-}
-
-/** VS Code diagnostics if available; else empty. */
+/** VS Code diagnostics — host-owned; webview returns ''. */
 export async function collectDiagnosticsSummary(): Promise<string> {
-  try {
-    // Lazy require — unit tests / non-extension hosts have no vscode
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const vscode = require('vscode') as typeof import('vscode');
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return '';
-    const diags = vscode.languages.getDiagnostics(editor.document.uri);
-    if (!diags.length) return '';
-    const lines = diags.slice(0, 30).map((d) => {
-      const sev =
-        d.severity === vscode.DiagnosticSeverity.Error
-          ? 'error'
-          : d.severity === vscode.DiagnosticSeverity.Warning
-            ? 'warn'
-            : 'info';
-      return `L${d.range.start.line + 1}: [${sev}] ${d.message}`;
-    });
-    return safeTruncate(
-      `File: ${editor.document.uri.fsPath}\n${lines.join('\n')}`,
-      4000
-    );
-  } catch {
-    return '';
-  }
+  return '';
 }
 
 export async function collectActiveFileHint(): Promise<string> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const vscode = require('vscode') as typeof import('vscode');
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return '';
-    const text = editor.document.getText();
-    const path = editor.document.uri.fsPath;
-    return safeTruncate(`Active file: ${path}\n${text}`, 6000);
-  } catch {
-    return '';
-  }
+  return '';
 }
 
 export async function collectSymbolHint(): Promise<string> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const vscode = require('vscode') as typeof import('vscode');
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return '';
-    const pos = editor.selection.active;
-    const hovers = (await vscode.commands.executeCommand(
-      'vscode.executeHoverProvider',
-      editor.document.uri,
-      pos
-    )) as Array<{ contents: Array<string | { value?: string }> }> | undefined;
-    if (!hovers?.length) return '';
-    const parts: string[] = [];
-    for (const h of hovers.slice(0, 3)) {
-      for (const c of h.contents) {
-        if (typeof c === 'string') parts.push(c);
-        else if (c && typeof c.value === 'string') {
-          parts.push(c.value);
-        }
-      }
-    }
-    return safeTruncate(parts.join('\n'), 2000);
-  } catch {
-    return '';
-  }
+  return '';
 }
 
 /**

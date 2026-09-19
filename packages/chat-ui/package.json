@@ -23,6 +23,7 @@
   "dependencies": {
     "@agent-k/shared": "*",
     "@agent-k/plan": "*",
+    "@agent-k/providers": "*",
     "mermaid": "^11.17.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

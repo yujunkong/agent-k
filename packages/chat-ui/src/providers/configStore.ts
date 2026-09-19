@@ -1,1 +1,1 @@
-export * from '../../../providers/src/configStore';
+export * from '@agent-k/providers/configStore';

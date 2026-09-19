@@ -2,9 +2,8 @@
  * VerifyCleanup - 검증 + 청소 (C6-T12 / RW-C6-06-R2)
  * remainingMarkers=-1 더미 제거 — 워크스페이스 실스캔.
  */
-// B-2 boundary: chat-ui must not statically import `vscode`.
-// Lazy-require inside scanWorkspace (same pattern as RemoveInstrumentationTool) —
-// webview / unit-test hosts without vscode get a no-op scan instead of a load error.
+// B-2 boundary: chat-ui must not touch `vscode`/fs. The host owns the real
+// workspace scan; the webview degrades to a no-op result.
 import { RemoveInstrumentationTool } from '../tools/debug/RemoveInstrumentationTool';
 
 export interface VerifyResult {
@@ -24,36 +23,11 @@ export class VerifyCleanup {
 
   /**
    * Scan workspace text files for DEBUG_INSTRUMENT markers.
+   * B-2: the webview cannot touch vscode/fs — the host owns the real scan,
+   * so this degrades to a no-op result.
    */
-  async scanWorkspace(hypothesisId?: string): Promise<{ remaining: number; files: string[] }> {
-    let vscode: typeof import('vscode') | undefined;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      vscode = require('vscode') as typeof import('vscode');
-    } catch {
-      /* no vscode host (webview / unit tests) — no-op scan */
-    }
-    if (!vscode?.workspace?.findFiles || !vscode?.workspace?.fs) {
-      return { remaining: 0, files: [] };
-    }
-    const pattern = '**/*.{ts,tsx,js,jsx,py,go,rs}';
-    const uris = await vscode.workspace.findFiles(pattern, '**/node_modules/**', 500);
-    let remaining = 0;
-    const hitFiles: string[] = [];
-    for (const uri of uris) {
-      try {
-        const bytes = await vscode.workspace.fs.readFile(uri);
-        const content = Buffer.from(bytes).toString('utf8');
-        const check = this.removeTool.verifyClean(content, hypothesisId);
-        if (check.remaining > 0) {
-          remaining += check.remaining;
-          hitFiles.push(uri.fsPath);
-        }
-      } catch {
-        /* skip unreadable */
-      }
-    }
-    return { remaining, files: hitFiles };
+  async scanWorkspace(_hypothesisId?: string): Promise<{ remaining: number; files: string[] }> {
+    return { remaining: 0, files: [] };
   }
 
   /**

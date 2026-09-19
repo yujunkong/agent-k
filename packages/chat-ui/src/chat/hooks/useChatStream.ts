@@ -134,11 +134,6 @@ interface UseChatStreamReturn {
   sendWorktreeReject: (subagentId: string) => string | undefined;
 }
 
-/** All modes run through Extension Host AgentLoop (Ask = read-only tools). */
-function needsHostToolLoop(_mode: Mode): boolean {
-  return true;
-}
-
 export function useChatStream(options: UseChatStreamOptions = {}): UseChatStreamReturn {
   const [streaming, setStreaming] = useState(false);
   /** Runtime-local in-flight host requests (supports multi-session parallel sends). */
@@ -873,146 +868,12 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
       onError: (err: string) => void,
       opts?: SendMessageOpts
     ) => {
-      // Agent path: host executes tools (glob/read_file). Ask stays webview completions.
-      if (needsHostToolLoop(mode)) {
-        await sendViaHost(messages, mode, onDelta, onComplete, onError, opts);
-        return;
-      }
-
-      const requestId = ++requestSeqRef.current;
-      const runtimeKey = opts?.runtimeKey || options.activeRuntimeKey || 'global';
-      const directRequestId = `direct_${runtimeKey}_${requestId}_${Date.now()}`;
-      const controller = new AbortController();
-      attachRequest(runtimeKey, directRequestId, controller);
-
-      let idleTimer: ReturnType<typeof setTimeout> | null = null;
-      let timedOut = false;
-
-      const clearIdle = () => {
-        if (idleTimer) {
-          clearTimeout(idleTimer);
-          idleTimer = null;
-        }
-      };
-
-      const bumpIdle = () => {
-        clearIdle();
-        idleTimer = setTimeout(() => {
-          timedOut = true;
-          controller.abort();
-        }, idleTimeoutMs);
-      };
-
-      bumpIdle();
-
-      if (!options.baseUrl?.trim() || !options.model?.trim()) {
-        throw new Error(
-          'No provider configured. Open Settings → AI Providers and add a connection.'
-        );
-      }
-
-      try {
-        const response = await fetch(`${options.baseUrl}/v1/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(options.apiKey ? { 'Authorization': `Bearer ${options.apiKey}` } : {})
-          },
-          body: JSON.stringify({
-            model: options.model,
-            messages: messages.map(m => ({
-              role: m.role,
-              content: m.content
-            })),
-            stream: true,
-            temperature: 0.7,
-            max_tokens: 4096,
-            // Prefer Thought UI when server supports reasoning_content
-            enable_thinking: (thinkingEffortRef.current || 'medium') !== 'off',
-            reasoning_effort:
-              (thinkingEffortRef.current || 'medium') === 'off'
-                ? undefined
-                : thinkingEffortRef.current || 'medium',
-          }),
-          signal: controller.signal
-        });
-
-        if (!response.ok) {
-          const error = await response.text();
-          throw new Error(`API Error: ${response.status} - ${error}`);
-        }
-
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error('No response body');
-
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        try {
-          while (true) {
-            // Stale request superseded by a newer send — stop reading
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            bumpIdle(); // any chunk resets no-token timer
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6).trim();
-                if (data === '[DONE]') {
-                  onComplete();
-                  return;
-                }
-                try {
-                  const parsed = JSON.parse(data);
-                  const delta = parsed.choices?.[0]?.delta;
-                  let painted = false;
-                  if (delta?.content) {
-                    bumpIdle();
-                    onDelta({ content: delta.content });
-                    painted = true;
-                  }
-                  const reasoning =
-                    delta?.reasoning_content || delta?.reasoning;
-                  if (reasoning) {
-                    bumpIdle();
-                    onDelta({ reasoning: String(reasoning) });
-                    painted = true;
-                  }
-                  // One TCP/SSE batch can hold many tokens — yield so React paints
-                  // between chunks (Thought already felt live; answer should too)
-                  if (painted) {
-                    await new Promise<void>((r) => setTimeout(r, 0));
-                  }
-                } catch {
-                  // Ignore parse errors for incomplete JSON
-                }
-              }
-            }
-          }
-          // Stream ended without [DONE]
-          onComplete();
-        } finally {
-          reader.releaseLock();
-        }
-      } catch (e) {
-        if (e instanceof Error && e.name === 'AbortError') {
-          if (timedOut) {
-            onError(`No tokens received for ${Math.round(idleTimeoutMs / 1000)}s — request timed out`);
-          }
-          // User/resynth abort: ChatApp cleans bubbles; do not call onError
-        } else {
-          onError(e instanceof Error ? e.message : 'Unknown error');
-        }
-      } finally {
-        clearIdle();
-        detachRequest(runtimeKey, directRequestId);
-      }
+      // All modes run through the Extension Host AgentLoop (Ask = read-only tools).
+      // The former webview direct-fetch path was unreachable (needsHostToolLoop
+      // always true) and violated the chat-ui no-network boundary — removed.
+      await sendViaHost(messages, mode, onDelta, onComplete, onError, opts);
     },
-    [options.baseUrl, options.apiKey, options.model, idleTimeoutMs, sendViaHost, options.activeRuntimeKey, attachRequest, detachRequest]
+    [sendViaHost]
   );
 
   const regenerate = useCallback(async (

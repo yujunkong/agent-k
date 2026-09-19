@@ -1,11 +1,7 @@
 /**
- * ADDON-T12: LSP cursor-depth context (hover / definition / references)
- *
- * Collects language-server context at the active cursor position so the
- * agent loop doesn't have to spend a turn calling lsp_definition/lsp_references
- * manually for the symbol it's already looking at. Every collector races
- * against a timeout so a slow or absent language server never blocks turn
- * start — this function never throws, and degrades to '' on any failure.
+ * ADDON-T12: LSP cursor-depth context (hover / definition / references).
+ * B-2: the webview cannot touch vscode — collectors are injected by the host.
+ * Without injected deps the block degrades to '' (never throws).
  */
 export interface LspCursorContextDeps {
   /** Per-collector timeout in ms (default 2000) */
@@ -30,70 +26,17 @@ async function withTimeout(promise: Promise<string>, ms: number): Promise<string
   ]);
 }
 
-interface VscodeLocationLike {
-  uri: { fsPath: string };
-  range: { start: { line: number } };
-}
-
+/** Host-owned default — webview returns '' (no vscode). */
 async function defaultGetHover(): Promise<string> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const vscode = require('vscode') as typeof import('vscode');
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return '';
-    const hovers = (await vscode.commands.executeCommand(
-      'vscode.executeHoverProvider',
-      editor.document.uri,
-      editor.selection.active
-    )) as Array<{ contents: Array<string | { value?: string }> }> | undefined;
-    if (!hovers?.length) return '';
-    const parts: string[] = [];
-    for (const h of hovers.slice(0, 3)) {
-      for (const c of h.contents) {
-        if (typeof c === 'string') parts.push(c);
-        else if (c && typeof c.value === 'string') parts.push(c.value);
-      }
-    }
-    return parts.join('\n');
-  } catch {
-    return '';
-  }
+  return '';
 }
 
 async function defaultGetDefinitions(): Promise<string> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const vscode = require('vscode') as typeof import('vscode');
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return '';
-    const defs = (await vscode.commands.executeCommand(
-      'vscode.executeDefinitionProvider',
-      editor.document.uri,
-      editor.selection.active
-    )) as VscodeLocationLike[] | undefined;
-    if (!defs?.length) return '';
-    return defs.slice(0, 10).map((d) => `${d.uri.fsPath}:${d.range.start.line + 1}`).join('\n');
-  } catch {
-    return '';
-  }
+  return '';
 }
 
 async function defaultGetReferences(): Promise<string> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const vscode = require('vscode') as typeof import('vscode');
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return '';
-    const refs = (await vscode.commands.executeCommand(
-      'vscode.executeReferenceProvider',
-      editor.document.uri,
-      editor.selection.active
-    )) as VscodeLocationLike[] | undefined;
-    if (!refs?.length) return '';
-    return refs.slice(0, 15).map((r) => `${r.uri.fsPath}:${r.range.start.line + 1}`).join('\n');
-  } catch {
-    return '';
-  }
+  return '';
 }
 
 /**
