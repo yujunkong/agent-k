@@ -1,17 +1,3 @@
-:root {
-  --vscode-editor-background: #1e1e1e;
-  --vscode-editor-foreground: #d4d4d4;
-  --vscode-sideBar-background: #252526;
-  --vscode-sideBar-foreground: #cccccc;
-  --vscode-input-background: #3c3c3c;
-  --vscode-input-foreground: #cccccc;
-  --vscode-button-background: #0e639c;
-  --vscode-button-foreground: #ffffff;
-  --vscode-button-hoverBackground: #1177bb;
-  --vscode-scrollbarSlider-background: #424242;
-  --vscode-scrollbarSlider-hoverBackground: #5a5a5a;
-}
-
 * {
   box-sizing: border-box;
   margin: 0;
@@ -74,6 +60,26 @@ html, body {
     var(--vscode-foreground, #cccccc) 10%,
     transparent
   );
+  /* Semantic status / accent tokens — theme-aware (light + dark) */
+  --ak-danger: var(--vscode-errorForeground, #f87171);
+  --ak-danger-bg: color-mix(in srgb, var(--vscode-errorForeground, #f87171) 12%, transparent);
+  --ak-success: var(--vscode-charts-green, #4ade80);
+  --ak-success-bg: color-mix(in srgb, var(--vscode-charts-green, #4ade80) 12%, transparent);
+  --ak-warning: var(--vscode-editorWarning-foreground, #f59e0b);
+  --ak-warning-bg: color-mix(in srgb, var(--vscode-editorWarning-foreground, #f59e0b) 12%, transparent);
+  --ak-info: var(--vscode-charts-blue, #67e8f9);
+  --ak-info-bg: color-mix(in srgb, var(--vscode-charts-blue, #67e8f9) 14%, transparent);
+  --ak-accent: var(--vscode-textLink-foreground, #14b8a6);
+  --ak-accent-bg: color-mix(in srgb, var(--vscode-textLink-foreground, #14b8a6) 14%, transparent);
+  /* Language badge palette — VS Code chart tokens (theme-aware) */
+  --ak-lang-ts: var(--vscode-charts-blue, #3178c6);
+  --ak-lang-js: var(--vscode-charts-yellow, #c6a200);
+  --ak-lang-py: var(--vscode-charts-blue, #3572a5);
+  --ak-lang-rs: var(--vscode-charts-orange, #dea584);
+  --ak-lang-muted: var(--vscode-descriptionForeground, #6b7280);
+  --ak-lang-css: var(--vscode-charts-purple, #563d7c);
+  --ak-badge-fg: var(--vscode-button-foreground, #ffffff);
+  --ak-badge-fg-dark: var(--vscode-editor-background, #1a1a1a);
   /* Shared left edge for user text, Thought/Explore titles, assistant markdown */
   --ak-thread-inset: 12px;
   --ak-step-gutter: 12px;
@@ -92,8 +98,8 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   font-size: 13px;
   line-height: 1.4;
-  color: var(--vscode-editor-foreground);
-  background: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground, #d4d4d4);
+  background: var(--vscode-editor-background, #1e1e1e);
 }
 
 .chat-container {
@@ -106,7 +112,7 @@ body {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  background: var(--vscode-editor-background);
+  background: var(--vscode-editor-background, #1e1e1e);
   /* Separate Agent K from adjacent editor / sidebar */
   border-left: 1px solid var(--ak-chrome-border, rgba(255, 255, 255, 0.1));
 }
@@ -146,7 +152,7 @@ body {
   overflow: hidden;
   /* The vertical boundary the user marked */
   border-right: 1px solid var(--ak-chrome-border, rgba(255, 255, 255, 0.14));
-  box-shadow: 4px 0 18px rgba(0, 0, 0, 0.18);
+  box-shadow: 4px 0 18px color-mix(in srgb, var(--vscode-widget-shadow, #000) 18%, transparent);
 }
 
 .chat-main {
@@ -212,7 +218,7 @@ body {
 }
 
 .chat-tab:not(.chat-tab--active):hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 4%, transparent);
   color: var(--vscode-foreground, #ccc);
 }
 
@@ -265,7 +271,13 @@ body {
 
 .chat-tab__close:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 8%, transparent);
+}
+
+.chat-tab__close:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
 }
 
 .chat-header-more {
@@ -387,8 +399,8 @@ body {
 }
 
 .debug-mode-ui__hypo.is-active {
-  background: rgba(59, 130, 246, 0.2);
-  border-color: rgba(59, 130, 246, 0.4);
+  background: color-mix(in srgb, var(--ak-info) 20%, transparent);
+  border-color: color-mix(in srgb, var(--ak-info) 40%, transparent);
 }
 
 .debug-mode-ui__hypo:disabled {
@@ -409,8 +421,8 @@ body {
   padding: 6px 10px;
   border-radius: 4px;
   margin-top: 8px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.2);
+  background: color-mix(in srgb, var(--ak-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ak-success) 20%, transparent);
   font-size: 0.85em;
 }
 
@@ -434,7 +446,7 @@ body {
 .plan-mode-header__badge {
   padding: 2px 7px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 6%, transparent);
   color: var(--vscode-descriptionForeground, #aaa);
   font-weight: 600;
   font-size: 10px;
@@ -467,7 +479,7 @@ body {
 
 .plan-stage-badge--active {
   border-color: var(--ak-card-border);
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 7%, transparent);
   color: var(--vscode-foreground, #e8e8e8);
   font-weight: 600;
 }
@@ -510,19 +522,19 @@ body {
 }
 
 .plan-mode-header__discard {
-  color: #f87171 !important;
+  color: var(--ak-danger) !important;
 }
 
 .plan-mode-header__discard--armed,
 .plan-review__discard--armed {
-  background: color-mix(in srgb, #f87171 22%, transparent) !important;
-  border-color: #f87171 !important;
-  color: #fecaca !important;
+  background: color-mix(in srgb, var(--ak-danger) 22%, transparent) !important;
+  border-color: var(--ak-danger) !important;
+  color: var(--ak-danger) !important;
   font-weight: 600;
 }
 
 .plan-review__discard {
-  color: #f87171 !important;
+  color: var(--ak-danger) !important;
 }
 
 .plan-mode-header__hint {
@@ -531,7 +543,7 @@ body {
   opacity: 0.75;
   padding: 5px 8px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 4%, transparent);
   border: 1px solid var(--ak-card-border);
   color: var(--vscode-descriptionForeground, #bbb);
 }
@@ -603,8 +615,8 @@ body {
   margin-bottom: 10px;
   padding: 10px 12px;
   border-radius: 6px;
-  background: rgba(248, 113, 113, 0.08);
-  border: 1px solid rgba(248, 113, 113, 0.28);
+  background: color-mix(in srgb, var(--ak-danger) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ak-danger) 28%, transparent);
 }
 
 .plan-review__reject-input {
@@ -632,9 +644,9 @@ body {
   padding: 8px 10px;
   border-radius: 4px;
   font-size: 12px;
-  color: #facc15;
-  background: rgba(250, 204, 21, 0.1);
-  border: 1px solid rgba(250, 204, 21, 0.3);
+  color: var(--ak-warning);
+  background: color-mix(in srgb, var(--ak-warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ak-warning) 30%, transparent);
 }
 
 .plan-review__body {
@@ -714,7 +726,7 @@ body {
   padding: 8px 10px;
   border-radius: 6px;
   border: 1px solid var(--vscode-panel-border, #333);
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 2%, transparent);
 }
 
 .plan-review__step {
@@ -755,7 +767,7 @@ body {
   padding: 10px 12px;
   border-radius: 6px;
   border: 1px solid var(--vscode-inputValidation-warningBorder, #b89500);
-  background: rgba(184, 149, 0, 0.08);
+  background: color-mix(in srgb, var(--ak-warning) 8%, transparent);
 }
 
 .plan-review__manual-verify-list {
@@ -820,11 +832,14 @@ body {
   border-color: var(--ak-panel-border);
 }
 
-.mode-selector--btn:focus,
+.mode-selector--btn:focus {
+  border-color: var(--ak-panel-border);
+}
+
 .mode-selector--btn:focus-visible,
 .mode-selector--btn:focus-visible.is-open {
-  outline: none;
-  box-shadow: none;
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
   border-color: var(--ak-panel-border);
 }
 
@@ -949,7 +964,7 @@ body {
 
 .chat-actions button:hover:not(:disabled),
 .chat-icon-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 8%, transparent);
   opacity: 1;
 }
 
@@ -964,8 +979,8 @@ body {
 .chat-actions button.settings-open-btn[aria-pressed='true'],
 .chat-icon-btn.settings-open-btn[aria-pressed='true'],
 .chat-icon-btn[aria-pressed='true'] {
-  background: rgba(14, 99, 156, 0.35);
-  outline: 1px solid rgba(96, 165, 250, 0.5);
+  background: color-mix(in srgb, var(--vscode-button-background, #0e639c) 35%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 50%, transparent);
   opacity: 1;
 }
 
@@ -1144,13 +1159,13 @@ body {
   color: transparent;
   background-image: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0) 32%,
+    transparent 0%,
+    transparent 32%,
     color-mix(in srgb, var(--vscode-foreground, #fff) 45%, transparent) 42%,
     color-mix(in srgb, var(--vscode-foreground, #fff) 92%, transparent) 50%,
     color-mix(in srgb, var(--vscode-foreground, #fff) 45%, transparent) 58%,
-    rgba(255, 255, 255, 0) 68%,
-    rgba(255, 255, 255, 0) 100%
+    transparent 68%,
+    transparent 100%
   );
   background-size: 240% 100%;
   background-repeat: no-repeat;
@@ -1197,7 +1212,7 @@ body {
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  scrollbar-color: color-mix(in srgb, var(--vscode-foreground, #cccccc) 22%, transparent) transparent;
 }
 
 .ak-tool-slide-list {
@@ -1209,7 +1224,7 @@ body {
 .ak-tool-slide-list.ak-explore-scroll {
   margin-left: var(--ak-thread-inset, 12px);
   padding: 2px 0 6px 10px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid color-mix(in srgb, var(--vscode-foreground, #cccccc) 10%, transparent);
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -1285,7 +1300,7 @@ body {
 
 .ak-explore-tool-row--failed .ak-explore-tool-row__marker {
   opacity: 0.95;
-  color: #f87171;
+  color: var(--ak-danger);
 }
 
 .ak-explore-tool-row__text {
@@ -1295,7 +1310,7 @@ body {
 }
 
 .ak-explore-tool-row--failed .ak-explore-tool-row__text {
-  color: #fca5a5;
+  color: var(--ak-danger);
 }
 
 .ak-explore-tool-row__detail {
@@ -1338,7 +1353,7 @@ body {
 }
 
 .ak-explore-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.22);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 22%, transparent);
   border-radius: 3px;
 }
 
@@ -1463,9 +1478,9 @@ body.vscode-dark .user-turn,
   border-radius: 5px;
   font-size: 11px;
   line-height: 1.35;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 5%, transparent);
   color: var(--vscode-foreground, #ddd);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid color-mix(in srgb, var(--vscode-foreground, #cccccc) 9%, transparent);
 }
 
 .user-chip__icon {
@@ -1500,32 +1515,32 @@ body.vscode-dark .user-turn,
 }
 
 .user-chip--folder {
-  background: color-mix(in srgb, #2dd4bf 22%, var(--vscode-editor-background, #fff));
-  border-color: color-mix(in srgb, #14b8a6 38%, transparent);
-  color: color-mix(in srgb, #0f766e 88%, #134e4a);
+  background: color-mix(in srgb, var(--ak-accent) 22%, var(--vscode-editor-background, #fff));
+  border-color: color-mix(in srgb, var(--ak-accent) 38%, transparent);
+  color: var(--ak-accent);
 }
 
 /* Cursor-like file selection chip — solid teal wash so path/range stays readable */
 .user-chip--file {
-  background: color-mix(in srgb, #5eead4 32%, var(--vscode-editor-background, #fff));
-  border: 1px solid color-mix(in srgb, #14b8a6 42%, transparent);
-  color: color-mix(in srgb, #0f766e 92%, #115e59);
+  background: color-mix(in srgb, var(--ak-accent) 32%, var(--vscode-editor-background, #fff));
+  border: 1px solid color-mix(in srgb, var(--ak-accent) 42%, transparent);
+  color: var(--ak-accent);
 }
 
 body.vscode-dark .user-chip--folder,
 .vscode-dark .user-chip--folder,
 body.vscode-dark .user-chip--file,
 .vscode-dark .user-chip--file {
-  background: rgba(45, 212, 191, 0.2);
-  border-color: rgba(45, 212, 191, 0.45);
-  color: #5eead4;
+  background: color-mix(in srgb, var(--ak-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--ak-accent) 45%, transparent);
+  color: var(--ak-accent);
 }
 
 .user-chip--log,
 .user-chip--snippet {
-  background: rgba(250, 204, 21, 0.07);
-  border-color: rgba(250, 204, 21, 0.26);
-  color: #fde68a;
+  background: color-mix(in srgb, var(--ak-warning) 7%, transparent);
+  border-color: color-mix(in srgb, var(--ak-warning) 26%, transparent);
+  color: var(--ak-warning);
 }
 
 .user-turn__text {
@@ -1620,8 +1635,8 @@ body.vscode-dark .user-chip--file,
 }
 
 .message-bubble.tool {
-  background: #3d2e00;
-  border-left: 3px solid #f59e0b;
+  background: color-mix(in srgb, var(--ak-warning) 14%, var(--vscode-editor-background, #1e1e1e));
+  border-left: 3px solid var(--ak-warning);
 }
 
 .message-bubble.system {
@@ -1652,7 +1667,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .streaming-indicator {
-  color: #f59e0b;
+  color: var(--ak-warning);
   animation: pulse 1s infinite;
 }
 
@@ -1662,11 +1677,11 @@ body.vscode-dark .user-chip--file,
 }
 
 .error-indicator {
-  color: #ef4444;
+  color: var(--ak-danger);
 }
 
 .complete-indicator {
-  color: #22c55e;
+  color: var(--ak-success);
 }
 
 .message-opening-lead {
@@ -1846,12 +1861,12 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-step-row--error .ak-step-title {
-  color: #e2556f;
+  color: var(--ak-danger);
   font-weight: 500;
 }
 
 .ak-step-row--error .ak-step-chevron {
-  color: #e2556f;
+  color: var(--ak-danger);
   opacity: 0.9;
 }
 
@@ -1913,11 +1928,11 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-turn-status[data-status='error'] {
-  color: #e2556f;
+  color: var(--ak-danger);
 }
 
 .ak-turn-status[data-status='error'] .ak-turn-status__dot {
-  color: #e2556f;
+  color: var(--ak-danger);
   animation: none;
 }
 
@@ -2008,7 +2023,7 @@ body.vscode-dark .user-chip--file,
 .ak-worked--error .ak-worked__chevron,
 .ak-work-timeline--error .ak-worked__label,
 .ak-work-timeline--error .ak-worked__chevron {
-  color: #e2556f;
+  color: var(--ak-danger);
 }
 
 /*
@@ -2307,7 +2322,7 @@ body.vscode-dark .user-chip--file,
   height: 16px;
   padding: 0 4px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 10%, transparent);
   color: var(--vscode-foreground, #fff);
   font-size: 9px;
   font-weight: 700;
@@ -2332,12 +2347,12 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-file-edit-header__add {
-  color: #4ade80;
+  color: var(--ak-success);
   font-weight: 600;
 }
 
 .ak-file-edit-header__del {
-  color: #f87171;
+  color: var(--ak-danger);
   font-weight: 600;
 }
 
@@ -2365,21 +2380,21 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-file-edit-diff__line--add {
-  background: rgba(74, 222, 128, 0.1);
+  background: var(--ak-success-bg);
 }
 
 .ak-file-edit-diff__line--add .ak-file-edit-diff__mark,
 .ak-file-edit-diff__line--add .ak-file-edit-diff__ln {
-  color: #86efac;
+  color: var(--ak-success);
 }
 
 .ak-file-edit-diff__line--delete {
-  background: rgba(239, 68, 68, 0.1);
+  background: var(--ak-danger-bg);
 }
 
 .ak-file-edit-diff__line--delete .ak-file-edit-diff__mark,
 .ak-file-edit-diff__line--delete .ak-file-edit-diff__ln {
-  color: #fca5a5;
+  color: var(--ak-danger);
 }
 
 .ak-file-edit-diff__line--context {
@@ -2393,11 +2408,11 @@ body.vscode-dark .user-chip--file,
 
 /* Fallback when Shiki hasn't painted tokens yet */
 .ak-file-edit-diff__line--add .ak-file-edit-diff__text {
-  color: #86efac;
+  color: var(--ak-success);
 }
 
 .ak-file-edit-diff__line--delete .ak-file-edit-diff__text {
-  color: #fca5a5;
+  color: var(--ak-danger);
 }
 
 .ak-file-edit-diff__line--context .ak-file-edit-diff__text {
@@ -2518,7 +2533,7 @@ body.vscode-dark .user-chip--file,
 
 .ak-inline-edit-diff__reject:hover {
   color: var(--vscode-foreground, #ccc);
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 6%, transparent);
 }
 
 .ak-inline-edit-diff__accept {
@@ -2532,7 +2547,7 @@ body.vscode-dark .user-chip--file,
 
 .ak-diff-review {
   margin: 6px 8px 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid color-mix(in srgb, var(--vscode-foreground, #cccccc) 6%, transparent);
 }
 
 .ak-diff-review__header {
@@ -2573,7 +2588,7 @@ body.vscode-dark .user-chip--file,
 
 .ak-diff-review__secondary:hover {
   color: var(--vscode-foreground, #ccc);
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 6%, transparent);
 }
 
 .ak-diff-review__body {
@@ -2609,7 +2624,7 @@ body.vscode-dark .user-chip--file,
 
 .ak-diff-review__file:hover,
 .ak-diff-review__file--active {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 6%, transparent);
 }
 
 .ak-diff-review__file-name {
@@ -2695,7 +2710,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-terminal-card--error {
-  border-color: rgba(248, 113, 113, 0.35);
+  border-color: color-mix(in srgb, var(--ak-danger) 35%, transparent);
 }
 
 .ak-terminal-card__header {
@@ -2725,7 +2740,7 @@ body.vscode-dark .user-chip--file,
   height: 16px;
   padding: 0 4px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 8%, transparent);
   color: var(--vscode-descriptionForeground, #ccc);
   font-size: 9px;
   font-weight: 700;
@@ -2954,9 +2969,9 @@ body.vscode-dark .user-chip--file,
   max-width: 100%;
   overflow-x: auto;
   margin: 0.3em 0 0.45em;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--vscode-foreground, #cccccc) 14%, transparent);
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.18);
+  background: color-mix(in srgb, var(--vscode-widget-shadow, #000) 18%, transparent);
 }
 
 .message-content .markdown-body table {
@@ -2969,7 +2984,7 @@ body.vscode-dark .user-chip--file,
 
 .message-content .markdown-body th,
 .message-content .markdown-body td {
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--vscode-foreground, #cccccc) 14%, transparent);
   padding: 5px 8px;
   text-align: left;
   vertical-align: top;
@@ -2979,7 +2994,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .message-content .markdown-body th {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 8%, transparent);
   font-weight: 600;
 }
 
@@ -2988,7 +3003,7 @@ body.vscode-dark .user-chip--file,
   font-size: 11.5px;
   padding: 1px 5px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 8%, transparent);
 }
 
 .message-content pre:not(.shiki):not(.ak-code__pre) {
@@ -3021,8 +3036,8 @@ body.vscode-dark .user-chip--file,
 
 body.vscode-light .ak-code,
 body.vscode-light .code-block-wrapper {
-  background: #f6f8fa;
-  border-color: #d0d7de;
+  background: var(--vscode-textCodeBlock-background, #f6f8fa);
+  border-color: var(--vscode-widget-border, #d0d7de);
 }
 
 body.vscode-dark .ak-code,
@@ -3046,7 +3061,7 @@ body.vscode-high-contrast .code-block-wrapper {
 
 body.vscode-light .ak-code__header,
 body.vscode-light .code-block-header {
-  border-bottom-color: #d8dee4;
+  border-bottom-color: var(--vscode-widget-border, #d8dee4);
 }
 
 .ak-code__lang,
@@ -3081,11 +3096,17 @@ body.vscode-light .code-block-header {
 }
 
 .ak-code:hover .ak-code__copy,
-.code-block-wrapper:hover .code-copy-btn,
+.code-block-wrapper:hover .code-copy-btn {
+  opacity: 1;
+  border-color: var(--vscode-widget-border, rgba(128, 128, 128, 0.35));
+}
+
 .ak-code__copy:focus-visible,
 .code-copy-btn:focus-visible {
   opacity: 1;
   border-color: var(--vscode-widget-border, rgba(128, 128, 128, 0.35));
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
 }
 
 .ak-code__copy:hover,
@@ -3242,24 +3263,24 @@ body.vscode-high-contrast .ak-code__cursor {
   gap: 4px;
   font-size: 12px;
   padding: 2px 8px;
-  background: rgba(34, 211, 238, 0.14);
-  color: #67e8f9;
-  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: var(--ak-info-bg);
+  color: var(--ak-info);
+  border: 1px solid color-mix(in srgb, var(--ak-info) 35%, transparent);
   border-radius: 999px;
   font-family: var(--vscode-font-family);
 }
 
 .attachment-tag--folder {
-  background: rgba(45, 212, 191, 0.14);
-  border-color: rgba(45, 212, 191, 0.4);
-  color: #5eead4;
+  background: var(--ak-accent-bg);
+  border-color: color-mix(in srgb, var(--ak-accent) 40%, transparent);
+  color: var(--ak-accent);
 }
 
 .attachment-tag--log,
 .attachment-tag--snippet {
-  background: rgba(250, 204, 21, 0.12);
-  border-color: rgba(250, 204, 21, 0.35);
-  color: #fde047;
+  background: var(--ak-warning-bg);
+  border-color: color-mix(in srgb, var(--ak-warning) 35%, transparent);
+  color: var(--ak-warning);
 }
 
 .message-actions {
@@ -3304,7 +3325,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .msg-action-btn:hover {
-  background: rgba(255,255,255,0.1);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 10%, transparent);
   color: var(--vscode-foreground, #e8e8e8);
 }
 
@@ -3318,7 +3339,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .message-actions button.msg-action-btn:hover {
   opacity: 1;
-  background: rgba(255,255,255,0.1);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 10%, transparent);
 }
 
 .msg-action-btn--stop {
@@ -3501,8 +3522,8 @@ body.vscode-high-contrast .ak-code__cursor {
   border-radius: 999px;
   font-size: 10px;
   font-weight: 600;
-  background: rgba(59, 130, 246, 0.22);
-  color: #93c5fd;
+  background: color-mix(in srgb, var(--ak-info) 22%, transparent);
+  color: var(--ak-info);
 }
 
 .queue-text {
@@ -3540,12 +3561,12 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .queue-btn:hover,
 .queue-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 8%, transparent);
 }
 
 .queue-btn--cancel,
 .queue-icon-btn--cancel {
-  color: #f87171;
+  color: var(--ak-danger);
 }
 
 .queue-processing-dot {
@@ -3693,7 +3714,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .changed-files-bar__review {
   border: none;
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 12%, transparent);
   color: var(--vscode-foreground, #e8e8e8);
   font-size: 12px;
   font-weight: 500;
@@ -3704,7 +3725,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .changed-files-bar__review:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 18%, transparent);
 }
 
 .changed-files-bar__list {
@@ -3713,7 +3734,7 @@ body.vscode-high-contrast .ak-code__cursor {
   padding: 2px 0 4px;
   max-height: 160px;
   overflow-y: auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid color-mix(in srgb, var(--vscode-foreground, #cccccc) 6%, transparent);
 }
 
 .changed-files-bar__li {
@@ -3728,7 +3749,7 @@ body.vscode-high-contrast .ak-code__cursor {
   padding: 4px 0;
   max-height: 220px;
   overflow-y: auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid color-mix(in srgb, var(--vscode-foreground, #cccccc) 6%, transparent);
 }
 
 .changed-files-bar__checkpoint-empty {
@@ -3759,7 +3780,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .changed-files-bar__checkpoint-restore {
   border: none;
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 12%, transparent);
   color: var(--vscode-foreground, #e8e8e8);
   font-size: 11px;
   border-radius: 999px;
@@ -3768,7 +3789,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .changed-files-bar__checkpoint-restore:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 18%, transparent);
 }
 
 .changed-files-bar__file {
@@ -3787,7 +3808,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .changed-files-bar__file:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 5%, transparent);
 }
 
 .changed-files-bar__badge {
@@ -3799,8 +3820,8 @@ body.vscode-high-contrast .ak-code__cursor {
   height: 15px;
   padding: 0 4px;
   border-radius: 3px;
-  background: #3178c6;
-  color: #fff;
+  background: var(--ak-lang-ts);
+  color: var(--ak-badge-fg);
   font-size: 8.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -3809,34 +3830,34 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .changed-files-bar__badge--ts,
 .changed-files-bar__badge--tsx {
-  background: #3178c6;
+  background: var(--ak-lang-ts);
 }
 
 .changed-files-bar__badge--js,
 .changed-files-bar__badge--jsx {
-  background: #c6a200;
-  color: #1a1a1a;
+  background: var(--ak-lang-js);
+  color: var(--ak-badge-fg-dark);
 }
 
 .changed-files-bar__badge--py {
-  background: #3572a5;
+  background: var(--ak-lang-py);
 }
 
 .changed-files-bar__badge--rs {
-  background: #dea584;
-  color: #1a1a1a;
+  background: var(--ak-lang-rs);
+  color: var(--ak-badge-fg-dark);
 }
 
 .changed-files-bar__badge--toml,
 .changed-files-bar__badge--json,
 .changed-files-bar__badge--md,
 .changed-files-bar__badge--txt {
-  background: #6b7280;
+  background: var(--ak-lang-muted);
 }
 
 .changed-files-bar__badge--css,
 .changed-files-bar__badge--scss {
-  background: #563d7c;
+  background: var(--ak-lang-css);
 }
 
 .changed-files-bar__name {
@@ -3860,11 +3881,11 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .changed-files-bar__file-stats .add {
-  color: #4ade80;
+  color: var(--ak-success);
 }
 
 .changed-files-bar__file-stats .del {
-  color: #f87171;
+  color: var(--ak-danger);
 }
 
 .changed-files-bar__muted {
@@ -3880,13 +3901,13 @@ body.vscode-high-contrast .ak-code__cursor {
   max-width: min(520px, 92%);
   padding: 4px 8px;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: #1a1a1a;
-  color: #e8e8e8;
+  border: 1px solid color-mix(in srgb, var(--vscode-foreground, #cccccc) 16%, transparent);
+  background: var(--vscode-editorWidget-background, var(--vscode-menu-background, #1a1a1a));
+  color: var(--vscode-foreground, #e8e8e8);
   font-size: 11.5px;
   line-height: 1.35;
   pointer-events: none;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--vscode-widget-shadow, #000) 45%, transparent);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4368,6 +4389,12 @@ body.vscode-high-contrast .ak-code__cursor {
   border-color: var(--ak-divider);
 }
 
+.model-selector--btn:focus-visible,
+.model-selector--btn:focus-visible.is-open {
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
+}
+
 .model-selector:disabled {
   opacity: 0.5;
   cursor: default;
@@ -4449,6 +4476,11 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .model-selector__filter-input:focus {
   border-color: var(--vscode-focusBorder, var(--ak-panel-border));
+}
+
+.model-selector__filter-input:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
 }
 
 .model-selector__list {
@@ -4533,7 +4565,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .provider-card.is-warn {
-  border-color: rgba(248, 113, 113, 0.45);
+  border-color: color-mix(in srgb, var(--ak-danger) 45%, transparent);
 }
 
 .provider-card__row {
@@ -4637,15 +4669,15 @@ body.vscode-high-contrast .ak-code__cursor {
   letter-spacing: 0.02em;
   padding: 1px 6px;
   border-radius: 999px;
-  background: rgba(128, 128, 128, 0.18);
+  background: color-mix(in srgb, var(--vscode-descriptionForeground, #808080) 18%, transparent);
   opacity: 0.9;
 }
 
-.model-badge--local { background: rgba(34, 197, 94, 0.22); }
-.model-badge--fast { background: rgba(56, 189, 248, 0.22); }
-.model-badge--cheap { background: rgba(250, 204, 21, 0.22); }
-.model-badge--reasoning { background: rgba(167, 139, 250, 0.22); }
-.model-badge--vision { background: rgba(244, 114, 182, 0.22); }
+.model-badge--local { background: color-mix(in srgb, var(--ak-success) 22%, transparent); }
+.model-badge--fast { background: color-mix(in srgb, var(--ak-info) 22%, transparent); }
+.model-badge--cheap { background: color-mix(in srgb, var(--ak-warning) 22%, transparent); }
+.model-badge--reasoning { background: color-mix(in srgb, var(--vscode-charts-purple, #a78bfa) 22%, transparent); }
+.model-badge--vision { background: color-mix(in srgb, var(--vscode-charts-purple, #f472b6) 22%, transparent); }
 
 
 /* Legacy native select (kept for any leftover references) */
@@ -4719,6 +4751,12 @@ body.vscode-high-contrast .ak-code__cursor {
   border-color: var(--ak-panel-border);
 }
 
+.composer-thinking-select:focus-visible,
+.thinking-selector:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
+}
+
 .composer-thinking-select:disabled {
   opacity: 0.5;
   cursor: default;
@@ -4755,6 +4793,14 @@ body.vscode-high-contrast .ak-code__cursor {
   cursor: not-allowed;
 }
 
+.composer-icon-btn:focus-visible,
+.composer-actions button:focus-visible,
+.composer-chip-label:focus-visible,
+.composer-chip-remove:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
+}
+
 .composer-icon-btn--send {
   background: var(--vscode-button-background, #0e639c);
   color: var(--vscode-button-foreground, #fff);
@@ -4764,7 +4810,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .composer-icon-btn--send:hover:not(:disabled) {
   background: var(--vscode-button-hoverBackground, #1177bb);
-  color: #fff;
+  color: var(--vscode-button-foreground, #fff);
 }
 
 .composer-icon-btn--send:disabled {
@@ -4772,15 +4818,15 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .composer-icon-btn--stop {
-  background: color-mix(in srgb, #ef4444 14%, transparent);
-  border-color: color-mix(in srgb, #ef4444 32%, transparent);
+  background: color-mix(in srgb, var(--ak-danger) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ak-danger) 32%, transparent);
 }
 
 .composer-stop-square {
   width: 10px;
   height: 10px;
   border-radius: 2px;
-  background: #f87171;
+  background: var(--ak-danger);
   display: block;
 }
 
@@ -4859,12 +4905,12 @@ body.vscode-high-contrast .ak-code__cursor {
   margin-right: auto;
   background: transparent;
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  border-color: #3c3c3c;
+  border-color: var(--vscode-input-border, #3c3c3c);
 }
 
 .composer-actions button.attach-btn:hover:not(:disabled) {
-  color: #67e8f9;
-  border-color: rgba(34, 211, 238, 0.45);
+  color: var(--ak-info);
+  border-color: color-mix(in srgb, var(--ak-info) 45%, transparent);
 }
 
 .composer.drag-over {
@@ -4877,7 +4923,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border-color: var(--vscode-focusBorder, #22d3ee) !important;
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder, #22d3ee) 55%, transparent),
-    0 12px 36px rgba(0, 0, 0, 0.28) !important;
+    0 12px 36px color-mix(in srgb, var(--vscode-widget-shadow, #000) 28%, transparent) !important;
   background: color-mix(
     in srgb,
     var(--vscode-input-background, var(--ak-panel-bg)) 70%,
@@ -4949,28 +4995,28 @@ body.vscode-high-contrast .ak-code__cursor {
   line-height: 1.4;
   font-weight: 500;
   /* Comment: light teal wash — matches Cursor file-ref chip legibility */
-  background: color-mix(in srgb, #5eead4 34%, var(--vscode-input-background, #fff));
-  color: color-mix(in srgb, #0f766e 92%, #115e59);
-  border: 1px solid color-mix(in srgb, #14b8a6 40%, transparent);
+  background: color-mix(in srgb, var(--ak-accent) 34%, var(--vscode-input-background, #fff));
+  color: var(--ak-accent);
+  border: 1px solid color-mix(in srgb, var(--ak-accent) 40%, transparent);
 }
 
 .composer-chip--file {
-  background: color-mix(in srgb, #5eead4 34%, var(--vscode-input-background, #fff));
-  color: color-mix(in srgb, #0f766e 92%, #115e59);
-  border-color: color-mix(in srgb, #14b8a6 40%, transparent);
+  background: color-mix(in srgb, var(--ak-accent) 34%, var(--vscode-input-background, #fff));
+  color: var(--ak-accent);
+  border-color: color-mix(in srgb, var(--ak-accent) 40%, transparent);
 }
 
 .composer-chip--folder {
-  background: color-mix(in srgb, #2dd4bf 28%, var(--vscode-input-background, #fff));
-  border-color: color-mix(in srgb, #14b8a6 38%, transparent);
-  color: color-mix(in srgb, #0f766e 88%, #134e4a);
+  background: color-mix(in srgb, var(--ak-accent) 28%, var(--vscode-input-background, #fff));
+  border-color: color-mix(in srgb, var(--ak-accent) 38%, transparent);
+  color: var(--ak-accent);
 }
 
 .composer-chip--log,
 .composer-chip--snippet {
-  background: rgba(250, 204, 21, 0.14);
-  border-color: rgba(250, 204, 21, 0.38);
-  color: color-mix(in srgb, #a16207 80%, #854d0e);
+  background: color-mix(in srgb, var(--ak-warning) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ak-warning) 38%, transparent);
+  color: var(--ak-warning);
 }
 
 body.vscode-dark .composer-chip,
@@ -4979,18 +5025,18 @@ body.vscode-dark .composer-chip--file,
 .vscode-dark .composer-chip--file,
 body.vscode-dark .composer-chip--folder,
 .vscode-dark .composer-chip--folder {
-  background: rgba(45, 212, 191, 0.2);
-  border-color: rgba(45, 212, 191, 0.45);
-  color: #5eead4;
+  background: color-mix(in srgb, var(--ak-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--ak-accent) 45%, transparent);
+  color: var(--ak-accent);
 }
 
 body.vscode-dark .composer-chip--log,
 .vscode-dark .composer-chip--log,
 body.vscode-dark .composer-chip--snippet,
 .vscode-dark .composer-chip--snippet {
-  background: rgba(250, 204, 21, 0.12);
-  border-color: rgba(250, 204, 21, 0.35);
-  color: #fde047;
+  background: color-mix(in srgb, var(--ak-warning) 12%, transparent);
+  border-color: color-mix(in srgb, var(--ak-warning) 35%, transparent);
+  color: var(--ak-warning);
 }
 
 .composer-chip--ranged {
@@ -5052,7 +5098,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .composer-chip-remove:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 8%, transparent);
 }
 
 .composer-inline-edit {
@@ -5093,7 +5139,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .composer-inline-edit-remove:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 8%, transparent);
 }
 
 .composer-inline-edit-meta {
@@ -5113,10 +5159,10 @@ body.vscode-dark .composer-chip--snippet,
 
 .composer:not(.composer--cursor) textarea {
   padding: 10px 12px;
-  border: 1px solid #3c3c3c;
+  border: 1px solid var(--vscode-input-border, #3c3c3c);
   border-radius: 6px;
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-input-foreground, #cccccc);
   font-family: inherit;
   font-size: 13px;
   line-height: 1.5;
@@ -5126,8 +5172,13 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .composer:not(.composer--cursor) textarea:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  border-color: var(--vscode-focusBorder, #3b82f6);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder, #3b82f6) 20%, transparent);
+}
+
+.composer:not(.composer--cursor) textarea:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
 }
 
 .composer:not(.composer--cursor) textarea:disabled {
@@ -5145,53 +5196,53 @@ body.vscode-dark .composer-chip--snippet,
   margin-right: auto;
   background: transparent;
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  border-color: #3c3c3c;
+  border-color: var(--vscode-input-border, #3c3c3c);
 }
 
 .composer-actions button.attach-btn:hover:not(:disabled) {
-  color: #67e8f9;
-  border-color: rgba(34, 211, 238, 0.45);
+  color: var(--ak-info);
+  border-color: color-mix(in srgb, var(--ak-info) 45%, transparent);
 }
 
 .composer-drop-hint kbd {
   padding: 1px 5px;
   border-radius: 3px;
-  border: 1px solid rgba(103, 232, 249, 0.45);
+  border: 1px solid color-mix(in srgb, var(--ak-info) 45%, transparent);
   font-size: 11px;
   font-family: var(--vscode-editor-font-family, monospace);
 }
 
 .composer-actions button {
   padding: 6px 16px;
-  border: 1px solid #3c3c3c;
+  border: 1px solid var(--vscode-input-border, #3c3c3c);
   border-radius: 4px;
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #ffffff);
   font-size: 12px;
   cursor: pointer;
   font-weight: 500;
 }
 
 .composer-actions button:hover:not(:disabled) {
-  background: var(--vscode-button-hoverBackground);
+  background: var(--vscode-button-hoverBackground, #1177bb);
 }
 
 .composer-actions button.stop-btn {
-  background: #c42828;
-  border-color: #c42828;
+  background: var(--ak-danger);
+  border-color: var(--ak-danger);
 }
 
 .composer-actions button.stop-btn:hover {
-  background: #e53939;
+  background: color-mix(in srgb, var(--ak-danger) 85%, var(--vscode-foreground, #fff));
 }
 
 .composer-actions button.regenerate-btn {
-  background: #3c3c3c;
-  color: var(--vscode-editor-foreground);
+  background: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-editor-foreground, #d4d4d4);
 }
 
 .composer-actions button.regenerate-btn:hover {
-  background: #4a4a4a;
+  background: var(--vscode-toolbar-hoverBackground, #4a4a4a);
 }
 
 .math-formula {
@@ -5216,20 +5267,20 @@ body.vscode-dark .composer-chip--snippet,
 .mermaid-diagram .edgePaths .path,
 .mermaid-diagram path.flowchart-link {
   fill: none !important;
-  stroke: #88c0d0 !important;
+  stroke: var(--ak-info) !important;
   stroke-width: 1.5px !important;
 }
 
 .mermaid-diagram .marker,
 .mermaid-diagram marker path,
 .mermaid-diagram .arrowheadPath {
-  fill: #88c0d0 !important;
-  stroke: #88c0d0 !important;
+  fill: var(--ak-info) !important;
+  stroke: var(--ak-info) !important;
 }
 
 .mermaid-diagram .cluster rect {
-  fill: #2e3440 !important;
-  stroke: #4c566a !important;
+  fill: var(--ak-card-bg, #2e3440) !important;
+  stroke: var(--ak-card-border, #4c566a) !important;
 }
 
 .mermaid-diagram--loading .mermaid-loading,
@@ -5244,13 +5295,13 @@ body.vscode-dark .composer-chip--snippet,
   margin: 0.75em 0;
   padding: 10px 12px;
   border-radius: 6px;
-  border: 1px solid rgba(248, 113, 113, 0.35);
-  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid color-mix(in srgb, var(--ak-danger) 35%, transparent);
+  background: color-mix(in srgb, var(--ak-danger) 8%, transparent);
 }
 
 .mermaid-error-msg {
   font-size: 12px;
-  color: #f87171;
+  color: var(--ak-danger);
   margin-bottom: 6px;
 }
 
@@ -5287,9 +5338,9 @@ body.vscode-dark .composer-chip--snippet,
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(239, 68, 68, 0.15);
-  border-bottom: 1px solid rgba(239, 68, 68, 0.4);
-  color: #f87171;
+  background: color-mix(in srgb, var(--ak-danger) 15%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--ak-danger) 40%, transparent);
+  color: var(--ak-danger);
   font-size: 12px;
   flex-shrink: 0;
   z-index: 5;
@@ -5313,7 +5364,7 @@ body.vscode-dark .composer-chip--snippet,
   flex-direction: column;
   background: var(--vscode-editor-background, #1e1e1e);
   border-left: 1px solid var(--ak-chrome-border, rgba(255, 255, 255, 0.12));
-  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.35);
+  box-shadow: -4px 0 16px color-mix(in srgb, var(--vscode-widget-shadow, #000) 35%, transparent);
 }
 
 .settings-panel {
@@ -5392,6 +5443,11 @@ body.vscode-dark .composer-chip--snippet,
   outline: none;
 }
 
+.settings-search__input:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
+}
+
 .settings-close {
   display: inline-flex;
   align-items: center;
@@ -5410,6 +5466,11 @@ body.vscode-dark .composer-chip--snippet,
 .settings-close:hover {
   background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
   opacity: 1;
+}
+
+.settings-close:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
 }
 
 .settings-body {
@@ -5469,6 +5530,11 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-tab:hover {
   background: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.25));
+}
+
+.settings-tab:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
 }
 
 .settings-tab.active {
@@ -5579,11 +5645,11 @@ body.vscode-dark .composer-chip--snippet,
   font-size: 12px;
 }
 
-.settings-field input:focus,
-.settings-field select:focus,
-.settings-field textarea:focus {
-  outline: 1px solid var(--vscode-focusBorder, #007fd4);
-  outline-offset: -1px;
+.settings-field input:focus-visible,
+.settings-field select:focus-visible,
+.settings-field textarea:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: 1px;
 }
 
 /* Toggle switch */
@@ -5643,9 +5709,9 @@ body.vscode-dark .composer-chip--snippet,
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--vscode-foreground, #fff);
   transition: transform 0.15s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--vscode-widget-shadow, #000) 35%, transparent);
 }
 
 .settings-switch.is-on .settings-switch__knob {
@@ -5942,7 +6008,7 @@ body.vscode-dark .composer-chip--snippet,
   border-radius: 8px;
   border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.35));
   background: var(--vscode-menu-background, var(--vscode-editor-background, #1e1e1e));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--vscode-widget-shadow, #000) 28%, transparent);
 }
 
 .rules-menu button {
@@ -6133,7 +6199,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .history-panel__delete:hover {
   opacity: 1;
-  color: #f87171;
+  color: var(--ak-danger);
 }
 
 
@@ -6386,7 +6452,7 @@ body.vscode-dark .composer-chip--snippet,
   flex-direction: column;
   gap: 8px;
   padding-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid color-mix(in srgb, var(--vscode-foreground, #cccccc) 6%, transparent);
 }
 
 .clarifying-questions__item:first-of-type {
@@ -6407,7 +6473,7 @@ body.vscode-dark .composer-chip--snippet,
   font-size: 11.5px;
   padding: 1px 5px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 8%, transparent);
 }
 
 .clarifying-questions__prompt strong {
@@ -6415,7 +6481,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .clarifying-questions__req {
-  color: #f87171;
+  color: var(--ak-danger);
   margin-left: 4px;
 }
 
@@ -6446,7 +6512,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .clarifying-questions__option:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 4%, transparent);
 }
 
 .clarifying-questions__option--selected {
@@ -6471,7 +6537,7 @@ body.vscode-dark .composer-chip--snippet,
   font-size: 11.5px;
   padding: 0 4px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #cccccc) 8%, transparent);
 }
 
 .clarifying-questions__textarea {
@@ -6489,7 +6555,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .clarifying-questions__error {
   font-size: 11px;
-  color: #f87171;
+  color: var(--ak-danger);
 }
 
 .clarifying-questions__actions {
