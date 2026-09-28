@@ -6,8 +6,9 @@
 
 import {
   AgentLoopController,
+  HeuristicIntentClassifier,
+  IntentGate,
   PrefetchEngine,
-  extractHarnessConfig,
   formatInlineEditStickyContext,
   formatInlineEditSystemContext,
   inferTierFromModelId,
@@ -24,6 +25,7 @@ import {
 import {
   LiteLLMProvider,
   clampThinkingEffort,
+  getPolicyForTier,
   parseThinkingEffort,
   resolveThinkingCapability,
 } from '@agent-k/providers';
@@ -48,6 +50,11 @@ import { hostLog, hostLogError } from './hostLog';
 import { createPrefetchIdeDeps } from './prefetchDeps';
 import { getMcpToolBridge } from './mcpHost';
 import { isTrueEmptyModelReply } from './chatSendEmpty';
+import {
+  readHarnessConfig,
+  readIntentGateEnabled,
+  readMaxTurns,
+} from './chatSendConfig';
 import { shortDetail, toolKind } from './timelineLabels';
 import {
   createSubagentHost,
@@ -231,18 +238,7 @@ export async function runHostChatSend(
   );
 
   const modeConfig = modeRegistry.getModeConfig(mode);
-  const harnessCfg = extractHarnessConfig({
-    'agent-k.harness.enabled': cfg.get('agent-k.harness.enabled'),
-    'agent-k.harness.verificationFirst': cfg.get(
-      'agent-k.harness.verificationFirst',
-    ),
-    'agent-k.harness.verificationMicroLoop': cfg.get(
-      'agent-k.harness.verificationMicroLoop',
-    ),
-    'agent-k.harness.prefetchEnabled': cfg.get(
-      'agent-k.harness.prefetchEnabled',
-    ),
-  });
+  const harnessCfg = readHarnessConfig(cfg);
   const harnessEnabled = harnessCfg.enabled;
   const harnessVerifyFirst = harnessEnabled && harnessCfg.verificationFirst;
   const harnessMicroLoop = harnessEnabled && harnessCfg.verificationMicroLoop;
@@ -256,10 +252,7 @@ export async function runHostChatSend(
     mode,
   });
   const modelTier = harnessEnabled ? routing.tier : 'B';
-  const maxTurns = Math.min(
-    100,
-    Math.max(5, Number(cfg.get('agent.maxTurns')) || modeConfig.maxTurns),
-  );
+  const maxTurns = readMaxTurns(cfg, modeConfig.maxTurns);
   // Comment: local LLMs often idle >180s on first token — floor 30m unless user set 0 (disable)
   const configuredTimeout = Number(cfg.get('turnTimeoutMs'));
   const isLocalLlm = /127\.0\.0\.1|localhost/i.test(baseUrl);
@@ -288,15 +281,46 @@ export async function runHostChatSend(
 
   const registry = new ToolRegistry();
   registerBuiltinTools(registry);
+  const root = workspaceRoot();
+  const inlineEditReq = parseInlineEditPayload(payload.inlineEdit);
+  const inlineEditActive = inlineEditReq != null;
+
+  // Comment: V31-INTENT-01 — classify intent before tool schemas / prefetch / harness
+  const lastUserRaw =
+    [...(payload.messages || [])]
+      .reverse()
+      .find((m) => m.role === 'user')?.content || '';
+  const intentGate = new IntentGate(new HeuristicIntentClassifier());
+  const intentVerdict = await intentGate.evaluate({
+    userText: String(lastUserRaw),
+    mode,
+    hasImages: (payload.images?.length ?? 0) > 0,
+    hasInlineEdit: inlineEditReq != null,
+    priorTurns: Math.max(0, (payload.messages?.length ?? 0) - 1),
+  });
+  const intentEnabled = readIntentGateEnabled(cfg);
+  const intentGates = intentEnabled
+    ? intentVerdict.gates
+    : {
+        prefetch: true,
+        verificationFirst: true,
+        harnessBlocks: true,
+        toolSchemas: 'full' as const,
+      };
+  hostLog(
+    'chat.send empty reply',
+    `intent verdict requestId=${requestId} kind=${intentVerdict.kind} conf=${intentVerdict.confidence} reason=${intentVerdict.reason} enabled=${intentEnabled} gates=prefetch:${intentGates.prefetch},verify:${intentGates.verificationFirst},harness:${intentGates.harnessBlocks},tools:${intentGates.toolSchemas}`,
+  );
+
   const schemaOpts = {
     planStage,
     modelTier,
     harnessEnabled,
   };
-  const toolSchemas = registry.getSchemas(mode, schemaOpts);
-  const root = workspaceRoot();
-  const inlineEditReq = parseInlineEditPayload(payload.inlineEdit);
-  const inlineEditActive = inlineEditReq != null;
+  const toolSchemas = registry.getSchemas(mode, {
+    ...schemaOpts,
+    intentKind: intentEnabled ? intentVerdict.kind : undefined,
+  });
   const toolCtxBase: ToolContext = {
     workspaceRoot: root,
     mode,
@@ -461,6 +485,8 @@ export async function runHostChatSend(
               signal,
               tools: childSchemas,
               thinkingEffort,
+              // Comment: V31-MODEL-01 — tier temperature for subagent runs
+              temperature: getPolicyForTier(modelTier).modelParams.temperature,
             })) {
               onActivity?.();
               if (chunk.error) throw new Error(chunk.error);
@@ -963,6 +989,8 @@ export async function runHostChatSend(
               signal,
               tools: toolSchemas,
               thinkingEffort,
+              // Comment: V31-MODEL-01 — tier temperature for the main loop
+              temperature: getPolicyForTier(modelTier).modelParams.temperature,
             })) {
               onActivity?.();
               beat();
@@ -1425,10 +1453,11 @@ export async function runHostChatSend(
       // Comment: HARNESS-005 — AGENTS.md / .agentk/rules outside compaction
       workspaceRoot: root || undefined,
       // Comment: HARNESS-002/004 — verify-first prompt + post-edit micro-loop
-      verificationFirst: harnessVerifyFirst,
+      verificationFirst: harnessVerifyFirst && intentGates.verificationFirst,
       verificationMicroLoop: harnessMicroLoop,
-      harnessEnabled,
+      harnessEnabled: harnessEnabled && intentGates.harnessBlocks,
       modelTier,
+      intentKind: intentEnabled ? intentVerdict.kind : undefined,
       stickyContext: inlineEditReq
         ? formatInlineEditStickyContext(inlineEditReq)
         : undefined,
@@ -1452,13 +1481,8 @@ export async function runHostChatSend(
       content: String(m.content || ''),
     }));
 
-  const lastUserRaw =
-    [...(payload.messages || [])]
-      .reverse()
-      .find((m) => m.role === 'user')?.content || '';
-
   let runPrompt = String(lastUserRaw);
-  if (harnessPrefetch) {
+  if (harnessPrefetch && intentGates.prefetch) {
     try {
       const prefetchEngine = new PrefetchEngine(
         { enabled: true, ideContextEnabled: true },

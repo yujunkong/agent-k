@@ -360,6 +360,36 @@
           "type": "boolean",
           "default": true,
           "description": "Show usage on the status bar."
+        },
+        "agent-k.harness.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the medium-model harness (prompt blocks + tier tool whitelist)."
+        },
+        "agent-k.harness.verificationFirst": {
+          "type": "boolean",
+          "default": true,
+          "description": "Inject the verification-first protocol and exit gate."
+        },
+        "agent-k.harness.prefetchEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Inject IDE prefetch context into the user turn."
+        },
+        "agent-k.harness.verificationMicroLoop": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run read_lints after edits."
+        },
+        "agent-k.maxTurns": {
+          "type": "number",
+          "default": 50,
+          "description": "Maximum agent loop turns per send."
+        },
+        "agent-k.intentGate.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Classify user intent (conversation/question/task) before running the heavy pipeline."
         }
       }
     }

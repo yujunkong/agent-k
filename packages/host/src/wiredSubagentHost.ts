@@ -22,6 +22,8 @@ import {
 import {
   LiteLLMProvider,
   clampThinkingEffort,
+  getPolicyForTier,
+  inferTierFromModelId,
   parseThinkingEffort,
   resolveThinkingCapability,
 } from '@agent-k/providers';
@@ -369,6 +371,9 @@ export function createWiredSubagentHost(
               signal,
               tools: childSchemas,
               thinkingEffort,
+              // Comment: V31-MODEL-01 — tier temperature for wired subagent runs
+              temperature: getPolicyForTier(inferTierFromModelId(model)).modelParams
+                .temperature,
             })) {
               onActivity?.();
               if (chunk.error) throw new Error(chunk.error);

@@ -10,13 +10,14 @@
 import type { RequestId } from '@agent-k/shared';
 import {
   AgentLoopController,
-  extractHarnessConfig,
   modeRegistry,
   resolveTurnTimeoutMs,
 } from '@agent-k/core';
 import {
   LiteLLMProvider,
   clampThinkingEffort,
+  getPolicyForTier,
+  inferTierFromModelId,
   parseThinkingEffort,
   resolveThinkingCapability,
 } from '@agent-k/providers';
@@ -37,6 +38,7 @@ import {
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { hostLog, hostLogError } from './hostLog';
+import { readHarnessConfig } from './chatSendConfig';
 import { createWiredSubagentHost } from './wiredSubagentHost';
 import { registerSubagentWorktree } from './subagentWorktreeRegistry';
 import { getMcpToolBridge } from './mcpHost';
@@ -140,15 +142,7 @@ async function runMainPlanTask(opts: {
   };
 
   const cfg = vscode.workspace.getConfiguration('agent-k');
-  const harnessCfg = extractHarnessConfig({
-    'agent-k.harness.enabled': cfg.get('agent-k.harness.enabled'),
-    'agent-k.harness.verificationFirst': cfg.get(
-      'agent-k.harness.verificationFirst',
-    ),
-    'agent-k.harness.verificationMicroLoop': cfg.get(
-      'agent-k.harness.verificationMicroLoop',
-    ),
-  });
+  const harnessCfg = readHarnessConfig(cfg);
   const harnessVerifyFirst =
     harnessCfg.enabled && harnessCfg.verificationFirst;
   const harnessMicroLoop =
@@ -211,6 +205,9 @@ async function runMainPlanTask(opts: {
           signal,
           tools: schemas,
           thinkingEffort,
+          // Comment: V31-MODEL-01 — tier temperature for plan main tasks
+          temperature: getPolicyForTier(inferTierFromModelId(model)).modelParams
+            .temperature,
         })) {
           onActivity?.();
           if (chunk.error) throw new Error(chunk.error);
@@ -331,15 +328,7 @@ export async function runHostPlanExecute(
   }
 
   const cfg = vscode.workspace.getConfiguration('agent-k');
-  const harnessCfg = extractHarnessConfig({
-    'agent-k.harness.enabled': cfg.get('agent-k.harness.enabled'),
-    'agent-k.harness.verificationFirst': cfg.get(
-      'agent-k.harness.verificationFirst',
-    ),
-    'agent-k.harness.verificationMicroLoop': cfg.get(
-      'agent-k.harness.verificationMicroLoop',
-    ),
-  });
+  const harnessCfg = readHarnessConfig(cfg);
   const harnessVerifyFirst =
     harnessCfg.enabled && harnessCfg.verificationFirst;
   const harnessMicroLoop =
