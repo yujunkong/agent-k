@@ -15,10 +15,16 @@ import type {
   ToolCallRequest,
 } from '../types';
 import { ClassifierDiagnostics } from './ClassifierDiagnostics';
+import {
+  CritiqueRunner,
+  DefaultCritiqueFormatter,
+  DefaultSelfCritiquePolicy,
+} from './critique';
 import { DoomLoopDetector } from './DoomLoopDetector';
 import { DoomLoopHandler } from './DoomLoopHandler';
 import { classifyError, ErrorRecovery } from './ErrorRecovery';
 import { isParallelSafeTool, ParallelExecutor } from './ParallelExecutor';
+import { LoopPhaseTracker, PhaseEmitter, type LoopPhase } from './phases';
 import {
   batchHasBlindRead,
   isSearchTool,
@@ -31,6 +37,7 @@ import {
   evaluateVerifyExit,
   extractEditedFilePath,
   formatPostEditVerificationFailure,
+  injectPhasePrompt,
   markPathEdited,
   markPathVerified,
   parseLintErrorsFromToolResult,
@@ -52,7 +59,9 @@ export type AgentLoopEvent =
     }
   | { type: 'status'; status: AgentLoopStatus }
   | { type: 'error'; error: string; fatal: boolean }
-  | { type: 'done'; reason: StopReason; content: string };
+  | { type: 'done'; reason: StopReason; content: string }
+  /** V31-LOOP-01 — observed loop phase transition (observation only, no FSM). */
+  | { type: 'phase'; phase: LoopPhase; turn: number; reason: string };
 
 export type AgentLoopStatus =
   | 'idle'
@@ -87,6 +96,8 @@ export interface AgentLoopConfig {
   projectRules?: string;
   /** Extra sticky context merged after rules. */
   stickyContext?: string;
+  /** V31-TOOL-04 — dynamic sticky context (e.g. session todos) per turn. */
+  todoContextProvider?: () => string;
   /**
    * PLAN-009 — approved plan block (formatter output from @agent-k/plan).
    * Re-injected each turn into protected system slot.
@@ -155,6 +166,18 @@ export class AgentLoopController {
   private verifyExitState: VerifyExitState = createVerifyExitState();
   /** HARNESS-004 — per-file lint retry counter. */
   private postEditVerify = new PostEditVerificationTracker();
+  /** V31-LOOP-01 — observed phase tracker + emitter (no FSM). */
+  private readonly phaseTracker = new LoopPhaseTracker();
+  private readonly phaseEmitter = new PhaseEmitter(this.phaseTracker, (e) =>
+    this.emit(e),
+  );
+  /** V31-LOOP-02 — inline self-critique after clean edits (max 2 passes). */
+  private readonly critiqueRunner = new CritiqueRunner(
+    new DefaultSelfCritiquePolicy(),
+    new DefaultCritiqueFormatter(),
+  );
+  /** V31-HARNESS-01 — one-shot weak-final nudge guard per run. */
+  private verifyExitWeakNudged = false;
 
   constructor(deps: AgentLoopDeps, config: AgentLoopConfig = {}) {
     this.deps = deps;
@@ -171,6 +194,7 @@ export class AgentLoopController {
       workspaceRoot: config.workspaceRoot,
       projectRules: config.projectRules,
       stickyContext: config.stickyContext,
+      todoContextProvider: config.todoContextProvider,
       approvedPlanBlock: config.approvedPlanBlock,
       verificationFirst: config.verificationFirst,
       verificationMicroLoop: config.verificationMicroLoop,
@@ -205,6 +229,10 @@ export class AgentLoopController {
     // Comment: HARNESS-002/004 — fresh verify state per run
     this.verifyExitState = createVerifyExitState();
     this.postEditVerify = new PostEditVerificationTracker();
+    // Comment: V31-LOOP-01/02 — fresh phase + critique budget per run
+    this.phaseTracker.reset();
+    this.critiqueRunner.reset();
+    this.verifyExitWeakNudged = false;
     this.status = 'running';
     this.doom.reset();
     this.emit({ type: 'status', status: 'running' });
@@ -244,16 +272,27 @@ export class AgentLoopController {
         this.emit({ type: 'turn_start', turn: turns });
         this.timeout.bump();
 
+        // Comment: V31-LOOP-01 — phase prompt; V31-TOOL-04 — dynamic sticky context
+        const baseSystem = this.config.systemPrompt!;
+        const systemPrompt =
+          this.config.verificationFirst !== false
+            ? injectPhasePrompt(baseSystem, this.phaseTracker.current())
+            : baseSystem;
+        const sticky =
+          [this.config.stickyContext, this.config.todoContextProvider?.()]
+            .filter(Boolean)
+            .join('\n\n') || undefined;
+
         const assembled = this.assembler.assemble({
           mode: this.config.mode ?? 'agent',
-          systemPrompt: this.config.systemPrompt!,
+          systemPrompt,
           messages: this.messages,
           budget: this.compaction.contextBudget,
           compactIfNeeded: true,
           // Comment: HARNESS-005 — rules outside compaction (re-inject each turn)
           workspaceRoot: this.config.workspaceRoot,
           projectRules: this.config.projectRules,
-          stickyContext: this.config.stickyContext,
+          stickyContext: sticky,
           approvedPlanBlock: this.config.approvedPlanBlock,
           verificationFirst: this.config.verificationFirst,
           harnessEnabled: this.config.harnessEnabled,
@@ -304,6 +343,17 @@ export class AgentLoopController {
           this.diagnostics.run('looksLikeBrokenToolPayload', content, turns);
         }
 
+        // Comment: V31-LOOP-01 — observe model turn before the exit gate
+        this.phaseEmitter.observe({
+          turn: turns,
+          hasToolCalls: toolCalls.length > 0,
+          toolNames: toolCalls.map((c) => c.name),
+          toolOk: true,
+          editedPaths: [],
+          verifyPending: this.hasPendingVerification(),
+          finalProse: content || undefined,
+        });
+
         if (toolCalls.length === 0) {
           // Comment: HARNESS-002 — /goal-like exit gate before completing
           const exitCheck = evaluateVerifyExit({
@@ -312,8 +362,13 @@ export class AgentLoopController {
             state: this.verifyExitState,
             turn: turns,
             maxTurns: this.config.maxTurns,
+            weakFinalNudged: this.verifyExitWeakNudged,
           });
           if (exitCheck.block && exitCheck.nudge) {
+            // Comment: V31-HARNESS-01 — weak-final nudge is one-shot per run
+            if (exitCheck.reason === 'weak_final') {
+              this.verifyExitWeakNudged = true;
+            }
             this.messages.push({
               role: 'assistant',
               content,
@@ -349,12 +404,21 @@ export class AgentLoopController {
         this.status = 'awaiting_tools';
         this.emit({ type: 'status', status: 'awaiting_tools' });
 
-        const toolOutcome = await this.executeToolCalls(
+        const batch = await this.executeToolCalls(
           toolCalls,
           runAbort.signal,
           turns
         );
-        if (toolOutcome === 'doom_loop') {
+        // Comment: V31-LOOP-01 — observe tool batch (edits → verify)
+        this.phaseEmitter.observe({
+          turn: turns,
+          hasToolCalls: false,
+          toolNames: batch.toolNames,
+          toolOk: batch.outcome === 'ok',
+          editedPaths: batch.editedPaths,
+          verifyPending: this.hasPendingVerification(),
+        });
+        if (batch.outcome === 'doom_loop') {
           reason = 'doom_loop';
           // Prefer handler message (suggestions) over generic stop text.
           const loopInfo = this.doom.getLoopInfo();
@@ -368,12 +432,12 @@ export class AgentLoopController {
           this.emit({ type: 'turn_end', turn: turns });
           break;
         }
-        if (toolOutcome === 'aborted') {
+        if (batch.outcome === 'aborted') {
           reason = this.abortFromTimeout ? 'timeout' : 'aborted';
           this.emit({ type: 'turn_end', turn: turns });
           break;
         }
-        if (toolOutcome === 'permission_denied') {
+        if (batch.outcome === 'permission_denied') {
           reason = 'permission_denied';
           finalContent = 'Stopped: permission denied for a tool call.';
           this.emit({ type: 'turn_end', turn: turns });
@@ -416,8 +480,15 @@ export class AgentLoopController {
     toolCalls: ToolCallRequest[],
     signal: AbortSignal,
     turn: number
-  ): Promise<'ok' | 'doom_loop' | 'aborted' | 'permission_denied'> {
+  ): Promise<{
+    outcome: 'ok' | 'doom_loop' | 'aborted' | 'permission_denied';
+    editedPaths: string[];
+    toolNames: string[];
+  }> {
     const streaming = new StreamingToolExecutor(this.deps.executeTool);
+    // Comment: V31-LOOP-01 — collect batch facts for phase observation
+    const editedPaths: string[] = [];
+    const toolNames: string[] = [];
     // Comment: detect blind reads up front — still execute; nudge once after batch
     const blindBatch =
       !this.searchNudgeSent &&
@@ -455,6 +526,7 @@ export class AgentLoopController {
         }
       }
 
+      toolNames.push(call.name);
       const result = await streaming.execute({
         callId: call.id,
         name: call.name,
@@ -465,6 +537,7 @@ export class AgentLoopController {
       const editedPath = extractEditedFilePath(call.name, call.arguments);
       if (result.success && editedPath) {
         markPathEdited(this.verifyExitState, editedPath);
+        editedPaths.push(editedPath);
       }
 
       if (isSearchTool(call.name)) {
@@ -505,6 +578,13 @@ export class AgentLoopController {
               );
           } else {
             markPathVerified(this.verifyExitState, editedPath);
+            // Comment: V31-LOOP-02 — inline self-critique after clean edit
+            const critique = this.critiqueRunner.run({
+              editedPaths: [editedPath],
+              messages: this.messages,
+              turn,
+            });
+            if (critique?.nudge) body = `${body}\n\n${critique.nudge}`;
           }
         } catch {
           /* verification must not break tool batch */
@@ -593,7 +673,14 @@ export class AgentLoopController {
       });
     }
 
-    return batchOutcome;
+    return { outcome: batchOutcome, editedPaths, toolNames };
+  }
+
+  /** HARNESS-002 — true when any edited path still lacks a clean lint. */
+  private hasPendingVerification(): boolean {
+    return [...this.verifyExitState.pendingPaths].some(
+      (p) => !this.verifyExitState.verifiedPaths.has(p)
+    );
   }
 
   private emit(event: AgentLoopEvent): void {

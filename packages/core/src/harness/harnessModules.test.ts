@@ -6,6 +6,7 @@ import { isToolAllowedForTier } from './AWhitelist';
 import { inferTierFromModelId, getPolicyForTier } from './ModelTiers';
 import { routeByHeuristics } from './RoutingHeuristics';
 import { formatPrefetchBlock } from './HarnessBridge';
+import { injectPhasePrompt, PHASE_PROMPTS } from './PhasePromptInjector';
 
 describe('ModelTiers (HARNESS-001)', () => {
   it('infers tier B for strong models', () => {
@@ -42,5 +43,20 @@ describe('RoutingHeuristics (HARNESS-006)', () => {
 describe('HarnessBridge (HARNESS-003)', () => {
   it('wraps prefetch text', () => {
     expect(formatPrefetchBlock('hello')).toContain('<prefetch>');
+  });
+});
+
+describe('PhasePromptInjector (V31-LOOP-01)', () => {
+  it('appends the current phase instruction', () => {
+    const out = injectPhasePrompt('Base prompt', 'verify');
+    expect(out).toContain('## Loop phase');
+    expect(out).toContain(PHASE_PROMPTS.verify);
+  });
+
+  it('is idempotent across repeated calls', () => {
+    const once = injectPhasePrompt('Base prompt', 'plan');
+    const twice = injectPhasePrompt(once, 'execute');
+    expect(twice).toBe(injectPhasePrompt('Base prompt', 'execute'));
+    expect(twice.match(/## Loop phase/g)).toHaveLength(1);
   });
 });

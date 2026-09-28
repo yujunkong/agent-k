@@ -38,6 +38,8 @@ export type ChatStreamEvent =
       allowMultiple?: boolean;
     }
   | { event: 'debug.stage'; stage: string }
+  /** V31-LOOP-01 — observed loop phase transition (observation only, no FSM). */
+  | { event: 'phase'; phase: string; turn: number; reason: string }
   | { event: 'complete' }
   | { event: 'stopped' }
   | { event: 'error'; error: string };

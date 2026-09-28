@@ -30,7 +30,8 @@ describe('AgentLoopController (AGENT-001…004)', () => {
           const hasTool = messages.some((m) => m.role === 'tool');
           expect(hasTool).toBe(true);
           return {
-            content: '## Done\n\n- Read src/index.ts\n- Result looks good',
+            content:
+              '## Done\n\n- Read src/index.ts\n- Result looks good\n\nSummary: the file exports an empty module and needs no changes.',
           } satisfies ModelTurnResult;
         },
         executeTool: async ({ name, args }) => {
@@ -133,5 +134,158 @@ describe('AgentLoopController (AGENT-001…004)', () => {
           m.role === 'system' && String(m.content).includes('prefer grep')
       )
     ).toBe(true);
+  });
+
+  it('sends the search-before-read nudge once per run (HARNESS-007)', async () => {
+    let turn = 0;
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          turn++;
+          if (turn <= 2) {
+            return {
+              content: '',
+              toolCalls: [
+                {
+                  id: `c${turn}`,
+                  name: 'read_file',
+                  arguments: { path: `src/f${turn}.ts` },
+                },
+              ],
+            } satisfies ModelTurnResult;
+          }
+          return {
+            content:
+              '## Summary\n\nRead src/f1.ts and src/f2.ts; both files contain the expected exports.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async () => ({ success: true, data: 'export {};' }),
+      },
+      { maxTurns: 5, parallelTools: false }
+    );
+
+    const result = await controller.run({ prompt: '프로젝트 구조 파악해줘' });
+    const nudges = result.messages.filter(
+      (m) => m.role === 'system' && String(m.content).includes('prefer grep')
+    );
+    expect(nudges).toHaveLength(1);
+  });
+
+  it('emits phase transitions (V31-LOOP-01)', async () => {
+    let turn = 0;
+    const phases: Array<{ phase: string; turn: number; reason: string }> = [];
+
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          turn++;
+          if (turn === 1) {
+            return {
+              content: '',
+              toolCalls: [
+                {
+                  id: 'c1',
+                  name: 'edit_file',
+                  arguments: { path: 'src/a.ts' },
+                },
+              ],
+            } satisfies ModelTurnResult;
+          }
+          return {
+            content:
+              '## Summary\n\nEdited src/a.ts and verified the change with read_lints; no remaining issues.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async ({ name }) => {
+          if (name === 'read_lints') {
+            return { success: true, data: { errors: [] } };
+          }
+          return { success: true, data: 'edited' };
+        },
+        onEvent: (e) => {
+          if (e.type === 'phase') {
+            phases.push({ phase: e.phase, turn: e.turn, reason: e.reason });
+          }
+        },
+      },
+      { maxTurns: 5, parallelTools: false }
+    );
+
+    const result = await controller.run({ prompt: 'Edit src/a.ts.' });
+
+    expect(result.reason).toBe('completed');
+    expect(phases.map((p) => p.phase)).toEqual(['execute', 'done']);
+  });
+
+  it('appends inline self-critique after clean edits, capped at maxPasses (V31-LOOP-02)', async () => {
+    let turn = 0;
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          turn++;
+          if (turn <= 3) {
+            return {
+              content: '',
+              toolCalls: [
+                {
+                  id: `c${turn}`,
+                  name: 'edit_file',
+                  arguments: { path: `src/f${turn}.ts` },
+                },
+              ],
+            } satisfies ModelTurnResult;
+          }
+          return {
+            content:
+              '## Summary\n\nEdited src/f1.ts, src/f2.ts and src/f3.ts; each was verified with read_lints and no issues remain.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async ({ name }) => {
+          if (name === 'read_lints') {
+            return { success: true, data: { errors: [] } };
+          }
+          return { success: true, data: 'edited' };
+        },
+      },
+      { maxTurns: 6, parallelTools: false }
+    );
+
+    const result = await controller.run({ prompt: 'Edit three files.' });
+    const bodies = result.messages
+      .filter((m) => m.role === 'tool' && m.name === 'edit_file')
+      .map((m) => String(m.content));
+
+    expect(bodies).toHaveLength(3);
+    expect(bodies[0]).toContain('<self_critique>');
+    expect(bodies[1]).toContain('<self_critique>');
+    expect(bodies[2]).not.toContain('<self_critique>');
+  });
+
+  it('injects dynamic todo sticky context per turn (V31-TOOL-04)', async () => {
+    let seenSystem = '';
+    const controller = new AgentLoopController(
+      {
+        runModel: async ({ messages }) => {
+          seenSystem = String(
+            messages.find((m) => m.role === 'system')?.content ?? ''
+          );
+          return {
+            content:
+              '## Summary\n\nNo edits were needed; the todo list was injected into the system prompt.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async () => ({ success: true, data: null }),
+      },
+      {
+        maxTurns: 3,
+        parallelTools: false,
+        todoContextProvider: () => '- [ ] wire TodoStore',
+      }
+    );
+
+    const result = await controller.run({ prompt: 'What is left to do?' });
+    expect(result.reason).toBe('completed');
+    expect(seenSystem).toContain('wire TodoStore');
+    expect(seenSystem).toContain('## Loop phase');
   });
 });

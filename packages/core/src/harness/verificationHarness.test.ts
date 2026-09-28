@@ -87,10 +87,65 @@ describe('VerifyExitCheck (HARNESS-002)', () => {
     markPathVerified(state, 'src/foo.ts');
     const out = evaluateVerifyExit({
       verificationFirst: true,
-      content: '## Summary\n\nFixed foo.ts lint.',
+      content:
+        '## Summary\n\nFixed foo.ts lint errors and verified the file with read_lints; no remaining issues.',
       state,
       turn: 2,
       maxTurns: 10,
+    });
+    expect(out.block).toBe(false);
+  });
+
+  it('ignores warning-only lint diagnostics (V31-HARNESS-01)', () => {
+    const errors = parseLintErrorsFromToolResult({
+      success: true,
+      data: {
+        errors: [
+          { path: 'a.ts', line: 1, message: 'unused var', severity: 'warning' },
+          { path: 'a.ts', line: 2, message: 'note', severity: 'INFO' },
+        ],
+      },
+    });
+    expect(errors).toHaveLength(0);
+
+    // Warning-only lint leaves the path verified → exit is allowed.
+    const state = createVerifyExitState();
+    markPathEdited(state, 'a.ts');
+    markPathVerified(state, 'a.ts');
+    expect(
+      evaluateVerifyExit({
+        verificationFirst: true,
+        content:
+          '## Summary\n\nEdited a.ts and verified it with read_lints; no errors remain.',
+        state,
+        turn: 2,
+        maxTurns: 10,
+      }).block,
+    ).toBe(false);
+  });
+
+  it('blocks weak final answers with no edits (V31-HARNESS-01)', () => {
+    const state = createVerifyExitState();
+    const out = evaluateVerifyExit({
+      verificationFirst: true,
+      content: 'Done.',
+      state,
+      turn: 1,
+      maxTurns: 10,
+    });
+    expect(out.block).toBe(true);
+    expect(out.reason).toBe('weak_final');
+  });
+
+  it('weak-final nudge is one-shot per run (V31-HARNESS-01)', () => {
+    const state = createVerifyExitState();
+    const out = evaluateVerifyExit({
+      verificationFirst: true,
+      content: 'Done.',
+      state,
+      turn: 2,
+      maxTurns: 10,
+      weakFinalNudged: true,
     });
     expect(out.block).toBe(false);
   });

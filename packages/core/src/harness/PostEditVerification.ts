@@ -41,6 +41,9 @@ export function parseLintErrorsFromToolResult(
   for (const row of errors) {
     if (!row || typeof row !== 'object') continue;
     const e = row as Record<string, unknown>;
+    // Comment: V31-HARNESS-01 — warnings/info must not block the micro-loop
+    const severity = String(e.severity ?? '').toLowerCase();
+    if (severity !== 'error') continue;
     const message = String(e.message ?? '').trim();
     if (!message) continue;
     out.push({
