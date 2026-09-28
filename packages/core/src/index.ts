@@ -8,6 +8,7 @@ export * from './config';
 export * from './context';
 export * from './harness';
 export * from './inline';
+export * from './intent';
 export * from './mcp';
 export * from './indexing';
 export * from './prefetch';

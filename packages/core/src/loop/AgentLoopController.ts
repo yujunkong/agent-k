@@ -3,7 +3,7 @@
  * Injected runModel + executeTool (no hard providers/safety deps).
  */
 
-import type { AgentMode } from '@agent-k/shared';
+import type { AgentMode, IntentKind } from '@agent-k/shared';
 import { ContextAssembler } from '../context/ContextAssembler';
 import { CompactionEngine } from '../context/CompactionEngine';
 import type {
@@ -100,6 +100,8 @@ export interface AgentLoopConfig {
   harnessEnabled?: boolean;
   /** HARNESS-001/006 — model tier for tool whitelist. */
   modelTier?: 'A' | 'B' | 'C';
+  /** V31-INTENT-01 — intent kind for this run (default task = current behavior). */
+  intentKind?: IntentKind;
 }
 
 export interface AgentLoopDeps {
@@ -174,6 +176,7 @@ export class AgentLoopController {
       verificationMicroLoop: config.verificationMicroLoop,
       harnessEnabled: config.harnessEnabled,
       modelTier: config.modelTier,
+      intentKind: config.intentKind,
     };
     this.doom = new DoomLoopDetector(this.config.doomLoopThreshold);
     this.assembler = new ContextAssembler(this.config.contextBudgetTokens);

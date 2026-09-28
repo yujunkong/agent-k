@@ -3,7 +3,7 @@
  * Pure types — no React / vscode.
  */
 
-import type { AgentMode, WorkEventKind } from '@agent-k/shared';
+import type { AgentMode, IntentKind, WorkEventKind } from '@agent-k/shared';
 
 /** Permission hint declared on every tool contract (R-005). */
 export type PermissionHint =
@@ -144,6 +144,8 @@ export interface GetSchemasOptions {
   modelTier?: 'A' | 'B' | 'C';
   /** When false, skip tier whitelist even if modelTier set. */
   harnessEnabled?: boolean;
+  /** V31-INTENT-01 — intent kind filter (conversation = no tools). */
+  intentKind?: IntentKind;
 }
 
 /** OpenAI-style function schema returned to the model. */

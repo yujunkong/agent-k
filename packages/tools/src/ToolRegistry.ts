@@ -111,6 +111,19 @@ export class ToolRegistry {
     mode: AgentMode,
     opts?: GetSchemasOptions
   ): boolean {
+    // Comment: V31-INTENT-01 — intent gate before harness tier whitelist
+    if (opts?.intentKind === 'conversation') return false;
+    if (opts?.intentKind === 'question') {
+      if (
+        tool.category === 'edit' ||
+        tool.category === 'terminal' ||
+        tool.category === 'debug' ||
+        WRITE_TOOL_NAMES.has(tool.name)
+      ) {
+        return false;
+      }
+    }
+
     if (
       opts?.harnessEnabled !== false &&
       opts?.modelTier &&
