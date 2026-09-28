@@ -3,11 +3,10 @@ import ReactDOM from 'react-dom/client';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ChatApp } from './ChatApp';
 import './chat.css';
+// cursor-ui.css @imports workspace-polish / conversation-layout /
+// composer-polish / conversation-tabs — do not import them again (V31-UI-04).
 import './ui/cursor-ui.css';
-import './ui/composer-polish.css';
-import './ui/conversation-layout.css';
-import './ui/conversation-tabs.css';
-import './ui/workspace-polish.css';
+import './styles/empty-state.css';
 import './components/conversation-variants.css';
 
 const el = document.getElementById('chat-root');

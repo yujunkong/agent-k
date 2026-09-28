@@ -33,10 +33,10 @@ import {
 } from './chatAppHelpers';
 import { configManager } from '../core/ConfigManager';
 import type { ChatMessage, Mode, ModePicker } from './types';
-import './chat.css';
 
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { HistoryPanel } from './components/HistoryPanel';
+import { EmptyState } from './components/EmptyState';
 import { DesignModePanel } from '../browser/DesignModePanel';
 import { FindingList } from '../review/FindingList';
 import { ArtifactGallery } from '../artifacts/ArtifactGallery';
@@ -1012,6 +1012,25 @@ export function ChatApp() {
               <p className="ak-subagent-detail__empty">
                 Waiting for subagent…
               </p>
+            );
+          }
+          // V31-UI-01 (UX-01) — first-run empty state (no blank panel)
+          if (!activeSubagentTab && viewMessages.length === 0) {
+            const providerReady = Boolean(
+              provider.providerBaseUrl && provider.providerModel
+            );
+            return (
+              <EmptyState
+                providerReady={providerReady}
+                onAction={(prompt) => {
+                  if (!providerReady) {
+                    panels.handleToggleSettings();
+                    return;
+                  }
+                  void sendFlow.handleSend(prompt, []);
+                }}
+                onOpenSettings={panels.handleToggleSettings}
+              />
             );
           }
           const lastUserId = [...viewMessages]
