@@ -65,23 +65,39 @@ describe('mode domain (MODE-001…009)', () => {
     expect(handoff.systemPrompt).toContain('Reply style: be concise.');
   });
 
-  it('Per-mode response shaping markers are present', () => {
+  it('Per-mode response shaping markers are present (v2.1 rich prompts)', () => {
     const prompts = Object.fromEntries(
       modeRegistry.listModes().map((cfg) => [cfg.name, cfg.systemPrompt])
     );
-    // ask — answer first, file:line refs, one follow-up offer max
-    expect(prompts.ask).toContain('Answer first: direct answer in 1–3 sentences');
-    expect(prompts.ask).toContain('file:line references');
-    expect(prompts.ask).toContain('at most one short follow-up offer');
-    // agent — act, don't narrate
-    expect(prompts.agent).toContain("Act, don't narrate");
-    expect(prompts.agent).toContain('what changed (files/diffs) + verification result + any risk');
-    // plan — structured doc, clarify before writing
-    expect(prompts.plan).toContain('structured plan document');
-    expect(prompts.plan).toContain('clarifying questions BEFORE writing the plan');
-    // debug — scientific-method framing, no fix before root cause
-    expect(prompts.debug).toContain('scientific-method terms');
-    expect(prompts.debug).toContain('hypothesis (one sentence)');
-    expect(prompts.debug).toContain('Do not jump to a fix before the root cause is confirmed');
+    // ask — write tools unavailable + opening lead + markdown format
+    expect(prompts.ask).toContain('Write tools are UNAVAILABLE');
+    expect(prompts.ask).toContain('Opening lead');
+    expect(prompts.ask).toContain('suggest switching to Agent mode');
+    // agent — opening lead + ask_question discipline
+    expect(prompts.agent).toContain('Opening lead');
+    expect(prompts.agent).toContain('ask_question');
+    expect(prompts.agent).toContain('Prefer reasonable defaults and act');
+    // plan — senior architect workflow; no writes before Build
+    expect(prompts.plan).toContain('senior architect');
+    expect(prompts.plan).toContain('ask_question');
+    expect(prompts.plan).toContain('Build starts only on 승인');
+    expect(prompts.plan).toContain(
+      'No write_file/edit_file/delete_file/run_terminal_cmd until Build'
+    );
+    // debug — scientific method workflow
+    expect(prompts.debug).toContain('scientific method');
+    expect(prompts.debug).toContain('Hypothesis');
+    expect(prompts.debug).toContain('Instrument');
+    expect(prompts.debug).toContain('Reproduce');
+    expect(prompts.debug).toContain('Analyze');
+    expect(prompts.debug).toContain('Fix');
+    expect(prompts.debug).toContain('Cleanup');
+  });
+
+  it('Mode prompts are rich (v2.1 SoT) and Agent-K branded', () => {
+    for (const cfg of modeRegistry.listModes()) {
+      expect(cfg.systemPrompt.length).toBeGreaterThan(400);
+      expect(cfg.systemPrompt).toContain('Agent-K');
+    }
   });
 });
