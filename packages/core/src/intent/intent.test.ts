@@ -22,7 +22,18 @@ describe('V31-INTENT-01 HeuristicIntentClassifier', () => {
     expect(classifier.id).toBe('heuristic-v1');
   });
 
-  it.each(['hi', '안녕', 'hello!'])(
+  it.each([
+    'hi',
+    '안녕',
+    'hello!',
+    'hi there',
+    'hey there!',
+    'good morning',
+    'thanks!',
+    'how are you?',
+    '안녕하세요',
+    '고마워',
+  ])(
     'classifies greeting %j as conversation with no gates',
     async (text) => {
       const verdict = await classifier.classify(input(text));

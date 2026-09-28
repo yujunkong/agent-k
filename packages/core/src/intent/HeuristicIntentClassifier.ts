@@ -9,7 +9,7 @@ import type { IntentRule } from './IntentRule';
 
 /** Greeting / small-talk ONLY — must match the whole trimmed text. */
 const CONVERSATION_RE =
-  /^(hi|hello|hey|yo|hiya|thanks|thank you|good morning|good evening|안녕|안녕하세요|ㅎㅇ|고마워|감사합니다|감사|반가워)[!.\s~ㅋㅎ🙂👋]*$/i;
+  /^(hi|hello|hey|yo|hiya)( there)?[!.\s~ㅋㅎ🙂👋]*$|^(good (morning|afternoon|evening))[!.\s]*$|^(thanks|thank you|thx|ty)[!.\s]*$|^(how are you|how's it going|what's up|sup)[?!.\s]*$|^(안녕|안녕하세요|안녕하십니까|ㅎㅇ|하이|반가워|반갑습니다|고마워|고맙습니다|감사합니다|감사|잘 지내|잘지내)[!.\s~ㅋㅎ🙂👋]*$/i;
 
 /** Question markers (EN word-boundary + KO substring). */
 const QUESTION_RE =
