@@ -5,103 +5,17 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { TimelineStep } from '../conversation/timelinePresentation';
-import { isPlanGenerateStep } from '../planGenerateStep';
+import {
+  MID_THOUGHT_DISPLAY_MAX,
+  THOUGHT_DISPLAY_MAX,
+  formatExploreDetail,
+  formatRollingTool,
+  formatThoughtTitle,
+  toolRowLabel
+} from './messageSteps/exploreHelpers';
 
-const THOUGHT_DISPLAY_MAX = 16000;
-const MID_THOUGHT_DISPLAY_MAX = 900;
-
-function fileBasename(detail?: string): string | undefined {
-  if (!detail?.trim()) return undefined;
-  const norm = detail.replace(/\\/g, '/').split('/').filter(Boolean);
-  const base = norm[norm.length - 1] || detail.trim();
-  if (!base || base === '.' || base === '..') return undefined;
-  return base.length > 40 ? `${base.slice(0, 38)}…` : base;
-}
-
-function shortPath(detail?: string): string {
-  if (!detail) return '';
-  const parts = detail.replace(/\\/g, '/').split('/');
-  if (parts.length <= 3) return detail;
-  return `…/${parts.slice(-2).join('/')}`;
-}
-
-function formatExploreDetail(detail?: string): string {
-  if (!detail) return '';
-  if (/\sin\s/.test(detail) || /\sL\d/.test(detail)) {
-    return detail.length > 100 ? `${detail.slice(0, 97)}…` : detail;
-  }
-  return shortPath(detail);
-}
-
-function toolRowLabel(step: TimelineStep): string {
-  const name = (step.toolName || step.title.replace(/\s*·.*$/, '') || '').toLowerCase();
-  switch (name) {
-    case 'read_file':
-    case 'read_files':
-      return 'Read';
-    case 'grep':
-      return 'Grepped';
-    case 'glob':
-    case 'file_search':
-      return 'Searched';
-    case 'list_dir':
-      return 'Listed';
-    case 'codebase_search':
-      return 'Searched codebase';
-    case 'read_lints':
-      return 'Checked lints';
-    case 'web_search':
-      return 'Searched web';
-    case 'web_fetch':
-      return 'Fetched';
-    default:
-      if (/^read/i.test(step.title)) return 'Read';
-      if (/^grep/i.test(step.title)) return 'Grepped';
-      if (/^search/i.test(step.title)) return 'Searched';
-      if (/^list/i.test(step.title)) return 'Listed';
-      if (step.kind === 'reasoning') return 'Thought';
-      return step.title.split(' · ')[0]?.trim() || 'Tool';
-  }
-}
-
-function formatRollingTool(step: TimelineStep): string {
-  const live = step.status === 'running';
-  // Keep "file.ts L10-50" / "pattern in path" — do not drop the window suffix.
-  let detail = '';
-  if (step.subtitle) {
-    if (/\sL\d/.test(step.subtitle) || /\sin\s/.test(step.subtitle)) {
-      detail = formatExploreDetail(step.subtitle);
-    } else {
-      detail = fileBasename(step.subtitle) || shortPath(step.subtitle);
-    }
-  }
-  const name = (step.toolName || '').toLowerCase();
-  let verb = toolRowLabel(step);
-  if (live) {
-    if (name === 'read_file' || name === 'read_files' || verb === 'Read') verb = 'Reading';
-    else if (name === 'grep' || verb === 'Grepped') verb = 'Grepping';
-    else if (verb === 'Searched') verb = 'Searching';
-    else if (verb === 'Listed') verb = 'Listing';
-    else if (verb === 'Searched codebase') verb = 'Searching codebase';
-  }
-  return detail ? `${verb} ${detail}` : verb;
-}
-
-/** Cursor-style Thought title: brief stays "briefly"; longer → "Thought 3s". */
-export function formatThoughtTitle(step: TimelineStep, live: boolean): string {
-  if (isPlanGenerateStep(step)) {
-    if (live && step.status === 'running') return 'Creating plan';
-    if (step.status === 'failed') return 'Failed to create plan';
-    return 'Created plan';
-  }
-  if (live && step.status === 'running') return 'Thinking';
-  const ms = step.durationMs;
-  // Comment: sub-second / short digests stay "briefly"; only material waits show clock
-  if (ms != null && Number.isFinite(ms) && ms >= 1000) {
-    return `Thought ${Math.max(1, Math.round(ms / 1000))}s`;
-  }
-  return 'Thought briefly';
-}
+/** Re-exported for SubagentRunRow — keeps the existing import path stable. */
+export { formatThoughtTitle };
 
 function LiveStepTitle({
   title,
