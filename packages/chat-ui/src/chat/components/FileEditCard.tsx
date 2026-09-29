@@ -77,15 +77,34 @@ export function FileEditCard({
       }`}
     >
       {embedded ? null : (
-        <button type="button" className="ak-file-edit-header" title={`Open ${path}`} onClick={() => onOpenFile?.(openTarget)}>
-          <span className="ak-file-edit-header__lang" aria-hidden>{languageBadge(path)}</span>
-          <span className="ak-file-edit-header__name">{basename(path)}</span>
-          <span className="ak-file-edit-header__stats">
-            {additions > 0 ? <span className="ak-file-edit-header__add">+{additions}</span> : null}
-            {deletions > 0 ? <span className="ak-file-edit-header__del">-{deletions}</span> : null}
-            {additions === 0 && deletions === 0 ? <span style={{ opacity: 0.5 }}>0</span> : null}
-          </span>
-        </button>
+        <div className="ak-file-edit-header">
+          <button
+            type="button"
+            className="ak-file-edit-header__open"
+            title={`Open ${path}`}
+            onClick={() => onOpenFile?.(openTarget)}
+          >
+            <span className="ak-file-edit-header__lang" aria-hidden>{languageBadge(path)}</span>
+            <span className="ak-file-edit-header__name">{basename(path)}</span>
+          </button>
+          <button
+            type="button"
+            className="ak-file-edit-header__toggle"
+            title={isExpanded ? 'Collapse' : 'Expand'}
+            aria-expanded={isExpanded}
+            aria-disabled={expandedProp != null || undefined}
+            onClick={() => {
+              // Comment: V31-UI-11 — controlled `expanded` → parent owns state
+              if (expandedProp == null) setLocalExpanded((v) => !v);
+            }}
+          >
+            <span className="ak-file-edit-header__stats">
+              {additions > 0 ? <span className="ak-file-edit-header__add">+{additions}</span> : null}
+              {deletions > 0 ? <span className="ak-file-edit-header__del">-{deletions}</span> : null}
+              {additions === 0 && deletions === 0 ? <span style={{ opacity: 0.5 }}>0</span> : null}
+            </span>
+          </button>
+        </div>
       )}
 
       {lines.length > 0 ? (

@@ -74,6 +74,31 @@ export function TerminalRunCard({
 
   const toggle = () => setLocalExpanded((v) => !v);
 
+  const headerContent = (
+    <>
+      <span className="ak-terminal-card__badge" aria-hidden>
+        sh
+      </span>
+      <span className="ak-terminal-card__title" title={run.command}>
+        <span className="ak-terminal-card__prompt">$</span> {title}
+      </span>
+      <span className="ak-terminal-card__meta" style={{ color: statusColor }}>
+        {live ? (
+          <span className="ak-live-blink ak-live-blink--sm" aria-hidden>
+            <span className="ak-live-blink__dot" />
+          </span>
+        ) : null}
+        {statusLabel(run)}
+        {run.durationMs != null && !live ? (
+          <span className="ak-terminal-card__dur">
+            {' '}
+            · {formatDuration(run.durationMs)}
+          </span>
+        ) : null}
+      </span>
+    </>
+  );
+
   return (
     <div
       className={`ak-terminal-card${live ? ' ak-terminal-card--live' : ''}${
@@ -82,34 +107,20 @@ export function TerminalRunCard({
         isExpanded ? ' ak-terminal-card--expanded' : ''
       }`}
     >
-      {embedded ? null : (
+      {embedded ? null : controlled ? (
+        // Comment: V31-UI-11 — parent owns expand → header is inert (non-button)
+        <div className="ak-terminal-card__header" title={run.command}>
+          {headerContent}
+        </div>
+      ) : (
         <button
           type="button"
           className="ak-terminal-card__header"
           title={run.command}
-          onClick={showExpand || !controlled ? toggle : undefined}
-          disabled={controlled && !showExpand}
+          aria-expanded={isExpanded}
+          onClick={toggle}
         >
-          <span className="ak-terminal-card__badge" aria-hidden>
-            sh
-          </span>
-          <span className="ak-terminal-card__title" title={run.command}>
-            <span className="ak-terminal-card__prompt">$</span> {title}
-          </span>
-          <span className="ak-terminal-card__meta" style={{ color: statusColor }}>
-            {live ? (
-              <span className="ak-live-blink ak-live-blink--sm" aria-hidden>
-                <span className="ak-live-blink__dot" />
-              </span>
-            ) : null}
-            {statusLabel(run)}
-            {run.durationMs != null && !live ? (
-              <span className="ak-terminal-card__dur">
-                {' '}
-                · {formatDuration(run.durationMs)}
-              </span>
-            ) : null}
-          </span>
+          {headerContent}
         </button>
       )}
 

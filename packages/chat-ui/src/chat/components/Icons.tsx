@@ -241,3 +241,103 @@ export function IconSpark(p: IconProps) {
     </Svg>
   );
 }
+
+/** V31-UI-07 — attach (paperclip) */
+export function IconAttach(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </Svg>
+  );
+}
+
+/** V31-UI-07 — send (arrow up) */
+export function IconSend(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 19V5" />
+      <path d="m5 12 7-7 7 7" />
+    </Svg>
+  );
+}
+
+/** V31-UI-07 — interrupt & merge (corner-down-left) */
+export function IconReturn(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M20 4v7a4 4 0 0 1-4 4H4" />
+      <path d="m9 10-5 5 5 5" />
+    </Svg>
+  );
+}
+
+/** V31-UI-07 — context usage (pie with wedge) */
+export function IconUsage(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+      <path d="M22 12A10 10 0 0 0 12 2v10z" />
+    </Svg>
+  );
+}
+
+/** V31-UI-07 — folder attachment chip */
+export function IconFolder(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+    </Svg>
+  );
+}
+
+/** V31-UI-07 — log / snippet attachment chip */
+export function IconClipboard(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="8" y="2" width="8" height="4" rx="1" />
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+    </Svg>
+  );
+}
+
+/** V31-UI-07 — image attachment chip */
+export function IconImage(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" />
+    </Svg>
+  );
+}
+
+/** V31-UI-07 — file attachment chip */
+export function IconFile(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </Svg>
+  );
+}
+
+/** V31-UI-07 — mode locked while streaming */
+export function IconLock(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3" y="11" width="18" height="11" rx="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </Svg>
+  );
+}
+
+/** V31-UI-07 — open file externally */
+export function IconExternalLink(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M15 3h6v6" />
+      <path d="M10 14 21 3" />
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    </Svg>
+  );
+}

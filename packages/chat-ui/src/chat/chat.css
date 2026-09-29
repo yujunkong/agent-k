@@ -2317,19 +2317,50 @@ body.vscode-dark .user-chip--file,
   position: relative;
 }
 
+/* V31-UI-11 — header is a row: filename opens, stats toggle expand */
 .ak-file-edit-header {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
   padding: 7px 10px;
-  border: none;
   border-bottom: 1px solid var(--ak-card-border);
   background: var(--ak-card-header-bg);
   color: var(--vscode-foreground, #ccc);
-  cursor: pointer;
   text-align: left;
   font: inherit;
+}
+
+.ak-file-edit-header__open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ak-file-edit-header__toggle {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Controlled by parent → toggle is inert (aria-disabled) */
+.ak-file-edit-header__toggle[aria-disabled='true'] {
+  cursor: default;
 }
 
 .ak-file-edit-header__lang {
@@ -2746,7 +2777,8 @@ body.vscode-dark .user-chip--file,
   cursor: pointer;
 }
 
-.ak-terminal-card__header:disabled {
+/* V31-UI-11 — controlled (parent owns expand) → header is a non-interactive div */
+div.ak-terminal-card__header {
   cursor: default;
 }
 
@@ -4276,9 +4308,10 @@ body.vscode-high-contrast .ak-code__cursor {
   overflow: visible;
 }
 
-/* Empty shell: composer at top — open mode / model menu downward */
+/* Empty shell: composer at top — open mode / model / thinking menus downward */
 .chat-main--empty .mode-selector__menu,
-.chat-main--empty .model-selector__menu {
+.chat-main--empty .model-selector__menu,
+.chat-main--empty .composer-thinking-select__menu {
   bottom: auto;
   top: calc(100% + 6px);
 }
@@ -4300,10 +4333,14 @@ body.vscode-high-contrast .ak-code__cursor {
   padding: 3px 8px;
 }
 
-/* Narrow Agent K panel: mode = icon + chevron only; keep toolbar single-row */
+/* Narrow Agent K panel: mode label truncates; keep toolbar single-row */
 @container ak-chat (max-width: 480px) {
+  /* V31-UI-08 — keep the mode label visible at ≥320px; truncate instead */
   .mode-selector__label {
-    display: none;
+    max-width: 6rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .composer-toolbar__left .mode-selector,
@@ -4331,8 +4368,12 @@ body.vscode-high-contrast .ak-code__cursor {
 
 /* Fallback when container queries unavailable (webview viewport ≈ panel width) */
 @media (max-width: 480px) {
+  /* V31-UI-08 — keep the mode label visible at ≥320px; truncate instead */
   .mode-selector__label {
-    display: none;
+    max-width: 6rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .composer-toolbar__left .mode-selector,
@@ -4739,9 +4780,20 @@ body.vscode-high-contrast .ak-code__cursor {
   background: var(--ak-panel-bg);
 }
 
+/* V31-UI-07 — custom thinking dropdown (button + menu, no native <select>) */
+.composer-thinking-select-wrapper {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  min-width: 0;
+  /* Menu must escape composer-box clipping */
+  z-index: 70;
+}
+
 .composer-thinking-select {
-  appearance: none;
-  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   flex: 0 0 auto;
   flex-shrink: 0;
   background: transparent;
@@ -4755,22 +4807,31 @@ body.vscode-high-contrast .ak-code__cursor {
   min-width: 3.25rem;
   max-width: 5rem;
   cursor: pointer;
-  padding: 3px 16px 3px 8px;
+  padding: 3px 8px;
   border-radius: 999px;
   margin-left: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%23888' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
 }
 
-.composer-thinking-select:hover:not(:disabled) {
+.composer-thinking-select__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-thinking-select__chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+
+.composer-thinking-select:hover:not(:disabled),
+.composer-thinking-select.is-open {
   opacity: 1;
   background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
   border-color: var(--ak-panel-border);
 }
 
-.composer-thinking-select:focus-visible,
-.thinking-selector:focus-visible {
+.composer-thinking-select:focus-visible {
   outline: 2px solid var(--vscode-focusBorder, #007fd4);
   outline-offset: 1px;
 }
@@ -4780,9 +4841,64 @@ body.vscode-high-contrast .ak-code__cursor {
   cursor: default;
 }
 
-.composer-thinking-select option {
-  color: var(--vscode-foreground, #ccc);
-  background: var(--ak-panel-bg);
+.composer-thinking-select__menu {
+  position: absolute;
+  /* Trigger sits mid-toolbar → anchor right so the menu stays in-panel */
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 80;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  min-width: 8rem;
+  border-radius: 10px;
+  border: 1px solid var(--ak-panel-border);
+  /* Opaque — vscode input-bg can be translucent and show the textarea through */
+  background: var(
+    --vscode-editorWidget-background,
+    var(--vscode-menu-background, #252526)
+  );
+  box-shadow: var(--ak-panel-shadow);
+  color: var(--vscode-foreground, #e0e0e0);
+}
+
+.composer-thinking-select__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.composer-thinking-select__item:hover {
+  background: var(--ak-panel-hover);
+}
+
+.composer-thinking-select__item.is-selected {
+  background: var(--ak-panel-selected);
+}
+
+.composer-thinking-select__item-label {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+}
+
+.composer-thinking-select__item-check {
+  display: inline-flex;
+  width: 16px;
+  flex-shrink: 0;
+  justify-content: center;
+  opacity: 0.85;
 }
 
 .composer-icon-btn {
