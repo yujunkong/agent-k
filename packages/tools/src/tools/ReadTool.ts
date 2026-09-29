@@ -8,6 +8,14 @@ import { resolveWorkspacePath, withToolTiming } from '../pathUtils';
 
 const DEFAULT_MAX_LINES = 500;
 
+/**
+ * V31-TOOL-02 — prefix each line with its 1-based actual line number.
+ * Pure helper: `offset` is the 1-based line number of `lines[0]`.
+ */
+export function formatNumberedLines(lines: string[], offset: number): string {
+  return lines.map((line, i) => `${offset + i}: ${line}`).join('\n');
+}
+
 export const readTool: ToolDefinition = {
   name: 'read_file',
   description: 'Read a text file from the workspace. Optionally limit lines.',
@@ -17,6 +25,10 @@ export const readTool: ToolDefinition = {
       path: { type: 'string', description: 'Relative or absolute path under workspace' },
       maxLines: { type: 'number', description: 'Max lines to return (default 500)' },
       offset: { type: 'number', description: '1-based start line (default 1)' },
+      numbered: {
+        type: 'boolean',
+        description: 'Prefix each line with its 1-based line number (N: )',
+      },
     },
     required: ['path'],
   },
@@ -60,7 +72,10 @@ export const readTool: ToolDefinition = {
         success: true,
         data: {
           path: resolved.rel,
-          content: slice.join('\n'),
+          content:
+            input.numbered === true
+              ? formatNumberedLines(slice, offset)
+              : slice.join('\n'),
           lineCount: slice.length,
           totalLines: lines.length,
           offset,

@@ -2,7 +2,7 @@
  * TOOL-016 ToolRegistry — register / get / list / getSchemas (mode-filtered).
  */
 
-import type { AgentMode } from '@agent-k/shared';
+import type { AgentMode, IntentKind } from '@agent-k/shared';
 import type {
   GetSchemasOptions,
   ToolDefinition,
@@ -45,12 +45,35 @@ const TIER_C_TOOLS = new Set([
   'lsp_references',
 ]);
 
+/** V31-TOOL-05 — task-intent tools allowed on Tier A (ISSUE-05). */
+const TIER_A_TASK_TOOLS = new Set([
+  'task',
+  'task_run',
+  'web_search',
+  'web_fetch',
+  'skill',
+  'skill_run',
+  'mcp_call_tool',
+  'mcp_list_tools',
+]);
+
+const TIER_A_TASK_PREFIXES = ['task_', 'web_', 'mcp_', 'browser_', 'skill_'];
+
+function isTierATaskTool(name: string): boolean {
+  return (
+    TIER_A_TASK_TOOLS.has(name) ||
+    TIER_A_TASK_PREFIXES.some((p) => name.startsWith(p))
+  );
+}
+
 function isAllowedForHarnessTier(
   toolName: string,
   tier: 'A' | 'B' | 'C',
+  intentKind?: IntentKind,
 ): boolean {
   if (tier === 'B') return true;
   if (tier === 'C') return TIER_C_TOOLS.has(toolName);
+  if (intentKind === 'task' && isTierATaskTool(toolName)) return true;
   return TIER_A_TOOLS.has(toolName);
 }
 
@@ -127,7 +150,7 @@ export class ToolRegistry {
     if (
       opts?.harnessEnabled !== false &&
       opts?.modelTier &&
-      !isAllowedForHarnessTier(tool.name, opts.modelTier)
+      !isAllowedForHarnessTier(tool.name, opts.modelTier, opts.intentKind)
     ) {
       return false;
     }

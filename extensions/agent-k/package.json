@@ -390,6 +390,16 @@
           "type": "boolean",
           "default": true,
           "description": "Classify user intent (conversation/question/task) before running the heavy pipeline."
+        },
+        "agent-k.toolCallFallback.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Parse XML/JSON tool calls from local models when native tool_calls are absent."
+        },
+        "agent-k.tools.strictEdit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Reject edit_file search strings that match multiple locations unless replaceAll is set."
         }
       }
     }

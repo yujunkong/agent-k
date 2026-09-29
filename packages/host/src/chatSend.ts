@@ -54,7 +54,11 @@ import {
   readHarnessConfig,
   readIntentGateEnabled,
   readMaxTurns,
+  readStrictEditEnabled,
+  readToolCallFallbackEnabled,
 } from './chatSendConfig';
+import { NativeThenFallbackNormalizer } from './turn/ToolCallNormalizer';
+import { todoStore } from './session/TodoStore';
 import { shortDetail, toolKind } from './timelineLabels';
 import {
   createSubagentHost,
@@ -150,6 +154,8 @@ export async function runHostChatSend(
   const abort = new AbortController();
   ctx.setHostLoopRequestId(requestId);
   hostLog('chat.send empty reply', `chatSend start requestId=${requestId}`);
+  // Comment: V31-TOOL-01 — native tool_calls first, XML/JSON fallback second
+  const toolCallNormalizer = new NativeThenFallbackNormalizer();
 
   const isActive = () => ctx.hostLoops.has(requestId);
   // Chars posted as delta — logged on complete; also used if complete omits content.
@@ -198,11 +204,16 @@ export async function runHostChatSend(
 
   const parentSessionId =
     payload.sessionId != null ? String(payload.sessionId).trim() : undefined;
+  // Comment: V31-TOOL-04 — same id used for session routing; requestId fallback
+  const sessionId = parentSessionId || requestId;
 
   const mode = (payload.mode || 'agent') as AgentMode;
   // Comment: PLAN-009 — plan stage drives write-tool visibility + permission gate
   const planStage = payload.planStage || 'research';
   const cfg = vscode.workspace.getConfiguration('agent-k');
+  // Comment: V31-TOOL-01/03 — default-true flags (opt-out via settings)
+  const toolCallFallbackEnabled = readToolCallFallbackEnabled(cfg);
+  const strictEditEnabled = readStrictEditEnabled(cfg);
   const baseUrl = String(
     payload.baseUrl || cfg.get('provider.baseUrl') || '',
   ).replace(/\/$/, '');
@@ -325,6 +336,10 @@ export async function runHostChatSend(
     workspaceRoot: root,
     mode,
     debugLogs: [],
+    // Comment: V31-TOOL-04 — session todo array survives turns/compaction
+    todoStore: todoStore.ensure(sessionId),
+    // Comment: V31-TOOL-03 — host setting can disable strict uniqueness
+    strictEdit: strictEditEnabled,
     // Comment: MCP-001 — inject host MCP client into tool executors
     mcp: getMcpToolBridge(),
     // Comment: TOOL — wire VS Code diagnostics into read_lints
@@ -531,10 +546,25 @@ export async function runHostChatSend(
                   arguments: args,
                 };
               });
+            // Comment: V31-TOOL-01 — same native-then-fallback normalization
+            const normalizedToolCalls = toolCallFallbackEnabled
+              ? toolCallNormalizer.normalize(toolCalls, content)
+              : toolCalls;
+            if (
+              toolCallFallbackEnabled &&
+              normalizedToolCalls.length > toolCalls.length
+            ) {
+              hostLog(
+                'chat.send empty reply',
+                `tool-call fallback parsed requestId=${requestId} turn=${currentTurn || 1} count=${normalizedToolCalls.length - toolCalls.length}`,
+              );
+            }
             return {
               content: content || undefined,
               reasoning: reasoning || undefined,
-              toolCalls: toolCalls.length ? toolCalls : undefined,
+              toolCalls: normalizedToolCalls.length
+                ? normalizedToolCalls
+                : undefined,
             };
           },
           executeTool: async ({ name, args, callId, signal }) => {
@@ -610,6 +640,8 @@ export async function runHostChatSend(
 
             const result = await executeTool(registry, name, args, {
               ...toolCtxBase,
+              // Comment: V31-TOOL-04 — child session gets its own todo array
+              todoStore: todoStore.ensure(subagentSessionId(context.task.id)),
               workspaceRoot: cwd,
               mode: childMode,
               signal,
@@ -1103,10 +1135,26 @@ export async function runHostChatSend(
           });
         }
 
+        // Comment: V31-TOOL-01 — native tool_calls win; XML/JSON fallback when absent
+        const normalizedToolCalls = toolCallFallbackEnabled
+          ? toolCallNormalizer.normalize(toolCalls, content)
+          : toolCalls;
+        if (
+          toolCallFallbackEnabled &&
+          normalizedToolCalls.length > toolCalls.length
+        ) {
+          hostLog(
+            'chat.send empty reply',
+            `tool-call fallback parsed requestId=${requestId} turn=${turn} count=${normalizedToolCalls.length - toolCalls.length}`,
+          );
+        }
+
         const result: ModelTurnResult = {
           content: content || undefined,
           reasoning: reasoning || undefined,
-          toolCalls: toolCalls.length ? toolCalls : undefined,
+          toolCalls: normalizedToolCalls.length
+            ? normalizedToolCalls
+            : undefined,
         };
         return result;
       },
@@ -1452,6 +1500,8 @@ export async function runHostChatSend(
       parallelTools: true,
       // Comment: HARNESS-005 — AGENTS.md / .agentk/rules outside compaction
       workspaceRoot: root || undefined,
+      // Comment: V31-TOOL-04 — session todos re-enter sticky context each turn
+      todoContextProvider: () => todoStore.format(sessionId),
       // Comment: HARNESS-002/004 — verify-first prompt + post-edit micro-loop
       verificationFirst: harnessVerifyFirst && intentGates.verificationFirst,
       verificationMicroLoop: harnessMicroLoop,

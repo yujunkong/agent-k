@@ -62,6 +62,8 @@ export interface ToolContext {
   signal?: AbortSignal;
   /** Optional per-session todo store (TOOL-011). */
   todoStore?: TodoItem[];
+  /** V31-TOOL-03 — edit_file uniqueness strictness (default true). */
+  strictEdit?: boolean;
   /** Optional debug log buffer (TOOL-015). */
   debugLogs?: string[];
   /** CONV-018 — live terminal stdout/stderr chunks for TerminalRunCard. */

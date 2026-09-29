@@ -7,6 +7,8 @@ import {
   readHarnessConfig,
   readIntentGateEnabled,
   readMaxTurns,
+  readStrictEditEnabled,
+  readToolCallFallbackEnabled,
   type ConfigReader,
 } from './chatSendConfig';
 
@@ -78,6 +80,31 @@ describe('V31-CFG-01 readIntentGateEnabled', () => {
 
   it('treats non-false values as enabled', () => {
     expect(readIntentGateEnabled(reader({ 'intentGate.enabled': true }))).toBe(
+      true,
+    );
+  });
+});
+
+describe('V31-TOOL-01/03 readToolCallFallbackEnabled / readStrictEditEnabled', () => {
+  it('defaults both flags to true when keys are missing', () => {
+    expect(readToolCallFallbackEnabled(reader({}))).toBe(true);
+    expect(readStrictEditEnabled(reader({}))).toBe(true);
+  });
+
+  it('honors explicit false', () => {
+    expect(
+      readToolCallFallbackEnabled(reader({ 'toolCallFallback.enabled': false })),
+    ).toBe(false);
+    expect(readStrictEditEnabled(reader({ 'tools.strictEdit': false }))).toBe(
+      false,
+    );
+  });
+
+  it('treats non-false values as enabled', () => {
+    expect(
+      readToolCallFallbackEnabled(reader({ 'toolCallFallback.enabled': true })),
+    ).toBe(true);
+    expect(readStrictEditEnabled(reader({ 'tools.strictEdit': true }))).toBe(
       true,
     );
   });

@@ -13,13 +13,32 @@ export interface SearchReplaceHunk {
   replaceAll?: boolean;
 }
 
+/** 1-based line numbers where `search` occurs in `content` (non-overlapping). */
+function findMatchLines(content: string, search: string): number[] {
+  const lines: number[] = [];
+  let from = 0;
+  while (from <= content.length) {
+    const idx = content.indexOf(search, from);
+    if (idx < 0) break;
+    lines.push(content.slice(0, idx).split('\n').length);
+    from = idx + search.length;
+  }
+  return lines;
+}
+
 /**
  * Apply search/replace hunks to `content`. Returns new content or error.
+ *
+ * V31-TOOL-03 — strict mode (default) rejects a non-`replaceAll` hunk whose
+ * search string matches multiple locations, instead of silently editing the
+ * first match (ISSUE-13).
  */
 export function applySearchReplace(
   content: string,
-  hunks: SearchReplaceHunk[]
+  hunks: SearchReplaceHunk[],
+  opts?: { strict?: boolean }
 ): { content: string; replacements: number } | { error: string } {
+  const strict = opts?.strict ?? true;
   let next = content;
   let replacements = 0;
 
@@ -28,9 +47,15 @@ export function applySearchReplace(
     if (!search) {
       return { error: 'edit_file hunk requires non-empty search' };
     }
-    if (!next.includes(search)) {
+    const matchLines = findMatchLines(next, search);
+    if (matchLines.length === 0) {
       return {
         error: `search string not found in file: ${search.slice(0, 80)}`,
+      };
+    }
+    if (strict && !hunk.replaceAll && matchLines.length >= 2) {
+      return {
+        error: `edit_file search string is not unique (${matchLines.length} matches at lines ${matchLines.join(', ')}); add more context or set replaceAll: true`,
       };
     }
     if (hunk.replaceAll) {
@@ -113,7 +138,10 @@ export const editTool: ToolDefinition = {
       }
 
       const before = await fs.readFile(resolved.abs, 'utf-8');
-      const applied = applySearchReplace(before, hunks);
+      // Comment: V31-TOOL-03 — strict by default; host may opt out via setting
+      const applied = applySearchReplace(before, hunks, {
+        strict: ctx.strictEdit !== false,
+      });
       if ('error' in applied) {
         return { success: false, error: applied.error };
       }

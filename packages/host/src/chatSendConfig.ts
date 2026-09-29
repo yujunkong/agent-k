@@ -36,3 +36,22 @@ export function readMaxTurns(cfg: ConfigReader, fallback: number): number {
 export function readIntentGateEnabled(cfg: ConfigReader): boolean {
   return cfg.get('intentGate.enabled') !== false;
 }
+
+/**
+ * V31-TOOL-01 — parse XML/JSON tool calls when native tool_calls are absent.
+ * Default true (deviation from the plan rollout table, which listed false):
+ * the fallback only runs when `looksLikeBrokenToolPayload` matches, so the
+ * opt-out exists for debugging rather than rollout.
+ */
+export function readToolCallFallbackEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('toolCallFallback.enabled') !== false;
+}
+
+/**
+ * V31-TOOL-03 — reject non-unique edit_file search strings.
+ * Default true (deviation from the plan rollout table, which listed false):
+ * silent first-match edits are the ISSUE-13 bug; opt-out via setting.
+ */
+export function readStrictEditEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('tools.strictEdit') !== false;
+}
