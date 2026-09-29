@@ -12,13 +12,12 @@ import { assignTerminalCardsToPhases } from '../assignTerminalCards';
 import { logTimelinePhaseOrder } from '../conversation/timelineOrderLog';
 import { openPathFromExploreDetail } from '../../host/timelineLabels';
 import {
-  MID_THOUGHT_DISPLAY_MAX,
-  THOUGHT_DISPLAY_MAX,
   formatExploreDetail,
   formatRollingTool,
   formatThoughtTitle,
   toolRowLabel
 } from './messageSteps/exploreHelpers';
+import { ChevronRow, LiveStepTitle, ThoughtBody } from './messageSteps/stepChrome';
 import { inferTurn, isMeta } from './messageSteps/stepPredicates';
 import { PLAN_GENERATE_STEP_ID, isPlanGenerateStep } from '../planGenerateStep';
 
@@ -110,10 +109,7 @@ type TurnGroup = {
   live: boolean;
 };
 
-const STEPS_FG = 'var(--vscode-descriptionForeground, #9d9d9d)';
 const STEPS_LIVE = 'var(--vscode-foreground, #cccccc)';
-/** Group header when any tool in the group failed — rose, a bit darker than pink */
-const STEPS_ERROR = '#e2556f';
 /** Explore/tool list body — opaque muted (never mix with transparent; that looked like a wipe) */
 const STEPS_MUTED = 'var(--vscode-descriptionForeground, #9d9d9d)';
 
@@ -337,7 +333,7 @@ function ExploringChrome({
     !!live && !expanded
   );
   return (
-    <ChevronRow
+    <ChevronRow tone="steps"
       title={title}
       expanded={expanded}
       live={live}
@@ -387,176 +383,6 @@ function liveTail(details: MessageStep[], max = 6): MessageStep[] {
   const rest = details.filter((s) => s.itemStatus !== 'running');
   const recent = rest.slice(-(max - Math.min(running.length, 2)));
   return [...recent, ...running].slice(-max);
-}
-
-function ThoughtBody({
-  text,
-  live,
-  compact
-}: {
-  text: string;
-  live: boolean;
-  /** Nested under Exploring — tighter clip */
-  compact?: boolean;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const stickRef = useRef(true);
-  const max = compact ? MID_THOUGHT_DISPLAY_MAX : THOUGHT_DISPLAY_MAX;
-  // Comment: over cap → drop the head so live Thinking keeps scrolling newest tokens
-  const display =
-    text.length > max ? `…${text.slice(text.length - max)}` : text;
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !live || !stickRef.current) return;
-    // Keep following new tokens while user hasn't scrolled up
-    el.scrollTop = el.scrollHeight;
-  }, [display, live]);
-
-  return (
-    <div
-      ref={ref}
-      className={`message-steps-thought-body${
-        compact ? ' message-steps-thought-body--mid' : ''
-      }`}
-      onScroll={() => {
-        const el = ref.current;
-        if (!el) return;
-        const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-        stickRef.current = gap < 48;
-      }}
-      onWheel={(e) => {
-        // Don't let the parent message-list steal the wheel
-        e.stopPropagation();
-      }}
-    >
-      {display || (live ? '…' : '')}
-    </div>
-  );
-}
-
-function ChevronRow({
-  title,
-  expanded,
-  live,
-  hasError,
-  rollingStatus,
-  onToggle,
-  children
-}: {
-  title: string;
-  expanded: boolean;
-  live: boolean;
-  /** Any tool in this group failed */
-  hasError?: boolean;
-  /** Collapsed + live: one-line activity under the header (Cursor Exploring) */
-  rollingStatus?: string;
-  onToggle: () => void;
-  children?: React.ReactNode;
-}) {
-  const titleColor = hasError ? STEPS_ERROR : live ? undefined : STEPS_FG;
-  const showRolling = !expanded && !!live && !!rollingStatus?.trim();
-  // Shimmer belongs on the rolling activity line (e.g. Thinking), not "Exploring N files…"
-  const shimmerHeader = !!live && !hasError && rollingStatus == null;
-  return (
-    <div
-      className={[
-        'ak-step-row',
-        live ? 'ak-step-row--live' : '',
-        hasError ? 'ak-step-row--error' : ''
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
-      <button
-        type="button"
-        onClick={() => {
-          if (live && !children) return;
-          onToggle();
-        }}
-        className="ak-step-chevron-btn"
-        aria-expanded={expanded}
-        aria-busy={live || undefined}
-        style={{
-          cursor: live && !children ? 'default' : 'pointer'
-        }}
-      >
-        <span
-          className="ak-step-chevron"
-          aria-hidden
-          style={hasError ? { color: STEPS_ERROR, opacity: 0.9 } : undefined}
-        >
-          {expanded ? '▾' : '▸'}
-        </span>
-        <LiveStepTitle
-          title={title}
-          live={shimmerHeader}
-          style={{
-            fontWeight: live || hasError ? 500 : 400,
-            ...(titleColor ? { color: titleColor } : null),
-            ...(!shimmerHeader && live && !hasError
-              ? { color: STEPS_FG }
-              : null)
-          }}
-        />
-      </button>
-      {showRolling ? (
-        <div
-          key={rollingStatus}
-          className="ak-step-rolling ak-step-rolling--live"
-          aria-live="polite"
-        >
-          <LiveStepTitle title={rollingStatus!} live />
-        </div>
-      ) : null}
-      {expanded ? children : null}
-    </div>
-  );
-}
-
-/**
- * Live Exploring/Thinking label: opaque base glyphs + moving highlight.
- * Never puts transparent fill on the readable text (webview-safe).
- */
-function LiveStepTitle({
-  title,
-  live,
-  style,
-  className
-}: {
-  title: string;
-  live: boolean;
-  style?: React.CSSProperties;
-  className?: string;
-}) {
-  if (!live) {
-    return (
-      <span
-        className={['ak-step-title', className].filter(Boolean).join(' ')}
-        style={style}
-      >
-        {title}
-      </span>
-    );
-  }
-  return (
-    <span
-      className={[
-        'ak-step-title',
-        'ak-step-title--live-shimmer',
-        className
-      ]
-        .filter(Boolean)
-        .join(' ')}
-      style={style}
-      data-text={title}
-    >
-      <span className="ak-step-title__base">{title}</span>
-      <span className="ak-step-title__shine" aria-hidden>
-        {title}
-      </span>
-    </span>
-  );
 }
 
 /** ADDON-T09: task_run detail carries a lifecycle word — render as a small status pill */
@@ -1353,7 +1179,7 @@ export function MessageSteps({
               }}
             >
               {showThought && th ? (
-                <ChevronRow
+                <ChevronRow tone="steps"
                   title={formatThoughtTitle(th, thoughtLive)}
                   expanded={thoughtExpanded}
                   live={!!thoughtLive}
@@ -1465,7 +1291,7 @@ export function MessageSteps({
                   const live = batch.some((a) => a.itemStatus === 'running');
                   const err = batch.some((a) => a.itemStatus === 'error');
                   nodes.push(
-                    <ChevronRow
+                    <ChevronRow tone="steps"
                       key={`misc_${p.id}_${key}`}
                       title={
                         live
@@ -1508,7 +1334,7 @@ export function MessageSteps({
                       (thoughtLive && !isPlanGenerateStep(a)) ||
                       (openThought[thoughtKey] ?? false);
                     nodes.push(
-                      <ChevronRow
+                      <ChevronRow tone="steps"
                         key={thoughtKey}
                         title={formatThoughtTitle(a, thoughtLive)}
                         expanded={thoughtExpanded}
