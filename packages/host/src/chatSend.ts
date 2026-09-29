@@ -1023,7 +1023,14 @@ export async function runHostChatSend(
               }
               if (chunk.reasoning_content) {
                 reasoning += chunk.reasoning_content;
-                postStream({ event: 'delta', reasoning: chunk.reasoning_content });
+                // Comment: V31-FRAME-01 — frame turn and conversation drop the raw think stream
+                const kind = intent.enabled ? intent.verdict.kind : undefined;
+                const dropReasoning =
+                  kind === 'conversation' ||
+                  (turn === 1 && (kind === 'task' || kind === 'question'));
+                if (!dropReasoning) {
+                  postStream({ event: 'delta', reasoning: chunk.reasoning_content });
+                }
               }
               if (chunk.toolCalls?.length) {
                 mergeToolCallDeltas(toolAcc, chunk.toolCalls);
@@ -1755,6 +1762,13 @@ function mapLoopEventToStream(
       break;
     case 'self_critique':
       // Comment: V31-LOOP-02 — Thought channel; tool body still has the instruction
+      post({
+        event: 'delta',
+        reasoning: event.text,
+      });
+      break;
+    case 'frame':
+      // Comment: V31-FRAME-01 — Thought is the field summary, not the raw think stream
       post({
         event: 'delta',
         reasoning: event.text,

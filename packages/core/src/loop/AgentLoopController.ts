@@ -3,7 +3,7 @@
  * Injected runModel + executeTool (no hard providers/safety deps).
  */
 
-import type { AgentMode, IntentKind } from '@agent-k/shared';
+import type { AgentMode, IntentKind, ProblemFrame } from '@agent-k/shared';
 import { ContextAssembler } from '../context/ContextAssembler';
 import { CompactionEngine } from '../context/CompactionEngine';
 import type {
@@ -24,6 +24,13 @@ import { DoomLoopDetector } from './DoomLoopDetector';
 import { DoomLoopHandler } from './DoomLoopHandler';
 import { classifyError, ErrorRecovery } from './ErrorRecovery';
 import { isParallelSafeTool, ParallelExecutor } from './ParallelExecutor';
+import {
+  explainFrameDenial,
+  formatFrameSummary,
+  injectProblemFramePrompt,
+  isFrameObserveTool,
+  parseProblemFrame,
+} from './frame';
 import { LoopPhaseTracker, PhaseEmitter, type LoopPhase } from './phases';
 import {
   batchHasBlindRead,
@@ -63,7 +70,9 @@ export type AgentLoopEvent =
   /** V31-LOOP-01 — observed loop phase transition (observation only, no FSM). */
   | { type: 'phase'; phase: LoopPhase; turn: number; reason: string }
   /** V31-LOOP-02 — inline critique shown as Thought; tool body still carries the instruction. */
-  | { type: 'self_critique'; turn: number; passes: number; text: string };
+  | { type: 'self_critique'; turn: number; passes: number; text: string }
+  /** V31-FRAME-01 — structured summary only. Raw reasoning is not re-injected. */
+  | { type: 'frame'; turn: number; text: string };
 
 export type AgentLoopStatus =
   | 'idle'
@@ -170,6 +179,8 @@ export class AgentLoopController {
   private postEditVerify = new PostEditVerificationTracker();
   /** V31-LOOP-01 — observed phase tracker + emitter (no FSM). */
   private readonly phaseTracker = new LoopPhaseTracker();
+  /** V31-FRAME-01 — filled from the model's problem_frame block. */
+  private frame: ProblemFrame | null = null;
   private readonly phaseEmitter = new PhaseEmitter(this.phaseTracker, (e) =>
     this.emit(e),
   );
@@ -274,11 +285,14 @@ export class AgentLoopController {
         this.emit({ type: 'turn_start', turn: turns });
         this.timeout.bump();
 
-        // Comment: V31-LOOP-01 — phase prompt only for task + verify-first
+        // Comment: V31-FRAME-01 then V31-LOOP-01 — frame before the phase cycle
         const baseSystem = this.config.systemPrompt!;
-        const systemPrompt = this.shouldTrackPhase()
-          ? injectPhasePrompt(baseSystem, this.phaseTracker.current())
+        const framed = this.tracksFrame()
+          ? injectProblemFramePrompt(baseSystem, this.config.intentKind!)
           : baseSystem;
+        const systemPrompt = this.shouldTrackPhase()
+          ? injectPhasePrompt(framed, this.phaseTracker.current())
+          : framed;
         const sticky =
           [this.config.stickyContext, this.config.todoContextProvider?.()]
             .filter(Boolean)
@@ -333,8 +347,21 @@ export class AgentLoopController {
         }
 
         this.timeout.bump();
-        const content = (modelResult.content || '').trim();
+        let content = (modelResult.content || '').trim();
         const toolCalls = modelResult.toolCalls ?? [];
+        // Comment: V31-FRAME-01 — keep the field summary, drop raw reasoning text
+        if (this.tracksFrame()) {
+          const parsed =
+            parseProblemFrame(content) ??
+            parseProblemFrame(modelResult.reasoning);
+          if (parsed) {
+            if (this.frame?.observationDone) parsed.observationDone = true;
+            this.frame = parsed;
+            const summary = formatFrameSummary(parsed);
+            if (!parseProblemFrame(content)) content = summary;
+            this.emit({ type: 'frame', turn: turns, text: summary });
+          }
+        }
 
         if (content) {
           this.emit({ type: 'assistant_delta', content });
@@ -367,6 +394,22 @@ export class AgentLoopController {
             maxTurns: this.config.maxTurns,
             weakFinalNudged: this.verifyExitWeakNudged,
           });
+          // Comment: V31-FRAME-01 — ambiguous request stops after the clarify turn
+          if (this.frame?.intent.ambiguous) {
+            finalContent =
+              this.frame.intent.clarifyQuestion ||
+              content ||
+              'Need one clarification before editing.';
+            this.messages.push({
+              role: 'assistant',
+              content: finalContent,
+              metadata: { turn: turns },
+            });
+            reason = 'completed';
+            this.emit({ type: 'turn_end', turn: turns });
+            break;
+          }
+
           if (exitCheck.block && exitCheck.nudge) {
             // Comment: V31-HARNESS-01 — weak-final nudge is one-shot per run
             if (exitCheck.reason === 'weak_final') {
@@ -469,6 +512,15 @@ export class AgentLoopController {
           this.emit({ type: 'turn_end', turn: turns });
           break;
         }
+        if (this.frame?.intent.ambiguous) {
+          reason = 'completed';
+          finalContent =
+            this.frame.intent.clarifyQuestion ||
+            content ||
+            'Need one clarification before editing.';
+          this.emit({ type: 'turn_end', turn: turns });
+          break;
+        }
 
         this.status = 'running';
         this.emit({ type: 'turn_end', turn: turns });
@@ -529,6 +581,31 @@ export class AgentLoopController {
     ): Promise<'ok' | 'doom_loop' | 'permission_denied'> => {
       this.emit({ type: 'tool_start', call });
 
+      // Comment: V31-FRAME-01 — deny as a tool result; do not kill the run
+      if (this.tracksFrame()) {
+        const denial = explainFrameDenial(
+          this.frame,
+          this.config.intentKind!,
+          call.name,
+        );
+        if (denial) {
+          this.messages.push({
+            role: 'tool',
+            content: denial,
+            toolCallId: call.id,
+            name: call.name,
+            metadata: { turn, toolName: call.name, type: 'frame_deny' },
+          });
+          this.emit({
+            type: 'tool_end',
+            call,
+            ok: false,
+            error: denial,
+          });
+          return 'ok';
+        }
+      }
+
       if (this.deps.checkPermission) {
         const decision = await this.deps.checkPermission({
           toolName: call.name,
@@ -568,6 +645,14 @@ export class AgentLoopController {
 
       if (isSearchTool(call.name)) {
         this.searchSatisfied = true;
+      }
+      if (
+        result.success &&
+        this.frame &&
+        this.frame.doneWhen.trim() &&
+        isFrameObserveTool(call.name)
+      ) {
+        this.frame = { ...this.frame, observationDone: true };
       }
 
       const outcome = result.success ? 'ok' : result.error || 'error';
@@ -714,6 +799,12 @@ export class AgentLoopController {
    * V31-LOOP-01 — cycle runs for task (and unspecified kind) only while
    * verify-first is on. conversation/question never observe or inject phase.
    */
+  /** V31-FRAME-01 — task and question only. Unset kind keeps the pre-frame loop. */
+  private tracksFrame(): boolean {
+    const kind = this.config.intentKind;
+    return kind === 'task' || kind === 'question';
+  }
+
   private shouldTrackPhase(): boolean {
     const kind = this.config.intentKind;
     if (kind === 'conversation' || kind === 'question') return false;

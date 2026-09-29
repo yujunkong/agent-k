@@ -331,10 +331,88 @@ describe('AgentLoopController (AGENT-001…004)', () => {
     const result = await controller.run({ prompt: 'hi' });
     expect(result.reason).toBe('completed');
     expect(seenSystem).not.toContain('## Loop phase');
+    expect(seenSystem).not.toContain('## Problem frame');
     expect(phases).toEqual([]);
     expect(
       result.messages.some((m) => m.metadata?.type === 'phase_exit_nudge'),
     ).toBe(false);
+  });
+
+  it('refuses edits until a frame and one read (V31-FRAME-01)', async () => {
+    const calls: string[] = [];
+    let turn = 0;
+    const frame = `<problem_frame>{"intent":{"outcome":"green tests","constraints":["no UI"],"ambiguous":false},"symptom":"red","doneWhen":"vitest green","hypotheses":[{"claim":"bad assert","killIf":"assert is right"}],"nonGoals":["rewrite"]}</problem_frame>`;
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          turn++;
+          if (turn === 1) {
+            return {
+              content: '',
+              toolCalls: [{ id: 'e1', name: 'edit_file', arguments: { path: 'a.ts' } }],
+            } satisfies ModelTurnResult;
+          }
+          if (turn === 2) {
+            return {
+              content: frame,
+              toolCalls: [{ id: 'r1', name: 'read_file', arguments: { path: 'a.ts' } }],
+            } satisfies ModelTurnResult;
+          }
+          if (turn === 3) {
+            return {
+              content: frame,
+              toolCalls: [{ id: 'e2', name: 'edit_file', arguments: { path: 'a.ts' } }],
+            } satisfies ModelTurnResult;
+          }
+          return {
+            content:
+              '## Summary\n\nEdited a.ts. vitest is green and no issues remain.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async ({ name }) => {
+          calls.push(name);
+          return { success: true, data: name === 'read_file' ? 'file' : 'edited' };
+        },
+      },
+      {
+        maxTurns: 4,
+        parallelTools: false,
+        intentKind: 'task',
+        verificationFirst: false,
+        verificationMicroLoop: false,
+      }
+    );
+
+    await controller.run({ prompt: 'Fix the failing test.' });
+    expect(calls).toEqual(['read_file', 'edit_file']);
+  });
+
+  it('stops after one clarify when the frame is ambiguous (V31-FRAME-01)', async () => {
+    const calls: string[] = [];
+    const controller = new AgentLoopController(
+      {
+        runModel: async () =>
+          ({
+            content:
+              '<problem_frame>{"intent":{"outcome":"unsure","constraints":[],"ambiguous":true,"clarifyQuestion":"Which file?"},"symptom":"","doneWhen":"","hypotheses":[],"nonGoals":[]}</problem_frame>',
+            toolCalls: [
+              { id: 'q1', name: 'ask_question', arguments: { question: 'Which file?' } },
+              { id: 'e1', name: 'edit_file', arguments: { path: 'a.ts' } },
+            ],
+          }) satisfies ModelTurnResult,
+        executeTool: async ({ name }) => {
+          calls.push(name);
+          return { success: true, data: 'asked' };
+        },
+      },
+      { maxTurns: 4, parallelTools: false, intentKind: 'task', verificationFirst: false }
+    );
+
+    const result = await controller.run({ prompt: 'Fix it.' });
+    expect(result.reason).toBe('completed');
+    expect(result.turns).toBe(1);
+    expect(calls).toEqual(['ask_question']);
+    expect(result.content).toContain('Which file?');
   });
 
   it('injects dynamic todo sticky context per turn (V31-TOOL-04)', async () => {

@@ -52,7 +52,7 @@ body {
   overflow: hidden;
   background: var(--ak-c-editor-background);
   /* Separate Agent K from adjacent editor / sidebar */
-  border-left: 1px solid var(--ak-chrome-border, rgba(255, 255, 255, 0.1));
+  border-left: 1px solid var(--ak-chrome-border);
 }
 
 /* History (left) | chat (right) — divider at the annotated boundary */
@@ -89,7 +89,7 @@ body {
   opacity: 1;
   overflow: hidden;
   /* The vertical boundary the user marked */
-  border-right: 1px solid var(--ak-chrome-border, rgba(255, 255, 255, 0.14));
+  border-right: 1px solid var(--ak-chrome-border);
   box-shadow: 4px 0 18px color-mix(in srgb, var(--ak-c-widget-shadow) 18%, transparent);
 }
 
@@ -108,7 +108,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 4px 8px 4px 6px;
-  border-bottom: 1px solid var(--ak-chrome-border, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid var(--ak-chrome-border);
   background: var(--ak-c-editor-background);
   flex-shrink: 0;
   min-height: 36px;
@@ -2452,7 +2452,7 @@ body.vscode-dark .user-chip--file,
 .ak-inline-edit-diff {
   margin: 6px 0;
   border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--ak-c-focus-border) 40%, var(--ak-card-border, #444));
+  border: 1px solid color-mix(in srgb, var(--ak-c-focus-border) 40%, var(--ak-card-border));
   background: var(--ak-card-bg, transparent);
   overflow: hidden;
 }
@@ -2467,7 +2467,7 @@ body.vscode-dark .user-chip--file,
   justify-content: space-between;
   gap: 8px;
   padding: 7px 10px 6px;
-  border-bottom: 1px solid var(--ak-card-border, rgba(255, 255, 255, 0.08));
+  border-bottom: 1px solid var(--ak-card-border);
   background: color-mix(in srgb, var(--ak-c-focus-border) 10%, transparent);
 }
 
@@ -2495,7 +2495,7 @@ body.vscode-dark .user-chip--file,
   justify-content: flex-end;
   gap: 8px;
   padding: 8px 10px;
-  border-top: 1px solid var(--ak-card-border, rgba(255, 255, 255, 0.08));
+  border-top: 1px solid var(--ak-card-border);
 }
 
 .ak-inline-edit-diff__reject,
@@ -3340,7 +3340,7 @@ body.vscode-high-contrast .ak-code__cursor {
   padding: 0;
   font-size: 13px;
   opacity: 1;
-  border: 1px solid var(--ak-divider, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--ak-divider);
   border-radius: 5px;
 }
 
@@ -4614,7 +4614,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .model-tag {
   padding: 2px 8px;
-  border: 1px solid var(--ak-divider, rgba(128, 128, 128, 0.35));
+  border: 1px solid var(--ak-divider);
   border-radius: 999px;
   background: transparent;
   color: inherit;
@@ -4626,7 +4626,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .model-tag.is-active {
   opacity: 1;
-  background: var(--ak-panel-selected, rgba(255, 255, 255, 0.08));
+  background: var(--ak-panel-selected);
 }
 
 .model-selector__item-main {
@@ -4922,7 +4922,7 @@ body.vscode-high-contrast .ak-code__cursor {
   margin: 8px 0 4px;
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid var(--ak-card-border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--ak-card-border);
   background: color-mix(
     in srgb,
     var(--ak-c-button-background) 14%,
@@ -5336,8 +5336,8 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .mermaid-diagram .cluster rect {
-  fill: var(--ak-card-bg, #2e3440) !important;
-  stroke: var(--ak-card-border, #4c566a) !important;
+  fill: var(--ak-card-bg) !important;
+  stroke: var(--ak-card-border) !important;
 }
 
 .mermaid-diagram--loading .mermaid-loading,
@@ -5420,7 +5420,7 @@ body.vscode-dark .composer-chip--snippet,
   display: flex;
   flex-direction: column;
   background: var(--ak-c-editor-background);
-  border-left: 1px solid var(--ak-chrome-border, rgba(255, 255, 255, 0.12));
+  border-left: 1px solid var(--ak-chrome-border);
   box-shadow: -4px 0 16px color-mix(in srgb, var(--ak-c-widget-shadow) 35%, transparent);
 }
 

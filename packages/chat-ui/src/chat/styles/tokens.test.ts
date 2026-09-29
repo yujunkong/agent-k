@@ -196,6 +196,40 @@ function contrastRatio(a: string, b: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+describe('V31-UI-03 chat.css has no raw color fallbacks', () => {
+  it('does not embed hex or rgba inside var()', () => {
+    const raw = chatCss.match(/var\([^)]*#[0-9a-fA-F]{3,8}/g) ?? [];
+    const rgba = chatCss.match(/var\([^)]*rgba?\(/g) ?? [];
+    expect(raw).toEqual([]);
+    expect(rgba).toEqual([]);
+  });
+});
+
+describe('V31-UI-06 explore !important', () => {
+  it('explore selectors keep a single padding reset', () => {
+    const src = chatCss.replace(/\/\*[\s\S]*?\*\//g, '');
+    let n = 0;
+    for (const block of src.split('}')) {
+      const brace = block.lastIndexOf('{');
+      if (brace < 0) continue;
+      const sel = block.slice(0, brace);
+      const body = block.slice(brace + 1);
+      if (!sel.includes('.ak-explore')) continue;
+      n += body.match(/!important/g)?.length ?? 0;
+    }
+    expect(n).toBe(1);
+  });
+});
+
+describe('V31-UI-08 mode label stays visible when narrow', () => {
+  it('480px rules truncate the label and do not set display:none', () => {
+    const narrow = chatCss.slice(chatCss.indexOf('@container ak-chat (max-width: 480px)'));
+    const label = narrow.slice(narrow.indexOf('.mode-selector__label'), narrow.indexOf('.composer-toolbar__left'));
+    expect(label).toContain('text-overflow: ellipsis');
+    expect(label).not.toContain('display: none');
+  });
+});
+
 describe('V31-UI-02 WCAG contrast of canonical fallbacks', () => {
   it('focus ring fallback #007fd4 clears 3:1 on light and dark surfaces', () => {
     expect(contrastRatio('#007fd4', '#ffffff')).toBeGreaterThanOrEqual(3);
