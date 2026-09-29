@@ -61,7 +61,9 @@ export type AgentLoopEvent =
   | { type: 'error'; error: string; fatal: boolean }
   | { type: 'done'; reason: StopReason; content: string }
   /** V31-LOOP-01 — observed loop phase transition (observation only, no FSM). */
-  | { type: 'phase'; phase: LoopPhase; turn: number; reason: string };
+  | { type: 'phase'; phase: LoopPhase; turn: number; reason: string }
+  /** V31-LOOP-02 — inline critique shown as Thought; tool body still carries the instruction. */
+  | { type: 'self_critique'; turn: number; passes: number; text: string };
 
 export type AgentLoopStatus =
   | 'idle'
@@ -272,12 +274,11 @@ export class AgentLoopController {
         this.emit({ type: 'turn_start', turn: turns });
         this.timeout.bump();
 
-        // Comment: V31-LOOP-01 — phase prompt; V31-TOOL-04 — dynamic sticky context
+        // Comment: V31-LOOP-01 — phase prompt only for task + verify-first
         const baseSystem = this.config.systemPrompt!;
-        const systemPrompt =
-          this.config.verificationFirst !== false
-            ? injectPhasePrompt(baseSystem, this.phaseTracker.current())
-            : baseSystem;
+        const systemPrompt = this.shouldTrackPhase()
+          ? injectPhasePrompt(baseSystem, this.phaseTracker.current())
+          : baseSystem;
         const sticky =
           [this.config.stickyContext, this.config.todoContextProvider?.()]
             .filter(Boolean)
@@ -343,16 +344,18 @@ export class AgentLoopController {
           this.diagnostics.run('looksLikeBrokenToolPayload', content, turns);
         }
 
-        // Comment: V31-LOOP-01 — observe model turn before the exit gate
-        this.phaseEmitter.observe({
-          turn: turns,
-          hasToolCalls: toolCalls.length > 0,
-          toolNames: toolCalls.map((c) => c.name),
-          toolOk: true,
-          editedPaths: [],
-          verifyPending: this.hasPendingVerification(),
-          finalProse: content || undefined,
-        });
+        // Comment: V31-LOOP-01 — conversation/question skip the cycle entirely
+        if (this.shouldTrackPhase()) {
+          this.phaseEmitter.observe({
+            turn: turns,
+            hasToolCalls: toolCalls.length > 0,
+            toolNames: toolCalls.map((c) => c.name),
+            toolOk: true,
+            editedPaths: [],
+            verifyPending: this.hasPendingVerification(),
+            finalProse: content || undefined,
+          });
+        }
 
         if (toolCalls.length === 0) {
           // Comment: HARNESS-002 — /goal-like exit gate before completing
@@ -378,6 +381,27 @@ export class AgentLoopController {
               role: 'user',
               content: exitCheck.nudge,
               metadata: { turn: turns, type: 'verify_exit_nudge' },
+            });
+            this.emit({ type: 'turn_end', turn: turns });
+            continue;
+          }
+
+          // Comment: V31-LOOP-01 — do not finish while the observed phase is still open
+          if (
+            this.shouldTrackPhase() &&
+            this.phaseTracker.current() !== 'done' &&
+            turns < this.config.maxTurns
+          ) {
+            this.messages.push({
+              role: 'assistant',
+              content,
+              metadata: { turn: turns },
+            });
+            this.messages.push({
+              role: 'user',
+              content:
+                '[Phase] Verification is not done. Stay in verify/fix until edited paths are clean, then summarize.',
+              metadata: { turn: turns, type: 'phase_exit_nudge' },
             });
             this.emit({ type: 'turn_end', turn: turns });
             continue;
@@ -409,15 +433,17 @@ export class AgentLoopController {
           runAbort.signal,
           turns
         );
-        // Comment: V31-LOOP-01 — observe tool batch (edits → verify)
-        this.phaseEmitter.observe({
-          turn: turns,
-          hasToolCalls: false,
-          toolNames: batch.toolNames,
-          toolOk: batch.outcome === 'ok',
-          editedPaths: batch.editedPaths,
-          verifyPending: this.hasPendingVerification(),
-        });
+        // Comment: V31-LOOP-01 — observe tool batch only while the cycle is active
+        if (this.shouldTrackPhase()) {
+          this.phaseEmitter.observe({
+            turn: turns,
+            hasToolCalls: false,
+            toolNames: batch.toolNames,
+            toolOk: batch.outcome === 'ok',
+            editedPaths: batch.editedPaths,
+            verifyPending: this.hasPendingVerification(),
+          });
+        }
         if (batch.outcome === 'doom_loop') {
           reason = 'doom_loop';
           // Prefer handler message (suggestions) over generic stop text.
@@ -584,7 +610,15 @@ export class AgentLoopController {
               messages: this.messages,
               turn,
             });
-            if (critique?.nudge) body = `${body}\n\n${critique.nudge}`;
+            if (critique?.nudge) {
+              body = `${body}\n\n${critique.nudge}`;
+              this.emit({
+                type: 'self_critique',
+                turn,
+                passes: critique.passes,
+                text: critique.nudge,
+              });
+            }
           }
         } catch {
           /* verification must not break tool batch */
@@ -674,6 +708,16 @@ export class AgentLoopController {
     }
 
     return { outcome: batchOutcome, editedPaths, toolNames };
+  }
+
+  /**
+   * V31-LOOP-01 — cycle runs for task (and unspecified kind) only while
+   * verify-first is on. conversation/question never observe or inject phase.
+   */
+  private shouldTrackPhase(): boolean {
+    const kind = this.config.intentKind;
+    if (kind === 'conversation' || kind === 'question') return false;
+    return this.config.verificationFirst !== false;
   }
 
   /** HARNESS-002 — true when any edited path still lacks a clean lint. */

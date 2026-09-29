@@ -1,6 +1,7 @@
 /**
  * V31-UI-11 — card header semantics (FileEditCard / TerminalRunCard).
- * Uncontrolled: header toggles expand. Controlled: header is inert.
+ * File name opens the file. Terminal header is the command.
+ * Expand is the chevron only. Controlled FileEdit toggle stays inert.
  */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -69,14 +70,16 @@ describe('V31-UI-11 FileEditCard header', () => {
 describe('V31-UI-11 TerminalRunCard header', () => {
   afterEach(() => cleanup());
 
-  it('uncontrolled: header + bottom expand toggle', () => {
-    render(<TerminalRunCard {...RUN} />);
-    const header = screen.getByRole('button', { name: /Run tests/ });
-    expect(header.getAttribute('aria-expanded')).toBe('false');
+  it('header click does not expand; chevron does', () => {
+    const { container } = render(<TerminalRunCard {...RUN} />);
+    const header = container.querySelector(
+      '.ak-terminal-card__header'
+    ) as HTMLElement;
+    expect(header.tagName).toBe('DIV');
     fireEvent.click(header);
-    expect(header.getAttribute('aria-expanded')).toBe('true');
-    fireEvent.click(screen.getByTitle('Collapse'));
-    expect(header.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('.ak-terminal-card--expanded')).toBeNull();
+    fireEvent.click(screen.getByTitle('Expand'));
+    expect(container.querySelector('.ak-terminal-card--expanded')).toBeTruthy();
   });
 
   it('controlled: header click is inert', () => {

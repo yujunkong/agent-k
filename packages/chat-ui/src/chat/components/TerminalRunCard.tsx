@@ -107,21 +107,11 @@ export function TerminalRunCard({
         isExpanded ? ' ak-terminal-card--expanded' : ''
       }`}
     >
-      {embedded ? null : controlled ? (
-        // Comment: V31-UI-11 — parent owns expand → header is inert (non-button)
+      {embedded ? null : (
+        // Comment: V31-UI-11 — header is the command, not expand. Chevron toggles.
         <div className="ak-terminal-card__header" title={run.command}>
           {headerContent}
         </div>
-      ) : (
-        <button
-          type="button"
-          className="ak-terminal-card__header"
-          title={run.command}
-          aria-expanded={isExpanded}
-          onClick={toggle}
-        >
-          {headerContent}
-        </button>
       )}
 
       {/* Comment: body always mounted — expand only raises max-height (FileEdit parity) */}

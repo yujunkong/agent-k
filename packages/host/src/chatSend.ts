@@ -6,8 +6,6 @@
 
 import {
   AgentLoopController,
-  HeuristicIntentClassifier,
-  IntentGate,
   PrefetchEngine,
   formatInlineEditStickyContext,
   formatInlineEditSystemContext,
@@ -51,14 +49,16 @@ import { createPrefetchIdeDeps } from './prefetchDeps';
 import { getMcpToolBridge } from './mcpHost';
 import { isTrueEmptyModelReply } from './chatSendEmpty';
 import {
+  evaluateIntentGates,
   readHarnessConfig,
-  readIntentGateEnabled,
   readMaxTurns,
   readStrictEditEnabled,
   readToolCallFallbackEnabled,
+  resolveEffectiveHarnessFlags,
 } from './chatSendConfig';
 import { NativeThenFallbackNormalizer } from './turn/ToolCallNormalizer';
 import { todoStore } from './session/TodoStore';
+import { persistSessionTodos } from './session/todoPersistence';
 import { shortDetail, toolKind } from './timelineLabels';
 import {
   createSubagentHost,
@@ -251,9 +251,6 @@ export async function runHostChatSend(
   const modeConfig = modeRegistry.getModeConfig(mode);
   const harnessCfg = readHarnessConfig(cfg);
   const harnessEnabled = harnessCfg.enabled;
-  const harnessVerifyFirst = harnessEnabled && harnessCfg.verificationFirst;
-  const harnessMicroLoop = harnessEnabled && harnessCfg.verificationMicroLoop;
-  const harnessPrefetch = harnessEnabled && harnessCfg.prefetchEnabled;
   const routing = routeByHeuristics({
     userMessage: String(
       [...(payload.messages || [])].reverse().find((m) => m.role === 'user')
@@ -301,26 +298,17 @@ export async function runHostChatSend(
     [...(payload.messages || [])]
       .reverse()
       .find((m) => m.role === 'user')?.content || '';
-  const intentGate = new IntentGate(new HeuristicIntentClassifier());
-  const intentVerdict = await intentGate.evaluate({
+  const intent = await evaluateIntentGates(cfg, {
     userText: String(lastUserRaw),
     mode,
     hasImages: (payload.images?.length ?? 0) > 0,
     hasInlineEdit: inlineEditReq != null,
     priorTurns: Math.max(0, (payload.messages?.length ?? 0) - 1),
   });
-  const intentEnabled = readIntentGateEnabled(cfg);
-  const intentGates = intentEnabled
-    ? intentVerdict.gates
-    : {
-        prefetch: true,
-        verificationFirst: true,
-        harnessBlocks: true,
-        toolSchemas: 'full' as const,
-      };
+  const flags = resolveEffectiveHarnessFlags(harnessCfg, intent.gates);
   hostLog(
     'chat.send empty reply',
-    `intent verdict requestId=${requestId} kind=${intentVerdict.kind} conf=${intentVerdict.confidence} reason=${intentVerdict.reason} enabled=${intentEnabled} gates=prefetch:${intentGates.prefetch},verify:${intentGates.verificationFirst},harness:${intentGates.harnessBlocks},tools:${intentGates.toolSchemas}`,
+    `intent verdict requestId=${requestId} kind=${intent.verdict.kind} conf=${intent.verdict.confidence} reason=${intent.verdict.reason} enabled=${intent.enabled} gates=prefetch:${flags.prefetch},verify:${flags.verificationFirst},harness:${flags.harnessBlocks},tools:${intent.gates.toolSchemas}`,
   );
 
   const schemaOpts = {
@@ -330,7 +318,7 @@ export async function runHostChatSend(
   };
   const toolSchemas = registry.getSchemas(mode, {
     ...schemaOpts,
-    intentKind: intentEnabled ? intentVerdict.kind : undefined,
+    intentKind: intent.enabled ? intent.verdict.kind : undefined,
   });
   const toolCtxBase: ToolContext = {
     workspaceRoot: root,
@@ -803,9 +791,9 @@ export async function runHostChatSend(
           turnTimeoutMs,
           systemPrompt: childModeConfig.systemPrompt,
           workspaceRoot: root || undefined,
-          verificationFirst: harnessVerifyFirst,
-          verificationMicroLoop: harnessMicroLoop,
-          harnessEnabled,
+          verificationFirst: flags.verificationFirst,
+          verificationMicroLoop: flags.microLoop,
+          harnessEnabled: flags.harnessBlocks,
           modelTier,
         },
       );
@@ -1503,11 +1491,11 @@ export async function runHostChatSend(
       // Comment: V31-TOOL-04 — session todos re-enter sticky context each turn
       todoContextProvider: () => todoStore.format(sessionId),
       // Comment: HARNESS-002/004 — verify-first prompt + post-edit micro-loop
-      verificationFirst: harnessVerifyFirst && intentGates.verificationFirst,
-      verificationMicroLoop: harnessMicroLoop,
-      harnessEnabled: harnessEnabled && intentGates.harnessBlocks,
+      verificationFirst: flags.verificationFirst,
+      verificationMicroLoop: flags.microLoop,
+      harnessEnabled: flags.harnessBlocks,
       modelTier,
-      intentKind: intentEnabled ? intentVerdict.kind : undefined,
+      intentKind: intent.enabled ? intent.verdict.kind : undefined,
       stickyContext: inlineEditReq
         ? formatInlineEditStickyContext(inlineEditReq)
         : undefined,
@@ -1532,7 +1520,7 @@ export async function runHostChatSend(
     }));
 
   let runPrompt = String(lastUserRaw);
-  if (harnessPrefetch && intentGates.prefetch) {
+  if (flags.prefetch) {
     try {
       const prefetchEngine = new PrefetchEngine(
         { enabled: true, ideContextEnabled: true },
@@ -1609,6 +1597,8 @@ export async function runHostChatSend(
     hostLogError('chat.send empty reply', `chatSend threw requestId=${requestId}`, err);
     postStream({ event: 'error', error: message });
   } finally {
+    // Comment: V31-TOOL-04 — persist even when the run throws or aborts
+    persistSessionTodos(sessionId);
     ctx.hostLoops.delete(requestId);
     if (ctx.getHostLoopRequestId() === requestId) {
       ctx.setHostLoopRequestId(undefined);
@@ -1761,6 +1751,13 @@ function mapLoopEventToStream(
         phase: event.phase,
         turn: event.turn,
         reason: event.reason,
+      });
+      break;
+    case 'self_critique':
+      // Comment: V31-LOOP-02 — Thought channel; tool body still has the instruction
+      post({
+        event: 'delta',
+        reasoning: event.text,
       });
       break;
     case 'done':

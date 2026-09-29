@@ -6,7 +6,14 @@
  * No vscode import: host callers pass a WorkspaceConfiguration-shaped reader.
  */
 
-import { extractHarnessConfig, type HarnessConfig } from '@agent-k/core';
+import {
+  HeuristicIntentClassifier,
+  IntentGate,
+  extractHarnessConfig,
+  type HarnessConfig,
+  type IntentClassifierInput,
+} from '@agent-k/core';
+import type { IntentGates, IntentVerdict } from '@agent-k/shared';
 
 /** Minimal reader shape satisfied by vscode.WorkspaceConfiguration. */
 export interface ConfigReader {
@@ -35,6 +42,58 @@ export function readMaxTurns(cfg: ConfigReader, fallback: number): number {
 /** Read agent-k.intentGate.enabled — default true (opt-out). */
 export function readIntentGateEnabled(cfg: ConfigReader): boolean {
   return cfg.get('intentGate.enabled') !== false;
+}
+
+/** V31-INTENT-01 — effective harness flags after ANDing intent gates. */
+export interface EffectiveHarnessFlags {
+  verificationFirst: boolean;
+  microLoop: boolean;
+  prefetch: boolean;
+  harnessBlocks: boolean;
+}
+
+/** V31-INTENT-01 — AND harness config with intent gates (most restrictive wins). */
+export function resolveEffectiveHarnessFlags(
+  harness: HarnessConfig,
+  gates: IntentGates,
+): EffectiveHarnessFlags {
+  const enabled = harness.enabled;
+  return {
+    verificationFirst:
+      enabled && harness.verificationFirst && gates.verificationFirst,
+    microLoop:
+      enabled && harness.verificationMicroLoop && gates.verificationFirst,
+    prefetch: enabled && harness.prefetchEnabled && gates.prefetch,
+    harnessBlocks: enabled && gates.harnessBlocks,
+  };
+}
+
+export const FULL_INTENT_GATES: IntentGates = {
+  prefetch: true,
+  verificationFirst: true,
+  harnessBlocks: true,
+  toolSchemas: 'full',
+};
+
+export interface IntentGateEvaluation {
+  enabled: boolean;
+  verdict: IntentVerdict;
+  gates: IntentGates;
+}
+
+/** V31-INTENT-01 — evaluate the intent gate from config + input. */
+export async function evaluateIntentGates(
+  cfg: ConfigReader,
+  input: IntentClassifierInput,
+): Promise<IntentGateEvaluation> {
+  const gate = new IntentGate(new HeuristicIntentClassifier());
+  const verdict = await gate.evaluate(input);
+  const enabled = readIntentGateEnabled(cfg);
+  return {
+    enabled,
+    verdict,
+    gates: enabled ? verdict.gates : { ...FULL_INTENT_GATES },
+  };
 }
 
 /**

@@ -261,6 +261,82 @@ describe('AgentLoopController (AGENT-001…004)', () => {
     expect(bodies[2]).not.toContain('<self_critique>');
   });
 
+  it('emits self_critique at most twice (V31-LOOP-02)', async () => {
+    let turn = 0;
+    const critiques: number[] = [];
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          turn++;
+          if (turn <= 3) {
+            return {
+              content: '',
+              toolCalls: [
+                {
+                  id: `c${turn}`,
+                  name: 'edit_file',
+                  arguments: { path: `src/f${turn}.ts` },
+                },
+              ],
+            } satisfies ModelTurnResult;
+          }
+          return {
+            content:
+              '## Summary\n\nEdited src/f1.ts, src/f2.ts and src/f3.ts; each was verified with read_lints and no issues remain.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async ({ name }) => {
+          if (name === 'read_lints') {
+            return { success: true, data: { errors: [] } };
+          }
+          return { success: true, data: 'edited' };
+        },
+        onEvent: (e) => {
+          if (e.type === 'self_critique') critiques.push(e.passes);
+        },
+      },
+      { maxTurns: 6, parallelTools: false }
+    );
+
+    await controller.run({ prompt: 'Edit three files.' });
+    expect(critiques).toEqual([1, 2]);
+  });
+
+  it('skips the phase cycle for conversation (V31-LOOP-01)', async () => {
+    let seenSystem = '';
+    const phases: string[] = [];
+    const controller = new AgentLoopController(
+      {
+        runModel: async ({ messages }) => {
+          seenSystem = String(
+            messages.find((m) => m.role === 'system')?.content ?? ''
+          );
+          return {
+            content: 'Hello.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async () => ({ success: true, data: null }),
+        onEvent: (e) => {
+          if (e.type === 'phase') phases.push(e.phase);
+        },
+      },
+      {
+        maxTurns: 3,
+        parallelTools: false,
+        intentKind: 'conversation',
+        verificationFirst: true,
+      }
+    );
+
+    const result = await controller.run({ prompt: 'hi' });
+    expect(result.reason).toBe('completed');
+    expect(seenSystem).not.toContain('## Loop phase');
+    expect(phases).toEqual([]);
+    expect(
+      result.messages.some((m) => m.metadata?.type === 'phase_exit_nudge'),
+    ).toBe(false);
+  });
+
   it('injects dynamic todo sticky context per turn (V31-TOOL-04)', async () => {
     let seenSystem = '';
     const controller = new AgentLoopController(

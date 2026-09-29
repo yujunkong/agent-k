@@ -27,7 +27,8 @@ export const readTool: ToolDefinition = {
       offset: { type: 'number', description: '1-based start line (default 1)' },
       numbered: {
         type: 'boolean',
-        description: 'Prefix each line with its 1-based line number (N: )',
+        description:
+          'Opt-in. Default is raw file text so edit_file search still matches. Set true to prefix each returned line with its 1-based number as "N: ".',
       },
     },
     required: ['path'],

@@ -741,6 +741,12 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
               debugStage: stream.stage != null ? String(stream.stage) : undefined,
             });
             break;
+          case 'phase':
+            // Comment: V31-LOOP-01 — one Thought line, not a second card system
+            routeDelta({
+              reasoning: `Phase ${String(stream.phase || '')}: ${String(stream.reason || '')}`,
+            });
+            break;
           case 'compaction':
             // Comment: CTX-004 — API wire compacted; show Summarizing chat context...
             routeDelta({

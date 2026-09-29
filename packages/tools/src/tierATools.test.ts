@@ -32,7 +32,13 @@ function makeRegistry(): ToolRegistry {
   return registry;
 }
 
-const TASK_TOOLS = ['web_search', 'task_run', 'browser_navigate', 'mcp_foo_bar'];
+const TASK_TOOLS = [
+  'web_search',
+  'task_run',
+  'browser_navigate',
+  'mcp_foo_bar',
+  'skill_run',
+];
 
 describe('V31-TOOL-05 Tier A task-intent tools', () => {
   it('tier A + intentKind task exposes task/web/MCP/browser tools', () => {
