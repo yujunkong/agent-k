@@ -2,6 +2,7 @@
  * PROVIDER-010 — LiteLLM / OpenAI-compatible HTTP client.
  * Also backs PROVIDER-011…014 (OpenAI, Anthropic, Ollama, LM Studio) at the wire level.
  */
+import { getPolicyForTier } from './ModelTiers';
 import { parseThinkingEffort, thinkingEffortToProviderOpts } from './thinkingEffort';
 import type {
   LLMProviderConfig,
@@ -40,7 +41,8 @@ export class LiteLLMProvider implements LLMProviderInterface {
     const {
       messages,
       model,
-      temperature = 0.7,
+      // V31-MODEL-01 — tier B default; callers pass tier temp explicitly
+      temperature = getPolicyForTier('B').modelParams.temperature,
       // Reasoning models (hy3) burn completion budget on thinking — keep headroom for final prose.
       maxTokens = 32768,
       signal,

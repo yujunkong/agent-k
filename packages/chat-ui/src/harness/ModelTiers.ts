@@ -7,6 +7,9 @@
  * PRD: PRD-Harness-01_Model_Tiers.md
  */
 
+// V31-MODEL-01 — providers is the temperature SoT; no literal drift
+import { getPolicyForTier as getProviderPolicyForTier } from '@agent-k/providers';
+
 // ─── Tier Types ────────────────────────────────────────────────
 
 export type ModelTier = 'A' | 'B' | 'C';
@@ -69,7 +72,7 @@ export const TIER_POLICIES: Record<ModelTier, TierPolicy> = {
       'ask_question', 'todo_write',
     ],
     modelParams: {
-      temperature: 0.1,
+      temperature: getProviderPolicyForTier('A').modelParams.temperature,
       top_p: 0.9,
       max_tokens: 8192,
       parallel_tool_calls: false,
@@ -92,7 +95,7 @@ export const TIER_POLICIES: Record<ModelTier, TierPolicy> = {
     tier: 'B',
     toolWhitelist: [...ALL_TOOLS],
     modelParams: {
-      temperature: 0.2,
+      temperature: getProviderPolicyForTier('B').modelParams.temperature,
       top_p: 0.95,
       max_tokens: 16384,
       parallel_tool_calls: true,
@@ -113,7 +116,7 @@ export const TIER_POLICIES: Record<ModelTier, TierPolicy> = {
       'codebase_search', 'lsp_definition', 'lsp_references',
     ],
     modelParams: {
-      temperature: 0.0,
+      temperature: getProviderPolicyForTier('C').modelParams.temperature,
       top_p: 1.0,
       max_tokens: 4096,
       parallel_tool_calls: false,

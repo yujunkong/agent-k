@@ -7,6 +7,53 @@
  * Presentation-only: agent behavior and message data remain unchanged.
  */
 :root {
+  /* V31-UI-03 — single fallback source. Raw hex/rgba fallbacks live ONLY here.
+     Canonical fallback = most frequent value previously used in chat.css.
+     VS Code injects --vscode-* in the webview, so these fallbacks are inert there. */
+  --ak-c-button-background: var(--vscode-button-background, #0e639c);
+  --ak-c-button-border: var(--vscode-button-border, #555);
+  --ak-c-button-foreground: var(--vscode-button-foreground, #fff);
+  --ak-c-button-hover-background: var(--vscode-button-hoverBackground, #1177bb);
+  --ak-c-button-secondary-background: var(--vscode-button-secondaryBackground, #3a3d41);
+  --ak-c-button-secondary-foreground: var(--vscode-button-secondaryForeground, #ccc);
+  --ak-c-button-secondary-hover-background: var(--vscode-button-secondaryHoverBackground, #45494e);
+  --ak-c-charts-blue: var(--vscode-charts-blue, #4fc1ff);
+  --ak-c-charts-green: var(--vscode-charts-green, #89d185);
+  --ak-c-charts-orange: var(--vscode-charts-orange, #dea584);
+  --ak-c-charts-purple: var(--vscode-charts-purple, #c586c0);
+  --ak-c-charts-red: var(--vscode-charts-red, #f14c4c);
+  --ak-c-charts-yellow: var(--vscode-charts-yellow, #c6a200);
+  --ak-c-description-foreground: var(--vscode-descriptionForeground, #9d9d9d);
+  --ak-c-editor-background: var(--vscode-editor-background, #1e1e1e);
+  --ak-c-editor-foreground: var(--vscode-editor-foreground, #d4d4d4);
+  --ak-c-editor-inactive-selection-background: var(--vscode-editor-inactiveSelectionBackground, rgba(255, 255, 255, 0.03));
+  --ak-c-editor-cursor-foreground: var(--vscode-editorCursor-foreground, #aeafad);
+  --ak-c-editor-warning-foreground: var(--vscode-editorWarning-foreground, #f59e0b);
+  --ak-c-editor-widget-background: var(--vscode-editorWidget-background, var(--ak-c-menu-background));
+  --ak-c-error-foreground: var(--vscode-errorForeground, #f48771);
+  --ak-c-focus-border: var(--vscode-focusBorder, #007fd4);
+  --ak-c-foreground: var(--vscode-foreground, #cccccc);
+  --ak-c-input-background: var(--vscode-input-background, #3c3c3c);
+  --ak-c-input-border: var(--vscode-input-border, #3c3c3c);
+  --ak-c-input-foreground: var(--vscode-input-foreground, #ccc);
+  --ak-c-input-placeholder-foreground: var(--vscode-input-placeholderForeground, var(--ak-c-description-foreground));
+  --ak-c-input-validation-warning-border: var(--vscode-inputValidation-warningBorder, #b89500);
+  --ak-c-list-active-selection-background: var(--vscode-list-activeSelectionBackground, rgba(0, 127, 212, 0.18));
+  --ak-c-list-active-selection-foreground: var(--vscode-list-activeSelectionForeground, inherit);
+  --ak-c-list-hover-background: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.25));
+  --ak-c-menu-background: var(--vscode-menu-background, var(--ak-c-editor-background));
+  --ak-c-panel-border: var(--vscode-panel-border, #555);
+  --ak-c-progress-bar-background: var(--vscode-progressBar-background, #3794ff);
+  --ak-c-side-bar-background: var(--vscode-sideBar-background, #252526);
+  --ak-c-side-bar-foreground: var(--vscode-sideBar-foreground, #ccc);
+  --ak-c-testing-icon-passed: var(--vscode-testing-iconPassed, var(--ak-c-charts-green));
+  --ak-c-text-code-block-background: var(--vscode-textCodeBlock-background, rgba(127, 127, 127, 0.12));
+  --ak-c-text-link-foreground: var(--vscode-textLink-foreground, #4daafc);
+  --ak-c-toolbar-hover-background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+  --ak-c-widget-border: var(--vscode-widget-border, #454545);
+  --ak-c-widget-shadow: var(--vscode-widget-shadow, #000);
+
+  /* Spacing / radius / border / text primitives */
   --ak-space-1: 4px;
   --ak-space-2: 8px;
   --ak-space-3: 12px;
@@ -14,10 +61,10 @@
   --ak-space-5: 20px;
   --ak-radius-sm: 6px;
   --ak-radius-md: 8px;
-  --ak-border: color-mix(in srgb, var(--vscode-foreground, #ccc) 10%, transparent);
-  --ak-border-strong: color-mix(in srgb, var(--vscode-foreground, #ccc) 16%, transparent);
-  --ak-text-muted: var(--vscode-descriptionForeground, #9d9d9d);
-  --ak-text-primary: var(--vscode-foreground, #ccc);
+  --ak-border: color-mix(in srgb, var(--ak-c-foreground) 10%, transparent);
+  --ak-border-strong: color-mix(in srgb, var(--ak-c-foreground) 16%, transparent);
+  --ak-text-muted: var(--ak-c-description-foreground);
+  --ak-text-primary: var(--ak-c-foreground);
   --ak-ui-space-1: 4px;
   --ak-ui-space-2: 8px;
   --ak-ui-space-3: 12px;
@@ -27,7 +74,47 @@
   --ak-ui-muted: var(--ak-text-muted);
   --ak-ui-border: var(--ak-border);
   --ak-ui-border-strong: var(--ak-border-strong);
-  --ak-ui-surface: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 94%, var(--vscode-foreground, #fff));
+  --ak-ui-surface: color-mix(in srgb, var(--ak-c-editor-background) 94%, var(--ak-c-foreground));
+
+  /* V31-UI-04 — semantic tokens moved from chat.css #chat-root (single token source).
+     Floating panels share the composer surface; borders/shadows use foreground mixes
+     so they stay visible in light AND dark themes. */
+  --ak-panel-bg: var(--ak-c-input-background);
+  --ak-panel-border: color-mix(in srgb, var(--ak-c-foreground) 26%, transparent);
+  --ak-panel-shadow:
+    0 1px 2px color-mix(in srgb, var(--ak-c-widget-shadow) 12%, transparent),
+    0 4px 16px color-mix(in srgb, var(--ak-c-widget-shadow) 10%, transparent);
+  --ak-panel-hover: var(--ak-c-list-hover-background);
+  --ak-panel-selected: var(--ak-c-list-active-selection-background);
+  /* Inline cards (diff / terminal / code) — one surface across the thread */
+  --ak-card-bg: color-mix(in srgb, var(--ak-c-editor-background) 82%, var(--ak-c-input-background) 18%);
+  --ak-card-header-bg: color-mix(in srgb, var(--ak-c-foreground) 4%, var(--ak-card-bg));
+  --ak-card-border: color-mix(in srgb, var(--ak-c-foreground) 16%, transparent);
+  --ak-chrome-border: color-mix(in srgb, var(--ak-c-foreground) 12%, transparent);
+  --ak-divider: color-mix(in srgb, var(--ak-c-foreground) 10%, transparent);
+  /* Semantic status / accent tokens — theme-aware (light + dark) */
+  --ak-danger: var(--ak-c-error-foreground);
+  --ak-danger-bg: color-mix(in srgb, var(--ak-c-error-foreground) 12%, transparent);
+  --ak-success: var(--ak-c-charts-green);
+  --ak-success-bg: color-mix(in srgb, var(--ak-c-charts-green) 12%, transparent);
+  --ak-warning: var(--ak-c-editor-warning-foreground);
+  --ak-warning-bg: color-mix(in srgb, var(--ak-c-editor-warning-foreground) 12%, transparent);
+  --ak-info: var(--ak-c-charts-blue);
+  --ak-info-bg: color-mix(in srgb, var(--ak-c-charts-blue) 14%, transparent);
+  --ak-accent: var(--ak-c-text-link-foreground);
+  --ak-accent-bg: color-mix(in srgb, var(--ak-c-text-link-foreground) 14%, transparent);
+  /* Language badge palette — VS Code chart tokens (theme-aware) */
+  --ak-lang-ts: var(--ak-c-charts-blue);
+  --ak-lang-js: var(--ak-c-charts-yellow);
+  --ak-lang-py: var(--ak-c-charts-blue);
+  --ak-lang-rs: var(--ak-c-charts-orange);
+  --ak-lang-muted: var(--ak-c-description-foreground);
+  --ak-lang-css: var(--ak-c-charts-purple);
+  --ak-badge-fg: var(--ak-c-button-foreground);
+  --ak-badge-fg-dark: var(--ak-c-editor-background);
+  /* Shared left edge for user text, Thought/Explore titles, assistant markdown */
+  --ak-thread-inset: 12px;
+  --ak-step-gutter: 12px;
 }
 
 .message-bubble {
