@@ -6,6 +6,7 @@
 import type { AgentMode, IntentKind, ProblemFrame } from '@agent-k/shared';
 import { ContextAssembler } from '../context/ContextAssembler';
 import { CompactionEngine } from '../context/CompactionEngine';
+import { ModelSummaryProvider } from '../context/compaction/CompactionStrategy';
 import type {
   AgentMessage,
   ExecuteToolFn,
@@ -32,6 +33,7 @@ import {
   parseProblemFrame,
 } from './frame';
 import { LoopPhaseTracker, PhaseEmitter, type LoopPhase } from './phases';
+import { PermissionDenialRecovery, FailureTracker } from './retry';
 import {
   batchHasBlindRead,
   isSearchTool,
@@ -103,6 +105,8 @@ export interface AgentLoopConfig {
    * Rules re-enter the protected system slot every turn (survive compaction).
    */
   workspaceRoot?: string;
+  /** V31-CTX-05 — IDE workspace context injected when relevant. */
+  workspace?: import('../context/WorkspaceContext').WorkspaceContext;
   /** Explicit project rules text (skips fs when set). */
   projectRules?: string;
   /** Extra sticky context merged after rules. */
@@ -124,6 +128,10 @@ export interface AgentLoopConfig {
   modelTier?: 'A' | 'B' | 'C';
   /** V31-INTENT-01 — intent kind for this run (default task = current behavior). */
   intentKind?: IntentKind;
+  /** V31-CTX-02 — use model-generated compaction summaries (default off). */
+  realCompaction?: boolean;
+  /** V31-RETRY-04 — recover from a permission denial instead of killing the run. */
+  permissionRecovery?: boolean;
 }
 
 export interface AgentLoopDeps {
@@ -164,6 +172,12 @@ export class AgentLoopController {
   private readonly recovery = new ErrorRecovery({ maxRetries: 2 });
   private readonly assembler: ContextAssembler;
   private readonly compaction: CompactionEngine;
+  /** V31-CTX-02 — model-backed summary provider for real compaction. */
+  private readonly summaryProvider: ModelSummaryProvider;
+  /** V31-RETRY-04 — bounded permission-denial recovery (max 1/run). */
+  private readonly permissionRecovery = new PermissionDenialRecovery(1);
+  /** V31-RETRY-01 — tool+args failure budget (escalate after 3). */
+  private readonly failureTracker = new FailureTracker(3);
   private readonly parallel: ParallelExecutor;
   private readonly timeout = new RunTimeoutGuard();
   private abortFromTimeout = false;
@@ -214,10 +228,16 @@ export class AgentLoopController {
       harnessEnabled: config.harnessEnabled,
       modelTier: config.modelTier,
       intentKind: config.intentKind,
+      realCompaction: config.realCompaction,
+      workspace: config.workspace,
+      permissionRecovery: config.permissionRecovery,
     };
     this.doom = new DoomLoopDetector(this.config.doomLoopThreshold);
     this.assembler = new ContextAssembler(this.config.contextBudgetTokens);
     this.compaction = new CompactionEngine(this.config.contextBudgetTokens);
+    this.summaryProvider = new ModelSummaryProvider(({ messages, signal }) =>
+      this.deps.runModel({ messages, signal, turn: 0 }),
+    );
     this.parallel = new ParallelExecutor(8);
   }
 
@@ -246,6 +266,10 @@ export class AgentLoopController {
     this.phaseTracker.reset();
     this.critiqueRunner.reset();
     this.verifyExitWeakNudged = false;
+    // Comment: V31-RETRY-04 — fresh permission-denial budget per run
+    this.permissionRecovery.reset();
+    // Comment: V31-RETRY-01 — fresh failure budget per run
+    this.failureTracker.reset();
     this.status = 'running';
     this.doom.reset();
     this.emit({ type: 'status', status: 'running' });
@@ -298,20 +322,40 @@ export class AgentLoopController {
             .filter(Boolean)
             .join('\n\n') || undefined;
 
-        const assembled = this.assembler.assemble({
-          mode: this.config.mode ?? 'agent',
-          systemPrompt,
-          messages: this.messages,
-          budget: this.compaction.contextBudget,
-          compactIfNeeded: true,
-          // Comment: HARNESS-005 — rules outside compaction (re-inject each turn)
-          workspaceRoot: this.config.workspaceRoot,
-          projectRules: this.config.projectRules,
-          stickyContext: sticky,
-          approvedPlanBlock: this.config.approvedPlanBlock,
-          verificationFirst: this.config.verificationFirst,
-          harnessEnabled: this.config.harnessEnabled,
-        });
+        const assembled = this.config.realCompaction
+          ? await this.assembler.assembleAsync(
+              {
+                mode: this.config.mode ?? 'agent',
+                systemPrompt,
+                messages: this.messages,
+                budget: this.compaction.contextBudget,
+                compactIfNeeded: true,
+                // Comment: HARNESS-005 — rules outside compaction (re-inject each turn)
+                workspaceRoot: this.config.workspaceRoot,
+                projectRules: this.config.projectRules,
+                stickyContext: sticky,
+                workspace: this.config.workspace,
+                approvedPlanBlock: this.config.approvedPlanBlock,
+                verificationFirst: this.config.verificationFirst,
+                harnessEnabled: this.config.harnessEnabled,
+              },
+              this.summaryProvider,
+            )
+          : this.assembler.assemble({
+              mode: this.config.mode ?? 'agent',
+              systemPrompt,
+              messages: this.messages,
+              budget: this.compaction.contextBudget,
+              compactIfNeeded: true,
+              // Comment: HARNESS-005 — rules outside compaction (re-inject each turn)
+              workspaceRoot: this.config.workspaceRoot,
+              projectRules: this.config.projectRules,
+              stickyContext: sticky,
+              workspace: this.config.workspace,
+              approvedPlanBlock: this.config.approvedPlanBlock,
+              verificationFirst: this.config.verificationFirst,
+              harnessEnabled: this.config.harnessEnabled,
+            });
         if (assembled.compacted) {
           this.messages = assembled.messages.filter((m) => m.role !== 'system');
           // Comment: AGENT-006 — surface Summarizing chat context... in chat UI (API wire only)
@@ -612,6 +656,30 @@ export class AgentLoopController {
           args: call.arguments,
         });
         if (decision === 'deny') {
+          // Comment: V31-RETRY-04 — denial becomes an actionable tool result;
+          // the run continues once so the agent can choose an alternative.
+          if (this.config.permissionRecovery) {
+            const recovery = this.permissionRecovery.onDenied({
+              toolName: call.name,
+              turn,
+            });
+            this.messages.push({
+              role: 'tool',
+              content: recovery.recover
+                ? recovery.nudge
+                : `Permission denied for tool "${call.name}". ${recovery.nudge}`,
+              toolCallId: call.id,
+              name: call.name,
+              metadata: { turn, toolName: call.name, type: 'permission_denied' },
+            });
+            this.emit({
+              type: 'tool_end',
+              call,
+              ok: false,
+              error: 'permission denied',
+            });
+            return recovery.recover ? 'ok' : 'permission_denied';
+          }
           this.messages.push({
             role: 'tool',
             content: `Permission denied for tool "${call.name}".`,
@@ -663,6 +731,25 @@ export class AgentLoopController {
           ? result.data
           : JSON.stringify(result.data ?? null)
         : `Error: ${result.error ?? 'tool failed'}`;
+
+      // Comment: V31-RETRY-01 — escalate after 3 failures on the same tool+args
+      if (!result.success) {
+        const record = this.failureTracker.record(
+          call.name,
+          call.arguments,
+          String(result.error ?? 'tool failed'),
+        );
+        if (
+          this.failureTracker.isExhausted({
+            toolName: call.name,
+            argsHash: record.argsHash,
+          })
+        ) {
+          body +=
+            `\n\n"${call.name}" failed ${record.attempts} times with the same arguments. ` +
+            `Stop retrying it and choose a different approach or ask the user.`;
+        }
+      }
 
       // Comment: HARNESS-004 — post edit/write lint micro-loop (fail → continue work)
       if (

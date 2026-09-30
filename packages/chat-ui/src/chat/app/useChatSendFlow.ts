@@ -34,7 +34,6 @@ import { sanitizeLoadedMessages, finalizeStreamingMessages, shortModelName } fro
 import { lastConversationTurn, resolveSendMode } from '../../mode';
 import { PLAN_STICKY_PHASES } from '../chatAppHelpers';
 import { designModeContext } from '../../browser/DesignModePanel';
-import { buildHarnessTurnContext, prependHarnessToUserPayload } from '../harnessBridge';
 import { resolveSlashCommand, SLASH_COMMANDS, type SlashCommand } from '../composerPalette';
 import { getVsCodeApi } from '../host/vscodeApi';
 import { configManager } from '../../core/ConfigManager';
@@ -353,32 +352,18 @@ export function useChatSendFlow(params: UseChatSendFlowParams): UseChatSendFlowR
         payload = `${designCtx.contextBlock}\n\n---\n\n${payload}`;
       }
 
-      // HARB: Prefetch + ContextAssembler → user payload 주입
-      try {
-        const t0 = Date.now();
-        const prefetchSource = [inlineBlock, mentionBlock, displayText].filter(Boolean).join('\n');
-        const harnessCtx = await buildHarnessTurnContext(
-          prefetchSource || displayText,
-          effectiveMode,
-          'A'
-        );
-        if (sendEpochRef.current.isStale(ownerId, epoch)) return;
-        payload = prependHarnessToUserPayload(payload, harnessCtx, effectiveMode);
-        const fileHits = (harnessCtx.prefetchRaw.match(/Read file:/g) || []).length;
+      // V31-CTX-04: host is the single prefetch owner — do NOT prefetch here.
+      // The host injects IDE prefetch into the run prompt and reports stats via
+      // the `prefetch` stream event (consumed elsewhere in the UI).
+      {
         setUxState((prev) => ({
           ...prev,
           tier: 'A',
           modelName: shortModelName(
             configManager.get('agent-k.provider.model') || prev.modelName
           ),
-          prefetchCount: fileHits || (harnessCtx.prefetchRaw ? 1 : 0),
-          prefetchLatencyMs: Date.now() - t0,
-          contextTokens: harnessCtx.assembly?.usedTokens || prev.contextTokens
         }));
         setStuckEvent(null);
-      } catch {
-        if (sendEpochRef.current.isStale(ownerId, epoch)) return;
-        /* prefetch 실패는 비치명 */
       }
 
       if (sendEpochRef.current.isStale(ownerId, epoch)) return;

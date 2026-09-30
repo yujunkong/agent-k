@@ -13,6 +13,14 @@ export {
 } from './budget';
 
 export {
+  HeuristicTokenEstimator,
+  defaultTokenEstimator,
+  type TokenEstimator,
+  type TokenEstimatable,
+  type TokenEstimatorOptions,
+} from './tokens/TokenEstimator';
+
+export {
   DEFAULT_READ_MAX_LINES,
   resolveReadMaxLines,
   truncateToMaxLines,
@@ -25,6 +33,15 @@ export {
   type CompactLevel,
   type CompactionResult,
 } from './CompactionEngine';
+
+export {
+  TemplateSummaryProvider,
+  ModelSummaryProvider,
+  type CompactionStrategy,
+  type CompactionContext,
+  type SummaryProvider,
+  type SummaryRunModelFn,
+} from './compaction/CompactionStrategy';
 
 export {
   ContextAssembler,

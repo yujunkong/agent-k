@@ -138,4 +138,53 @@ describe('context domain (CTX-001…005)', () => {
     expect(block).toContain('/tmp/proj');
     expect(block).toContain('a.ts');
   });
+
+  it('V31-CTX-05 truncation never cuts PROJECT RULES', () => {
+    const assembler = new ContextAssembler(4_096);
+    // Base prompt far larger than the 15% system cap (4096*0.15*4 ≈ 2457 chars).
+    const longPrompt = 'P'.repeat(8_000);
+    const result = assembler.assemble({
+      mode: 'agent',
+      systemPrompt: longPrompt,
+      messages: [{ role: 'user', content: 'hello' }],
+      projectRules: 'Always keep the public API stable.',
+      compactIfNeeded: false,
+    });
+    const system = String(result.messages.find((m) => m.role === 'system')?.content);
+    expect(result.truncated).toBe(true);
+    expect(system).toContain('Always keep the public API stable.');
+    expect(system).toContain('## PROJECT RULES');
+  });
+
+  it('V31-CTX-05 truncation never cuts the APPROVED PLAN', () => {
+    const assembler = new ContextAssembler(4_096);
+    const result = assembler.assemble({
+      mode: 'agent',
+      systemPrompt: 'S'.repeat(8_000),
+      messages: [{ role: 'user', content: 'hello' }],
+      approvedPlanBlock: '## APPROVED PLAN\n\nGoal: ship v3.1',
+      compactIfNeeded: false,
+    });
+    const system = String(result.messages.find((m) => m.role === 'system')?.content);
+    expect(system).toContain('Goal: ship v3.1');
+  });
+
+  it('V31-CTX-05 injects workspace context into the system slot', () => {
+    const assembler = new ContextAssembler(8_000);
+    const ws = new WorkspaceContext();
+    ws.setRoots([{ name: 'proj', path: '/repo/proj' }]);
+    ws.setOpenFiles(['src/index.ts']);
+    ws.setActiveFile('src/index.ts');
+    const result = assembler.assemble({
+      mode: 'agent',
+      systemPrompt: 'You are a test agent.',
+      messages: [{ role: 'user', content: 'hello' }],
+      workspace: ws,
+      compactIfNeeded: false,
+    });
+    const system = String(result.messages.find((m) => m.role === 'system')?.content);
+    expect(system).toContain('## Workspace');
+    expect(system).toContain('/repo/proj');
+    expect(system).toContain('src/index.ts');
+  });
 });

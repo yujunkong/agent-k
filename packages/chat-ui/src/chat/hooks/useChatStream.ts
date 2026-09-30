@@ -106,6 +106,8 @@ interface UseChatStreamOptions {
   ) => void;
   /** SUB-010 — ensure child session + tab when host announces subagent.event */
   onSubagentLifecycle?: (stream: Record<string, unknown>) => void;
+  /** V31-CTX-04 — host-reported prefetch stats (host owns prefetch). */
+  onPrefetch?: (stats: { count: number; latencyMs: number }) => void;
 }
 
 interface UseChatStreamReturn {
@@ -148,12 +150,14 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
   const onWorktreeResultRef = useRef(options.onWorktreeResult);
   const onChildDeltaRef = useRef(options.onChildDelta);
   const onSubagentLifecycleRef = useRef(options.onSubagentLifecycle);
+  const onPrefetchRef = useRef(options.onPrefetch);
   planStageRef.current = options.planStage;
   debugStageRef.current = options.debugStage;
   thinkingEffortRef.current = options.thinkingEffort;
   onWorktreeResultRef.current = options.onWorktreeResult;
   onChildDeltaRef.current = options.onChildDelta;
   onSubagentLifecycleRef.current = options.onSubagentLifecycle;
+  onPrefetchRef.current = options.onPrefetch;
 
   useEffect(() => {
     const onMsg = (event: MessageEvent) => {
@@ -747,6 +751,19 @@ export function useChatStream(options: UseChatStreamOptions = {}): UseChatStream
               reasoning: `Phase ${String(stream.phase || '')}: ${String(stream.reason || '')}`,
             });
             break;
+          case 'prefetch': {
+            // Comment: V31-CTX-04 — host owns prefetch; only reflect its stats
+            const count =
+              stream.count != null && Number.isFinite(Number(stream.count))
+                ? Number(stream.count)
+                : 0;
+            const latencyMs =
+              stream.latencyMs != null && Number.isFinite(Number(stream.latencyMs))
+                ? Number(stream.latencyMs)
+                : 0;
+            onPrefetchRef.current?.({ count, latencyMs });
+            break;
+          }
           case 'compaction':
             // Comment: CTX-004 — API wire compacted; show Summarizing chat context...
             routeDelta({

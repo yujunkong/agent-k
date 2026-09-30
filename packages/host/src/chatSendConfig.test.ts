@@ -11,6 +11,9 @@ import {
   readHarnessConfig,
   readIntentGateEnabled,
   readMaxTurns,
+  readPermissionRecoveryEnabled,
+  readRealCompactionEnabled,
+  readSessionTranscriptEnabled,
   readStrictEditEnabled,
   readToolCallFallbackEnabled,
   resolveEffectiveHarnessFlags,
@@ -87,6 +90,42 @@ describe('V31-CFG-01 readIntentGateEnabled', () => {
     expect(readIntentGateEnabled(reader({ 'intentGate.enabled': true }))).toBe(
       true,
     );
+  });
+});
+
+describe('V31-CTX-02 readRealCompactionEnabled', () => {
+  it('defaults to false when the key is missing', () => {
+    expect(readRealCompactionEnabled(reader({}))).toBe(false);
+  });
+
+  it('honors explicit true', () => {
+    expect(readRealCompactionEnabled(reader({ 'compaction.realSummary': true }))).toBe(
+      true,
+    );
+  });
+});
+
+describe('V31-CTX-01 readSessionTranscriptEnabled', () => {
+  it('defaults to false when the key is missing', () => {
+    expect(readSessionTranscriptEnabled(reader({}))).toBe(false);
+  });
+
+  it('honors explicit true', () => {
+    expect(
+      readSessionTranscriptEnabled(reader({ 'sessionTranscript.enabled': true })),
+    ).toBe(true);
+  });
+});
+
+describe('V31-RETRY-04 readPermissionRecoveryEnabled', () => {
+  it('defaults to false when the key is missing', () => {
+    expect(readPermissionRecoveryEnabled(reader({}))).toBe(false);
+  });
+
+  it('honors explicit true', () => {
+    expect(
+      readPermissionRecoveryEnabled(reader({ 'retry.permissionRecovery': true })),
+    ).toBe(true);
   });
 });
 

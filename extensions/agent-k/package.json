@@ -400,6 +400,21 @@
           "type": "boolean",
           "default": true,
           "description": "Reject edit_file search strings that match multiple locations unless replaceAll is set."
+        },
+        "agent-k.compaction.realSummary": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use a model call to summarize compacted context (preserves user instructions) instead of the placeholder text."
+        },
+        "agent-k.sessionTranscript.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Keep a host-owned session transcript so tool results survive between sends."
+        },
+        "agent-k.retry.permissionRecovery": {
+          "type": "boolean",
+          "default": false,
+          "description": "Recover from a permission denial instead of stopping the run (agent may choose an alternative)."
         }
       }
     }

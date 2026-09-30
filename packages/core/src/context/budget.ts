@@ -1,7 +1,14 @@
 /**
  * CTX-001 — Context budget types / helpers.
- * Rough char→token estimate (≈4 chars/token) shared by assembler + compaction.
+ * Rough char→token estimate shared by assembler + compaction.
+ *
+ * V31-CTX-03 — delegates to the CJK-aware HeuristicTokenEstimator.
  */
+
+import {
+  defaultTokenEstimator,
+  type TokenEstimator,
+} from './tokens/TokenEstimator';
 
 /** Default context window when no model budget is provided. */
 export const DEFAULT_CONTEXT_BUDGET_TOKENS = 100_000;
@@ -27,23 +34,21 @@ export function createContextBudget(
   };
 }
 
-/** Rough token estimate from UTF-16 length. */
-export function estimateTokens(text: string): number {
-  if (!text) return 0;
-  return Math.ceil(text.length / 4);
+/**
+ * Rough token estimate from text (CJK-aware).
+ * Kept as a free function for backward compatibility; delegates to the
+ * default estimator so callers can swap in an injected estimator when needed.
+ */
+export function estimateTokens(text: string, estimator: TokenEstimator = defaultTokenEstimator): number {
+  return estimator.estimate(text);
 }
 
 /** Sum token estimates across message contents (+ tool call JSON). */
 export function estimateMessagesTokens(
-  messages: Array<{ content?: string; toolCalls?: unknown; toolCallId?: string }>
+  messages: Array<{ content?: string; toolCalls?: unknown; toolCallId?: string }>,
+  estimator: TokenEstimator = defaultTokenEstimator
 ): number {
-  let total = 0;
-  for (const m of messages) {
-    total += estimateTokens(m.content ?? '');
-    if (m.toolCalls) total += estimateTokens(JSON.stringify(m.toolCalls));
-    if (m.toolCallId) total += estimateTokens(m.toolCallId);
-  }
-  return total;
+  return estimator.estimateMessages(messages);
 }
 
 /** True when usage crosses the compaction soft threshold. */

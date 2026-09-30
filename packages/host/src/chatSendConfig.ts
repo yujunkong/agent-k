@@ -114,3 +114,29 @@ export function readToolCallFallbackEnabled(cfg: ConfigReader): boolean {
 export function readStrictEditEnabled(cfg: ConfigReader): boolean {
   return cfg.get('tools.strictEdit') !== false;
 }
+
+/**
+ * V31-CTX-02 — use model-generated compaction summaries.
+ * Default false: the async path adds one model call per compaction window,
+ * so it ships behind an explicit opt-in (plan rollout table §4.7 Phase B/C).
+ */
+export function readRealCompactionEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('compaction.realSummary') === true;
+}
+
+/**
+ * V31-CTX-01 — host-owned session transcript (tool results survive sends).
+ * Default false: it changes the prior contract, so it ships behind an opt-in
+ * (plan rollout table §4.7 Phase B).
+ */
+export function readSessionTranscriptEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('sessionTranscript.enabled') === true;
+}
+
+/**
+ * V31-RETRY-04 — recover from a permission denial instead of killing the run.
+ * Default false (plan rollout table §4.7 Phase B); opt-in.
+ */
+export function readPermissionRecoveryEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('retry.permissionRecovery') === true;
+}

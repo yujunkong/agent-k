@@ -195,6 +195,11 @@ export interface StreamDelta {
     allowMultiple?: boolean;
   };
   debugStage?: string;
+  /** V31-CTX-04 — host-reported prefetch stats (host is the single owner). */
+  prefetch?: {
+    count?: number;
+    latencyMs?: number;
+  };
   toolCalls?: ToolCall[];
   done?: boolean;
   error?: string;

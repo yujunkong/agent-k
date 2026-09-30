@@ -40,6 +40,12 @@ export type ChatStreamEvent =
   | { event: 'debug.stage'; stage: string }
   /** V31-LOOP-01 — observed loop phase transition (observation only, no FSM). */
   | { event: 'phase'; phase: string; turn: number; reason: string }
+  /**
+   * V31-CTX-04 — host is the single prefetch owner. It reports the result
+   * (file hit count + latency) so the webview can show context stats without
+   * running its own prefetch.
+   */
+  | { event: 'prefetch'; count: number; latencyMs: number }
   | { event: 'complete' }
   | { event: 'stopped' }
   | { event: 'error'; error: string };

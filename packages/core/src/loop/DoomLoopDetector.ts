@@ -17,9 +17,16 @@ export interface DoomLoopInfo {
 export class DoomLoopDetector {
   private history: Fingerprint[] = [];
   private readonly threshold: number;
+  private readonly detectAlternation: boolean;
+  private readonly ignoreArgsOnSameError: boolean;
 
-  constructor(threshold = 3) {
+  constructor(
+    threshold = 3,
+    opts: { detectAlternation?: boolean; ignoreArgsOnSameError?: boolean } = {}
+  ) {
     this.threshold = Math.max(2, threshold);
+    this.detectAlternation = opts.detectAlternation ?? false;
+    this.ignoreArgsOnSameError = opts.ignoreArgsOnSameError ?? false;
   }
 
   /** Record a tool invocation. Use outcome `'ok'` for success. */
@@ -45,6 +52,36 @@ export class DoomLoopDetector {
 
   isDoomLoop(): boolean {
     if (this.history.length < this.threshold) return false;
+
+    // V31-RETRY-03 — same tool failing with the SAME error signature is a doom
+    // loop even when args drift slightly (ignoreArgsOnSameError).
+    if (this.ignoreArgsOnSameError) {
+      const recent = this.history.slice(-this.threshold);
+      const first = recent[0]!;
+      if (
+        first.outcomeSig !== 'ok' &&
+        recent.every(
+          (h) => h.toolName === first.toolName && h.outcomeSig === first.outcomeSig
+        )
+      ) {
+        return true;
+      }
+    }
+
+    // V31-RETRY-03 — alternating A/B/A/B with identical args is also a loop.
+    if (this.detectAlternation && this.history.length >= 4) {
+      const window = this.history.slice(-4);
+      const names = window.map((h) => h.toolName);
+      const alternating = names[0] === names[2] && names[1] === names[3];
+      if (alternating && names[0] !== names[1]) {
+        const argsA = window[0]!.argsHash;
+        const argsB = window[1]!.argsHash;
+        if (window[2]!.argsHash === argsA && window[3]!.argsHash === argsB) {
+          return true;
+        }
+      }
+    }
+
     const recent = this.history.slice(-this.threshold);
     const first = recent[0]!;
     return recent.every(
