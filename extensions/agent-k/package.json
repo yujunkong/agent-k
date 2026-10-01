@@ -279,6 +279,11 @@
     "configuration": {
       "title": "Agent K",
       "properties": {
+        "agent-k.developerMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show developer diagnostics (harness tier status bar, debug chrome) in the chat panel."
+        },
         "agent-k.provider.type": {
           "type": "string",
           "default": "",
