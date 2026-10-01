@@ -34,6 +34,7 @@ export const AGENT_K_VSCODE_CONFIG_KEYS = [
   'agent-k.provider.connections',
   'agent-k.provider.preferUserOrder',
   'agent-k.github.token',
+  'agent-k.developerMode',
   'agent-k.mode.default',
   'agent-k.permission.level',
   'agent-k.queue.onEnterWhileRunning',
