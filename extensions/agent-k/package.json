@@ -415,6 +415,21 @@
           "type": "boolean",
           "default": false,
           "description": "Recover from a permission denial instead of stopping the run (agent may choose an alternative)."
+        },
+        "agent-k.retry.deltaAware": {
+          "type": "boolean",
+          "default": false,
+          "description": "Give a failed tool call a fresh attempt budget when its arguments changed since the previous failure."
+        },
+        "agent-k.retry.doomLoop.detectAlternation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Treat an alternating A/B/A/B tool pattern with identical arguments as a doom loop."
+        },
+        "agent-k.retry.doomLoop.ignoreArgsOnSameError": {
+          "type": "boolean",
+          "default": false,
+          "description": "Treat repeated failures of the same tool with the same error as a doom loop even when arguments drift."
         }
       }
     }

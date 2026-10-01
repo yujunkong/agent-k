@@ -10,6 +10,12 @@ export type SubagentWorktree = {
   path: string;
   branch: string;
   base: string;
+  /**
+   * V31-SUB-01 — non-fatal notes from carrying the parent's uncommitted
+   * changes into the worktree (e.g. patch apply failed). Empty/undefined when
+   * the parent had a clean tree.
+   */
+  warnings?: string[];
 };
 
 export type SubagentWorktreeSnapshot = {

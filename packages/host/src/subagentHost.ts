@@ -73,6 +73,11 @@ export type CreateSubagentHostOptions = {
   repoRoot?: string;
   /** SUB-014 — defaults to bindWorktreeManager when repoRoot set */
   worktrees?: SubagentWorktreeBindings;
+  /**
+   * V31-SUB-01 — carry the parent's uncommitted changes into the subagent
+   * worktree so it does not review a stale HEAD tree. Default false.
+   */
+  inheritParentChanges?: boolean;
 };
 
 export function promptFromTaskArgs(args: Record<string, unknown>): string {
@@ -269,7 +274,9 @@ export function createSubagentHost(
   const worktrees =
     options.worktrees ??
     (repoRoot
-      ? bindWorktreeManager(new WorktreeManager(repoRoot), repoRoot)
+      ? bindWorktreeManager(new WorktreeManager(repoRoot), repoRoot, {
+          inheritParentChanges: options.inheritParentChanges === true,
+        })
       : undefined);
 
   const runner = new SubagentRunner({
