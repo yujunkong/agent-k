@@ -4,7 +4,6 @@
 import type { PlanModeController } from '../plan/PlanModeController';
 import { stripResynthForDisplay } from '../loop/synthesizeInstructions';
 import { stripFakeToolMarkup } from './displaySanitize';
-import { stripHarnessForDisplay } from './harnessBridge';
 import { dedupeAssistantBody } from './assistantStreamSession';
 import { settleWorkEvents } from './conversation/conversationWorkEvent';
 import type { ChatMessage, FileEditPreview, ModePicker } from './types';
@@ -135,6 +134,24 @@ export function finalizeStreamingMessages(prev: ChatMessage[]): ChatMessage[] {
       out.push(settleSealedAssistantChrome(m));
     } else {
       out.push(m);
+    }
+  }
+  return out;
+}
+
+export function stripHarnessForDisplay(content: string): string {
+  if (!content) return content;
+  let out = content
+    .replace(/<harness_system>[\s\S]*?<\/harness_system>\s*/gi, '')
+    .replace(/<prefetch>[\s\S]*?<\/prefetch>\s*/gi, '')
+    .replace(/<chat_ui_note>[\s\S]*?<\/chat_ui_note>\s*/gi, '')
+    .trim();
+  // Fallback: if still mostly protocol dump ending with a short user line, keep last paragraph
+  if (out.length > 800 && /Verification-First Protocol/i.test(out)) {
+    const lines = out.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+    const last = lines[lines.length - 1];
+    if (last && last.length < 200 && !/Verification-First|Design Principles/i.test(last)) {
+      return last;
     }
   }
   return out;

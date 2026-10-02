@@ -1194,7 +1194,6 @@ export function ChatApp() {
       <div
         className="ak-sr-announcer"
         role="status"
-        aria-live="polite"
         aria-atomic="true"
       >
         {srAnnouncement}

@@ -34,7 +34,7 @@ html, body {
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.4;
   color: var(--ak-c-editor-foreground);
   background: var(--ak-c-editor-background);
@@ -152,7 +152,7 @@ body {
   opacity: 0.45;
   pointer-events: none;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .chat-tab:not(.chat-tab--active):hover {
@@ -172,7 +172,7 @@ body {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 500;
   cursor: pointer;
   text-align: left;
@@ -245,7 +245,7 @@ body {
   background: transparent;
   color: var(--ak-c-foreground);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -271,26 +271,6 @@ body {
   background: var(--ak-c-editor-background);
 }
 
-.mode-chrome--debug {
-  max-height: 32vh;
-}
-
-.mode-chrome--questions {
-  max-height: 320px;
-  padding: 8px 12px;
-}
-
-.plan-editor-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: var(--ak-c-editor-background);
-  overflow: hidden;
-}
-
 .plan-mode-header {
   display: flex;
   flex-direction: column;
@@ -298,7 +278,7 @@ body {
   padding: 6px 12px;
   background: transparent;
   border-bottom: 1px solid var(--ak-chrome-border);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .plan-mode-header:empty {
@@ -381,70 +361,6 @@ body {
   min-width: 0;
 }
 
-.plan-mode-header__badge {
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--ak-c-foreground) 6%, transparent);
-  color: var(--ak-c-description-foreground);
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  flex-shrink: 0;
-  border: 1px solid var(--ak-card-border);
-}
-
-.plan-stage-row {
-  display: flex;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.plan-stage-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  color: var(--ak-c-description-foreground);
-  font-weight: 400;
-  font-size: 11.5px;
-  line-height: 1.2;
-  user-select: none;
-}
-
-.plan-stage-badge--active {
-  border-color: var(--ak-card-border);
-  background: color-mix(in srgb, var(--ak-c-foreground) 7%, transparent);
-  color: var(--ak-c-foreground);
-  font-weight: 600;
-}
-
-.plan-stage-badge--done {
-  background: transparent;
-  color: var(--ak-c-description-foreground);
-  opacity: 0.75;
-}
-
-.plan-stage-badge--locked {
-  opacity: 0.4;
-}
-
-.plan-stage-badge__icon {
-  font-size: 12px;
-  line-height: 1;
-  width: 14px;
-  text-align: center;
-  flex-shrink: 0;
-  opacity: 0.85;
-}
-
-.plan-stage-badge__label {
-  white-space: nowrap;
-}
-
 .plan-mode-header__actions {
   display: flex;
   flex-wrap: wrap;
@@ -455,7 +371,7 @@ body {
 
 .plan-mode-header__actions .settings-btn {
   padding: 3px 9px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 550;
 }
 
@@ -464,19 +380,15 @@ body {
 }
 
 .plan-mode-header__discard--armed,
-.plan-review__discard--armed {
+.plan-review__discard--armed .plan-mode-header__discard--armed {
   background: color-mix(in srgb, var(--ak-danger) 22%, transparent) !important;
   border-color: var(--ak-danger) !important;
   color: var(--ak-danger) !important;
   font-weight: 600;
 }
 
-.plan-review__discard {
-  color: var(--ak-danger) !important;
-}
-
 .plan-mode-header__hint {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1.4;
   opacity: 0.75;
   padding: 5px 8px;
@@ -489,245 +401,6 @@ body {
 .plan-mode-header__hint strong {
   color: var(--ak-c-foreground);
   font-weight: 600;
-}
-
-.plan-review {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  padding: 12px 14px 14px;
-  box-sizing: border-box;
-  color: var(--ak-c-foreground);
-}
-
-.plan-review__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  flex-shrink: 0;
-  padding-bottom: 10px;
-  margin-bottom: 10px;
-  border-bottom: 1px solid var(--ak-c-panel-border);
-}
-
-.plan-review__heading {
-  min-width: 0;
-}
-
-.plan-review__title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.plan-review__meta {
-  margin: 4px 0 0;
-  font-size: 11px;
-  opacity: 0.65;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.plan-review__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.plan-review__close {
-  min-width: 28px;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
-.plan-review__reject {
-  flex-shrink: 0;
-  margin-bottom: 10px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--ak-danger) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ak-danger) 28%, transparent);
-}
-
-.plan-review__reject-input {
-  width: 100%;
-  box-sizing: border-box;
-  margin: 6px 0 8px;
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid var(--ak-c-input-border);
-  background: var(--ak-c-input-background);
-  color: var(--ak-c-input-foreground);
-  font: inherit;
-  resize: vertical;
-}
-
-.plan-review__reject-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.plan-review__banner {
-  flex-shrink: 0;
-  margin-bottom: 10px;
-  padding: 8px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--ak-warning);
-  background: color-mix(in srgb, var(--ak-warning) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ak-warning) 30%, transparent);
-}
-
-.plan-review__body {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(180px, 0.9fr);
-  gap: 12px;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-}
-
-@media (max-width: 520px) {
-  .plan-review__body {
-    grid-template-columns: 1fr;
-    overflow: auto;
-  }
-}
-
-.plan-review__main,
-.plan-review__aside {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
-}
-
-.plan-review__section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-  flex-shrink: 0;
-}
-
-.plan-review__label {
-  font-size: 11px;
-  opacity: 0.65;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.plan-review__open-editor {
-  font-size: 11px;
-  padding: 3px 10px;
-}
-
-.plan-review__preview {
-  flex: 1;
-  min-height: 120px;
-  margin: 0;
-  padding: 10px 12px;
-  overflow: auto;
-  border-radius: 6px;
-  border: 1px solid var(--ak-c-panel-border);
-  background: var(--ak-c-editor-background);
-  color: var(--ak-c-editor-foreground);
-  font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.plan-review__hint {
-  margin: 8px 0 0;
-  font-size: 11px;
-  opacity: 0.6;
-  line-height: 1.4;
-  flex-shrink: 0;
-}
-
-.plan-review__steps {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--ak-c-panel-border);
-  background: color-mix(in srgb, var(--ak-c-foreground) 2%, transparent);
-}
-
-.plan-review__step {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 5px 0;
-  font-size: 12px;
-  line-height: 1.4;
-  cursor: pointer;
-}
-
-.plan-review__step input {
-  margin-top: 2px;
-  flex-shrink: 0;
-  accent-color: var(--ak-c-focus-border);
-}
-
-.plan-review__step span {
-  min-width: 0;
-  word-break: break-word;
-}
-
-.plan-review__step--removed {
-  opacity: 0.45;
-  text-decoration: line-through;
-}
-
-.plan-review__empty {
-  margin: 8px 0;
-  font-size: 12px;
-  opacity: 0.55;
-}
-
-.plan-review__manual-verify {
-  flex-shrink: 0;
-  margin: 0 16px 16px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--ak-c-input-validation-warning-border);
-  background: color-mix(in srgb, var(--ak-warning) 8%, transparent);
-}
-
-.plan-review__manual-verify-list {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.plan-review__manual-verify-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 12px;
-}
-
-.plan-review__manual-verify-title {
-  min-width: 0;
-  word-break: break-word;
 }
 
 .mode-selector-wrapper {
@@ -754,7 +427,7 @@ body {
     transparent
   );
   color: var(--ak-c-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.3;
   font-family: inherit;
   cursor: pointer;
@@ -838,7 +511,7 @@ body {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   text-align: left;
   cursor: pointer;
 }
@@ -875,7 +548,7 @@ body {
 
 .mode-locked {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1;
   color: var(--ak-c-description-foreground);
   user-select: none;
@@ -903,17 +576,9 @@ body {
   opacity: 1;
 }
 
-.chat-actions button.settings-open-btn,
-.chat-icon-btn.settings-open-btn {
-  min-width: 28px;
-  font-weight: 400;
-  background: transparent;
-  color: var(--ak-c-foreground);
-}
-
 .chat-actions button.settings-open-btn[aria-pressed='true'],
 .chat-icon-btn.settings-open-btn[aria-pressed='true'],
-.chat-icon-btn[aria-pressed='true'] {
+.chat-icon-btn[aria-pressed='true'] .chat-icon-btn[aria-pressed='true'] {
   background: color-mix(in srgb, var(--ak-c-button-background) 35%, transparent);
   outline: 1px solid color-mix(in srgb, var(--ak-c-focus-border) 50%, transparent);
   opacity: 1;
@@ -1210,7 +875,7 @@ body {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
   text-align: left;
 }
@@ -1237,7 +902,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 11.5px;
+  font-size: var(--ak-fs-sm);
 }
 
 .ak-explore-tool-row__marker {
@@ -1290,7 +955,6 @@ body {
  * !important is load-bearing: `.message-steps .message-content.message-turn-prose`
  * (0,3,0, later in this file) sets padding-left back to --ak-thread-inset.
  */
-.ak-explore-scroll .ak-explore-inline-prose,
 .ak-explore-scroll .message-turn-prose {
   padding-left: 0 !important;
 }
@@ -1315,7 +979,7 @@ body {
 .message-steps-thought-body {
   padding: 2px 0 8px var(--ak-thread-inset, 12px);
   color: var(--ak-c-description-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.5;
   max-height: 420px;
   overflow-y: auto;
@@ -1335,7 +999,7 @@ body {
 .message-steps-thought-body--mid {
   padding-left: 0;
   max-height: 96px;
-  font-size: 11.5px;
+  font-size: var(--ak-fs-sm);
   opacity: 1;
 }
 
@@ -1427,7 +1091,7 @@ body.vscode-dark .user-turn,
   padding: 0 7px 0 5px;
   min-height: 20px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1.35;
   background: color-mix(in srgb, var(--ak-c-foreground) 5%, transparent);
   color: var(--ak-c-foreground);
@@ -1466,15 +1130,15 @@ body.vscode-dark .user-turn,
 }
 
 .user-chip--folder {
-  background: color-mix(in srgb, var(--ak-accent) 22%, var(--ak-c-editor-background));
-  border-color: color-mix(in srgb, var(--ak-accent) 38%, transparent);
+  background: var(--ak-chip-folder-bg);
+  border-color: var(--ak-chip-folder-border);
   color: var(--ak-accent);
 }
 
 /* Cursor-like file selection chip — solid teal wash so path/range stays readable */
 .user-chip--file {
-  background: color-mix(in srgb, var(--ak-accent) 32%, var(--ak-c-editor-background));
-  border: 1px solid color-mix(in srgb, var(--ak-accent) 42%, transparent);
+  background: var(--ak-chip-file-bg);
+  border: 1px solid var(--ak-chip-file-border);
   color: var(--ak-accent);
 }
 
@@ -1489,15 +1153,15 @@ body.vscode-dark .user-chip--file,
 
 .user-chip--log,
 .user-chip--snippet {
-  background: color-mix(in srgb, var(--ak-warning) 7%, transparent);
-  border-color: color-mix(in srgb, var(--ak-warning) 26%, transparent);
+  background: var(--ak-chip-log-bg);
+  border-color: var(--ak-chip-log-border);
   color: var(--ak-warning);
 }
 
 .user-turn__text {
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.5;
   color: inherit;
 }
@@ -1536,7 +1200,7 @@ body.vscode-dark .user-chip--file,
   background: transparent;
   color: var(--ak-c-text-link-foreground);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
 }
 
@@ -1571,14 +1235,9 @@ body.vscode-dark .user-chip--file,
 .message-tool-status {
   padding: 2px 0 6px;
   opacity: 0.7;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--vscode-descriptionForeground);
   font-family: var(--vscode-font-family);
-}
-
-.message-streaming-ellipsis {
-  opacity: 0.55;
-  color: var(--vscode-descriptionForeground);
 }
 
 .message-header--error {
@@ -1600,26 +1259,13 @@ body.vscode-dark .user-chip--file,
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.7;
-}
-
-.message-avatar {
-  font-size: 14px;
 }
 
 .message-role {
   text-transform: capitalize;
   font-weight: 500;
-}
-
-.message-time {
-  margin-left: auto;
-}
-
-.streaming-indicator {
-  color: var(--ak-warning);
-  animation: pulse 1s infinite;
 }
 
 @keyframes pulse {
@@ -1631,35 +1277,13 @@ body.vscode-dark .user-chip--file,
   color: var(--ak-danger);
 }
 
-.complete-indicator {
-  color: var(--ak-success);
-}
-
-.message-opening-lead {
-  margin: 2px 0 8px;
-  padding-left: var(--ak-thread-inset, 12px);
-  font-size: 13px;
-  line-height: 1.55;
-  font-weight: 500;
-  color: var(--ak-c-foreground);
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-
-.message-opening-lead .markdown-body .md-text {
-  margin-bottom: 0;
-  font-weight: 500;
-}
-
 /* Between-turn assistant prose — same brightness as opening lead / final answer */
 .message-steps .message-turn-prose,
 .message-turn-prose {
   display: block;
   margin: 6px 0 8px;
   padding: 0;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.55;
   font-weight: 400;
   color: var(--ak-c-foreground);
@@ -1727,7 +1351,7 @@ body.vscode-dark .user-chip--file,
 .ak-step-rolling {
   margin: 8px 0 10px;
   padding: 0 0 0 var(--ak-thread-inset, 12px);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.65;
   color: var(--ak-c-description-foreground);
   opacity: 0.9;
@@ -1747,7 +1371,7 @@ body.vscode-dark .user-chip--file,
    would otherwise re-clamp to 100%). */
 .ak-step-rolling--live > .ak-step-title--live-shimmer {
   font-weight: 500;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.65;
 }
 
@@ -1788,7 +1412,7 @@ body.vscode-dark .user-chip--file,
   top: 50%;
   transform: translateY(-50%);
   width: 10px;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.65;
   line-height: 1;
   pointer-events: none;
@@ -1822,76 +1446,6 @@ body.vscode-dark .user-chip--file,
   opacity: 0.9;
 }
 
-/*
- * Phase 5 — Cursor-style live phase chrome
- * Progress rail + label + optional understanding card while streaming.
- * Settled turns use .ak-worked ("Worked for Xs") instead.
- */
-.ak-phase-chrome {
-  margin: 0 0 6px;
-  padding-left: var(--ak-thread-inset, 12px);
-}
-
-.ak-turn-rail {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  margin: 0 0 4px;
-  max-width: 160px;
-}
-
-.ak-turn-rail__seg {
-  flex: 1 1 0;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--ak-c-widget-border);
-  opacity: 0.55;
-  transition: background 0.15s ease, opacity 0.15s ease;
-}
-
-.ak-turn-rail__seg--done {
-  background: var(--ak-c-text-link-foreground);
-  opacity: 0.55;
-}
-
-.ak-turn-rail__seg--active {
-  background: var(--ak-c-text-link-foreground);
-  opacity: 1;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ak-c-text-link-foreground) 25%, transparent);
-}
-
-.ak-turn-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 4px;
-  padding-left: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--ak-c-description-foreground);
-}
-
-.ak-turn-status__dot {
-  font-size: 8px;
-  line-height: 1;
-  opacity: 0.9;
-  color: var(--ak-c-text-link-foreground);
-  animation: ak-phase-pulse 1.4s ease-in-out infinite;
-}
-
-.ak-turn-status[data-status='error'] {
-  color: var(--ak-danger);
-}
-
-.ak-turn-status[data-status='error'] .ak-turn-status__dot {
-  color: var(--ak-danger);
-  animation: none;
-}
-
-.ak-turn-status__label {
-  font-weight: 500;
-}
-
 @keyframes ak-phase-pulse {
   0%,
   100% {
@@ -1900,41 +1454,6 @@ body.vscode-dark .user-chip--file,
   50% {
     opacity: 1;
   }
-}
-
-.ak-understanding-box {
-  border: 1px solid var(--ak-c-widget-border);
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin: 4px 0 6px;
-  margin-left: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--ak-c-foreground);
-  background: var(--ak-c-editor-widget-background);
-}
-
-.ak-understanding-box__label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--ak-c-description-foreground);
-  margin-bottom: 4px;
-}
-
-.ak-understanding-box__text {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* Live phase: slightly tighter gap before WorkTimeline / answer */
-.message-bubble--live-phase .message-steps {
-  margin-top: 2px;
-}
-
-/* Cursor-style: collapse finished timeline under "Worked for …" */
-.ak-worked {
-  margin: 2px 0 8px;
 }
 
 .ak-worked__toggle {
@@ -1949,7 +1468,7 @@ body.vscode-dark .user-chip--file,
   background: none;
   color: var(--ak-c-description-foreground);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.45;
   text-align: left;
   cursor: pointer;
@@ -1961,7 +1480,7 @@ body.vscode-dark .user-chip--file,
 
 .ak-worked__chevron {
   width: auto;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.75;
   flex-shrink: 0;
   line-height: 1;
@@ -1974,7 +1493,7 @@ body.vscode-dark .user-chip--file,
 .ak-worked--error .ak-worked__label,
 .ak-worked--error .ak-worked__chevron,
 .ak-work-timeline--error .ak-worked__label,
-.ak-work-timeline--error .ak-worked__chevron {
+.ak-work-timeline--error .ak-worked__chevron .ak-work-timeline--error .ak-worked__label, .ak-work-timeline--error .ak-worked__chevron {
   color: var(--ak-danger);
 }
 
@@ -2072,7 +1591,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-subagent-run__title {
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 500;
   color: var(--ak-c-foreground);
   overflow: hidden;
@@ -2091,13 +1610,13 @@ body.vscode-dark .user-chip--file,
 
 .ak-subagent-run__role {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 400;
   color: var(--ak-c-description-foreground);
 }
 
 .ak-subagent-run__detail {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.4;
   color: var(--ak-c-description-foreground);
   overflow: hidden;
@@ -2111,19 +1630,6 @@ body.vscode-dark .user-chip--file,
 
 .ak-subagent-run--error .ak-subagent-run__title {
   color: var(--ak-c-error-foreground);
-}
-
-/* legacy hint unused — keep harmless */
-.ak-subagent-run__hint {
-  display: none;
-}
-
-/* Detail tab — same AgentTurn / MessageSteps chrome as main chat */
-.ak-subagent-detail {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-  padding: 8px 0 16px;
 }
 
 .ak-subagent-detail__header {
@@ -2143,7 +1649,7 @@ body.vscode-dark .user-chip--file,
   background: transparent;
   color: var(--ak-c-text-link-foreground);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
 }
 
@@ -2157,7 +1663,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-subagent-detail__title {
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   font-weight: 600;
   color: var(--ak-c-foreground);
   overflow: hidden;
@@ -2167,32 +1673,18 @@ body.vscode-dark .user-chip--file,
 
 .ak-subagent-detail__status {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--ak-c-description-foreground);
-}
-
-.ak-subagent-detail__body {
-  flex: 1;
-  min-height: 0;
 }
 
 .ak-subagent-detail__empty {
   padding: 12px var(--ak-thread-inset, 12px);
   color: var(--ak-c-description-foreground);
-  font-size: 12px;
-}
-
-.ak-subagent-detail__composer-placeholder {
-  padding: 10px 14px 12px;
-  text-align: center;
-  font-size: 11px;
-  color: var(--ak-c-description-foreground);
-  opacity: 0.75;
-  border-top: 1px solid color-mix(in srgb, var(--ak-c-foreground) 8%, transparent);
+  font-size: var(--ak-fs-sm);
 }
 
 /** Keep Composer mounted during subagent detail — hide visually, preserve draft/model UI state. */
-.ak-composer-host--hidden {
+.ak-composer-host--hidden /** Keep Composer mounted during subagent detail — hide visually {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -2236,7 +1728,7 @@ body.vscode-dark .user-chip--file,
   align-items: baseline;
   gap: 8px;
   padding: 2px 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--ak-c-description-foreground);
 }
 
@@ -2251,7 +1743,7 @@ body.vscode-dark .user-chip--file,
 .ak-edit-flush-row__ms {
   flex-shrink: 0;
   opacity: 0.45;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
 }
 
 /* File edit card — same surface as terminal / code */
@@ -2320,7 +1812,7 @@ body.vscode-dark .user-chip--file,
   border-radius: 3px;
   background: color-mix(in srgb, var(--ak-c-foreground) 10%, transparent);
   color: var(--ak-c-foreground);
-  font-size: 9px;
+  font-size: var(--ak-fs-xs);
   font-weight: 700;
   letter-spacing: 0.2px;
 }
@@ -2332,13 +1824,13 @@ body.vscode-dark .user-chip--file,
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
 }
 
 .ak-file-edit-header__stats {
   display: inline-flex;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   flex-shrink: 0;
 }
 
@@ -2354,7 +1846,7 @@ body.vscode-dark .user-chip--file,
 
 .ak-file-edit-diff {
   font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
-  font-size: 11.5px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.45;
   background: var(--ak-card-bg);
   /* Comment: CONV-019 — collapsed ≈ 4 lines; expand raises viewport */
@@ -2435,7 +1927,7 @@ body.vscode-dark .user-chip--file,
   text-overflow: ellipsis;
   white-space: pre;
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.45;
 }
 
@@ -2451,14 +1943,6 @@ body.vscode-dark .user-chip--file,
   color: var(--ak-c-description-foreground);
   cursor: pointer;
   opacity: 0.85;
-}
-
-.ak-file-edit-expand--collapsed {
-  padding: 0;
-  height: 0;
-  overflow: hidden;
-  border-top: none;
-  opacity: 0;
 }
 
 /* 1-4f: Inline Edit presentation over FileEditCard */
@@ -2485,7 +1969,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-inline-edit-diff__title {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -2493,7 +1977,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-inline-edit-diff__status {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--ak-c-description-foreground);
 }
 
@@ -2516,7 +2000,7 @@ body.vscode-dark .user-chip--file,
   border: none;
   border-radius: 6px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 600;
   padding: 5px 12px;
   cursor: pointer;
@@ -2562,7 +2046,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-diff-review__summary {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--ak-c-description-foreground);
 }
 
@@ -2576,7 +2060,7 @@ body.vscode-dark .user-chip--file,
   background: transparent;
   color: var(--ak-c-description-foreground);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
@@ -2611,7 +2095,7 @@ body.vscode-dark .user-chip--file,
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   text-align: left;
   padding: 5px 6px;
   border-radius: 6px;
@@ -2634,32 +2118,17 @@ body.vscode-dark .user-chip--file,
 .ak-diff-review__file-stats {
   display: inline-flex;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
 }
 
 .ak-diff-review__diff {
   min-width: 0;
 }
 
-/* Clarifying questions stick above composer so ask_question never hides off-screen.
-   Use a fixed px height — vh/% collapses the dock in a short sidebar. */
-.clarifying-dock {
-  flex: 0 0 320px;
-  height: 320px;
-  min-height: 320px;
-  max-height: 320px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid var(--ak-chrome-border);
-  background: var(--ak-c-editor-background);
-  padding: 8px 12px;
-}
-
 /* Harness tier strip — quiet, same chrome as editor */
 .ux-for-medium-panel {
   padding: 3px 12px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   border-bottom: 1px solid var(--ak-chrome-border);
   background: var(--ak-c-editor-background);
   display: flex;
@@ -2687,7 +2156,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ux-for-medium-panel__stuck button {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   padding: 2px 8px;
 }
 
@@ -2739,7 +2208,7 @@ div.ak-terminal-card__header {
   border-radius: 3px;
   background: color-mix(in srgb, var(--ak-c-foreground) 8%, transparent);
   color: var(--ak-c-description-foreground);
-  font-size: 9px;
+  font-size: var(--ak-fs-xs);
   font-weight: 700;
   letter-spacing: 0.2px;
   font-family: var(--vscode-editor-font-family, monospace);
@@ -2752,7 +2221,7 @@ div.ak-terminal-card__header {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
 }
 
@@ -2766,7 +2235,7 @@ div.ak-terminal-card__header {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
 }
 
 .ak-terminal-card__dur {
@@ -2779,7 +2248,7 @@ div.ak-terminal-card__header {
 
 .ak-terminal-card__cmd {
   padding: 6px 10px 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--ak-c-description-foreground);
   font-family: var(--vscode-editor-font-family, monospace);
   white-space: nowrap;
@@ -2793,7 +2262,7 @@ div.ak-terminal-card__header {
   /* Comment: CONV-018 — collapsed ≈ 4 lines; --expanded raises viewport */
   max-height: var(--ak-card-body-max, 72px);
   overflow: auto;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
@@ -2843,7 +2312,7 @@ div.ak-terminal-card__header {
   /* anywhere + near-zero width → vertical 1-char column; break-word is safer */
   overflow-wrap: break-word;
   word-break: normal;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.55;
   width: 100%;
   max-width: 100%;
@@ -2864,7 +2333,7 @@ div.ak-terminal-card__header {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.55;
   color: var(--ak-c-foreground);
 }
@@ -2878,7 +2347,7 @@ div.ak-terminal-card__header {
   margin: 0 0 0.28em;
   overflow-wrap: break-word;
   word-break: normal;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.55;
   color: var(--ak-c-foreground);
 }
@@ -2899,13 +2368,14 @@ div.ak-terminal-card__header {
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 /* Fenced blocks keep horizontal scroll — don't smash tokens */
 .message-content .ak-code code,
 .message-content .ak-code__body code,
-.message-content .code-block-wrapper code {
+.message-content .code-block-wrapper code /* Fenced blocks keep horizontal scroll — don't smash tokens */
+.message-content .ak-code code, .message-content .ak-code__body code {
   white-space: pre;
   word-break: normal;
   overflow-wrap: normal;
@@ -2913,7 +2383,7 @@ div.ak-terminal-card__header {
 
 .message-content .markdown-body pre,
 .message-content .code-block-wrapper,
-.message-content .ak-code {
+.message-content .ak-code .message-content .markdown-body pre, .message-content .ak-code {
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -2939,10 +2409,10 @@ div.ak-terminal-card__header {
   margin-top: 0.15em;
 }
 
-.message-content .markdown-body h1 { font-size: 15px; }
-.message-content .markdown-body h2 { font-size: 14px; }
-.message-content .markdown-body h3 { font-size: 13px; }
-.message-content .markdown-body h4 { font-size: 13px; }
+.message-content .markdown-body h1 { font-size: var(--ak-fs-xl); }
+.message-content .markdown-body h2 { font-size: var(--ak-fs-lg); }
+.message-content .markdown-body h3 { font-size: var(--ak-fs-md); }
+.message-content .markdown-body h4 { font-size: var(--ak-fs-md); }
 
 .message-content .markdown-body ul,
 .message-content .markdown-body ol {
@@ -2953,7 +2423,7 @@ div.ak-terminal-card__header {
 .message-content .markdown-body li {
   margin: 0.02em 0;
   line-height: 1.55;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
 }
 
 .message-content .markdown-body li + li {
@@ -2976,7 +2446,7 @@ div.ak-terminal-card__header {
   width: 100%;
   min-width: 100%;
   table-layout: auto;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
 }
 
 .message-content .markdown-body th,
@@ -2997,7 +2467,7 @@ div.ak-terminal-card__header {
 
 .message-content .markdown-body td code,
 .message-content .markdown-body th code {
-  font-size: 11.5px;
+  font-size: var(--ak-fs-sm);
   padding: 1px 5px;
   border-radius: 4px;
   background: color-mix(in srgb, var(--ak-c-foreground) 8%, transparent);
@@ -3009,7 +2479,7 @@ div.ak-terminal-card__header {
   border-radius: 6px;
   overflow-x: auto;
   margin: 4px 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.4;
 }
 
@@ -3019,7 +2489,8 @@ div.ak-terminal-card__header {
 
 /* Code fence — same card surface as diff / terminal */
 .ak-code,
-.code-block-wrapper {
+.code-block-wrapper /* Code fence — same card surface as diff / terminal */
+.ak-code {
   width: 100%;
   max-width: 100%;
   margin: 0.35em 0 0.5em;
@@ -3032,7 +2503,7 @@ div.ak-terminal-card__header {
 }
 
 body.vscode-light .ak-code,
-body.vscode-light .code-block-wrapper {
+body.vscode-light .code-block-wrapper body.vscode-light .ak-code {
   background: var(--ak-c-text-code-block-background);
   border-color: var(--ak-c-widget-border);
 }
@@ -3040,13 +2511,13 @@ body.vscode-light .code-block-wrapper {
 body.vscode-dark .ak-code,
 body.vscode-high-contrast .ak-code,
 body.vscode-dark .code-block-wrapper,
-body.vscode-high-contrast .code-block-wrapper {
+body.vscode-high-contrast .code-block-wrapper body.vscode-dark .ak-code, body.vscode-high-contrast .ak-code {
   background: var(--ak-card-bg);
   border-color: var(--ak-card-border);
 }
 
 .ak-code__header,
-.code-block-header {
+.code-block-header .ak-code__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3057,13 +2528,13 @@ body.vscode-high-contrast .code-block-wrapper {
 }
 
 body.vscode-light .ak-code__header,
-body.vscode-light .code-block-header {
+body.vscode-light .code-block-header body.vscode-light .ak-code__header {
   border-bottom-color: var(--ak-c-widget-border);
 }
 
 .ak-code__lang,
-.code-lang-label {
-  font-size: 11px;
+.code-lang-label .ak-code__lang {
+  font-size: var(--ak-fs-xs);
   font-weight: 500;
   letter-spacing: 0.01em;
   text-transform: lowercase;
@@ -3072,7 +2543,7 @@ body.vscode-light .code-block-header {
 }
 
 .ak-code__copy,
-.code-copy-btn {
+.code-copy-btn .ak-code__copy {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -3081,7 +2552,7 @@ body.vscode-light .code-block-header {
   height: 22px;
   margin: 0;
   padding: 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1;
   border: 1px solid transparent;
   border-radius: 5px;
@@ -3093,13 +2564,13 @@ body.vscode-light .code-block-header {
 }
 
 .ak-code:hover .ak-code__copy,
-.code-block-wrapper:hover .code-copy-btn {
+.code-block-wrapper:hover .code-copy-btn .ak-code:hover .ak-code__copy {
   opacity: 1;
   border-color: var(--ak-c-widget-border);
 }
 
 .ak-code__copy:focus-visible,
-.code-copy-btn:focus-visible {
+.code-copy-btn:focus-visible .ak-code__copy:focus-visible {
   opacity: 1;
   border-color: var(--ak-c-widget-border);
   outline: 2px solid var(--ak-c-focus-border);
@@ -3107,7 +2578,7 @@ body.vscode-light .code-block-header {
 }
 
 .ak-code__copy:hover,
-.code-copy-btn:hover {
+.code-copy-btn:hover .ak-code__copy:hover {
   background: var(--ak-c-toolbar-hover-background);
   color: var(--ak-c-foreground);
 }
@@ -3127,7 +2598,7 @@ body.vscode-light .code-block-header {
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
-  font-size: 12px !important;
+  font-size: var(--ak-fs-sm) !important;
   line-height: 1.4 !important;
   box-shadow: none !important;
 }
@@ -3172,7 +2643,7 @@ body.vscode-light .code-block-header {
   overflow-x: auto;
   background: transparent;
   color: var(--ak-c-editor-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.4;
 }
 
@@ -3211,7 +2682,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 /* Legacy class hooks */
 .code-block-wrapper .code-block,
-.code-block {
+.code-block .code-block {
   position: relative;
   margin: 0;
   border-radius: 0;
@@ -3220,10 +2691,10 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .code-block-wrapper .code-block code,
-.code-block code {
+.code-block code .code-block code {
   display: block;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.4;
   white-space: pre;
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
@@ -3258,7 +2729,7 @@ body.vscode-high-contrast .ak-code__cursor {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   padding: 2px 8px;
   background: var(--ak-info-bg);
   color: var(--ak-info);
@@ -3297,7 +2768,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .msg-action-time {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1;
   padding: 0 6px 0 0;
   color: var(--ak-c-description-foreground);
@@ -3351,7 +2822,7 @@ body.vscode-high-contrast .ak-code__cursor {
   width: 26px;
   height: 26px;
   padding: 0;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   opacity: 1;
   border: 1px solid var(--ak-divider);
   border-radius: 5px;
@@ -3402,21 +2873,11 @@ body.vscode-high-contrast .ak-code__cursor {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 240px;
+  /* V31-UI-13 — no hard min-width: it forces overflow when the rail is open
+     in a medium panel; the ≤300px container query keeps very narrow panels ok. */
   width: 100%;
   overflow: visible;
   z-index: 3;
-}
-
-.chat-footer:has(.clarifying-dock) {
-  flex: 0 0 auto;
-  min-height: auto;
-  max-height: none;
-}
-
-.chat-footer:has(.clarifying-dock) .composer,
-.chat-footer:has(.clarifying-dock) .changed-files-bar {
-  flex-shrink: 0;
 }
 
 /*
@@ -3490,14 +2951,14 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .queue-ui__title {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 650;
   letter-spacing: 0.02em;
   color: var(--ak-c-foreground);
 }
 
 .queue-ui__hint {
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.65;
 }
 
@@ -3509,15 +2970,11 @@ body.vscode-high-contrast .ak-code__cursor {
   padding: 4px 0;
 }
 
-.queue-item--processing {
-  opacity: 0.95;
-}
-
 .queue-badge {
   flex-shrink: 0;
   padding: 1px 7px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   background: color-mix(in srgb, var(--ak-info) 22%, transparent);
   color: var(--ak-info);
@@ -3529,7 +2986,7 @@ body.vscode-high-contrast .ak-code__cursor {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--ak-c-foreground);
 }
 
@@ -3541,7 +2998,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .queue-btn,
-.queue-icon-btn {
+.queue-icon-btn .queue-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3550,44 +3007,28 @@ body.vscode-high-contrast .ak-code__cursor {
   border: none;
   background: transparent;
   color: var(--ak-c-text-link-foreground);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   cursor: pointer;
   padding: 0;
   border-radius: 4px;
 }
 
 .queue-btn:hover,
-.queue-icon-btn:hover {
+.queue-icon-btn:hover .queue-icon-btn:hover {
   background: color-mix(in srgb, var(--ak-c-foreground) 8%, transparent);
 }
 
 .queue-btn--cancel,
-.queue-icon-btn--cancel {
+.queue-icon-btn--cancel .queue-icon-btn--cancel {
   color: var(--ak-danger);
 }
 
-.queue-processing-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ak-c-progress-bar-background);
-  animation: ak-live-blink 0.9s ease-in-out infinite;
-}
-
 .composer-icon-btn--queue {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   padding: 4px 8px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--ak-c-focus-border) 22%, transparent);
-}
-
-.chat-header-title {
-  font-weight: 650;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  opacity: 0.85;
 }
 
 .composer {
@@ -3618,7 +3059,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 /* Composer under files bar — shared seam, no gap */
 .changed-files-bar + .ak-composer-host .composer-box,
-.changed-files-bar + .composer .composer-box {
+.changed-files-bar + .composer .composer-box /* Composer under files bar — shared seam, .changed-files-bar + .composer .composer-box {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
@@ -3642,7 +3083,7 @@ body.vscode-high-contrast .ak-code__cursor {
   color: var(--ak-c-foreground);
   cursor: pointer;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   padding: 2px 4px;
   text-align: left;
   border-radius: 4px;
@@ -3655,7 +3096,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .changed-files-bar__chevron {
   opacity: 0.65;
   width: 12px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
 }
 
 .changed-files-bar__count {
@@ -3674,7 +3115,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: none;
   background: transparent;
   color: var(--ak-c-description-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
   padding: 2px 4px;
 }
@@ -3690,7 +3131,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: none;
   background: transparent;
   color: var(--ak-c-description-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
   padding: 2px 4px;
 }
@@ -3701,7 +3142,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .changed-files-bar__kbd {
   font: inherit;
-  font-size: 10.5px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.55;
   border: none;
   background: transparent;
@@ -3713,7 +3154,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: none;
   background: color-mix(in srgb, var(--ak-c-foreground) 12%, transparent);
   color: var(--ak-c-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 500;
   border-radius: 999px;
   padding: 3px 12px;
@@ -3751,7 +3192,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .changed-files-bar__checkpoint-empty {
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.6;
 }
 
@@ -3760,7 +3201,7 @@ body.vscode-high-contrast .ak-code__cursor {
   align-items: center;
   gap: 8px;
   padding: 4px 12px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .changed-files-bar__checkpoint-label {
@@ -3779,7 +3220,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: none;
   background: color-mix(in srgb, var(--ak-c-foreground) 12%, transparent);
   color: var(--ak-c-foreground);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   border-radius: 999px;
   padding: 2px 10px;
   cursor: pointer;
@@ -3819,7 +3260,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border-radius: 3px;
   background: var(--ak-lang-ts);
   color: var(--ak-badge-fg);
-  font-size: 8.5px;
+  font-size: var(--ak-fs-xs);
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1;
@@ -3860,7 +3301,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .changed-files-bar__name {
   flex: 1;
   min-width: 0;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   font-weight: 450;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3872,7 +3313,7 @@ body.vscode-high-contrast .ak-code__cursor {
   flex-shrink: 0;
   display: inline-flex;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-variant-numeric: tabular-nums;
   margin-left: 8px;
 }
@@ -3901,7 +3342,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: 1px solid color-mix(in srgb, var(--ak-c-foreground) 16%, transparent);
   background: var(--ak-c-editor-widget-background);
   color: var(--ak-c-foreground);
-  font-size: 11.5px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.35;
   pointer-events: none;
   box-shadow: 0 4px 16px color-mix(in srgb, var(--ak-c-widget-shadow) 45%, transparent);
@@ -3921,7 +3362,7 @@ body.vscode-high-contrast .ak-code__cursor {
 /* ── Cursor-like composer box ── */
 .composer--cursor {
   gap: 8px;
-  min-width: 240px;
+  /* V31-UI-13 — no hard min-width (see .chat-footer) */
   width: 100%;
 }
 
@@ -3942,25 +3383,9 @@ body.vscode-high-contrast .ak-code__cursor {
   display: flex;
   flex-direction: column;
   position: relative;
-  min-width: 240px;
+  /* V31-UI-13 — no hard min-width (see .chat-footer) */
   width: 100%;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
-  cursor: text;
-}
-
-/* Comment: hover affordance — JS .composer-box--hot (reliable) + CSS :hover fallback */
-.composer-box:hover,
-.composer-box.composer-box--hot,
-.composer--hot .composer-box {
-  border-color: var(--ak-c-focus-border) !important;
-  box-shadow:
-    var(--ak-panel-shadow),
-    0 0 0 2px color-mix(in srgb, var(--ak-c-focus-border) 45%, transparent) !important;
-  background: color-mix(
-    in srgb,
-    var(--ak-c-input-background) 85%,
-    var(--ak-c-focus-border)
-  );
   cursor: text;
 }
 
@@ -3984,7 +3409,7 @@ body.vscode-high-contrast .ak-code__cursor {
   resize: none;
   color: var(--ak-c-input-foreground);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.5;
 }
 
@@ -4051,7 +3476,7 @@ body.vscode-high-contrast .ak-code__cursor {
   gap: 8px;
   padding: 8px 12px 6px;
   border-bottom: 1px solid var(--ak-divider);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   flex-shrink: 0;
 }
 
@@ -4117,7 +3542,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-palette__name {
   flex-shrink: 0;
   max-width: 55%;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4127,7 +3552,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-palette__path {
   flex: 1;
   min-width: 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.45;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4167,7 +3592,7 @@ body.vscode-high-contrast .ak-code__cursor {
   align-items: center;
   gap: 6px;
   min-height: 22px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--ak-c-description-foreground);
   white-space: nowrap;
 }
@@ -4205,33 +3630,17 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .composer-palette__empty {
   padding: 12px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.55;
 }
 
 /* Legacy stacked body (unused by mention rows, keep for safety) */
-.composer-palette__body {
+.composer-palette__body /* Legacy stacked body (unused by mention rows {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
   flex: 1;
-}
-
-.composer-palette__label {
-  font-size: 12.5px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.composer-palette__desc {
-  font-size: 11px;
-  opacity: 0.65;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .composer-toolbar__left,
@@ -4270,7 +3679,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-toolbar__left .mode-selector {
   min-width: 0;
   max-width: 7.5rem;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   padding: 3px 8px;
 }
 
@@ -4414,7 +3823,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .composer-model {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.7;
   flex: 1 1 0;
   min-width: 0;
@@ -4448,7 +3857,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.85;
   cursor: pointer;
   outline: none;
@@ -4540,7 +3949,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: var(--ak-c-input-background);
   color: var(--ak-c-input-foreground);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   outline: none;
 }
 
@@ -4576,7 +3985,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -4594,7 +4003,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .model-selector__item-current {
   color: var(--ak-c-description-foreground);
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
 }
 
 .model-selector__item.is-selected .model-selector__item-check {
@@ -4667,12 +4076,12 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .provider-card__name {
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 600;
 }
 
 .provider-card__status {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--ak-c-description-foreground);
   opacity: 1;
 }
@@ -4705,7 +4114,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   cursor: pointer;
   opacity: 0.8;
 }
@@ -4724,7 +4133,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .model-selector__item-provider {
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.6;
 }
 
@@ -4735,7 +4144,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .model-badge {
-  font-size: 9px;
+  font-size: var(--ak-fs-xs);
   letter-spacing: 0.02em;
   padding: 1px 6px;
   border-radius: 999px;
@@ -4748,48 +4157,6 @@ body.vscode-high-contrast .ak-code__cursor {
 .model-badge--cheap { background: color-mix(in srgb, var(--ak-warning) 22%, transparent); }
 .model-badge--reasoning { background: color-mix(in srgb, var(--ak-c-charts-purple) 22%, transparent); }
 .model-badge--vision { background: color-mix(in srgb, var(--ak-c-charts-purple) 22%, transparent); }
-
-
-/* Legacy native select (kept for any leftover references) */
-.composer-model-select {
-  appearance: none;
-  -webkit-appearance: none;
-  flex: 1 1 0;
-  width: 0;
-  min-width: 4.5rem;
-  max-width: 14rem;
-  background-color: transparent;
-  border: 1px solid transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 11px;
-  opacity: 0.85;
-  cursor: pointer;
-  padding: 3px 16px 3px 6px;
-  border-radius: 999px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%23888' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
-}
-
-.composer-model-select:hover:not(:disabled) {
-  opacity: 1;
-  background-color: var(--ak-c-toolbar-hover-background);
-  border-color: var(--ak-divider);
-}
-
-.composer-model-select:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.composer-model-select option {
-  color: var(--ak-c-foreground);
-  background: var(--ak-panel-bg);
-}
 
 /* V31-UI-07 — custom thinking dropdown (button + menu, no native <select>) */
 .composer-thinking-select-wrapper {
@@ -4811,7 +4178,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: 1px solid var(--ak-divider);
   color: inherit;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 500;
   opacity: 0.9;
   width: auto;
@@ -4883,7 +4250,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   text-align: left;
   cursor: pointer;
 }
@@ -4921,7 +4288,7 @@ body.vscode-high-contrast .ak-code__cursor {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   padding: 0;
   transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
@@ -4939,7 +4306,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-icon-btn:focus-visible,
 .composer-actions button:focus-visible,
 .composer-chip-label:focus-visible,
-.composer-chip-remove:focus-visible {
+.composer-chip-remove:focus-visible .composer-icon-btn:focus-visible, .composer-chip-label:focus-visible, .composer-chip-remove:focus-visible {
   outline: 2px solid var(--ak-c-focus-border);
   outline-offset: 1px;
 }
@@ -4947,7 +4314,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-icon-btn--send {
   background: var(--ak-c-button-background);
   color: var(--ak-c-button-foreground);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   border-color: transparent;
 }
 
@@ -4983,7 +4350,7 @@ body.vscode-high-contrast .ak-code__cursor {
   z-index: 1;
   flex-shrink: 0;
   padding: 4px 6px 2px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--ak-c-description-foreground);
   background: var(--ak-c-editor-background);
 }
@@ -4998,62 +4365,6 @@ body.vscode-high-contrast .ak-code__cursor {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.message-continue-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin: 8px 0 4px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--ak-card-border);
-  background: color-mix(
-    in srgb,
-    var(--ak-c-button-background) 14%,
-    transparent
-  );
-}
-
-.message-continue-banner__btn {
-  border: none;
-  border-radius: 6px;
-  padding: 5px 12px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  background: var(--ak-c-button-background);
-  color: var(--ak-c-button-foreground);
-}
-
-.message-continue-banner__btn:hover {
-  background: var(--ak-c-button-hover-background);
-}
-
-.message-continue-banner__hint {
-  font-size: 11px;
-  opacity: 0.75;
-}
-
-.composer-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  align-items: center;
-}
-
-.composer-actions button.attach-btn {
-  margin-right: auto;
-  background: transparent;
-  color: var(--ak-c-description-foreground);
-  border-color: var(--ak-c-input-border);
-}
-
-.composer-actions button.attach-btn:hover:not(:disabled) {
-  color: var(--ak-info);
-  border-color: color-mix(in srgb, var(--ak-info) 45%, transparent);
 }
 
 .composer.drag-over {
@@ -5084,7 +4395,7 @@ body.vscode-high-contrast .ak-code__cursor {
   justify-content: center;
   gap: 4px;
   pointer-events: none;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   color: var(--ak-c-editor-foreground);
   background: color-mix(
     in srgb,
@@ -5097,12 +4408,12 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .composer-drop-hint__title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   letter-spacing: 0.01em;
 }
 
 .composer-drop-hint__sub {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.9;
 }
 
@@ -5115,7 +4426,7 @@ body.vscode-high-contrast .ak-code__cursor {
   padding: 1px 5px;
   border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--ak-c-focus-border) 50%, transparent);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-family: inherit;
 }
 
@@ -5134,31 +4445,31 @@ body.vscode-high-contrast .ak-code__cursor {
   max-width: 100%;
   padding: 3px 8px 3px 7px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.4;
   font-weight: 500;
   /* Comment: light teal wash — matches Cursor file-ref chip legibility */
-  background: color-mix(in srgb, var(--ak-accent) 34%, var(--ak-c-input-background));
+  background: var(--ak-chip-file-bg);
   color: var(--ak-accent);
-  border: 1px solid color-mix(in srgb, var(--ak-accent) 40%, transparent);
+  border: 1px solid var(--ak-chip-file-border);
 }
 
 .composer-chip--file {
-  background: color-mix(in srgb, var(--ak-accent) 34%, var(--ak-c-input-background));
+  background: var(--ak-chip-file-bg);
   color: var(--ak-accent);
-  border-color: color-mix(in srgb, var(--ak-accent) 40%, transparent);
+  border-color: var(--ak-chip-file-border);
 }
 
 .composer-chip--folder {
-  background: color-mix(in srgb, var(--ak-accent) 28%, var(--ak-c-input-background));
-  border-color: color-mix(in srgb, var(--ak-accent) 38%, transparent);
+  background: var(--ak-chip-folder-bg);
+  border-color: var(--ak-chip-folder-border);
   color: var(--ak-accent);
 }
 
 .composer-chip--log,
 .composer-chip--snippet {
-  background: color-mix(in srgb, var(--ak-warning) 14%, transparent);
-  border-color: color-mix(in srgb, var(--ak-warning) 38%, transparent);
+  background: var(--ak-chip-log-bg);
+  border-color: var(--ak-chip-log-border);
   color: var(--ak-warning);
 }
 
@@ -5188,7 +4499,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .composer-chip-icon {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.9;
   display: inline-flex;
   align-items: center;
@@ -5234,7 +4545,7 @@ body.vscode-dark .composer-chip--snippet,
   color: inherit;
   opacity: 0.65;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   line-height: 1;
   border-radius: 4px;
 }
@@ -5260,7 +4571,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .composer-inline-edit-title {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -5275,7 +4586,7 @@ body.vscode-dark .composer-chip--snippet,
   color: inherit;
   opacity: 0.65;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   line-height: 1;
   border-radius: 4px;
 }
@@ -5287,7 +4598,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .composer-inline-edit-meta {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--ak-c-foreground);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5296,7 +4607,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .composer-inline-edit-detail {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.75;
 }
 
@@ -5307,7 +4618,7 @@ body.vscode-dark .composer-chip--snippet,
   background: var(--ak-c-input-background);
   color: var(--ak-c-input-foreground);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.5;
   resize: none;
   outline: none;
@@ -5328,64 +4639,12 @@ body.vscode-dark .composer-chip--snippet,
   opacity: 0.6;
 }
 
-.composer-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  align-items: center;
-}
-
-.composer-actions button.attach-btn {
-  margin-right: auto;
-  background: transparent;
-  color: var(--ak-c-description-foreground);
-  border-color: var(--ak-c-input-border);
-}
-
-.composer-actions button.attach-btn:hover:not(:disabled) {
-  color: var(--ak-info);
-  border-color: color-mix(in srgb, var(--ak-info) 45%, transparent);
-}
-
 .composer-drop-hint kbd {
   padding: 1px 5px;
   border-radius: 3px;
   border: 1px solid color-mix(in srgb, var(--ak-info) 45%, transparent);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-family: var(--vscode-editor-font-family, monospace);
-}
-
-.composer-actions button {
-  padding: 6px 16px;
-  border: 1px solid var(--ak-c-input-border);
-  border-radius: 4px;
-  background: var(--ak-c-button-background);
-  color: var(--ak-c-button-foreground);
-  font-size: 12px;
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.composer-actions button:hover:not(:disabled) {
-  background: var(--ak-c-button-hover-background);
-}
-
-.composer-actions button.stop-btn {
-  background: var(--ak-danger);
-  border-color: var(--ak-danger);
-}
-
-.composer-actions button.stop-btn:hover {
-  background: color-mix(in srgb, var(--ak-danger) 85%, var(--ak-c-foreground));
-}
-
-.composer-actions button.regenerate-btn {
-  background: var(--ak-c-input-background);
-  color: var(--ak-c-editor-foreground);
-}
-
-.composer-actions button.regenerate-btn:hover {
-  background: var(--ak-c-toolbar-hover-background);
 }
 
 .math-formula {
@@ -5428,7 +4687,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .mermaid-diagram--loading .mermaid-loading,
 .mermaid-loading {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.55;
   white-space: pre-wrap;
   margin: 0;
@@ -5443,13 +4702,13 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .mermaid-error-msg {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--ak-danger);
   margin-bottom: 6px;
 }
 
 .mermaid-error-toggle {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid var(--ak-c-button-border);
@@ -5460,7 +4719,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .mermaid-fallback {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   white-space: pre-wrap;
   opacity: 0.8;
 }
@@ -5484,7 +4743,7 @@ body.vscode-dark .composer-chip--snippet,
   background: color-mix(in srgb, var(--ak-danger) 15%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--ak-danger) 40%, transparent);
   color: var(--ak-danger);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   flex-shrink: 0;
   z-index: 5;
 }
@@ -5494,7 +4753,7 @@ body.vscode-dark .composer-chip--snippet,
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
 }
 
 /* ─── Settings Hub redesign (append / replace .settings-* block in chat.css) ─── */
@@ -5538,12 +4797,12 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-header h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   font-weight: 600;
 }
 
 .settings-header__subtitle {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.55;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5572,7 +4831,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-search__icon {
   opacity: 0.5;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1;
 }
 
@@ -5582,7 +4841,7 @@ body.vscode-dark .composer-chip--snippet,
   border: none;
   background: transparent;
   color: var(--ak-c-input-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   outline: none;
 }
 
@@ -5602,7 +4861,7 @@ body.vscode-dark .composer-chip--snippet,
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.75;
 }
 
@@ -5642,7 +4901,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-nav__group-label {
   padding: 4px 8px 2px;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -5651,7 +4910,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-nav__empty {
   margin: 12px 8px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.6;
 }
 
@@ -5668,7 +4927,7 @@ body.vscode-dark .composer-chip--snippet,
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .settings-tab:hover {
@@ -5687,7 +4946,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .tab-icon {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   width: 16px;
   text-align: center;
   opacity: 0.85;
@@ -5716,7 +4975,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-tab-content > h3 {
   margin: 0 0 2px;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 600;
 }
 
@@ -5739,13 +4998,13 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-section__title {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 600;
 }
 
 .settings-section__desc {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1.4;
   opacity: 0.65;
 }
@@ -5764,14 +5023,14 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-field__label,
 .settings-field label {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--vscode-foreground);
   opacity: 0.9;
 }
 
 .settings-field__hint,
 .settings-hint {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1.35;
   color: var(--ak-c-description-foreground);
   opacity: 1;
@@ -5785,7 +5044,7 @@ body.vscode-dark .composer-chip--snippet,
   border-radius: 4px;
   background: var(--ak-c-input-background);
   color: var(--ak-c-input-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .settings-field input:focus-visible,
@@ -5818,12 +5077,12 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .settings-toggle__label {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 500;
 }
 
 .settings-toggle__desc {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.6;
   line-height: 1.35;
 }
@@ -5918,12 +5177,12 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .settings-radio__label {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 500;
 }
 
 .settings-radio__desc {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.6;
   line-height: 1.35;
 }
@@ -5948,26 +5207,13 @@ body.vscode-dark .composer-chip--snippet,
   padding: 4px 6px;
   border-radius: 4px;
   background: var(--ak-c-input-background);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .settings-model-list li span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
-}
-
-.settings-inline-add {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-  align-items: center;
-}
-
-.settings-inline-add input,
-.settings-inline-add select {
-  flex: 1;
   min-width: 0;
 }
 
@@ -5984,7 +5230,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-stored-badge {
   margin-left: 6px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 400;
   color: var(--ak-c-testing-icon-passed);
   opacity: 1;
@@ -5998,7 +5244,7 @@ body.vscode-dark .composer-chip--snippet,
   border-radius: 4px;
   background: var(--ak-c-button-background);
   color: var(--ak-c-button-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
 }
 
@@ -6027,7 +5273,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-btn--tiny {
   padding: 2px 8px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   align-self: center;
 }
 
@@ -6046,13 +5292,13 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .rules-list-head__label {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 600;
 }
 
 .rules-new-btn {
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .rules-list {
@@ -6104,7 +5350,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .rules-item__title {
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6112,7 +5358,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .rules-item__kind {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.55;
 }
 
@@ -6163,7 +5409,7 @@ body.vscode-dark .composer-chip--snippet,
   border-radius: 5px;
   background: transparent;
   color: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -6179,19 +5425,19 @@ body.vscode-dark .composer-chip--snippet,
 .settings-success,
 .settings-status--success {
   color: var(--ak-c-testing-icon-passed);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   margin: 0;
 }
 
 .settings-error,
 .settings-status--error {
   color: var(--ak-c-error-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   margin: 0;
 }
 
 .settings-status--info {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.75;
   margin: 0;
 }
@@ -6223,7 +5469,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .history-panel__header h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   font-weight: 600;
 }
 
@@ -6231,20 +5477,6 @@ body.vscode-dark .composer-chip--snippet,
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.history-panel__new {
-  border: 1px solid var(--ak-c-widget-border);
-  border-radius: 4px;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  padding: 2px 10px;
-  font-size: 12px;
-}
-
-.history-panel__new:hover {
-  background: var(--ak-c-toolbar-hover-background);
 }
 
 .history-panel__icon-btn {
@@ -6277,7 +5509,7 @@ body.vscode-dark .composer-chip--snippet,
 .history-panel__empty {
   margin: 24px 12px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   color: var(--ak-c-description-foreground);
 }
 
@@ -6314,7 +5546,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .history-panel__title {
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -6325,7 +5557,7 @@ body.vscode-dark .composer-chip--snippet,
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--ak-c-description-foreground);
 }
 
@@ -6336,23 +5568,13 @@ body.vscode-dark .composer-chip--snippet,
   color: var(--ak-c-description-foreground);
   cursor: pointer;
   padding: 0 10px;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   opacity: 0.55;
 }
 
 .history-panel__delete:hover {
   opacity: 1;
   color: var(--ak-danger);
-}
-
-
-.plan-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 25;
-  overflow: auto;
-  background: var(--ak-c-editor-background);
-  border-left: 1px solid var(--ak-c-panel-border);
 }
 
 /* ── AskQuestionCard (timeline durable ask + selected) ── */
@@ -6383,7 +5605,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .ak-ask-card__title {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -6391,7 +5613,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .ak-ask-card__ms {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--ak-c-description-foreground);
   opacity: 0.85;
 }
@@ -6419,14 +5641,14 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .ak-ask-card__prompt {
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.45;
   color: var(--ak-c-foreground);
 }
 
 .ak-ask-card__multi-hint {
   color: var(--ak-c-description-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .ak-ask-card__options {
@@ -6449,7 +5671,7 @@ body.vscode-dark .composer-chip--snippet,
   border: 1px solid transparent;
   background: transparent;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   line-height: 1.4;
   color: var(--ak-c-foreground);
   opacity: 0.85;
@@ -6492,14 +5714,14 @@ body.vscode-dark .composer-chip--snippet,
   gap: 6px 10px;
   padding-top: 4px;
   border-top: 1px solid var(--ak-c-panel-border);
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
 }
 
 .ak-ask-card__answer-label {
   font-weight: 600;
   color: var(--ak-c-description-foreground);
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   letter-spacing: 0.02em;
 }
 
@@ -6509,13 +5731,13 @@ body.vscode-dark .composer-chip--snippet,
 
 .ak-ask-card__waiting {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--ak-c-description-foreground);
   font-style: italic;
 }
 
 .ak-ask-card__countdown {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-variant-numeric: tabular-nums;
   color: var(--ak-c-charts-orange);
 }
@@ -6530,7 +5752,7 @@ body.vscode-dark .composer-chip--snippet,
   background: var(--ak-c-input-background);
   color: var(--ak-c-input-foreground);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   resize: vertical;
 }
 
@@ -6539,12 +5761,6 @@ body.vscode-dark .composer-chip--snippet,
   justify-content: flex-end;
   gap: 8px;
   padding-top: 4px;
-}
-
-/* ── Clarifying questions (Plan / Debug ask_question) ── */
-.mode-chrome--questions {
-  max-height: 320px;
-  padding: 10px 12px;
 }
 
 .clarifying-questions {
@@ -6560,160 +5776,6 @@ body.vscode-dark .composer-chip--snippet,
   border: 1px solid var(--ak-c-panel-border);
   background: var(--ak-c-editor-background);
   max-width: 100%;
-}
-
-.clarifying-questions__header {
-  flex-shrink: 0;
-}
-
-.clarifying-questions__body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  padding-right: 2px;
-}
-
-.clarifying-questions__header h3 {
-  margin: 0 0 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ak-c-foreground);
-}
-
-.clarifying-questions__header p {
-  margin: 0;
-  font-size: 11.5px;
-  opacity: 0.7;
-  line-height: 1.35;
-}
-
-.clarifying-questions__item {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 4px;
-  border-top: 1px solid color-mix(in srgb, var(--ak-c-foreground) 6%, transparent);
-}
-
-.clarifying-questions__item:first-of-type {
-  border-top: none;
-  padding-top: 0;
-}
-
-.clarifying-questions__prompt {
-  font-size: 12.5px;
-  line-height: 1.45;
-  color: var(--ak-c-foreground);
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-}
-
-.clarifying-questions__prompt code {
-  font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
-  font-size: 11.5px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--ak-c-foreground) 8%, transparent);
-}
-
-.clarifying-questions__prompt strong {
-  font-weight: 600;
-}
-
-.clarifying-questions__req {
-  color: var(--ak-danger);
-  margin-left: 4px;
-}
-
-.clarifying-questions__multi-hint {
-  margin-left: 6px;
-  font-size: 11px;
-  font-weight: 400;
-  opacity: 0.75;
-}
-
-.clarifying-questions__options {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.clarifying-questions__option {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  font-size: 12.5px;
-  line-height: 1.4;
-  color: var(--ak-c-foreground);
-}
-
-.clarifying-questions__option:hover {
-  background: color-mix(in srgb, var(--ak-c-foreground) 4%, transparent);
-}
-
-.clarifying-questions__option--selected {
-  background: color-mix(in srgb, var(--ak-c-focus-border) 14%, transparent);
-  border-color: color-mix(in srgb, var(--ak-c-focus-border) 45%, transparent);
-}
-
-.clarifying-questions__option input {
-  margin-top: 2px;
-  accent-color: var(--ak-c-focus-border);
-  flex-shrink: 0;
-}
-
-.clarifying-questions__option-text {
-  min-width: 0;
-  flex: 1;
-  overflow-wrap: break-word;
-}
-
-.clarifying-questions__option-text code {
-  font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
-  font-size: 11.5px;
-  padding: 0 4px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--ak-c-foreground) 8%, transparent);
-}
-
-.clarifying-questions__textarea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--ak-c-panel-border);
-  background: var(--ak-c-input-background);
-  color: var(--ak-c-input-foreground);
-  font: inherit;
-  font-size: 12.5px;
-  resize: vertical;
-}
-
-.clarifying-questions__error {
-  font-size: 11px;
-  color: var(--ak-danger);
-}
-
-.clarifying-questions__actions {
-  display: flex;
-  flex-shrink: 0;
-  gap: 8px;
-  justify-content: flex-end;
-  padding-top: 10px;
-  border-top: 1px solid var(--ak-divider);
-  background: inherit;
-}
-
-.clarifying-questions__actions .settings-btn.primary:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 /* PLAN-CARD — Cursor-style compact plan artifact (summary + actions) */
@@ -6734,7 +5796,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 .ak-plan-card__badge {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   padding: 2px 6px;
@@ -6747,7 +5809,7 @@ body.vscode-dark .composer-chip--snippet,
   margin: 0;
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 600;
   line-height: 1.35;
   overflow: hidden;
@@ -6757,7 +5819,7 @@ body.vscode-dark .composer-chip--snippet,
 .ak-plan-card__chip {
   flex-shrink: 0;
   margin-left: auto;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 2px 6px;
@@ -6770,9 +5832,9 @@ body.vscode-dark .composer-chip--snippet,
 .ak-plan-card__chip--failed { border-color: var(--ak-c-charts-red); }
 .ak-plan-card__meta,
 .ak-plan-card__goal,
-.ak-plan-card__status {
+.ak-plan-card__status .ak-plan-card__meta {
   margin: 4px 0 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.75;
   line-height: 1.4;
 }
@@ -6793,22 +5855,22 @@ body.vscode-dark .composer-chip--snippet,
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   cursor: pointer;
 }
 .ak-plan-card__task-title { flex: 1; font-weight: 500; }
 .ak-plan-card__task-status {
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.7;
   text-transform: lowercase;
 }
 .ak-plan-card__task-desc {
   margin: 4px 0 0 24px;
-  font-size: 11.5px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.75;
   line-height: 1.4;
 }
-.ak-plan-card__risks { margin-top: 10px; font-size: 12px; }
+.ak-plan-card__risks { margin-top: 10px; font-size: var(--ak-fs-sm); }
 .ak-plan-card__risks-toggle {
   background: none;
   border: none;
@@ -6839,7 +5901,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .ak-plan-card__view-title {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -6855,7 +5917,7 @@ body.vscode-dark .composer-chip--snippet,
   max-height: min(42vh, 420px);
   overflow: auto;
   padding: 10px 12px;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   line-height: 1.45;
 }
 
@@ -6869,7 +5931,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 .ak-plan-card__btn {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   padding: 5px 10px;
   border-radius: 5px;
   border: 1px solid var(--ak-c-panel-border);
@@ -6883,12 +5945,11 @@ body.vscode-dark .composer-chip--snippet,
   color: var(--ak-c-button-foreground);
   border-color: transparent;
 }
-.ak-plan-card__btn--danger { color: var(--ak-c-charts-red); }
 .ak-plan-card__reject textarea {
   width: 100%;
   box-sizing: border-box;
   margin-top: 8px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
-.ak-plan-card__verify { margin-top: 10px; font-size: 12px; }
+.ak-plan-card__verify { margin-top: 10px; font-size: var(--ak-fs-sm); }
