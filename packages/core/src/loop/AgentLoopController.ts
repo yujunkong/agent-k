@@ -24,6 +24,12 @@ import {
 import { DoomLoopDetector } from './DoomLoopDetector';
 import { DoomLoopHandler } from './DoomLoopHandler';
 import { formatToolResultBody } from './execution/ToolResultBody';
+import { buildTurnSystemPrompt, joinStickyContext } from './execution/TurnPromptAssembly';
+import { interceptSwitchMode } from './execution/SwitchModeInterceptor';
+import { shapePermissionDenial } from './execution/PermissionDenialResult';
+import { appendFailureNudge } from './retry/failureNudge';
+import { runPostEditVerification } from './execution/PostEditVerify';
+import { pushVerifyExitNudge, pushPhaseExitNudge } from './execution/ExitNudges';
 import { decideModeSwitch } from './ModeSwitchHandler';
 import { classifyError, ErrorRecovery } from './ErrorRecovery';
 import { isParallelSafeTool, ParallelExecutor } from './ParallelExecutor';
@@ -333,17 +339,17 @@ export class AgentLoopController {
         this.timeout.bump();
 
         // Comment: V31-FRAME-01 then V31-LOOP-01 — frame before the phase cycle
-        const baseSystem = this.config.systemPrompt!;
-        const framed = this.tracksFrame()
-          ? injectProblemFramePrompt(baseSystem, this.config.intentKind!)
-          : baseSystem;
-        const systemPrompt = this.shouldTrackPhase()
-          ? injectPhasePrompt(framed, this.phaseTracker.current())
-          : framed;
-        const sticky =
-          [this.config.stickyContext, this.config.todoContextProvider?.()]
-            .filter(Boolean)
-            .join('\n\n') || undefined;
+        const systemPrompt = buildTurnSystemPrompt({
+          baseSystem: this.config.systemPrompt!,
+          intentKind: this.config.intentKind,
+          tracksFrame: this.tracksFrame(),
+          shouldTrackPhase: this.shouldTrackPhase(),
+          phase: this.phaseTracker.current(),
+        });
+        const sticky = joinStickyContext([
+          this.config.stickyContext,
+          this.config.todoContextProvider?.(),
+        ]);
 
         const assembled = this.config.realCompaction
           ? await this.assembler.assembleAsync(
@@ -482,16 +488,7 @@ export class AgentLoopController {
             if (exitCheck.reason === 'weak_final') {
               this.verifyExitWeakNudged = true;
             }
-            this.messages.push({
-              role: 'assistant',
-              content,
-              metadata: { turn: turns },
-            });
-            this.messages.push({
-              role: 'user',
-              content: exitCheck.nudge,
-              metadata: { turn: turns, type: 'verify_exit_nudge' },
-            });
+            pushVerifyExitNudge(this.messages, content, exitCheck.nudge, turns);
             this.emit({ type: 'turn_end', turn: turns });
             continue;
           }
@@ -502,17 +499,7 @@ export class AgentLoopController {
             this.phaseTracker.current() !== 'done' &&
             turns < this.config.maxTurns
           ) {
-            this.messages.push({
-              role: 'assistant',
-              content,
-              metadata: { turn: turns },
-            });
-            this.messages.push({
-              role: 'user',
-              content:
-                '[Phase] Verification is not done. Stay in verify/fix until edited paths are clean, then summarize.',
-              metadata: { turn: turns, type: 'phase_exit_nudge' },
-            });
+            pushPhaseExitNudge(this.messages, content, turns);
             this.emit({ type: 'turn_end', turn: turns });
             continue;
           }
@@ -682,18 +669,21 @@ export class AgentLoopController {
           // Comment: V31-RETRY-04 — denial becomes an actionable tool result;
           // the run continues once so the agent can choose an alternative.
           if (this.config.permissionRecovery) {
-            const recovery = this.permissionRecovery.onDenied({
-              toolName: call.name,
-              turn,
-            });
+            const shaped = shapePermissionDenial(
+              this.permissionRecovery,
+              call.name,
+              turn
+            );
             this.messages.push({
               role: 'tool',
-              content: recovery.recover
-                ? recovery.nudge
-                : `Permission denied for tool "${call.name}". ${recovery.nudge}`,
+              content: shaped.content,
               toolCallId: call.id,
               name: call.name,
-              metadata: { turn, toolName: call.name, type: 'permission_denied' },
+              metadata: {
+                turn,
+                toolName: call.name,
+                type: shaped.metadataType,
+              },
             });
             this.emit({
               type: 'tool_end',
@@ -701,7 +691,7 @@ export class AgentLoopController {
               ok: false,
               error: 'permission denied',
             });
-            return recovery.recover ? 'ok' : 'permission_denied';
+            return shaped.recover ? 'ok' : 'permission_denied';
           }
           this.messages.push({
             role: 'tool',
@@ -723,34 +713,30 @@ export class AgentLoopController {
       // Comment: V31-TOOL-06 — the loop owns mode changes; do not delegate to
       // the host tool (returns "not available"). Plan/Debug cannot self-escalate.
       if (call.name === 'switch_mode') {
-        const current = this.config.mode ?? 'agent';
-        const decision = decideModeSwitch(current, call.arguments?.mode);
-        if (decision.ok && decision.target && decision.config) {
-          this.config.mode = decision.target;
-          this.config.systemPrompt = decision.config.systemPrompt;
-          this.config.maxTurns = decision.config.maxTurns;
-          this.emit({
-            type: 'mode_switch',
-            from: current,
-            to: decision.target,
-            turn,
-          });
+        const sw = interceptSwitchMode(
+          this.config.mode ?? 'agent',
+          call.arguments?.mode
+        );
+        if (sw.next) {
+          this.config.mode = sw.next.mode;
+          this.config.systemPrompt = sw.next.systemPrompt;
+          this.config.maxTurns = sw.next.maxTurns;
         }
-        const body = decision.ok
-          ? `Switched mode from "${current}" to "${decision.target}". ${decision.config!.description}`
-          : `Error: ${decision.error}`;
         this.messages.push({
           role: 'tool',
-          content: body,
+          content: sw.body,
           toolCallId: call.id,
           name: call.name,
           metadata: { turn, toolName: call.name, type: 'tool_result' },
         });
+        if (sw.event) {
+          this.emit({ ...sw.event, turn } as AgentLoopEvent);
+        }
         this.emit({
           type: 'tool_end',
           call,
-          ok: decision.ok,
-          error: decision.ok ? undefined : decision.error,
+          ok: sw.ok,
+          error: sw.ok ? undefined : sw.error,
         });
         return 'ok';
       }
@@ -792,31 +778,14 @@ export class AgentLoopController {
 
       // Comment: V31-RETRY-01/02 — tool+args failure budget; delta-aware retry
       if (!result.success) {
-        const errorText = String(result.error ?? 'tool failed');
-        const record = this.failureTracker.record(
+        body = appendFailureNudge(
+          this.failureTracker,
+          body,
           call.name,
           call.arguments,
-          errorText,
+          String(result.error ?? 'tool failed'),
+          this.config.deltaAwareRetry === true
         );
-        if (
-          this.failureTracker.isExhausted({
-            toolName: call.name,
-            argsHash: record.argsHash,
-          })
-        ) {
-          // Exhausted wins over the delta nudge: alternating args must not
-          // suppress the stop-retrying escalation for the current args.
-          body +=
-            `\n\n"${call.name}" failed ${record.attempts} times with the same arguments. ` +
-            `Stop retrying it and choose a different approach or ask the user.`;
-        } else if (
-          this.config.deltaAwareRetry === true &&
-          this.failureTracker.isDeltaRetry(call.name, call.arguments)
-        ) {
-          body +=
-            `\n\n"${call.name}" failed before with different arguments; ` +
-            `retry with the current arguments.`;
-        }
       }
 
       // Comment: HARNESS-004 — post edit/write lint micro-loop (fail → continue work)
@@ -825,44 +794,19 @@ export class AgentLoopController {
         editedPath &&
         this.config.verificationMicroLoop !== false
       ) {
-        try {
-          const lintResult = await this.deps.executeTool({
-            name: 'read_lints',
-            args: { paths: [editedPath] },
-            callId: `${call.id}_verify`,
-            signal,
-          });
-          const lintErrors = parseLintErrorsFromToolResult(lintResult);
-          if (lintErrors.length > 0) {
-            const attempt = this.postEditVerify.nextAttempt(editedPath);
-            body =
-              `${body}\n\n` +
-              formatPostEditVerificationFailure(
-                lintErrors,
-                attempt - 1,
-                this.postEditVerify.maxAttempts,
-              );
-          } else {
-            markPathVerified(this.verifyExitState, editedPath);
-            // Comment: V31-LOOP-02 — inline self-critique after clean edit
-            const critique = this.critiqueRunner.run({
-              editedPaths: [editedPath],
-              messages: this.messages,
-              turn,
-            });
-            if (critique?.nudge) {
-              body = `${body}\n\n${critique.nudge}`;
-              this.emit({
-                type: 'self_critique',
-                turn,
-                passes: critique.passes,
-                text: critique.nudge,
-              });
-            }
-          }
-        } catch {
-          /* verification must not break tool batch */
-        }
+        const postEdit = await runPostEditVerification(body, {
+          editedPath,
+          callId: call.id,
+          signal,
+          tracker: this.postEditVerify,
+          verifyExitState: this.verifyExitState,
+          critiqueRunner: this.critiqueRunner,
+          messages: this.messages,
+          turn,
+          executeTool: this.deps.executeTool,
+        });
+        body = postEdit.body;
+        if (postEdit.critiqueEvent) this.emit(postEdit.critiqueEvent);
       }
 
       this.messages.push({

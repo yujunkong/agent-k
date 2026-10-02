@@ -1661,7 +1661,10 @@ export async function runHostChatSend(
           ? `${modeConfig.systemPrompt}\n\n${formatInlineEditSystemContext(inlineEditReq)}`
           : modeConfig.systemPrompt,
         {
-          // Comment: V31-PLAN-01 — plan/debug stage prompts are now injected
+          // Comment: V31-PLAN-01 — stage prompts injected from one host-owned
+          // source: plan from the live plan state (`planStage`, advances via
+          // plan tool calls), debug from the payload (`payload.debugStage`,
+          // set by the client on send). Both are per-send, never stacked.
           planStage: mode === 'plan' ? planStage : undefined,
           debugStage:
             mode === 'debug'
