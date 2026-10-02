@@ -32,6 +32,17 @@ export {
 export { DoomLoopDetector, type DoomLoopInfo } from './DoomLoopDetector';
 
 export {
+  decideModeSwitch,
+  type ModeSwitchDecision,
+} from './ModeSwitchHandler';
+
+export {
+  formatToolResultBody,
+  type ToolResultBody,
+  type ToolResultBodyInput,
+} from './execution/ToolResultBody';
+
+export {
   DoomLoopHandler,
   type DoomLoopAlert,
 } from './DoomLoopHandler';

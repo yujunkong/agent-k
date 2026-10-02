@@ -24,13 +24,16 @@ export function listCheckpoints(count = 50): Checkpoint[] {
  * Restore a checkpoint: CheckpointManager.restore → host applies file snapshots.
  * Never throws into the router — structured warning on failure.
  */
-export async function restoreCheckpoint(id: string, reason?: string): Promise<void> {
+export async function restoreCheckpoint(
+  id: string,
+  reason?: string,
+): Promise<{ restored: number; failed: number; found: boolean }> {
   const result = checkpointManager.restore(id);
   if (!result.ok) {
     void vscode.window.showWarningMessage(
       `Agent K: checkpoint not found (${id})${reason ? ` — ${reason}` : ''}`,
     );
-    return;
+    return { restored: 0, failed: 0, found: false };
   }
 
   let restored = 0;
@@ -56,4 +59,5 @@ export async function restoreCheckpoint(id: string, reason?: string): Promise<vo
       `Agent K: checkpoint restored (${restored} file(s))${reason ? ` — ${reason}` : ''}`,
     );
   }
+  return { restored, failed, found: true };
 }

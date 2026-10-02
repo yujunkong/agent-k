@@ -163,3 +163,11 @@ export function readDoomLoopOptions(
   if (!detectAlternation && !ignoreArgsOnSameError) return undefined;
   return { detectAlternation, ignoreArgsOnSameError };
 }
+
+/**
+ * V31-SUB-01 — carry the parent's uncommitted changes into subagent worktrees.
+ * Default false: the worktree branch is HEAD-only unless opted in.
+ */
+export function readInheritParentChangesEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('subagent.inheritParentChanges') === true;
+}

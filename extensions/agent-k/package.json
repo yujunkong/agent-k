@@ -435,6 +435,11 @@
           "type": "boolean",
           "default": false,
           "description": "Treat repeated failures of the same tool with the same error as a doom loop even when arguments drift."
+        },
+        "agent-k.subagent.inheritParentChanges": {
+          "type": "boolean",
+          "default": false,
+          "description": "Carry the parent's uncommitted changes into subagent worktrees (otherwise subagents review the HEAD tree)."
         }
       }
     }

@@ -45,6 +45,7 @@ import {
 } from '@agent-k/tools';
 import * as vscode from 'vscode';
 import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { hostLog, hostLogError } from './hostLog';
 import { createPrefetchIdeDeps } from './prefetchDeps';
 import { getMcpToolBridge } from './mcpHost';
@@ -60,6 +61,7 @@ import {
   readToolCallFallbackEnabled,
   readDeltaAwareRetryEnabled,
   readDoomLoopOptions,
+  readInheritParentChangesEnabled,
   resolveEffectiveHarnessFlags,
 } from './chatSendConfig';
 import { NativeThenFallbackNormalizer } from './turn/ToolCallNormalizer';
@@ -80,6 +82,14 @@ import {
   SUBAGENT_MAX_TURNS,
 } from './subagentHost';
 import { registerSubagentWorktree } from './subagentWorktreeRegistry';
+import { getCheckpointManager, restoreCheckpoint } from './checkpointHost';
+import {
+  getTerminalOutput,
+  listProcesses,
+  recordTerminalChunk,
+  recordTerminalEnd,
+  recordTerminalStart,
+} from './terminalSessionHost';
 
 /** In-flight loop runtime keyed by requestId. */
 export type HostLoopRuntime = {
@@ -216,7 +226,7 @@ export async function runHostChatSend(
   // Comment: V31-TOOL-04 — same id used for session routing; requestId fallback
   const sessionId = parentSessionId || requestId;
 
-  const mode = (payload.mode || 'agent') as AgentMode;
+  let mode = (payload.mode || 'agent') as AgentMode;
   // Comment: PLAN-009 — plan stage drives write-tool visibility + permission gate
   const planStage = payload.planStage || 'research';
   const cfg = vscode.workspace.getConfiguration('agent-k');
@@ -368,6 +378,90 @@ export async function runHostChatSend(
       }
       return out;
     },
+    // Comment: V31-TOOL-07 — checkpoint_create snapshots open workspace files
+    createCheckpoint: async (input) => {
+      const mgr = getCheckpointManager();
+      const requested = Array.isArray(input.paths)
+        ? (input.paths as unknown[]).map((p) => String(p))
+        : undefined;
+      const filePaths = (requested?.length
+        ? requested.map((p) => (path.isAbsolute(p) ? p : path.join(root, p)))
+        : vscode.workspace.textDocuments
+            .filter((d) => d.uri.scheme === 'file')
+            .map((d) => d.uri.fsPath)
+      ).filter((fp) => {
+        const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
+        return fp === root || fp.startsWith(rootWithSep);
+      });
+      const contents: Record<string, string> = {};
+      for (const fp of filePaths) {
+        try {
+          contents[fp] = fs.readFileSync(fp, 'utf-8');
+        } catch {
+          /* unreadable path is skipped, not fatal */
+        }
+      }
+      const label =
+        input.label != null ? String(input.label) : 'Agent checkpoint';
+      const cp = mgr.create(contents, {
+        turnNumber: currentTurn || 1,
+        mode,
+        trigger: 'user_request',
+        label,
+      });
+      hostLog(
+        'checkpoint create',
+        `id=${cp.id} files=${cp.fileSnapshots.length} label=${label}`,
+      );
+      return {
+        checkpointId: cp.id,
+        label: cp.label,
+        fileCount: cp.fileSnapshots.length,
+        workspaceRoot: root,
+      };
+    },
+    // Comment: V31-TOOL-07 — checkpoint_restore lists when id omitted else applies
+    restoreCheckpoint: async (input) => {
+      const id =
+        input.id != null
+          ? String(input.id)
+          : input.checkpointId != null
+            ? String(input.checkpointId)
+            : undefined;
+      const mgr = getCheckpointManager();
+      if (!id) {
+        return {
+          checkpoints: mgr.list().map((c) => ({
+            id: c.id,
+            label: c.label,
+            timestamp: c.timestamp,
+            fileCount: c.fileSnapshots.length,
+          })),
+        };
+      }
+      const result = mgr.restore(id);
+      if (!result.ok) {
+        throw new Error(`Checkpoint not found: ${id}`);
+      }
+      const applied = await restoreCheckpoint(id, 'agent restore');
+      return {
+        checkpointId: id,
+        restored: applied.restored,
+        failed: applied.failed,
+      };
+    },
+    // Comment: V31-TOOL-07 — read buffered output of a prior terminal run
+    terminalOutput: async (input) => {
+      const id =
+        input.id != null
+          ? String(input.id)
+          : input.runId != null
+            ? String(input.runId)
+            : undefined;
+      return getTerminalOutput(sessionId, id);
+    },
+    // Comment: V31-TOOL-07 — enumerate agent-managed terminal runs
+    processList: async () => ({ processes: listProcesses(sessionId) }),
   };
 
   // Comment: SUB-* — parent turn counter for subagent.event / timeline ids
@@ -390,6 +484,8 @@ export async function runHostChatSend(
   const subagentHost = createSubagentHost({
     systemPrompt,
     repoRoot: root,
+    // Comment: V31-SUB-01 — parent uncommitted changes into sub worktrees (opt-in)
+    inheritParentChanges: readInheritParentChangesEnabled(cfg),
     // Comment: SUB-010 — child NL response must land on child session (not parent)
     onDelta: (context, text) => {
       const piece = String(text || '');
@@ -1222,6 +1318,15 @@ export async function runHostChatSend(
             'card.pipe',
             `card.terminal emit phase=start requestId=${requestId} id=${termId} toolId=${callId || '-'} cmd=${termCommand.slice(0, 120)}`,
           );
+          // Comment: V31-TOOL-07 — record run for terminal_output / process_list
+          recordTerminalStart({
+            sessionId,
+            id: termId,
+            command: termCommand,
+            description: termDescription,
+            cwd:
+              typeof args.cwd === 'string' ? String(args.cwd) : undefined,
+          });
           postStream({
             event: 'terminal.run',
             run: {
@@ -1241,6 +1346,8 @@ export async function runHostChatSend(
           onTerminalChunk: isTerminal
             ? (chunk, stream) => {
                 termChunked = true;
+                // Comment: V31-TOOL-07 — buffer chunks for later terminal_output
+                recordTerminalChunk(sessionId, termId, chunk, stream);
                 postStream({
                   event: 'terminal.run',
                   run: {
@@ -1354,6 +1461,7 @@ export async function runHostChatSend(
                   ? String(result.error)
                   : '';
             if (stdout) {
+              recordTerminalChunk(sessionId, termId, stdout, 'stdout');
               postStream({
                 event: 'terminal.run',
                 run: {
@@ -1366,6 +1474,7 @@ export async function runHostChatSend(
               });
             }
             if (stderr) {
+              recordTerminalChunk(sessionId, termId, stderr, 'stderr');
               postStream({
                 event: 'terminal.run',
                 run: {
@@ -1379,6 +1488,15 @@ export async function runHostChatSend(
             }
           }
           const durationMs = Date.now() - termStartedAt;
+          // Comment: V31-TOOL-07 — finalize the run record for later tool reads
+          recordTerminalEnd({
+            sessionId,
+            id: termId,
+            exitCode,
+            status: result.success ? 'done' : 'error',
+            error: result.error,
+            cwd: data.cwd != null ? String(data.cwd) : undefined,
+          });
           hostLog(
             'card.pipe',
             `card.terminal emit phase=end requestId=${requestId} id=${termId} exit=${exitCode} ms=${durationMs} chunked=${termChunked} status=${result.success ? 'done' : 'error'}`,
@@ -1492,6 +1610,19 @@ export async function runHostChatSend(
       onEvent: (event: AgentLoopEvent) => {
         if (event.type === 'turn_start') {
           currentTurn = event.turn;
+        }
+        // Comment: V31-TOOL-06 — model switched mode; reflect it for later turns + UI
+        if (event.type === 'mode_switch') {
+          mode = event.to;
+          toolCtxBase.mode = event.to;
+          void webview?.postMessage({
+            type: 'mode.switch',
+            mode: event.to,
+          });
+          hostLog(
+            'card.pipe',
+            `mode.switch via tool requestId=${requestId} from=${event.from} to=${event.to} turn=${event.turn}`,
+          );
         }
         mapLoopEventToStream(event, postStream, currentTurn);
       },
