@@ -23,3 +23,5 @@ export * from './trajectory/recorder';
 export * from './domain/domain';
 export * from './search/propose';
 export * from './domain/loop';
+export * from './search/calibrate';
+export * from './search/criticLlm';
