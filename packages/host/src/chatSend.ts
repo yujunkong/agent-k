@@ -69,6 +69,7 @@ import { todoStore } from './session/TodoStore';
 import { persistSessionTodos } from './session/todoPersistence';
 import { sessionTranscriptStore } from './session/SessionTranscriptStore';
 import { persistSessionTranscript } from './session/transcriptPersistence';
+import { recordRunTrajectory } from './rrsi/rrsiHost';
 import { collectWorkspaceContext } from './workspaceContext';
 import { shortDetail, toolKind } from './timelineLabels';
 import {
@@ -1726,6 +1727,8 @@ export async function runHostChatSend(
     }
   }
 
+  let loopStopReason = 'error';
+  let loopTurns = 0;
   try {
     postStream({ event: 'status', status: 'running' });
     const result = await loop.run({
@@ -1733,6 +1736,8 @@ export async function runHostChatSend(
       signal: abort.signal,
       messages: prior.length ? prior : undefined,
     });
+    loopStopReason = result.reason;
+    loopTurns = result.turns;
     // Comment: V31-CTX-01 — persist the run transcript (tool results survive)
     if (transcriptEnabled) {
       sessionTranscriptStore.replace(
@@ -1801,6 +1806,16 @@ export async function runHostChatSend(
     persistSessionTodos(sessionId);
     // Comment: V31-CTX-01 — transcript reload survival
     if (transcriptEnabled) persistSessionTranscript(sessionId);
+    // Comment: RRSI — per-run trajectory evidence (no-op until bound)
+    recordRunTrajectory({
+      sessionId,
+      requestId,
+      mode,
+      intentKind: intent.enabled ? intent.verdict.kind : undefined,
+      stopReason: loopStopReason,
+      turns: loopTurns,
+      toolCalls: toolEvents,
+    });
     ctx.hostLoops.delete(requestId);
     if (ctx.getHostLoopRequestId() === requestId) {
       ctx.setHostLoopRequestId(undefined);

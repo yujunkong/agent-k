@@ -21,7 +21,8 @@
     "@agent-k/tools": "*",
     "@agent-k/safety": "*",
     "@agent-k/worktree": "*",
-    "@agent-k/plan": "*"
+    "@agent-k/plan": "*",
+    "@agent-k/rrsi": "*"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

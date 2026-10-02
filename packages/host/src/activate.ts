@@ -24,6 +24,7 @@ import { SelectionDiffApply } from './inline/SelectionDiffApply';
 import { AgentKInlineCompletionProvider } from './inline/InlineCompletionProvider';
 import { bindTodoPersistence } from './session/todoPersistence';
 import { bindTranscriptPersistence } from './session/transcriptPersistence';
+import { bindRRSIStorage } from './rrsi/rrsiHost';
 
 let provider: ChatViewProvider | undefined;
 
@@ -38,6 +39,12 @@ export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvid
   bindTodoPersistence(context.workspaceState);
   // Comment: V31-CTX-01 — restore session transcripts before the first send
   bindTranscriptPersistence(context.workspaceState);
+  // Comment: RRSI — trajectory recorder + harness policy dir (global storage)
+  try {
+    bindRRSIStorage(context.globalStorageUri.fsPath);
+  } catch {
+    /* RRSI is optional — never block activation */
+  }
   hostLog('host activate', `version=${context.extension.packageJSON?.version ?? '?'}`);
 
   const extensionVersion =

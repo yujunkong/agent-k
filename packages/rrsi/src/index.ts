@@ -20,3 +20,6 @@ export * from './search/components';
 export * from './search/critic';
 export * from './policy/schema';
 export * from './trajectory/recorder';
+export * from './domain/domain';
+export * from './search/propose';
+export * from './domain/loop';
