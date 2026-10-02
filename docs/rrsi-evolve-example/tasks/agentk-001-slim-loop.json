@@ -1,0 +1,16 @@
+{
+  "id": "agentk-001-slim-loop",
+  "prompt": "Reduce the line count of packages/core/src/loop/AgentLoopController.ts by extracting at least one cohesive module into packages/core/src/loop/execution/ without changing behavior. Keep all existing tests passing and do not modify test files.",
+  "repo": ".",
+  "verify": [
+    { "cmd": "npm run test -w @agent-k/core", "expectExit": 0 },
+    { "cmd": "npm run typecheck -w @agent-k/core", "expectExit": 0 }
+  ],
+  "requirements": [
+    "AgentLoopController.ts has fewer lines than before the task",
+    "at least one new module under packages/core/src/loop/execution/",
+    "core tests pass",
+    "core typecheck passes"
+  ],
+  "timeoutMs": 900000
+}

@@ -1,0 +1,15 @@
+{
+  "id": "agentk-002-policy-loader",
+  "prompt": "Add a unit test for loadPolicyBundle in packages/rrsi that covers a directory containing a valid verification.policy.json plus a malformed worker.policy.json. The malformed file must fall back to defaults and report exactly one error.",
+  "repo": ".",
+  "verify": [
+    { "cmd": "npm run test -w @agent-k/rrsi", "expectExit": 0 },
+    { "cmd": "npm run typecheck -w @agent-k/rrsi", "expectExit": 0 }
+  ],
+  "requirements": [
+    "new test exists for the malformed-policy fallback",
+    "rrsi tests pass",
+    "rrsi typecheck passes"
+  ],
+  "timeoutMs": 600000
+}

@@ -25,3 +25,4 @@ export * from './search/propose';
 export * from './domain/loop';
 export * from './search/calibrate';
 export * from './search/criticLlm';
+export * from './domain/agentKCoding';

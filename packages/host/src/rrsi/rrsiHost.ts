@@ -7,6 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { TrajectoryRecorder } from '@agent-k/rrsi';
+import { LiteLLMProvider } from '@agent-k/providers';
 
 let recorder: TrajectoryRecorder | undefined;
 let policiesDir: string | undefined;
@@ -47,4 +48,37 @@ export function recordRunTrajectory(rec: {
 }): void {
   if (!recorder) return;
   recorder.append({ reward: rec.reward ?? null, ...rec });
+}
+
+/**
+ * RRSI Phase 5 — GenerateFn bridge to the host provider stack. The search
+ * roles (proposer/analyst/critic) reuse the same LiteLLM endpoint as chat
+ * but with a plain request: no tools, no streaming, no tool schema.
+ */
+export function createRRSIGenerateFn(input: {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}): (a: { system: string; prompt: string }) => Promise<string> {
+  const provider = new LiteLLMProvider({
+    id: 'agent-k-rrsi',
+    name: 'Agent K RRSI',
+    type: 'litellm',
+    baseUrl: input.baseUrl,
+    apiKey: input.apiKey,
+    model: input.model,
+  });
+  return async ({ system, prompt }) => {
+    let out = '';
+    for await (const chunk of provider.streamChat({
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: prompt },
+      ],
+      model: input.model,
+    })) {
+      if (chunk.content) out += chunk.content;
+    }
+    return out;
+  };
 }
