@@ -850,14 +850,17 @@ export function MessageSteps({
 
   type CuriosityPhase = BuiltCuriosityPhase;
 
+  // Comment: STREAM-flicker — phases only need liveProse truthiness; full string
+  // changes every delta and was rebuilding Exploring/Thought for no reason.
+  const liveProseTruthy = Boolean(liveProse?.trim());
   const phases = useMemo((): CuriosityPhase[] => {
     // Comment: Exploring cuts at mid-message / Edit / Command via afterStepId.
     return buildCuriosityPhases(steps, turnProse, {
-      liveProse,
+      liveProse: liveProseTruthy ? 'x' : undefined,
       isStreaming,
       hasLiveAnswer
     });
-  }, [steps, turnProse, liveProse, isStreaming, hasLiveAnswer]);
+  }, [steps, turnProse, liveProseTruthy, isStreaming, hasLiveAnswer]);
 
   /**
    * Attach file/terminal cards to the phase that owns the matching action

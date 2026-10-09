@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import type { JSX } from 'react';
 import { CodeBlock } from './components/CodeBlock';
 import { MermaidDiagram } from './components/MermaidDiagram';
@@ -48,13 +48,13 @@ export function parseStreamingMarkdown(
 }
 
 export function StreamingMarkdown({ content, isStreaming }: StreamingMarkdownProps) {
-  const [nodes, setNodes] = useState<ParsedNode[]>([]);
   const parserRef = useRef<MarkdownParser>(new MarkdownParser());
 
-  useEffect(() => {
+  // Comment: STREAM-flicker — sync parse during render. useEffect+setState painted
+  // stale nodes first (erase), then rewrote after paint on every delta.
+  const nodes = useMemo(() => {
     parserRef.current.setStreaming(isStreaming);
-    const newNodes = parserRef.current.feed(content);
-    setNodes(newNodes);
+    return parserRef.current.feed(content);
   }, [content, isStreaming]);
 
   return (
