@@ -1,0 +1,816 @@
+/* V31-UI-16/19 — Thread chrome: explore rail, thought, file-edit, terminal. */
+/* Explore list body always fully opaque + scroll behavior */
+.ak-explore-scroll {
+  opacity: 1;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+.ak-tool-slide-list {
+  padding: 2px 0 6px var(--ak-thread-inset, 12px);
+  box-sizing: border-box;
+}
+
+/* Nested explore tool rows: one rail under the title column (only border-left here) */
+.ak-tool-slide-list.ak-explore-scroll {
+  margin-left: var(--ak-thread-inset, 12px);
+  padding: 2px 0 6px 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Live vs settled max-height for explore tool list */
+.ak-explore-scroll--live {
+  max-height: 220px;
+}
+
+.ak-explore-scroll--settled {
+  max-height: 320px;
+}
+
+.ak-explore-nested-thought {
+  margin-top: 2px;
+  padding-left: 0;
+}
+
+/* Mid-Thought rows inside Exploring — no thread inset (already indented by explore rail) */
+.ak-explore-scroll .ak-explore-mid-thought__btn.ak-step-chevron-btn {
+  padding-left: 0;
+}
+
+/* Explore mid-thought + tool rows (structure from ExploreChrome; styles live here) */
+.ak-explore-mid-thought {
+  padding: 1px 0;
+}
+
+.ak-explore-mid-thought__btn {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--ak-fs-xs);
+  cursor: pointer;
+  text-align: left;
+}
+
+.ak-explore-mid-thought__chevron {
+  opacity: 0.7;
+  flex-shrink: 0;
+  width: 10px;
+}
+
+.ak-explore-mid-thought__title {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.ak-explore-mid-thought--live .ak-explore-mid-thought__title {
+  font-weight: 500;
+}
+
+.ak-explore-tool-row {
+  display: flex;
+  gap: 8px;
+  padding: 1px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--ak-fs-xs);
+}
+
+.ak-explore-tool-row__marker {
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.ak-explore-tool-row--failed .ak-explore-tool-row__marker {
+  opacity: 0.95;
+  color: #f87171;
+}
+
+.ak-explore-tool-row__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.ak-explore-tool-row--failed .ak-explore-tool-row__text {
+  color: #fca5a5;
+}
+
+.ak-explore-tool-row__detail {
+  opacity: 0.75;
+}
+
+/* Clickable Read / Grepped / Edit path (Cursor-style file link) */
+.ak-explore-file-link {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: left;
+}
+
+.ak-explore-file-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+  color: var(--vscode-textLink-foreground, #3794ff);
+}
+
+/*
+ * Prose inside explore rail — don't re-apply thread inset.
+ * !important is load-bearing: `.message-steps .message-content.message-turn-prose`
+ * (0,3,0, later in this file) sets padding-left back to --ak-thread-inset.
+ */
+.ak-explore-scroll .ak-explore-inline-prose,
+.ak-explore-scroll .message-turn-prose {
+  padding-left: 0 !important;
+}
+
+.ak-tool-slide-in {
+  animation: ak-slide-in 0.28s ease-out;
+}
+
+.ak-explore-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ak-explore-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 3px;
+}
+
+.ak-tool-row--running {
+  color: var(--vscode-foreground, #ccc);
+}
+
+.message-steps-thought-body {
+  padding: 2px 0 8px var(--ak-thread-inset, 12px);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font-size: var(--ak-fs-sm);
+  line-height: 1.5;
+  max-height: 420px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  white-space: pre-wrap;
+  word-break: break-word;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  /* Ensure wheel/trackpad scroll works inside the pane */
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Nested under Exploring — already inside the explore rail */
+.message-steps-thought-body--mid {
+  padding-left: 0;
+  max-height: 96px;
+  font-size: var(--ak-fs-xs);
+  opacity: 1;
+}
+
+.message-steps-turn:has(.ak-step-row--live) .message-steps-thought-body {
+  max-height: 360px;
+}
+
+.message-steps-turn:has(.ak-step-row--live) .message-steps-thought-body--mid {
+  max-height: 120px;
+}
+
+/* Diff / terminal cards — same column as Explored (no extra indent) */
+.ak-cards-under-action {
+  margin: 2px 0 8px;
+  padding-left: 0;
+}
+
+.ak-cards-under-action .ak-file-edit-card,
+.ak-cards-under-action .ak-terminal-card {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+/* Orphan Edited row (no FileEditPreview yet) — flush with Explored, not nested */
+.ak-edit-flush-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: var(--ak-fs-sm);
+  color: var(--vscode-descriptionForeground, #888);
+}
+
+.ak-edit-flush-row__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ak-edit-flush-row__ms {
+  flex-shrink: 0;
+  opacity: 0.45;
+  font-size: var(--ak-fs-xs);
+}
+
+/* File edit card — same surface as terminal / code */
+.ak-file-edit-card {
+  margin: 6px 0;
+  border-radius: 8px;
+  border: 1px solid var(--ak-card-border);
+  background: var(--ak-card-bg);
+  overflow: hidden;
+  position: relative;
+}
+
+/* V31-UI-11 — header is a row: filename opens, stats toggle expand */
+.ak-file-edit-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--ak-card-border);
+  background: var(--ak-card-header-bg);
+  color: var(--vscode-foreground, #ccc);
+  text-align: left;
+  font: inherit;
+}
+
+.ak-file-edit-header__open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ak-file-edit-header__toggle {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Controlled by parent → toggle is inert (aria-disabled) */
+.ak-file-edit-header__toggle[aria-disabled='true'] {
+  cursor: default;
+}
+
+.ak-file-edit-header__lang {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--vscode-foreground, #fff);
+  font-size: var(--ak-fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.ak-file-edit-header__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  font-size: var(--ak-fs-md);
+}
+
+.ak-file-edit-header__stats {
+  display: inline-flex;
+  gap: 6px;
+  font-size: var(--ak-fs-xs);
+  flex-shrink: 0;
+}
+
+.ak-file-edit-header__add {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.ak-file-edit-header__del {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.ak-file-edit-diff {
+  font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
+  font-size: var(--ak-fs-xs);
+  line-height: 1.45;
+  background: var(--ak-card-bg);
+  /* Comment: CONV-019 — collapsed ≈ 4 lines; expand raises viewport */
+  max-height: var(--ak-card-body-max, 72px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.ak-file-edit-card--expanded .ak-file-edit-diff {
+  max-height: var(--ak-card-body-max-expanded, 280px);
+}
+
+.ak-file-edit-diff__line {
+  display: grid;
+  grid-template-columns: 40px 14px 1fr;
+  gap: 0;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.ak-file-edit-diff__line--add {
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.ak-file-edit-diff__line--add .ak-file-edit-diff__mark,
+.ak-file-edit-diff__line--add .ak-file-edit-diff__ln {
+  color: #86efac;
+}
+
+.ak-file-edit-diff__line--delete {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.ak-file-edit-diff__line--delete .ak-file-edit-diff__mark,
+.ak-file-edit-diff__line--delete .ak-file-edit-diff__ln {
+  color: #fca5a5;
+}
+
+.ak-file-edit-diff__line--context {
+  background: transparent;
+}
+
+.ak-file-edit-diff__line--context .ak-file-edit-diff__mark,
+.ak-file-edit-diff__line--context .ak-file-edit-diff__ln {
+  color: var(--vscode-foreground, #ccc);
+}
+
+/* Fallback when Shiki hasn't painted tokens yet */
+.ak-file-edit-diff__line--add .ak-file-edit-diff__text {
+  color: #86efac;
+}
+
+.ak-file-edit-diff__line--delete .ak-file-edit-diff__text {
+  color: #fca5a5;
+}
+
+.ak-file-edit-diff__line--context .ak-file-edit-diff__text {
+  color: var(--vscode-foreground, #ccc);
+}
+
+.ak-file-edit-diff__ln {
+  opacity: 0.45;
+  text-align: right;
+  padding: 0 6px;
+  user-select: none;
+}
+
+.ak-file-edit-diff__mark {
+  opacity: 0.7;
+  user-select: none;
+}
+
+.ak-file-edit-diff__text {
+  flex: 1;
+  min-width: 0;
+  padding-right: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+  font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
+  font-size: var(--ak-fs-sm);
+  line-height: 1.45;
+}
+
+.ak-file-edit-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 4px 0 6px;
+  border: none;
+  border-top: 1px solid var(--ak-card-border);
+  background: transparent;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.ak-file-edit-expand--collapsed {
+  padding: 0;
+  height: 0;
+  overflow: hidden;
+  border-top: none;
+  opacity: 0;
+}
+
+/* 1-4f: Inline Edit presentation over FileEditCard */
+.ak-inline-edit-diff {
+  margin: 6px 0;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 40%, var(--ak-card-border, #444));
+  background: var(--ak-card-bg, transparent);
+  overflow: hidden;
+}
+
+.ak-inline-edit-diff--rejected {
+  opacity: 0.72;
+}
+
+.ak-inline-edit-diff__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px 6px;
+  border-bottom: 1px solid var(--ak-card-border, rgba(255, 255, 255, 0.08));
+  background: color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 10%, transparent);
+}
+
+.ak-inline-edit-diff__title {
+  font-size: var(--ak-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--vscode-focusBorder, #67e8f9);
+}
+
+.ak-inline-edit-diff__status {
+  font-size: var(--ak-fs-xs);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.ak-inline-edit-diff .ak-file-edit-card {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.ak-inline-edit-diff__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--ak-card-border, rgba(255, 255, 255, 0.08));
+}
+
+.ak-inline-edit-diff__reject,
+.ak-inline-edit-diff__accept {
+  border: none;
+  border-radius: 6px;
+  font: inherit;
+  font-size: var(--ak-fs-sm);
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.ak-inline-edit-diff__reject {
+  background: transparent;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.ak-inline-edit-diff__reject:hover {
+  color: var(--vscode-foreground, #ccc);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ak-inline-edit-diff__accept {
+  background: var(--vscode-button-background, #0e639c);
+  color: var(--vscode-button-foreground, #fff);
+}
+
+.ak-inline-edit-diff__accept:hover {
+  background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.ak-diff-review {
+  margin: 6px 8px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ak-diff-review__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 4px 6px;
+}
+
+.ak-diff-review__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ak-diff-review__summary {
+  font-size: var(--ak-fs-xs);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.ak-diff-review__actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.ak-diff-review__secondary {
+  border: none;
+  background: transparent;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font: inherit;
+  font-size: var(--ak-fs-sm);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ak-diff-review__secondary:hover {
+  color: var(--vscode-foreground, #ccc);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ak-diff-review__body {
+  display: grid;
+  grid-template-columns: minmax(120px, 34%) 1fr;
+  gap: 8px;
+  min-height: 160px;
+}
+
+.ak-diff-review__files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.ak-diff-review__file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--ak-fs-sm);
+  text-align: left;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ak-diff-review__file:hover,
+.ak-diff-review__file--active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ak-diff-review__file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ak-diff-review__file-stats {
+  display: inline-flex;
+  gap: 4px;
+  font-size: var(--ak-fs-xs);
+}
+
+.ak-diff-review__diff {
+  min-width: 0;
+}
+
+/* Clarifying questions stick above composer so ask_question never hides off-screen.
+   Use a fixed px height — vh/% collapses the dock in a short sidebar. */
+.clarifying-dock {
+  flex: 0 0 320px;
+  height: 320px;
+  min-height: 320px;
+  max-height: 320px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--ak-chrome-border);
+  background: var(--vscode-editor-background, #1e1e1e);
+  padding: 8px 12px;
+}
+
+/* Harness tier strip — quiet, same chrome as editor */
+.ux-for-medium-panel {
+  padding: 3px 12px;
+  font-size: var(--ak-fs-xs);
+  border-bottom: 1px solid var(--ak-chrome-border);
+  background: var(--vscode-editor-background, #1e1e1e);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+}
+
+.ux-for-medium-panel__line {
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ux-for-medium-panel__stuck {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ux-for-medium-panel__stuck-msg {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.ux-for-medium-panel__stuck button {
+  font-size: var(--ak-fs-xs);
+  padding: 2px 8px;
+}
+
+/* Cursor-style terminal run card — FileEdit parity (clipped body + bottom expand) */
+.ak-terminal-card {
+  margin: 6px 0;
+  border-radius: 8px;
+  border: 1px solid var(--ak-card-border);
+  background: var(--ak-card-bg);
+  overflow: hidden;
+  position: relative;
+}
+
+.ak-terminal-card--live {
+  border-color: color-mix(in srgb, var(--vscode-charts-blue, #4fc1ff) 40%, transparent);
+}
+
+.ak-terminal-card--error {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.ak-terminal-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-bottom: 1px solid var(--ak-card-border);
+  background: var(--ak-card-header-bg);
+  color: var(--vscode-foreground, #ccc);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* V31-UI-11 — controlled (parent owns expand) → header is a non-interactive div */
+div.ak-terminal-card__header {
+  cursor: default;
+}
+
+.ak-terminal-card__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--vscode-descriptionForeground, #ccc);
+  font-size: var(--ak-fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.ak-terminal-card__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  font-size: var(--ak-fs-md);
+  font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
+}
+
+.ak-terminal-card__prompt {
+  opacity: 0.55;
+  margin-right: 2px;
+}
+
+.ak-terminal-card__meta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--ak-fs-xs);
+}
+
+.ak-terminal-card__dur {
+  opacity: 0.75;
+}
+
+.ak-terminal-card__body {
+  background: var(--ak-card-bg);
+}
+
+.ak-terminal-card__cmd {
+  padding: 6px 10px 0;
+  font-size: var(--ak-fs-xs);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  font-family: var(--vscode-editor-font-family, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ak-terminal-card__output {
+  margin: 0;
+  padding: 10px 12px 12px;
+  /* Comment: CONV-018 — collapsed ≈ 4 lines; --expanded raises viewport */
+  max-height: var(--ak-card-body-max, 72px);
+  overflow: auto;
+  font-size: var(--ak-fs-sm);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--vscode-editor-foreground, #d4d4d4);
+  font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
+}
+
+.ak-terminal-card--expanded .ak-terminal-card__output {
+  /* Comment: full command log — 280px felt "broken" for short pwd/ls cards */
+  max-height: min(70vh, 720px);
+}
+
+/* Comment: same chrome as .ak-file-edit-expand */
+.ak-terminal-card__expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 4px 0 6px;
+  border: none;
+  border-top: 1px solid var(--ak-card-border);
+  background: var(--ak-card-header-bg, transparent);
+  color: var(--vscode-descriptionForeground, #9d9d9d);
+  cursor: pointer;
+  opacity: 0.85;
+  position: relative;
+  z-index: 2;
+}
+
+.ak-terminal-card__expand:hover {
+  opacity: 1;
+  color: var(--vscode-foreground, #ccc);
+}
+
+.ak-terminal-card__caret {
+  display: inline-block;
+  width: 2px;
+  height: 0.95em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--vscode-editorCursor-foreground, #aeafad);
+  animation: ak-code-caret 1s step-end infinite;
+}

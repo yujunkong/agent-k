@@ -11,6 +11,9 @@ import './ui/workspace-polish.css';
 import './components/conversation-variants.css';
 import './styles/empty-state.css';
 import './styles/focus.css';
+import './styles/history-rail.css';
+import './styles/settings-hub.css';
+import './styles/thread-chrome.css';
 
 const el = document.getElementById('chat-root');
 if (!el) {
