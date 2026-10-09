@@ -59,6 +59,7 @@ describe('V31-UI-14/15 type scale + chip palette', () => {
       '--ak-chip-file-bg',
       '--ak-chip-folder-bg',
       '--ak-chip-log-bg',
+      '--ak-accent',
     ]) {
       expect(cursorUiCss).toMatch(new RegExp(`${token}\\s*:`));
     }
@@ -67,6 +68,15 @@ describe('V31-UI-14/15 type scale + chip palette', () => {
   it('chat.css has no bare font-size below 11px', () => {
     // Comment: token defs live in cursor-ui; chat.css must use var(--ak-fs-*).
     expect(chatCss).not.toMatch(/font-size:\s*(?:[0-9]|10)(?:\.\d+)?px/);
+  });
+});
+
+describe('V31-UI-16 chrome carve-out', () => {
+  it('main.tsx imports history/settings/thread style modules', () => {
+    const main = readFileSync(new URL('../main.tsx', BASE), 'utf8');
+    expect(main).toContain("import './styles/history-rail.css'");
+    expect(main).toContain("import './styles/settings-hub.css'");
+    expect(main).toContain("import './styles/thread-chrome.css'");
   });
 });
 
