@@ -25,10 +25,13 @@ import {
 } from '@agent-k/core';
 import {
   readIntentGateEnabled,
+  readStrictEditEnabled,
   readToolCallFallbackEnabled,
   resolveEffectiveHarnessFlags,
 } from './chatSendConfig';
 import { NativeThenFallbackNormalizer } from './turn/ToolCallNormalizer';
+import { todoStore } from './session/TodoStore';
+import { persistSessionTodos } from './session/todoPersistence';
 import {
   LiteLLMProvider,
   clampThinkingEffort,
@@ -201,6 +204,8 @@ export async function runHostChatSend(
 
   const parentSessionId =
     payload.sessionId != null ? String(payload.sessionId).trim() : undefined;
+  // Comment: V31-TOOL-04 — same id used for session routing; requestId fallback
+  const sessionId = parentSessionId || requestId;
 
   const mode = (payload.mode || 'agent') as AgentMode;
   // Comment: PLAN-009 — plan stage drives write-tool visibility + permission gate
@@ -248,8 +253,9 @@ export async function runHostChatSend(
     harnessMicroLoop,
     harnessPrefetch,
   } = resolveEffectiveHarnessFlags(cfg);
-  // Comment: V31-TOOL-01 — default true; opt-out via agent-k.toolCallFallback.enabled
+  // Comment: V31-TOOL-01/03 — default true; opt-out via settings
   const toolCallFallbackEnabled = readToolCallFallbackEnabled(cfg);
+  const strictEditEnabled = readStrictEditEnabled(cfg);
   const lastUserText = String(
     [...(payload.messages || [])].reverse().find((m) => m.role === 'user')
       ?.content || '',
@@ -353,6 +359,10 @@ export async function runHostChatSend(
     workspaceRoot: root,
     mode,
     debugLogs: [],
+    // Comment: V31-TOOL-04 — session todo array survives turns/compaction
+    todoStore: todoStore.ensure(sessionId),
+    // Comment: V31-TOOL-03 — host setting can disable strict uniqueness
+    strictEdit: strictEditEnabled,
     // Comment: MCP-001 — inject host MCP client into tool executors
     mcp: getMcpToolBridge(),
     // Comment: TOOL — wire VS Code diagnostics into read_lints
@@ -652,6 +662,8 @@ export async function runHostChatSend(
 
             const result = await executeTool(registry, name, args, {
               ...toolCtxBase,
+              // Comment: V31-TOOL-04 — child session gets its own todo array
+              todoStore: todoStore.ensure(subagentSessionId(context.task.id)),
               workspaceRoot: cwd,
               mode: childMode,
               signal,
@@ -1509,6 +1521,8 @@ export async function runHostChatSend(
       parallelTools: true,
       // Comment: HARNESS-005 — AGENTS.md / .agentk/rules outside compaction
       workspaceRoot: root || undefined,
+      // Comment: V31-TOOL-04 — session todos re-enter sticky context each turn
+      todoContextProvider: () => todoStore.format(sessionId),
       // Comment: V31-INTENT-01 — gates AND harness; conversation skips verify/prefetch.
       verificationFirst: intentGates.verificationFirst,
       verificationMicroLoop:
@@ -1623,6 +1637,8 @@ export async function runHostChatSend(
     hostLogError('chat.send empty reply', `chatSend threw requestId=${requestId}`, err);
     postStream({ event: 'error', error: message });
   } finally {
+    // Comment: V31-TOOL-04 — persist even when the run throws or aborts
+    persistSessionTodos(sessionId);
     ctx.hostLoops.delete(requestId);
     if (ctx.getHostLoopRequestId() === requestId) {
       ctx.setHostLoopRequestId(undefined);

@@ -371,6 +371,11 @@
           "default": true,
           "description": "V31-TOOL-01 — parse XML/JSON tool calls from local models when native tool_calls are absent."
         },
+        "agent-k.tools.strictEdit": {
+          "type": "boolean",
+          "default": true,
+          "description": "V31-TOOL-03 — reject edit_file search strings that match multiple locations unless replaceAll is set."
+        },
         "agent-k.harness.enabled": {
           "type": "boolean",
           "default": true,

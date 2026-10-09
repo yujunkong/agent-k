@@ -98,6 +98,8 @@ export interface AgentLoopConfig {
   projectRules?: string;
   /** Extra sticky context merged after rules. */
   stickyContext?: string;
+  /** V31-TOOL-04 — dynamic sticky context (e.g. session todos) per turn. */
+  todoContextProvider?: () => string;
   /**
    * PLAN-009 — approved plan block (formatter output from @agent-k/plan).
    * Re-injected each turn into protected system slot.
@@ -195,6 +197,8 @@ export class AgentLoopController {
       workspaceRoot: config.workspaceRoot,
       projectRules: config.projectRules,
       stickyContext: config.stickyContext,
+      // Comment: V31-TOOL-04 — per-turn sticky todos from host TodoStore
+      todoContextProvider: config.todoContextProvider,
       approvedPlanBlock: config.approvedPlanBlock,
       verificationFirst: config.verificationFirst,
       verificationMicroLoop: config.verificationMicroLoop,
@@ -277,6 +281,11 @@ export class AgentLoopController {
         const systemPrompt = this.phasesEnabled()
           ? injectPhasePrompt(baseSystem, this.phaseTracker.current())
           : baseSystem;
+        // Comment: V31-TOOL-04 — merge static sticky + live session todos each turn
+        const sticky =
+          [this.config.stickyContext, this.config.todoContextProvider?.()]
+            .filter(Boolean)
+            .join('\n\n') || undefined;
 
         const assembled = this.assembler.assemble({
           mode: this.config.mode ?? 'agent',
@@ -287,7 +296,7 @@ export class AgentLoopController {
           // Comment: HARNESS-005 — rules outside compaction (re-inject each turn)
           workspaceRoot: this.config.workspaceRoot,
           projectRules: this.config.projectRules,
-          stickyContext: this.config.stickyContext,
+          stickyContext: sticky,
           approvedPlanBlock: this.config.approvedPlanBlock,
           verificationFirst: this.config.verificationFirst,
           harnessEnabled: this.config.harnessEnabled,

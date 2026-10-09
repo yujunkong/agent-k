@@ -22,6 +22,7 @@ import {
 } from './mcpHost';
 import { SelectionDiffApply } from './inline/SelectionDiffApply';
 import { AgentKInlineCompletionProvider } from './inline/InlineCompletionProvider';
+import { bindTodoPersistence } from './session/todoPersistence';
 
 let provider: ChatViewProvider | undefined;
 
@@ -32,6 +33,8 @@ let provider: ChatViewProvider | undefined;
 export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvider {
   // Keep Output channel alive for the session
   context.subscriptions.push(getHostLog());
+  // Comment: V31-TOOL-04 — restore session todos before the first chat.send
+  bindTodoPersistence(context.workspaceState);
   hostLog('host activate', `version=${context.extension.packageJSON?.version ?? '?'}`);
 
   const extensionVersion =

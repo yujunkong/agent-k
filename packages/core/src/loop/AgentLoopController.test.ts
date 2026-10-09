@@ -274,6 +274,33 @@ describe('AgentLoopController (AGENT-001…004)', () => {
     expect(critiques[0].text).toContain('<self_critique>');
   });
 
+  it('injects dynamic todo sticky context per turn (V31-TOOL-04)', async () => {
+    let seenSystem = '';
+    const controller = new AgentLoopController(
+      {
+        runModel: async ({ messages }) => {
+          seenSystem = String(
+            messages.find((m) => m.role === 'system')?.content ?? '',
+          );
+          return {
+            content:
+              '## Summary\n\nNo edits were needed; the todo list was injected into the system prompt.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async () => ({ success: true, data: null }),
+      },
+      {
+        maxTurns: 3,
+        parallelTools: false,
+        todoContextProvider: () => '- [ ] wire TodoStore',
+      },
+    );
+
+    const result = await controller.run({ prompt: 'What is left to do?' });
+    expect(result.reason).toBe('completed');
+    expect(seenSystem).toContain('wire TodoStore');
+  });
+
   it('skips phase inject for conversation intent (V31-LOOP-01)', async () => {
     let seenSystem = '';
     const phases: string[] = [];

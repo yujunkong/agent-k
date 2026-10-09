@@ -185,6 +185,8 @@ export function createWiredSubagentHost(
     workspaceRoot: root,
     mode: 'agent',
     debugLogs: [],
+    // Comment: V31-TOOL-03 — match chatSend default (strict uniqueness on)
+    strictEdit: true,
     // Comment: MCP-001 — same MCP bridge as chatSend
     mcp: getMcpToolBridge(),
     // Comment: TOOL — wire VS Code diagnostics into read_lints (mirrors chatSend pattern)

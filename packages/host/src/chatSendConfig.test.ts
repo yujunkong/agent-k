@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   readIntentGateEnabled,
+  readStrictEditEnabled,
   readToolCallFallbackEnabled,
   resolveEffectiveHarnessFlags,
   resolveHarnessSubKeys,
@@ -71,6 +72,18 @@ describe('V31-TOOL-01 readToolCallFallbackEnabled', () => {
       readToolCallFallbackEnabled(
         reader({ 'toolCallFallback.enabled': false }),
       ),
+    ).toBe(false);
+  });
+});
+
+describe('V31-TOOL-03 readStrictEditEnabled', () => {
+  it('defaults true when key is missing', () => {
+    expect(readStrictEditEnabled(reader({}))).toBe(true);
+  });
+
+  it('honors explicit false', () => {
+    expect(
+      readStrictEditEnabled(reader({ 'tools.strictEdit': false })),
     ).toBe(false);
   });
 });

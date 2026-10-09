@@ -21,6 +21,14 @@ export function readToolCallFallbackEnabled(cfg: ConfigReader): boolean {
 }
 
 /**
+ * V31-TOOL-03 — reject non-unique edit_file search strings.
+ * Default true: silent first-match edits are ISSUE-13; opt-out via setting.
+ */
+export function readStrictEditEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('tools.strictEdit') !== false;
+}
+
+/**
  * Resolve harness flags via sub-keys (ISSUE-06 / V31-CFG-01).
  * Comment: never re-prefix with `agent-k.` — ConfigReader already scopes.
  */
