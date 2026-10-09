@@ -4,10 +4,34 @@
 import type { PlanModeController } from '../plan/PlanModeController';
 import { stripResynthForDisplay } from '../loop/synthesizeInstructions';
 import { stripFakeToolMarkup } from './displaySanitize';
-import { stripHarnessForDisplay } from './harnessBridge';
 import { dedupeAssistantBody } from './assistantStreamSession';
 import { settleWorkEvents } from './conversation/conversationWorkEvent';
 import type { ChatMessage, FileEditPreview, ModePicker } from './types';
+
+/**
+ * Comment: V31-UI-15 — display sanitize for harness/prefetch blocks.
+ * Lives here so chat-ui does not depend on the legacy harnessBridge path for UI.
+ */
+export function stripHarnessForDisplay(content: string): string {
+  if (!content) return content;
+  let out = content
+    .replace(/<harness_system>[\s\S]*?<\/harness_system>\s*/gi, '')
+    .replace(/<prefetch>[\s\S]*?<\/prefetch>\s*/gi, '')
+    .replace(/<chat_ui_note>[\s\S]*?<\/chat_ui_note>\s*/gi, '')
+    .trim();
+  if (out.length > 800 && /Verification-First Protocol/i.test(out)) {
+    const lines = out.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+    const last = lines[lines.length - 1];
+    if (
+      last &&
+      last.length < 200 &&
+      !/Verification-First|Design Principles/i.test(last)
+    ) {
+      return last;
+    }
+  }
+  return out;
+}
 
 export const MODE_LABELS: Record<ModePicker, string> = {
   auto: 'Auto',

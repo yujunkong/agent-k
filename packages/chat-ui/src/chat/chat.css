@@ -38,7 +38,7 @@ html, body {
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.4;
   color: var(--vscode-editor-foreground);
   background: var(--vscode-editor-background);
@@ -156,7 +156,7 @@ body {
   opacity: 0.45;
   pointer-events: none;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .chat-tab:not(.chat-tab--active):hover {
@@ -176,7 +176,7 @@ body {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 500;
   cursor: pointer;
   text-align: left;
@@ -243,7 +243,7 @@ body {
   background: transparent;
   color: var(--vscode-foreground, #ccc);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -296,7 +296,7 @@ body {
   padding: 6px 12px;
   background: transparent;
   border-bottom: 1px solid var(--ak-chrome-border);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .plan-mode-header:empty {
@@ -385,7 +385,7 @@ body {
   background: rgba(255, 255, 255, 0.06);
   color: var(--vscode-descriptionForeground, #aaa);
   font-weight: 600;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   letter-spacing: 0.5px;
   flex-shrink: 0;
   border: 1px solid var(--ak-card-border);
@@ -408,7 +408,7 @@ body {
   border: 1px solid transparent;
   color: var(--vscode-descriptionForeground, #9d9d9d);
   font-weight: 400;
-  font-size: 11.5px;
+  font-size: var(--ak-fs-xs);
   line-height: 1.2;
   user-select: none;
 }
@@ -431,7 +431,7 @@ body {
 }
 
 .plan-stage-badge__icon {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1;
   width: 14px;
   text-align: center;
@@ -453,7 +453,7 @@ body {
 
 .plan-mode-header__actions .settings-btn {
   padding: 3px 9px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 550;
 }
 
@@ -474,7 +474,7 @@ body {
 }
 
 .plan-mode-header__hint {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1.4;
   opacity: 0.75;
   padding: 5px 8px;
@@ -517,14 +517,14 @@ body {
 
 .plan-review__title {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   font-weight: 600;
   line-height: 1.3;
 }
 
 .plan-review__meta {
   margin: 4px 0 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.65;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -579,7 +579,7 @@ body {
   margin-bottom: 10px;
   padding: 8px 10px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: #facc15;
   background: rgba(250, 204, 21, 0.1);
   border: 1px solid rgba(250, 204, 21, 0.3);
@@ -619,14 +619,14 @@ body {
 }
 
 .plan-review__label {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.65;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
 .plan-review__open-editor {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   padding: 3px 10px;
 }
 
@@ -641,7 +641,7 @@ body {
   background: var(--vscode-editor-background, #1e1e1e);
   color: var(--vscode-editor-foreground, #d4d4d4);
   font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
@@ -649,7 +649,7 @@ body {
 
 .plan-review__hint {
   margin: 8px 0 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.6;
   line-height: 1.4;
   flex-shrink: 0;
@@ -670,7 +670,7 @@ body {
   align-items: flex-start;
   gap: 8px;
   padding: 5px 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.4;
   cursor: pointer;
 }
@@ -693,7 +693,7 @@ body {
 
 .plan-review__empty {
   margin: 8px 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.55;
 }
 
@@ -720,7 +720,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .plan-review__manual-verify-title {
@@ -752,7 +752,7 @@ body {
     transparent
   );
   color: var(--vscode-foreground, #ccc);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.3;
   font-family: inherit;
   cursor: pointer;
@@ -829,7 +829,7 @@ body {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   text-align: left;
   cursor: pointer;
 }
@@ -866,7 +866,7 @@ body {
 
 .mode-locked {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1;
   color: var(--vscode-descriptionForeground, #888);
   user-select: none;
@@ -1201,7 +1201,7 @@ body {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--ak-fs-xs);
   cursor: pointer;
   text-align: left;
 }
@@ -1228,7 +1228,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 11.5px;
+  font-size: var(--ak-fs-xs);
 }
 
 .ak-explore-tool-row__marker {
@@ -1306,7 +1306,7 @@ body {
 .message-steps-thought-body {
   padding: 2px 0 8px var(--ak-thread-inset, 12px);
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.5;
   max-height: 420px;
   overflow-y: auto;
@@ -1326,7 +1326,7 @@ body {
 .message-steps-thought-body--mid {
   padding-left: 0;
   max-height: 96px;
-  font-size: 11.5px;
+  font-size: var(--ak-fs-xs);
   opacity: 1;
 }
 
@@ -1418,7 +1418,7 @@ body.vscode-dark .user-turn,
   padding: 0 7px 0 5px;
   min-height: 20px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1.35;
   background: rgba(255, 255, 255, 0.05);
   color: var(--vscode-foreground, #ddd);
@@ -1488,7 +1488,7 @@ body.vscode-dark .user-chip--file,
 .user-turn__text {
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.5;
   color: inherit;
 }
@@ -1527,7 +1527,7 @@ body.vscode-dark .user-chip--file,
   background: transparent;
   color: var(--vscode-textLink-foreground, #3794ff);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
 }
 
@@ -1562,7 +1562,7 @@ body.vscode-dark .user-chip--file,
 .message-tool-status {
   padding: 2px 0 6px;
   opacity: 0.7;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--vscode-descriptionForeground);
   font-family: var(--vscode-font-family);
 }
@@ -1591,12 +1591,12 @@ body.vscode-dark .user-chip--file,
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.7;
 }
 
 .message-avatar {
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
 }
 
 .message-role {
@@ -1629,7 +1629,7 @@ body.vscode-dark .user-chip--file,
 .message-opening-lead {
   margin: 2px 0 8px;
   padding-left: var(--ak-thread-inset, 12px);
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.55;
   font-weight: 500;
   color: var(--vscode-foreground, #ccc);
@@ -1650,7 +1650,7 @@ body.vscode-dark .user-chip--file,
   display: block;
   margin: 6px 0 8px;
   padding: 0;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.55;
   font-weight: 400;
   color: var(--vscode-foreground, #e8e8e8);
@@ -1719,7 +1719,7 @@ body.vscode-dark .user-chip--file,
 .ak-step-rolling {
   margin: 8px 0 10px;
   padding: 0 0 0 var(--ak-thread-inset, 12px);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.65;
   color: var(--vscode-descriptionForeground, #9d9d9d);
   opacity: 0.9;
@@ -1739,7 +1739,7 @@ body.vscode-dark .user-chip--file,
    would otherwise re-clamp to 100%). */
 .ak-step-rolling--live > .ak-step-title--live-shimmer {
   font-weight: 500;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.65;
 }
 
@@ -1780,7 +1780,7 @@ body.vscode-dark .user-chip--file,
   top: 50%;
   transform: translateY(-50%);
   width: 10px;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.65;
   line-height: 1;
   pointer-events: none;
@@ -1858,13 +1858,13 @@ body.vscode-dark .user-chip--file,
   gap: 6px;
   margin: 0 0 4px;
   padding-left: 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.45;
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
 .ak-turn-status__dot {
-  font-size: 8px;
+  font-size: var(--ak-fs-xs);
   line-height: 1;
   opacity: 0.9;
   color: var(--vscode-textLink-foreground, #4daafc);
@@ -1900,14 +1900,14 @@ body.vscode-dark .user-chip--file,
   padding: 8px 10px;
   margin: 4px 0 6px;
   margin-left: 0;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.5;
   color: var(--vscode-foreground, #cccccc);
   background: var(--vscode-editorWidget-background, rgba(255, 255, 255, 0.03));
 }
 
 .ak-understanding-box__label {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--vscode-descriptionForeground, #9d9d9d);
@@ -1941,7 +1941,7 @@ body.vscode-dark .user-chip--file,
   background: none;
   color: var(--vscode-descriptionForeground, #9d9d9d);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.45;
   text-align: left;
   cursor: pointer;
@@ -1953,7 +1953,7 @@ body.vscode-dark .user-chip--file,
 
 .ak-worked__chevron {
   width: auto;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.75;
   flex-shrink: 0;
   line-height: 1;
@@ -2064,7 +2064,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-subagent-run__title {
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 500;
   color: var(--vscode-foreground, #ccc);
   overflow: hidden;
@@ -2083,13 +2083,13 @@ body.vscode-dark .user-chip--file,
 
 .ak-subagent-run__role {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 400;
   color: var(--vscode-descriptionForeground, #888);
 }
 
 .ak-subagent-run__detail {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.4;
   color: var(--vscode-descriptionForeground, #888);
   overflow: hidden;
@@ -2135,7 +2135,7 @@ body.vscode-dark .user-chip--file,
   background: transparent;
   color: var(--vscode-textLink-foreground, #3794ff);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
 }
 
@@ -2149,7 +2149,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-subagent-detail__title {
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   font-weight: 600;
   color: var(--vscode-foreground, #ccc);
   overflow: hidden;
@@ -2159,7 +2159,7 @@ body.vscode-dark .user-chip--file,
 
 .ak-subagent-detail__status {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -2171,13 +2171,13 @@ body.vscode-dark .user-chip--file,
 .ak-subagent-detail__empty {
   padding: 12px var(--ak-thread-inset, 12px);
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .ak-subagent-detail__composer-placeholder {
   padding: 10px 14px 12px;
   text-align: center;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   opacity: 0.75;
   border-top: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 8%, transparent);
@@ -2228,7 +2228,7 @@ body.vscode-dark .user-chip--file,
   align-items: baseline;
   gap: 8px;
   padding: 2px 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--vscode-descriptionForeground, #888);
 }
 
@@ -2243,7 +2243,7 @@ body.vscode-dark .user-chip--file,
 .ak-edit-flush-row__ms {
   flex-shrink: 0;
   opacity: 0.45;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
 }
 
 /* File edit card — same surface as terminal / code */
@@ -2312,7 +2312,7 @@ body.vscode-dark .user-chip--file,
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.1);
   color: var(--vscode-foreground, #fff);
-  font-size: 9px;
+  font-size: var(--ak-fs-xs);
   font-weight: 700;
   letter-spacing: 0.2px;
 }
@@ -2324,13 +2324,13 @@ body.vscode-dark .user-chip--file,
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
 }
 
 .ak-file-edit-header__stats {
   display: inline-flex;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   flex-shrink: 0;
 }
 
@@ -2346,7 +2346,7 @@ body.vscode-dark .user-chip--file,
 
 .ak-file-edit-diff {
   font-family: var(--vscode-editor-font-family, ui-monospace, monospace);
-  font-size: 11.5px;
+  font-size: var(--ak-fs-xs);
   line-height: 1.45;
   background: var(--ak-card-bg);
   /* Comment: CONV-019 — collapsed ≈ 4 lines; expand raises viewport */
@@ -2427,7 +2427,7 @@ body.vscode-dark .user-chip--file,
   text-overflow: ellipsis;
   white-space: pre;
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.45;
 }
 
@@ -2477,7 +2477,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-inline-edit-diff__title {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -2485,7 +2485,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-inline-edit-diff__status {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -2508,7 +2508,7 @@ body.vscode-dark .user-chip--file,
   border: none;
   border-radius: 6px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 600;
   padding: 5px 12px;
   cursor: pointer;
@@ -2554,7 +2554,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ak-diff-review__summary {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -2568,7 +2568,7 @@ body.vscode-dark .user-chip--file,
   background: transparent;
   color: var(--vscode-descriptionForeground, #9d9d9d);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
@@ -2603,7 +2603,7 @@ body.vscode-dark .user-chip--file,
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   text-align: left;
   padding: 5px 6px;
   border-radius: 6px;
@@ -2626,7 +2626,7 @@ body.vscode-dark .user-chip--file,
 .ak-diff-review__file-stats {
   display: inline-flex;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
 }
 
 .ak-diff-review__diff {
@@ -2651,7 +2651,7 @@ body.vscode-dark .user-chip--file,
 /* Harness tier strip — quiet, same chrome as editor */
 .ux-for-medium-panel {
   padding: 3px 12px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   border-bottom: 1px solid var(--ak-chrome-border);
   background: var(--vscode-editor-background, #1e1e1e);
   display: flex;
@@ -2679,7 +2679,7 @@ body.vscode-dark .user-chip--file,
 }
 
 .ux-for-medium-panel__stuck button {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   padding: 2px 8px;
 }
 
@@ -2731,7 +2731,7 @@ div.ak-terminal-card__header {
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.08);
   color: var(--vscode-descriptionForeground, #ccc);
-  font-size: 9px;
+  font-size: var(--ak-fs-xs);
   font-weight: 700;
   letter-spacing: 0.2px;
   font-family: var(--vscode-editor-font-family, monospace);
@@ -2744,7 +2744,7 @@ div.ak-terminal-card__header {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
 }
 
@@ -2758,7 +2758,7 @@ div.ak-terminal-card__header {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
 }
 
 .ak-terminal-card__dur {
@@ -2771,7 +2771,7 @@ div.ak-terminal-card__header {
 
 .ak-terminal-card__cmd {
   padding: 6px 10px 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   font-family: var(--vscode-editor-font-family, monospace);
   white-space: nowrap;
@@ -2785,7 +2785,7 @@ div.ak-terminal-card__header {
   /* Comment: CONV-018 — collapsed ≈ 4 lines; --expanded raises viewport */
   max-height: var(--ak-card-body-max, 72px);
   overflow: auto;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
@@ -2835,7 +2835,7 @@ div.ak-terminal-card__header {
   /* anywhere + near-zero width → vertical 1-char column; break-word is safer */
   overflow-wrap: break-word;
   word-break: normal;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.55;
   width: 100%;
   max-width: 100%;
@@ -2856,7 +2856,7 @@ div.ak-terminal-card__header {
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.55;
   color: var(--vscode-foreground, #e8e8e8);
 }
@@ -2870,7 +2870,7 @@ div.ak-terminal-card__header {
   margin: 0 0 0.28em;
   overflow-wrap: break-word;
   word-break: normal;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.55;
   color: var(--vscode-foreground, #e8e8e8);
 }
@@ -2891,7 +2891,7 @@ div.ak-terminal-card__header {
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 /* Fenced blocks keep horizontal scroll — don't smash tokens */
@@ -2931,10 +2931,10 @@ div.ak-terminal-card__header {
   margin-top: 0.15em;
 }
 
-.message-content .markdown-body h1 { font-size: 15px; }
-.message-content .markdown-body h2 { font-size: 14px; }
-.message-content .markdown-body h3 { font-size: 13px; }
-.message-content .markdown-body h4 { font-size: 13px; }
+.message-content .markdown-body h1 { font-size: var(--ak-fs-xl); }
+.message-content .markdown-body h2 { font-size: var(--ak-fs-lg); }
+.message-content .markdown-body h3 { font-size: var(--ak-fs-md); }
+.message-content .markdown-body h4 { font-size: var(--ak-fs-md); }
 
 .message-content .markdown-body ul,
 .message-content .markdown-body ol {
@@ -2945,7 +2945,7 @@ div.ak-terminal-card__header {
 .message-content .markdown-body li {
   margin: 0.02em 0;
   line-height: 1.55;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
 }
 
 .message-content .markdown-body li + li {
@@ -2968,7 +2968,7 @@ div.ak-terminal-card__header {
   width: 100%;
   min-width: 100%;
   table-layout: auto;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
 }
 
 .message-content .markdown-body th,
@@ -2989,7 +2989,7 @@ div.ak-terminal-card__header {
 
 .message-content .markdown-body td code,
 .message-content .markdown-body th code {
-  font-size: 11.5px;
+  font-size: var(--ak-fs-xs);
   padding: 1px 5px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.08);
@@ -3001,7 +3001,7 @@ div.ak-terminal-card__header {
   border-radius: 6px;
   overflow-x: auto;
   margin: 4px 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.4;
 }
 
@@ -3055,7 +3055,7 @@ body.vscode-light .code-block-header {
 
 .ak-code__lang,
 .code-lang-label {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 500;
   letter-spacing: 0.01em;
   text-transform: lowercase;
@@ -3073,7 +3073,7 @@ body.vscode-light .code-block-header {
   height: 22px;
   margin: 0;
   padding: 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1;
   border: 1px solid transparent;
   border-radius: 5px;
@@ -3113,7 +3113,7 @@ body.vscode-light .code-block-header {
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
-  font-size: 12px !important;
+  font-size: var(--ak-fs-sm) !important;
   line-height: 1.4 !important;
   box-shadow: none !important;
 }
@@ -3158,7 +3158,7 @@ body.vscode-light .code-block-header {
   overflow-x: auto;
   background: transparent;
   color: var(--vscode-editor-foreground, #24292f);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.4;
 }
 
@@ -3209,7 +3209,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .code-block code {
   display: block;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.4;
   white-space: pre;
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
@@ -3244,7 +3244,7 @@ body.vscode-high-contrast .ak-code__cursor {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   padding: 2px 8px;
   background: rgba(34, 211, 238, 0.14);
   color: #67e8f9;
@@ -3283,7 +3283,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .msg-action-time {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1;
   padding: 0 6px 0 0;
   color: var(--vscode-descriptionForeground, #9d9d9d);
@@ -3337,7 +3337,7 @@ body.vscode-high-contrast .ak-code__cursor {
   width: 26px;
   height: 26px;
   padding: 0;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   opacity: 1;
   border: 1px solid var(--ak-divider, rgba(255, 255, 255, 0.14));
   border-radius: 5px;
@@ -3479,14 +3479,14 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .queue-ui__title {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 650;
   letter-spacing: 0.02em;
   color: var(--vscode-foreground, #ccc);
 }
 
 .queue-ui__hint {
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.65;
 }
 
@@ -3506,7 +3506,7 @@ body.vscode-high-contrast .ak-code__cursor {
   flex-shrink: 0;
   padding: 1px 7px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   background: rgba(59, 130, 246, 0.22);
   color: #93c5fd;
@@ -3518,7 +3518,7 @@ body.vscode-high-contrast .ak-code__cursor {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--vscode-foreground, #ddd);
 }
 
@@ -3539,7 +3539,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: none;
   background: transparent;
   color: var(--vscode-textLink-foreground, #4daafc);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   cursor: pointer;
   padding: 0;
   border-radius: 4px;
@@ -3564,7 +3564,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .composer-icon-btn--queue {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   padding: 4px 8px;
   border-radius: 6px;
@@ -3573,7 +3573,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .chat-header-title {
   font-weight: 650;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   opacity: 0.85;
@@ -3631,7 +3631,7 @@ body.vscode-high-contrast .ak-code__cursor {
   color: var(--vscode-foreground, #ccc);
   cursor: pointer;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   padding: 2px 4px;
   text-align: left;
   border-radius: 4px;
@@ -3644,7 +3644,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .changed-files-bar__chevron {
   opacity: 0.65;
   width: 12px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
 }
 
 .changed-files-bar__count {
@@ -3663,7 +3663,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: none;
   background: transparent;
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
   padding: 2px 4px;
 }
@@ -3679,7 +3679,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: none;
   background: transparent;
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
   padding: 2px 4px;
 }
@@ -3690,7 +3690,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .changed-files-bar__kbd {
   font: inherit;
-  font-size: 10.5px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.55;
   border: none;
   background: transparent;
@@ -3702,7 +3702,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: none;
   background: rgba(255, 255, 255, 0.12);
   color: var(--vscode-foreground, #e8e8e8);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 500;
   border-radius: 999px;
   padding: 3px 12px;
@@ -3740,7 +3740,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .changed-files-bar__checkpoint-empty {
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.6;
 }
 
@@ -3749,7 +3749,7 @@ body.vscode-high-contrast .ak-code__cursor {
   align-items: center;
   gap: 8px;
   padding: 4px 12px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .changed-files-bar__checkpoint-label {
@@ -3768,7 +3768,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: none;
   background: rgba(255, 255, 255, 0.12);
   color: var(--vscode-foreground, #e8e8e8);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   border-radius: 999px;
   padding: 2px 10px;
   cursor: pointer;
@@ -3808,7 +3808,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border-radius: 3px;
   background: #3178c6;
   color: #fff;
-  font-size: 8.5px;
+  font-size: var(--ak-fs-xs);
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1;
@@ -3849,7 +3849,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .changed-files-bar__name {
   flex: 1;
   min-width: 0;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   font-weight: 450;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3861,7 +3861,7 @@ body.vscode-high-contrast .ak-code__cursor {
   flex-shrink: 0;
   display: inline-flex;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-variant-numeric: tabular-nums;
   margin-left: 8px;
 }
@@ -3890,7 +3890,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: #1a1a1a;
   color: #e8e8e8;
-  font-size: 11.5px;
+  font-size: var(--ak-fs-xs);
   line-height: 1.35;
   pointer-events: none;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
@@ -3973,7 +3973,7 @@ body.vscode-high-contrast .ak-code__cursor {
   resize: none;
   color: var(--vscode-input-foreground, inherit);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.5;
 }
 
@@ -4043,7 +4043,7 @@ body.vscode-high-contrast .ak-code__cursor {
   gap: 8px;
   padding: 8px 12px 6px;
   border-bottom: 1px solid var(--ak-divider);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   flex-shrink: 0;
 }
 
@@ -4109,7 +4109,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-palette__name {
   flex-shrink: 0;
   max-width: 55%;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4119,7 +4119,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-palette__path {
   flex: 1;
   min-width: 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.45;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4162,7 +4162,7 @@ body.vscode-high-contrast .ak-code__cursor {
   align-items: center;
   gap: 6px;
   min-height: 22px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--vscode-descriptionForeground, #9a9a9a);
   white-space: nowrap;
 }
@@ -4200,7 +4200,7 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .composer-palette__empty {
   padding: 12px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.55;
 }
 
@@ -4214,7 +4214,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .composer-palette__label {
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4222,7 +4222,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .composer-palette__desc {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.65;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4265,7 +4265,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-toolbar__left .mode-selector {
   min-width: 0;
   max-width: 7.5rem;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   padding: 3px 8px;
 }
 
@@ -4409,7 +4409,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .composer-model {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.7;
   flex: 1 1 0;
   min-width: 0;
@@ -4443,7 +4443,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.85;
   cursor: pointer;
   outline: none;
@@ -4532,7 +4532,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: var(--vscode-input-background, transparent);
   color: var(--vscode-input-foreground, inherit);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   outline: none;
 }
 
@@ -4563,7 +4563,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -4581,7 +4581,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .model-selector__item-current {
   color: var(--vscode-descriptionForeground, #999);
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
 }
 
 .model-selector__item.is-selected .model-selector__item-check {
@@ -4654,12 +4654,12 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .provider-card__name {
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 600;
 }
 
 .provider-card__status {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--vscode-descriptionForeground, var(--vscode-foreground));
   opacity: 1;
 }
@@ -4692,7 +4692,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   cursor: pointer;
   opacity: 0.8;
 }
@@ -4711,7 +4711,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .model-selector__item-provider {
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.6;
 }
 
@@ -4722,7 +4722,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .model-badge {
-  font-size: 9px;
+  font-size: var(--ak-fs-xs);
   letter-spacing: 0.02em;
   padding: 1px 6px;
   border-radius: 999px;
@@ -4749,7 +4749,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: 1px solid transparent;
   color: inherit;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.85;
   cursor: pointer;
   padding: 3px 16px 3px 6px;
@@ -4798,7 +4798,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border: 1px solid var(--ak-divider);
   color: inherit;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 500;
   opacity: 0.9;
   width: auto;
@@ -4872,7 +4872,7 @@ body.vscode-high-contrast .ak-code__cursor {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   text-align: left;
   cursor: pointer;
 }
@@ -4910,7 +4910,7 @@ body.vscode-high-contrast .ak-code__cursor {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   padding: 0;
   transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
@@ -4928,7 +4928,7 @@ body.vscode-high-contrast .ak-code__cursor {
 .composer-icon-btn--send {
   background: var(--vscode-button-background, #0e639c);
   color: var(--vscode-button-foreground, #fff);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   border-color: transparent;
 }
 
@@ -4964,7 +4964,7 @@ body.vscode-high-contrast .ak-code__cursor {
   z-index: 1;
   flex-shrink: 0;
   padding: 4px 6px 2px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--vscode-descriptionForeground, #9d9d9d);
   background: var(--vscode-editor-background, #1e1e1e);
 }
@@ -5002,7 +5002,7 @@ body.vscode-high-contrast .ak-code__cursor {
   border-radius: 6px;
   padding: 5px 12px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 600;
   cursor: pointer;
   background: var(--vscode-button-background, #0e639c);
@@ -5014,7 +5014,7 @@ body.vscode-high-contrast .ak-code__cursor {
 }
 
 .message-continue-banner__hint {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.75;
 }
 
@@ -5065,7 +5065,7 @@ body.vscode-high-contrast .ak-code__cursor {
   justify-content: center;
   gap: 4px;
   pointer-events: none;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   color: var(--vscode-editor-foreground, #e2e8f0);
   background: color-mix(
     in srgb,
@@ -5078,12 +5078,12 @@ body.vscode-high-contrast .ak-code__cursor {
 
 .composer-drop-hint__title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   letter-spacing: 0.01em;
 }
 
 .composer-drop-hint__sub {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.9;
 }
 
@@ -5096,7 +5096,7 @@ body.vscode-high-contrast .ak-code__cursor {
   padding: 1px 5px;
   border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--vscode-focusBorder, #22d3ee) 50%, transparent);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-family: inherit;
 }
 
@@ -5115,7 +5115,7 @@ body.vscode-high-contrast .ak-code__cursor {
   max-width: 100%;
   padding: 3px 8px 3px 7px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   line-height: 1.4;
   font-weight: 500;
   /* Comment: light teal wash — matches Cursor file-ref chip legibility */
@@ -5169,7 +5169,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .composer-chip-icon {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.9;
   display: inline-flex;
   align-items: center;
@@ -5215,7 +5215,7 @@ body.vscode-dark .composer-chip--snippet,
   color: inherit;
   opacity: 0.65;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   line-height: 1;
   border-radius: 4px;
 }
@@ -5241,7 +5241,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .composer-inline-edit-title {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -5256,7 +5256,7 @@ body.vscode-dark .composer-chip--snippet,
   color: inherit;
   opacity: 0.65;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   line-height: 1;
   border-radius: 4px;
 }
@@ -5268,7 +5268,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .composer-inline-edit-meta {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--vscode-foreground, inherit);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5277,7 +5277,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .composer-inline-edit-detail {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.75;
 }
 
@@ -5288,7 +5288,7 @@ body.vscode-dark .composer-chip--snippet,
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.5;
   resize: none;
   outline: none;
@@ -5327,7 +5327,7 @@ body.vscode-dark .composer-chip--snippet,
   padding: 1px 5px;
   border-radius: 3px;
   border: 1px solid rgba(103, 232, 249, 0.45);
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-family: var(--vscode-editor-font-family, monospace);
 }
 
@@ -5337,7 +5337,7 @@ body.vscode-dark .composer-chip--snippet,
   border-radius: 4px;
   background: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
   font-weight: 500;
 }
@@ -5404,7 +5404,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .mermaid-diagram--loading .mermaid-loading,
 .mermaid-loading {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.55;
   white-space: pre-wrap;
   margin: 0;
@@ -5419,13 +5419,13 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .mermaid-error-msg {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: #f87171;
   margin-bottom: 6px;
 }
 
 .mermaid-error-toggle {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid var(--vscode-button-border, #555);
@@ -5436,7 +5436,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .mermaid-fallback {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   white-space: pre-wrap;
   opacity: 0.8;
 }
@@ -5460,7 +5460,7 @@ body.vscode-dark .composer-chip--snippet,
   background: rgba(239, 68, 68, 0.15);
   border-bottom: 1px solid rgba(239, 68, 68, 0.4);
   color: #f87171;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   flex-shrink: 0;
   z-index: 5;
 }
@@ -5470,7 +5470,7 @@ body.vscode-dark .composer-chip--snippet,
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
 }
 
 /* ─── Settings Hub redesign (append / replace .settings-* block in chat.css) ─── */
@@ -5514,12 +5514,12 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-header h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   font-weight: 600;
 }
 
 .settings-header__subtitle {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.55;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5548,7 +5548,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-search__icon {
   opacity: 0.5;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1;
 }
 
@@ -5558,7 +5558,7 @@ body.vscode-dark .composer-chip--snippet,
   border: none;
   background: transparent;
   color: var(--vscode-input-foreground, #ccc);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   outline: none;
 }
 
@@ -5573,7 +5573,7 @@ body.vscode-dark .composer-chip--snippet,
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.75;
 }
 
@@ -5608,7 +5608,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-nav__group-label {
   padding: 4px 8px 2px;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -5617,7 +5617,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-nav__empty {
   margin: 12px 8px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.6;
 }
 
@@ -5634,7 +5634,7 @@ body.vscode-dark .composer-chip--snippet,
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   /* Comment: V31-UI-02 — kill gray UA outline; keyboard ring comes from focus.css */
   outline: none;
 }
@@ -5650,7 +5650,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .tab-icon {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   width: 16px;
   text-align: center;
   opacity: 0.85;
@@ -5679,7 +5679,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-tab-content > h3 {
   margin: 0 0 2px;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 600;
 }
 
@@ -5702,13 +5702,13 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-section__title {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 600;
 }
 
 .settings-section__desc {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1.4;
   opacity: 0.65;
 }
@@ -5727,14 +5727,14 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-field__label,
 .settings-field label {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--vscode-foreground);
   opacity: 0.9;
 }
 
 .settings-field__hint,
 .settings-hint {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   line-height: 1.35;
   color: var(--vscode-descriptionForeground, var(--vscode-foreground));
   opacity: 1;
@@ -5748,7 +5748,7 @@ body.vscode-dark .composer-chip--snippet,
   border-radius: 4px;
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-input-foreground, #ccc);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .settings-field input:focus,
@@ -5781,12 +5781,12 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .settings-toggle__label {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 500;
 }
 
 .settings-toggle__desc {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.6;
   line-height: 1.35;
 }
@@ -5891,12 +5891,12 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .settings-radio__label {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 500;
 }
 
 .settings-radio__desc {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.6;
   line-height: 1.35;
 }
@@ -5921,7 +5921,7 @@ body.vscode-dark .composer-chip--snippet,
   padding: 4px 6px;
   border-radius: 4px;
   background: var(--vscode-input-background, rgba(60, 60, 60, 0.5));
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .settings-model-list li span {
@@ -5957,7 +5957,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-stored-badge {
   margin-left: 6px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 400;
   color: var(--vscode-testing-iconPassed, var(--vscode-charts-green, #4ade80));
   opacity: 1;
@@ -5971,7 +5971,7 @@ body.vscode-dark .composer-chip--snippet,
   border-radius: 4px;
   background: var(--vscode-button-background, #0e639c);
   color: var(--vscode-button-foreground, #ffffff);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   cursor: pointer;
 }
 
@@ -6000,7 +6000,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .settings-btn--tiny {
   padding: 2px 8px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   align-self: center;
 }
 
@@ -6019,13 +6019,13 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .rules-list-head__label {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   font-weight: 600;
 }
 
 .rules-new-btn {
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .rules-list {
@@ -6077,7 +6077,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .rules-item__title {
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6085,7 +6085,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .rules-item__kind {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.55;
 }
 
@@ -6136,7 +6136,7 @@ body.vscode-dark .composer-chip--snippet,
   border-radius: 5px;
   background: transparent;
   color: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   text-align: left;
   cursor: pointer;
 }
@@ -6152,19 +6152,19 @@ body.vscode-dark .composer-chip--snippet,
 .settings-success,
 .settings-status--success {
   color: var(--vscode-testing-iconPassed, var(--vscode-charts-green, #89d185));
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   margin: 0;
 }
 
 .settings-error,
 .settings-status--error {
   color: var(--vscode-errorForeground, #f48771);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   margin: 0;
 }
 
 .settings-status--info {
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.75;
   margin: 0;
 }
@@ -6196,7 +6196,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .history-panel__header h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   font-weight: 600;
 }
 
@@ -6213,7 +6213,7 @@ body.vscode-dark .composer-chip--snippet,
   color: inherit;
   cursor: pointer;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .history-panel__new:hover {
@@ -6250,7 +6250,7 @@ body.vscode-dark .composer-chip--snippet,
 .history-panel__empty {
   margin: 24px 12px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -6287,7 +6287,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .history-panel__title {
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -6298,7 +6298,7 @@ body.vscode-dark .composer-chip--snippet,
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
@@ -6309,7 +6309,7 @@ body.vscode-dark .composer-chip--snippet,
   color: var(--vscode-descriptionForeground, #9d9d9d);
   cursor: pointer;
   padding: 0 10px;
-  font-size: 14px;
+  font-size: var(--ak-fs-lg);
   opacity: 0.55;
 }
 
@@ -6356,7 +6356,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .ak-ask-card__title {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -6364,7 +6364,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .ak-ask-card__ms {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: var(--vscode-descriptionForeground, #888);
   opacity: 0.85;
 }
@@ -6392,14 +6392,14 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .ak-ask-card__prompt {
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   line-height: 1.45;
   color: var(--vscode-foreground, #ccc);
 }
 
 .ak-ask-card__multi-hint {
   color: var(--vscode-descriptionForeground, #999);
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
 
 .ak-ask-card__options {
@@ -6422,7 +6422,7 @@ body.vscode-dark .composer-chip--snippet,
   border: 1px solid transparent;
   background: transparent;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   line-height: 1.4;
   color: var(--vscode-foreground, #ccc);
   opacity: 0.85;
@@ -6465,14 +6465,14 @@ body.vscode-dark .composer-chip--snippet,
   gap: 6px 10px;
   padding-top: 4px;
   border-top: 1px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.1));
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
 }
 
 .ak-ask-card__answer-label {
   font-weight: 600;
   color: var(--vscode-descriptionForeground, #999);
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   letter-spacing: 0.02em;
 }
 
@@ -6482,13 +6482,13 @@ body.vscode-dark .composer-chip--snippet,
 
 .ak-ask-card__waiting {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   color: var(--vscode-descriptionForeground, #999);
   font-style: italic;
 }
 
 .ak-ask-card__countdown {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-variant-numeric: tabular-nums;
   color: var(--vscode-charts-orange, #e2a108);
 }
@@ -6503,7 +6503,7 @@ body.vscode-dark .composer-chip--snippet,
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-input-foreground, #ccc);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   resize: vertical;
 }
 
@@ -6551,14 +6551,14 @@ body.vscode-dark .composer-chip--snippet,
 
 .clarifying-questions__header h3 {
   margin: 0 0 4px;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 600;
   color: var(--vscode-foreground, #e8e8e8);
 }
 
 .clarifying-questions__header p {
   margin: 0;
-  font-size: 11.5px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.7;
   line-height: 1.35;
 }
@@ -6577,7 +6577,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .clarifying-questions__prompt {
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   line-height: 1.45;
   color: var(--vscode-foreground, #e8e8e8);
   white-space: pre-wrap;
@@ -6586,7 +6586,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .clarifying-questions__prompt code {
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
-  font-size: 11.5px;
+  font-size: var(--ak-fs-xs);
   padding: 1px 5px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.08);
@@ -6603,7 +6603,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .clarifying-questions__multi-hint {
   margin-left: 6px;
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 400;
   opacity: 0.75;
 }
@@ -6622,7 +6622,7 @@ body.vscode-dark .composer-chip--snippet,
   border-radius: 6px;
   border: 1px solid transparent;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   line-height: 1.4;
   color: var(--vscode-foreground, #ddd);
 }
@@ -6650,7 +6650,7 @@ body.vscode-dark .composer-chip--snippet,
 
 .clarifying-questions__option-text code {
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, Menlo, Consolas, monospace);
-  font-size: 11.5px;
+  font-size: var(--ak-fs-xs);
   padding: 0 4px;
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.08);
@@ -6665,12 +6665,12 @@ body.vscode-dark .composer-chip--snippet,
   background: var(--vscode-input-background, #3c3c3c);
   color: var(--vscode-input-foreground, #ccc);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   resize: vertical;
 }
 
 .clarifying-questions__error {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   color: #f87171;
 }
 
@@ -6707,7 +6707,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 .ak-plan-card__badge {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   padding: 2px 6px;
@@ -6720,7 +6720,7 @@ body.vscode-dark .composer-chip--snippet,
   margin: 0;
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--ak-fs-md);
   font-weight: 600;
   line-height: 1.35;
   overflow: hidden;
@@ -6730,7 +6730,7 @@ body.vscode-dark .composer-chip--snippet,
 .ak-plan-card__chip {
   flex-shrink: 0;
   margin-left: auto;
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 2px 6px;
@@ -6745,7 +6745,7 @@ body.vscode-dark .composer-chip--snippet,
 .ak-plan-card__goal,
 .ak-plan-card__status {
   margin: 4px 0 0;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   opacity: 0.75;
   line-height: 1.4;
 }
@@ -6766,22 +6766,22 @@ body.vscode-dark .composer-chip--snippet,
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   cursor: pointer;
 }
 .ak-plan-card__task-title { flex: 1; font-weight: 500; }
 .ak-plan-card__task-status {
-  font-size: 10px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.7;
   text-transform: lowercase;
 }
 .ak-plan-card__task-desc {
   margin: 4px 0 0 24px;
-  font-size: 11.5px;
+  font-size: var(--ak-fs-xs);
   opacity: 0.75;
   line-height: 1.4;
 }
-.ak-plan-card__risks { margin-top: 10px; font-size: 12px; }
+.ak-plan-card__risks { margin-top: 10px; font-size: var(--ak-fs-sm); }
 .ak-plan-card__risks-toggle {
   background: none;
   border: none;
@@ -6812,7 +6812,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 
 .ak-plan-card__view-title {
-  font-size: 11px;
+  font-size: var(--ak-fs-xs);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -6828,7 +6828,7 @@ body.vscode-dark .composer-chip--snippet,
   max-height: min(42vh, 420px);
   overflow: auto;
   padding: 10px 12px;
-  font-size: 12.5px;
+  font-size: var(--ak-fs-md);
   line-height: 1.45;
 }
 
@@ -6842,7 +6842,7 @@ body.vscode-dark .composer-chip--snippet,
 }
 .ak-plan-card__btn {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
   padding: 5px 10px;
   border-radius: 5px;
   border: 1px solid var(--vscode-panel-border, #555);
@@ -6862,6 +6862,6 @@ body.vscode-dark .composer-chip--snippet,
   box-sizing: border-box;
   margin-top: 8px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--ak-fs-sm);
 }
-.ak-plan-card__verify { margin-top: 10px; font-size: 12px; }
+.ak-plan-card__verify { margin-top: 10px; font-size: var(--ak-fs-sm); }

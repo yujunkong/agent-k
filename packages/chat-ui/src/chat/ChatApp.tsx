@@ -1191,11 +1191,10 @@ export function ChatApp() {
         <div ref={messageEndRef} aria-hidden className="message-list-end" />
       </div>
 
-      {/* V31-UI-12 — screen-reader announcement for the final assistant turn */}
+      {/* V31-UI-12 — role=status is implicitly polite; avoid nested aria-live noise. */}
       <div
         className="ak-sr-announcer"
         role="status"
-        aria-live="polite"
         aria-atomic="true"
       >
         {srAnnouncement}

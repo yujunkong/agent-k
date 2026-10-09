@@ -17,7 +17,8 @@
 }
 
 .ak-empty-state__title {
-  font-size: 1.35rem;
+  /* Comment: V31-UI-14 — type-scale token (was 1.35rem). */
+  font-size: var(--ak-fs-xl);
   font-weight: 600;
   letter-spacing: -0.02em;
   margin: 0;
@@ -26,7 +27,7 @@
 .ak-empty-state__subtitle {
   margin: 0;
   opacity: 0.8;
-  font-size: 0.9rem;
+  font-size: var(--ak-fs-md);
   line-height: 1.45;
 }
 
@@ -43,7 +44,7 @@
   color: var(--vscode-input-foreground, var(--vscode-foreground));
   border-radius: 6px;
   padding: 6px 12px;
-  font-size: 0.85rem;
+  font-size: var(--ak-fs-md);
   cursor: pointer;
 }
 
@@ -62,7 +63,7 @@
   align-items: center;
   gap: 8px;
   margin: 8px 0 0;
-  font-size: 0.8rem;
+  font-size: var(--ak-fs-sm);
   opacity: 0.85;
 }
 

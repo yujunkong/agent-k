@@ -74,24 +74,5 @@ export function prependHarnessToUserPayload(
   return parts.join('\n\n');
 }
 
-/**
- * UI 표시용: 과거 히스토리에 섞인 harness/prefetch 블록 제거
- * (예전 버그로 user bubble에 프로토콜 전문이 저장된 경우 대비)
- */
-export function stripHarnessForDisplay(content: string): string {
-  if (!content) return content;
-  let out = content
-    .replace(/<harness_system>[\s\S]*?<\/harness_system>\s*/gi, '')
-    .replace(/<prefetch>[\s\S]*?<\/prefetch>\s*/gi, '')
-    .replace(/<chat_ui_note>[\s\S]*?<\/chat_ui_note>\s*/gi, '')
-    .trim();
-  // Fallback: if still mostly protocol dump ending with a short user line, keep last paragraph
-  if (out.length > 800 && /Verification-First Protocol/i.test(out)) {
-    const lines = out.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-    const last = lines[lines.length - 1];
-    if (last && last.length < 200 && !/Verification-First|Design Principles/i.test(last)) {
-      return last;
-    }
-  }
-  return out;
-}
+/** Comment: V31-UI-15 — re-export SoT from chatAppHelpers (legacy import path). */
+export { stripHarnessForDisplay } from './chatAppHelpers';

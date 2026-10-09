@@ -139,7 +139,8 @@ export function ChevronRow({
         <LiveStepTitle title={title} live={shimmerHeader} style={titleStyle} />
       </button>
       {showRolling ? (
-        <div key={rollingStatus} className="ak-step-rolling ak-step-rolling--live" aria-live="polite">
+        {/* Comment: V31-UI-12 — no nested aria-live; final announcer owns SR. */}
+        <div key={rollingStatus} className="ak-step-rolling ak-step-rolling--live">
           <LiveStepTitle title={rollingStatus!} live />
         </div>
       ) : null}

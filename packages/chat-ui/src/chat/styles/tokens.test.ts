@@ -45,6 +45,31 @@ describe('V31-UI-04 single token source', () => {
   });
 });
 
+describe('V31-UI-14/15 type scale + chip palette', () => {
+  it('defines --ak-fs-xs…xl with floor 11px', () => {
+    expect(cursorUiCss).toMatch(/--ak-fs-xs:\s*11px/);
+    expect(cursorUiCss).toMatch(/--ak-fs-sm:\s*12px/);
+    expect(cursorUiCss).toMatch(/--ak-fs-md:\s*13px/);
+    expect(cursorUiCss).toMatch(/--ak-fs-lg:\s*14px/);
+    expect(cursorUiCss).toMatch(/--ak-fs-xl:\s*15px/);
+  });
+
+  it('defines chip palette tokens', () => {
+    for (const token of [
+      '--ak-chip-file-bg',
+      '--ak-chip-folder-bg',
+      '--ak-chip-log-bg',
+    ]) {
+      expect(cursorUiCss).toMatch(new RegExp(`${token}\\s*:`));
+    }
+  });
+
+  it('chat.css has no bare font-size below 11px', () => {
+    // Comment: token defs live in cursor-ui; chat.css must use var(--ak-fs-*).
+    expect(chatCss).not.toMatch(/font-size:\s*(?:[0-9]|10)(?:\.\d+)?px/);
+  });
+});
+
 describe('V31-UI-02 focus-visible contract', () => {
   const FOCUS_SELECTORS = [
     '.mode-selector--btn',
