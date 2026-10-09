@@ -30,7 +30,8 @@ describe('AgentLoopController (AGENT-001…004)', () => {
           const hasTool = messages.some((m) => m.role === 'tool');
           expect(hasTool).toBe(true);
           return {
-            content: '## Done\n\n- Read src/index.ts\n- Result looks good',
+            content:
+              '## Done\n\n- Read src/index.ts\n- Result looks good\n\nSummary: the file exports an empty module and needs no changes.',
           } satisfies ModelTurnResult;
         },
         executeTool: async ({ name, args }) => {

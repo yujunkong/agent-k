@@ -181,6 +181,8 @@ export class AgentLoopController {
     new DefaultSelfCritiquePolicy(),
     new DefaultCritiqueFormatter(),
   );
+  /** V31-HARNESS-01 — one-shot weak-final nudge guard per run. */
+  private verifyExitWeakNudged = false;
 
   constructor(deps: AgentLoopDeps, config: AgentLoopConfig = {}) {
     this.deps = deps;
@@ -237,6 +239,8 @@ export class AgentLoopController {
     // Comment: V31-LOOP-01/02 — fresh phase + critique budget per run
     this.phaseTracker.reset();
     this.critiqueRunner.reset();
+    // Comment: V31-HARNESS-01 — weak-final nudge once per run
+    this.verifyExitWeakNudged = false;
     this.status = 'running';
     this.doom.reset();
     this.emit({ type: 'status', status: 'running' });
@@ -368,8 +372,13 @@ export class AgentLoopController {
             state: this.verifyExitState,
             turn: turns,
             maxTurns: this.config.maxTurns,
+            weakFinalNudged: this.verifyExitWeakNudged,
           });
           if (exitCheck.block && exitCheck.nudge) {
+            // Comment: V31-HARNESS-01 — weak-final nudge is one-shot per run
+            if (exitCheck.reason === 'weak_final') {
+              this.verifyExitWeakNudged = true;
+            }
             this.messages.push({
               role: 'assistant',
               content,

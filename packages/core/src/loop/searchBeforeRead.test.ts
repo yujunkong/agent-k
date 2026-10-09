@@ -6,6 +6,7 @@ import {
   batchHasBlindRead,
   batchHasSearchTool,
   isBlindReadWithoutSearch,
+  SEARCH_BEFORE_READ_NUDGE,
   userMessageHintsPath,
 } from './searchBeforeRead';
 
@@ -60,5 +61,9 @@ describe('searchBeforeRead (HARNESS-007)', () => {
         userText: 'Read src/index.ts and summarize.',
       })
     ).toBe(false);
+  });
+
+  it('keeps the search-before-read nudge text (HARNESS-007)', () => {
+    expect(SEARCH_BEFORE_READ_NUDGE).toContain('prefer grep');
   });
 });

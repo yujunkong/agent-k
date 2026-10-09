@@ -34,6 +34,8 @@ export interface EvaluateVerifyExitInput {
   state: VerifyExitState;
   turn: number;
   maxTurns: number;
+  /** V31-HARNESS-01 — one-shot guard: weak-final nudge already sent this run. */
+  weakFinalNudged?: boolean;
 }
 
 export interface EvaluateVerifyExitResult {
@@ -70,20 +72,9 @@ export function evaluateVerifyExit(
     };
   }
 
-  // All touched paths verified — allow structured exit.
-  if (input.state.verifiedPaths.size > 0) {
-    return { block: false };
-  }
-
-  if (
-    input.state.pendingPaths.size === 0 &&
-    input.state.verifiedPaths.size === 0
-  ) {
-    return { block: false };
-  }
-
+  // Comment: V31-HARNESS-01 — weak-final gate reachable (one-shot per run).
   const content = (input.content || '').trim();
-  if (content && isWeakFinalAnswer(content)) {
+  if (content && !input.weakFinalNudged && isWeakFinalAnswer(content)) {
     return {
       block: true,
       reason: 'weak_final',
