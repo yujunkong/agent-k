@@ -1,5 +1,5 @@
 /**
- * V31-INTENT-01 / V31-CFG-01 — pure config readers for chat.send.
+ * V31-INTENT-01 / V31-CFG-01 / Phase C — pure config readers for chat.send.
  * Comment: keeps double-prefix / gate flags out of chatSend.ts body growth.
  */
 
@@ -61,4 +61,28 @@ export function resolveEffectiveHarnessFlags(cfg: ConfigReader): {
     harnessMicroLoop: h.enabled && h.verificationMicroLoop,
     harnessPrefetch: h.enabled && h.prefetchEnabled,
   };
+}
+
+/**
+ * V31-CTX-02 — use model-generated compaction summaries.
+ * Default false: opt-in (adds a model call per compaction window).
+ */
+export function readRealCompactionEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('compaction.realSummary') === true;
+}
+
+/**
+ * V31-CTX-01 — host-owned session transcript (tool results survive sends).
+ * Default false: changes prior contract; opt-in.
+ */
+export function readSessionTranscriptEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('sessionTranscript.enabled') === true;
+}
+
+/**
+ * V31-RETRY-04 — recover from a permission denial instead of killing the run.
+ * Default false; opt-in.
+ */
+export function readPermissionRecoveryEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('retry.permissionRecovery') === true;
 }

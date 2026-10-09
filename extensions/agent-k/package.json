@@ -376,6 +376,21 @@
           "default": true,
           "description": "V31-TOOL-03 — reject edit_file search strings that match multiple locations unless replaceAll is set."
         },
+        "agent-k.compaction.realSummary": {
+          "type": "boolean",
+          "default": false,
+          "description": "V31-CTX-02 — model-generated compaction summaries (opt-in)."
+        },
+        "agent-k.sessionTranscript.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "V31-CTX-01 — host-owned session transcript so tool results survive between sends."
+        },
+        "agent-k.retry.permissionRecovery": {
+          "type": "boolean",
+          "default": false,
+          "description": "V31-RETRY-04 — recover from permission denial instead of stopping the run."
+        },
         "agent-k.harness.enabled": {
           "type": "boolean",
           "default": true,

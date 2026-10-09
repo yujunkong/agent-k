@@ -241,7 +241,13 @@ export function ChatApp() {
     onWorktreeResult: (payload) => handleWorktreeResultRef.current(payload),
     onChildDelta: (sessionId, delta, stream) =>
       handleChildDeltaRef.current(sessionId, delta, stream),
-    onSubagentLifecycle: (stream) => handleSubagentLifecycleRef.current(stream)
+    onSubagentLifecycle: (stream) => handleSubagentLifecycleRef.current(stream),
+    onPrefetch: (stats) =>
+      setUxState((prev) => ({
+        ...prev,
+        prefetchCount: stats.count,
+        prefetchLatencyMs: stats.latencyMs,
+      })),
   });
 
   // History setter relay — panels mounts after sessions

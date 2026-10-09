@@ -1,10 +1,13 @@
 /**
- * V31-INTENT-01 / V31-CFG-01 — config readers.
+ * V31-INTENT-01 / V31-CFG-01 / Phase C — config readers.
  */
 
 import { describe, expect, it } from 'vitest';
 import {
   readIntentGateEnabled,
+  readPermissionRecoveryEnabled,
+  readRealCompactionEnabled,
+  readSessionTranscriptEnabled,
   readStrictEditEnabled,
   readToolCallFallbackEnabled,
   resolveEffectiveHarnessFlags,
@@ -85,5 +88,45 @@ describe('V31-TOOL-03 readStrictEditEnabled', () => {
     expect(
       readStrictEditEnabled(reader({ 'tools.strictEdit': false })),
     ).toBe(false);
+  });
+});
+
+describe('V31-CTX-02 readRealCompactionEnabled', () => {
+  it('defaults to false when the key is missing', () => {
+    expect(readRealCompactionEnabled(reader({}))).toBe(false);
+  });
+
+  it('honors explicit true', () => {
+    expect(
+      readRealCompactionEnabled(reader({ 'compaction.realSummary': true })),
+    ).toBe(true);
+  });
+});
+
+describe('V31-CTX-01 readSessionTranscriptEnabled', () => {
+  it('defaults to false when the key is missing', () => {
+    expect(readSessionTranscriptEnabled(reader({}))).toBe(false);
+  });
+
+  it('honors explicit true', () => {
+    expect(
+      readSessionTranscriptEnabled(
+        reader({ 'sessionTranscript.enabled': true }),
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('V31-RETRY-04 readPermissionRecoveryEnabled', () => {
+  it('defaults to false when the key is missing', () => {
+    expect(readPermissionRecoveryEnabled(reader({}))).toBe(false);
+  });
+
+  it('honors explicit true', () => {
+    expect(
+      readPermissionRecoveryEnabled(
+        reader({ 'retry.permissionRecovery': true }),
+      ),
+    ).toBe(true);
   });
 });

@@ -327,4 +327,115 @@ describe('AgentLoopController (AGENT-001…004)', () => {
     expect(seenSystem).not.toContain('## Loop phase');
     expect(phases).toEqual([]);
   });
+
+  it('V31-CTX-02 realCompaction asks the model for a summary when over budget', async () => {
+    const summaryCalls: string[] = [];
+    let modelCalls = 0;
+    const events: string[] = [];
+
+    const controller = new AgentLoopController(
+      {
+        runModel: async ({ messages }) => {
+          modelCalls++;
+          // The compaction prompt is the last injected user message.
+          const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+          if (lastUser?.metadata?.type === 'compaction_prompt') {
+            summaryCalls.push(lastUser.content);
+            return { content: 'MODEL SUMMARY: keep the parser fix goal.' };
+          }
+          if (modelCalls === 2) {
+            return { content: '## Summary\n\nNothing to change.' };
+          }
+          return { content: 'thinking' };
+        },
+        executeTool: async () => ({ success: true, data: null }),
+        onEvent: (e) => events.push(e.type),
+      },
+      {
+        maxTurns: 3,
+        parallelTools: false,
+        contextBudgetTokens: 4_096,
+        realCompaction: true,
+      }
+    );
+
+    // Seed old, unprotected tool output plus a distant recent turn so the
+    // assistant's protection window (last 6 turns) leaves turn 1 compactable.
+    const seed: AgentMessage[] = [
+      { role: 'user', content: 'old goal', metadata: { turn: 1 } },
+      {
+        role: 'assistant',
+        content: '',
+        toolCalls: [{ id: 's1', name: 'read_file', arguments: { path: 'a' } }],
+        metadata: { turn: 1 },
+      },
+      {
+        role: 'tool',
+        content: 'x'.repeat(20_000),
+        toolCallId: 's1',
+        name: 'read_file',
+        metadata: { turn: 1, toolName: 'read_file', type: 'tool_result' },
+      },
+      { role: 'user', content: 'recent context', metadata: { turn: 50 } },
+    ];
+
+    const result = await controller.run({ prompt: 'recent ask', messages: seed });
+    expect(result.reason).toBe('completed');
+    expect(summaryCalls.length).toBeGreaterThan(0);
+    expect(summaryCalls[0]).toContain('Summarize');
+    expect(events).toContain('compaction');
+  });
+
+  it('V31-RETRY-04 permission denial stops the run by default', async () => {
+    let modelCalls = 0;
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          modelCalls++;
+          if (modelCalls === 1) {
+            return {
+              content: '',
+              toolCalls: [{ id: 'c1', name: 'write_file', arguments: { path: 'x' } }],
+            } satisfies ModelTurnResult;
+          }
+          return { content: '## Summary\n\nblocked.' } satisfies ModelTurnResult;
+        },
+        executeTool: async () => ({ success: true, data: null }),
+        checkPermission: () => 'deny',
+      },
+      { maxTurns: 4, parallelTools: false },
+    );
+
+    const result = await controller.run({ prompt: 'write a file' });
+    expect(result.reason).toBe('permission_denied');
+  });
+
+  it('V31-RETRY-04 permission recovery continues once with an alternative nudge', async () => {
+    const toolContents: string[] = [];
+    let modelCalls = 0;
+    const controller = new AgentLoopController(
+      {
+        runModel: async ({ messages }) => {
+          modelCalls++;
+          if (modelCalls === 1) {
+            return {
+              content: '',
+              toolCalls: [{ id: 'c1', name: 'write_file', arguments: { path: 'x' } }],
+            } satisfies ModelTurnResult;
+          }
+          // Should see the denial recovery nudge in the tool result.
+          const tool = messages.find((m) => m.role === 'tool');
+          if (tool) toolContents.push(tool.content);
+          return { content: '## Summary\n\nused an alternative.' } satisfies ModelTurnResult;
+        },
+        executeTool: async () => ({ success: true, data: null }),
+        checkPermission: () => 'deny',
+      },
+      { maxTurns: 4, parallelTools: false, permissionRecovery: true },
+    );
+
+    const result = await controller.run({ prompt: 'write a file' });
+    expect(result.reason).toBe('completed');
+    expect(toolContents.some((c) => c.includes('alternative'))).toBe(true);
+  });
 });

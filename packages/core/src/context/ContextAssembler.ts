@@ -14,6 +14,7 @@ import {
 } from './budget';
 import { CompactionEngine } from './CompactionEngine';
 import type { CompactLevel } from './CompactionEngine';
+import type { SummaryProvider } from './compaction/CompactionStrategy';
 import type { WorkspaceContext } from './WorkspaceContext';
 import {
   formatProjectRulesBlock,
@@ -80,6 +81,16 @@ export class ContextAssembler {
       system = injectCursorPattern(system);
       system = injectTurnStructure(system);
     }
+
+    // V31-CTX-05 — truncate ONLY the base prompt. Project rules / approved plan
+    // must never be cut (previously the cap sliced the whole system string).
+    const systemCap = Math.floor(budget.maxTokens * 0.15) * 4;
+    let truncated = false;
+    if (system.length > systemCap) {
+      system = system.slice(0, systemCap) + '\n...(system truncated)';
+      truncated = true;
+    }
+
     const workspaceBlock = input.workspace?.toPromptBlock() ?? '';
     // Comment: HARNESS-005 — PROJECT RULES outside compaction (re-inject every turn)
     const projectRulesBlock = formatProjectRulesBlock(
@@ -99,16 +110,9 @@ export class ContextAssembler {
       .filter(Boolean)
       .join('\n\n');
 
+    // Sticky blocks are appended AFTER truncation so rules/plan survive intact.
     if (sticky) {
       system = `${system}\n\n${sticky}`;
-    }
-
-    // Soft-trim oversized system to ~15% of budget.
-    const systemCap = Math.floor(budget.maxTokens * 0.15) * 4;
-    let truncated = false;
-    if (system.length > systemCap) {
-      system = system.slice(0, systemCap) + '\n...(system truncated)';
-      truncated = true;
     }
 
     parts.push({ role: 'system', content: system, metadata: { protected: true } });
@@ -149,5 +153,29 @@ export class ContextAssembler {
 
   estimateText(text: string): number {
     return estimateTokens(text);
+  }
+
+  /**
+   * V31-CTX-02 — Async assemble that uses a SummaryProvider for compaction.
+   * The sync `assemble` path is unchanged; this variant is opt-in so harness
+   * wiring can choose model-generated summaries without blocking sync callers.
+   */
+  async assembleAsync(
+    input: AssembleInput,
+    summaryProvider: SummaryProvider
+  ): Promise<AssembleResult> {
+    const sync = this.assemble({ ...input, compactIfNeeded: false });
+    if (input.compactIfNeeded === false || !isOverBudget(sync.usedTokens, sync.budget)) {
+      return sync;
+    }
+    const engine = new CompactionEngine(sync.budget.maxTokens, undefined, summaryProvider);
+    const result = await engine.compactAsync(sync.messages);
+    return {
+      ...sync,
+      messages: result.messages,
+      usedTokens: result.compactedTokens,
+      compacted: true,
+      compactionLevel: result.level,
+    };
   }
 }

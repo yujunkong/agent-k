@@ -13,6 +13,7 @@ import {
   formatInlineEditSystemContext,
   getPolicyForTier,
   inferTierFromModelId,
+  injectStagePrompt,
   modeRegistry,
   planWriteGate,
   prependPrefetchToUserPrompt,
@@ -25,6 +26,9 @@ import {
 } from '@agent-k/core';
 import {
   readIntentGateEnabled,
+  readPermissionRecoveryEnabled,
+  readRealCompactionEnabled,
+  readSessionTranscriptEnabled,
   readStrictEditEnabled,
   readToolCallFallbackEnabled,
   resolveEffectiveHarnessFlags,
@@ -32,6 +36,9 @@ import {
 import { NativeThenFallbackNormalizer } from './turn/ToolCallNormalizer';
 import { todoStore } from './session/TodoStore';
 import { persistSessionTodos } from './session/todoPersistence';
+import { sessionTranscriptStore } from './session/SessionTranscriptStore';
+import { persistSessionTranscript } from './session/transcriptPersistence';
+import { collectWorkspaceContext } from './workspaceContext';
 import {
   LiteLLMProvider,
   clampThinkingEffort,
@@ -1530,12 +1537,35 @@ export async function runHostChatSend(
       harnessEnabled: intentGates.harnessBlocks,
       modelTier,
       intentKind: intentVerdict.kind,
+      // Comment: V31-CTX-02 — model-generated compaction summaries (opt-in)
+      realCompaction: readRealCompactionEnabled(cfg),
+      // Comment: V31-CTX-05 — inject IDE workspace context when available
+      workspace: collectWorkspaceContext(),
+      // Comment: V31-RETRY-04 — denied tool recovers instead of killing the run
+      permissionRecovery: readPermissionRecoveryEnabled(cfg),
       stickyContext: inlineEditReq
         ? formatInlineEditStickyContext(inlineEditReq)
         : undefined,
-      systemPrompt: inlineEditReq
-        ? `${modeConfig.systemPrompt}\n\n${formatInlineEditSystemContext(inlineEditReq)}`
-        : modeConfig.systemPrompt,
+      systemPrompt: injectStagePrompt(
+        inlineEditReq
+          ? `${modeConfig.systemPrompt}\n\n${formatInlineEditSystemContext(inlineEditReq)}`
+          : modeConfig.systemPrompt,
+        {
+          // Comment: V31-PLAN-01 — plan/debug stage prompts are now injected
+          planStage: mode === 'plan' ? planStage : undefined,
+          debugStage:
+            mode === 'debug'
+              ? (payload.debugStage as
+                  | 'hypothesis'
+                  | 'instrument'
+                  | 'reproduce'
+                  | 'analyze'
+                  | 'fix'
+                  | 'cleanup'
+                  | undefined)
+              : undefined,
+        },
+      ),
     },
   );
 
@@ -1545,13 +1575,21 @@ export async function runHostChatSend(
     cancelSubagents: () => subagentHost.cancelAll(),
   });
 
-  const prior: AgentMessage[] = (payload.messages || [])
-    .filter((m) => m.role === 'user' || m.role === 'assistant')
-    .slice(0, -1)
-    .map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: String(m.content || ''),
-    }));
+  // Comment: V31-CTX-01 — host transcript (structured, keeps tool results)
+  // is the prior source when enabled; webview user/assistant text is fallback.
+  const transcriptEnabled = readSessionTranscriptEnabled(cfg);
+  const transcriptPrior = transcriptEnabled
+    ? sessionTranscriptStore.get(sessionId)
+    : [];
+  const prior: AgentMessage[] = transcriptPrior.length
+    ? transcriptPrior
+    : (payload.messages || [])
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .slice(0, -1)
+        .map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: String(m.content || ''),
+        }));
 
   const lastUserRaw =
     [...(payload.messages || [])]
@@ -1562,12 +1600,20 @@ export async function runHostChatSend(
   // Comment: V31-INTENT-01 — conversation/question skip prefetch entirely.
   if (intentGates.prefetch) {
     try {
+      const t0 = Date.now();
       const prefetchEngine = new PrefetchEngine(
         { enabled: true, ideContextEnabled: true },
         createPrefetchIdeDeps(root),
       );
       const prefetchRaw = await prefetchEngine.prefetch(runPrompt, mode);
       runPrompt = prependPrefetchToUserPrompt(runPrompt, prefetchRaw);
+      // Comment: V31-CTX-04 — host owns prefetch; report stats to the webview
+      const fileHits = (prefetchRaw.match(/Read file:/g) || []).length;
+      postStream({
+        event: 'prefetch',
+        count: fileHits || (prefetchRaw ? 1 : 0),
+        latencyMs: Date.now() - t0,
+      });
     } catch {
       /* prefetch must not block send */
     }
@@ -1580,6 +1626,13 @@ export async function runHostChatSend(
       signal: abort.signal,
       messages: prior.length ? prior : undefined,
     });
+    // Comment: V31-CTX-01 — persist the run transcript (tool results survive)
+    if (transcriptEnabled) {
+      sessionTranscriptStore.replace(
+        sessionId,
+        result.messages.filter((m) => m.role !== 'system'),
+      );
+    }
 
     if (result.reason === 'doom_loop' && result.content) {
       postStream({ event: 'delta', content: `\n\n${result.content}` });
@@ -1639,6 +1692,8 @@ export async function runHostChatSend(
   } finally {
     // Comment: V31-TOOL-04 — persist even when the run throws or aborts
     persistSessionTodos(sessionId);
+    // Comment: V31-CTX-01 — transcript reload survival
+    if (transcriptEnabled) persistSessionTranscript(sessionId);
     ctx.hostLoops.delete(requestId);
     if (ctx.getHostLoopRequestId() === requestId) {
       ctx.setHostLoopRequestId(undefined);

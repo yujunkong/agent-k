@@ -27,3 +27,8 @@ export {
   isWriteLikeToolName,
   planWriteGate,
 } from './planWriteGate';
+export {
+  PLAN_STAGE_PROMPTS,
+  injectStagePrompt,
+  type StagePromptInput,
+} from './StagePrompts';

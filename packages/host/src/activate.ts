@@ -23,6 +23,7 @@ import {
 import { SelectionDiffApply } from './inline/SelectionDiffApply';
 import { AgentKInlineCompletionProvider } from './inline/InlineCompletionProvider';
 import { bindTodoPersistence } from './session/todoPersistence';
+import { bindTranscriptPersistence } from './session/transcriptPersistence';
 
 let provider: ChatViewProvider | undefined;
 
@@ -35,6 +36,8 @@ export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvid
   context.subscriptions.push(getHostLog());
   // Comment: V31-TOOL-04 — restore session todos before the first chat.send
   bindTodoPersistence(context.workspaceState);
+  // Comment: V31-CTX-01 — restore session transcripts before the first send
+  bindTranscriptPersistence(context.workspaceState);
   hostLog('host activate', `version=${context.extension.packageJSON?.version ?? '?'}`);
 
   const extensionVersion =
