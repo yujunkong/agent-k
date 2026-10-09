@@ -6,136 +6,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { TimelineStep } from '../conversation/timelinePresentation';
 import {
-  MID_THOUGHT_DISPLAY_MAX,
-  THOUGHT_DISPLAY_MAX,
   formatExploreDetail,
   formatRollingTool,
   formatThoughtTitle,
   toolRowLabel
 } from './messageSteps/exploreHelpers';
+import { ChevronRow, LiveStepTitle, ThoughtBody } from './messageSteps/stepChrome';
 
 /** Re-exported for SubagentRunRow — keeps the existing import path stable. */
 export { formatThoughtTitle };
-
-function LiveStepTitle({
-  title,
-  live,
-  className
-}: {
-  title: string;
-  live: boolean;
-  className?: string;
-}) {
-  if (!live) {
-    return (
-      <span className={['ak-step-title', className].filter(Boolean).join(' ')}>{title}</span>
-    );
-  }
-  return (
-    <span
-      className={['ak-step-title', 'ak-step-title--live-shimmer', className].filter(Boolean).join(' ')}
-      data-text={title}
-    >
-      <span className="ak-step-title__base">{title}</span>
-      <span className="ak-step-title__shine" aria-hidden>
-        {title}
-      </span>
-    </span>
-  );
-}
-
-function ThoughtBody({
-  text,
-  live,
-  compact
-}: {
-  text: string;
-  live: boolean;
-  compact?: boolean;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const stickRef = useRef(true);
-  const max = compact ? MID_THOUGHT_DISPLAY_MAX : THOUGHT_DISPLAY_MAX;
-  // Comment: over cap → drop the head so live Thinking keeps scrolling newest tokens
-  const display = text.length > max ? `…${text.slice(text.length - max)}` : text;
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !live || !stickRef.current) return;
-    el.scrollTop = el.scrollHeight;
-  }, [display, live]);
-
-  return (
-    <div
-      ref={ref}
-      className={`message-steps-thought-body${compact ? ' message-steps-thought-body--mid' : ''}`}
-      onScroll={() => {
-        const el = ref.current;
-        if (!el) return;
-        const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-        stickRef.current = gap < 48;
-      }}
-      onWheel={(e) => {
-        e.stopPropagation();
-      }}
-    >
-      {display || (live ? '…' : '')}
-    </div>
-  );
-}
-
-function ChevronRow({
-  title,
-  expanded,
-  live,
-  hasError,
-  rollingStatus,
-  onToggle,
-  children
-}: {
-  title: string;
-  expanded: boolean;
-  live: boolean;
-  hasError?: boolean;
-  rollingStatus?: string;
-  onToggle: () => void;
-  children?: React.ReactNode;
-}) {
-  const showRolling = !expanded && !!live && !!rollingStatus?.trim();
-  const shimmerHeader = !!live && !hasError && rollingStatus == null;
-  const locked = live && !children;
-  return (
-    <div
-      className={['ak-step-row', live ? 'ak-step-row--live' : '', hasError ? 'ak-step-row--error' : '']
-        .filter(Boolean)
-        .join(' ')}
-    >
-      <button
-        type="button"
-        onClick={() => {
-          if (locked) return;
-          onToggle();
-        }}
-        className={['ak-step-chevron-btn', locked ? 'ak-step-chevron-btn--locked' : '']
-          .filter(Boolean)
-          .join(' ')}
-        aria-expanded={expanded}
-        aria-busy={live || undefined}
-      >
-        <span className="ak-step-chevron" aria-hidden>
-          {expanded ? '▾' : '▸'}
-        </span>
-        <LiveStepTitle title={title} live={shimmerHeader} />
-      </button>
-      {showRolling ? (
-        <div key={rollingStatus} className="ak-step-rolling ak-step-rolling--live" aria-live="polite">
-          <LiveStepTitle title={rollingStatus!} live />
-        </div>
-      ) : null}
-      {expanded ? children : null}
-    </div>
-  );
-}
 
 function useExploringRollingStatus(children: TimelineStep[], active: boolean): string | undefined {
   const [flash, setFlash] = useState<{ toolId: string; label: string } | null>(null);
