@@ -1731,6 +1731,22 @@ function mapLoopEventToStream(
         label: 'Summarizing chat context...',
       });
       break;
+    case 'phase':
+      // Comment: V31-LOOP-01 — phase transition observation for chat UI
+      post({
+        event: 'phase',
+        phase: event.phase,
+        turn: event.turn,
+        reason: event.reason,
+      });
+      break;
+    case 'self_critique':
+      // Comment: V31-LOOP-02 — Thought channel; tool body still has the instruction
+      post({
+        event: 'delta',
+        reasoning: event.text,
+      });
+      break;
     case 'done':
       // complete/stopped posted by runHostChatSend after run() returns
       break;

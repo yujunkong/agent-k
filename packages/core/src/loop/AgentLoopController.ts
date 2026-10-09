@@ -15,10 +15,16 @@ import type {
   ToolCallRequest,
 } from '../types';
 import { ClassifierDiagnostics } from './ClassifierDiagnostics';
+import {
+  CritiqueRunner,
+  DefaultCritiqueFormatter,
+  DefaultSelfCritiquePolicy,
+} from './critique';
 import { DoomLoopDetector } from './DoomLoopDetector';
 import { DoomLoopHandler } from './DoomLoopHandler';
 import { classifyError, ErrorRecovery } from './ErrorRecovery';
 import { isParallelSafeTool, ParallelExecutor } from './ParallelExecutor';
+import { LoopPhaseTracker, PhaseEmitter, type LoopPhase } from './phases';
 import {
   batchHasBlindRead,
   isSearchTool,
@@ -31,6 +37,7 @@ import {
   evaluateVerifyExit,
   extractEditedFilePath,
   formatPostEditVerificationFailure,
+  injectPhasePrompt,
   markPathEdited,
   markPathVerified,
   parseLintErrorsFromToolResult,
@@ -52,7 +59,11 @@ export type AgentLoopEvent =
     }
   | { type: 'status'; status: AgentLoopStatus }
   | { type: 'error'; error: string; fatal: boolean }
-  | { type: 'done'; reason: StopReason; content: string };
+  | { type: 'done'; reason: StopReason; content: string }
+  /** V31-LOOP-01 — observed loop phase transition (observation only, no FSM). */
+  | { type: 'phase'; phase: LoopPhase; turn: number; reason: string }
+  /** V31-LOOP-02 — inline critique shown as Thought; tool body still carries the instruction. */
+  | { type: 'self_critique'; turn: number; passes: number; text: string };
 
 export type AgentLoopStatus =
   | 'idle'
@@ -158,6 +169,16 @@ export class AgentLoopController {
   private verifyExitState: VerifyExitState = createVerifyExitState();
   /** HARNESS-004 — per-file lint retry counter. */
   private postEditVerify = new PostEditVerificationTracker();
+  /** V31-LOOP-01 — observed phase tracker + emitter (no FSM). */
+  private readonly phaseTracker = new LoopPhaseTracker();
+  private readonly phaseEmitter = new PhaseEmitter(this.phaseTracker, (e) =>
+    this.emit(e),
+  );
+  /** V31-LOOP-02 — inline self-critique after clean edits (max 2 passes). */
+  private readonly critiqueRunner = new CritiqueRunner(
+    new DefaultSelfCritiquePolicy(),
+    new DefaultCritiqueFormatter(),
+  );
 
   constructor(deps: AgentLoopDeps, config: AgentLoopConfig = {}) {
     this.deps = deps;
@@ -179,6 +200,8 @@ export class AgentLoopController {
       verificationMicroLoop: config.verificationMicroLoop,
       harnessEnabled: config.harnessEnabled,
       modelTier: config.modelTier,
+      // Comment: V31-LOOP-01 — conversation/question skip phase inject
+      intentKind: config.intentKind,
     };
     this.doom = new DoomLoopDetector(this.config.doomLoopThreshold);
     this.assembler = new ContextAssembler(this.config.contextBudgetTokens);
@@ -207,6 +230,9 @@ export class AgentLoopController {
     // Comment: HARNESS-002/004 — fresh verify state per run
     this.verifyExitState = createVerifyExitState();
     this.postEditVerify = new PostEditVerificationTracker();
+    // Comment: V31-LOOP-01/02 — fresh phase + critique budget per run
+    this.phaseTracker.reset();
+    this.critiqueRunner.reset();
     this.status = 'running';
     this.doom.reset();
     this.emit({ type: 'status', status: 'running' });
@@ -246,9 +272,15 @@ export class AgentLoopController {
         this.emit({ type: 'turn_start', turn: turns });
         this.timeout.bump();
 
+        // Comment: V31-LOOP-01 — phase prompt for task turns only (no FSM)
+        const baseSystem = this.config.systemPrompt!;
+        const systemPrompt = this.phasesEnabled()
+          ? injectPhasePrompt(baseSystem, this.phaseTracker.current())
+          : baseSystem;
+
         const assembled = this.assembler.assemble({
           mode: this.config.mode ?? 'agent',
-          systemPrompt: this.config.systemPrompt!,
+          systemPrompt,
           messages: this.messages,
           budget: this.compaction.contextBudget,
           compactIfNeeded: true,
@@ -306,6 +338,19 @@ export class AgentLoopController {
           this.diagnostics.run('looksLikeBrokenToolPayload', content, turns);
         }
 
+        // Comment: V31-LOOP-01 — observe model turn before the exit gate
+        if (this.phasesEnabled()) {
+          this.phaseEmitter.observe({
+            turn: turns,
+            hasToolCalls: toolCalls.length > 0,
+            toolNames: toolCalls.map((c) => c.name),
+            toolOk: true,
+            editedPaths: [],
+            verifyPending: this.hasPendingVerification(),
+            finalProse: content || undefined,
+          });
+        }
+
         if (toolCalls.length === 0) {
           // Comment: HARNESS-002 — /goal-like exit gate before completing
           const exitCheck = evaluateVerifyExit({
@@ -351,12 +396,23 @@ export class AgentLoopController {
         this.status = 'awaiting_tools';
         this.emit({ type: 'status', status: 'awaiting_tools' });
 
-        const toolOutcome = await this.executeToolCalls(
+        const batch = await this.executeToolCalls(
           toolCalls,
           runAbort.signal,
           turns
         );
-        if (toolOutcome === 'doom_loop') {
+        // Comment: V31-LOOP-01 — observe tool batch (edits → verify)
+        if (this.phasesEnabled()) {
+          this.phaseEmitter.observe({
+            turn: turns,
+            hasToolCalls: false,
+            toolNames: batch.toolNames,
+            toolOk: batch.outcome === 'ok',
+            editedPaths: batch.editedPaths,
+            verifyPending: this.hasPendingVerification(),
+          });
+        }
+        if (batch.outcome === 'doom_loop') {
           reason = 'doom_loop';
           // Prefer handler message (suggestions) over generic stop text.
           const loopInfo = this.doom.getLoopInfo();
@@ -370,12 +426,12 @@ export class AgentLoopController {
           this.emit({ type: 'turn_end', turn: turns });
           break;
         }
-        if (toolOutcome === 'aborted') {
+        if (batch.outcome === 'aborted') {
           reason = this.abortFromTimeout ? 'timeout' : 'aborted';
           this.emit({ type: 'turn_end', turn: turns });
           break;
         }
-        if (toolOutcome === 'permission_denied') {
+        if (batch.outcome === 'permission_denied') {
           reason = 'permission_denied';
           finalContent = 'Stopped: permission denied for a tool call.';
           this.emit({ type: 'turn_end', turn: turns });
@@ -418,8 +474,15 @@ export class AgentLoopController {
     toolCalls: ToolCallRequest[],
     signal: AbortSignal,
     turn: number
-  ): Promise<'ok' | 'doom_loop' | 'aborted' | 'permission_denied'> {
+  ): Promise<{
+    outcome: 'ok' | 'doom_loop' | 'aborted' | 'permission_denied';
+    editedPaths: string[];
+    toolNames: string[];
+  }> {
     const streaming = new StreamingToolExecutor(this.deps.executeTool);
+    // Comment: V31-LOOP-01 — collect batch facts for phase observation
+    const editedPaths: string[] = [];
+    const toolNames: string[] = [];
     // Comment: detect blind reads up front — still execute; nudge once after batch
     const blindBatch =
       !this.searchNudgeSent &&
@@ -457,6 +520,7 @@ export class AgentLoopController {
         }
       }
 
+      toolNames.push(call.name);
       const result = await streaming.execute({
         callId: call.id,
         name: call.name,
@@ -467,6 +531,7 @@ export class AgentLoopController {
       const editedPath = extractEditedFilePath(call.name, call.arguments);
       if (result.success && editedPath) {
         markPathEdited(this.verifyExitState, editedPath);
+        editedPaths.push(editedPath);
       }
 
       if (isSearchTool(call.name)) {
@@ -507,6 +572,22 @@ export class AgentLoopController {
               );
           } else {
             markPathVerified(this.verifyExitState, editedPath);
+            // Comment: V31-LOOP-02 — inline self-critique after clean edit
+            const critique = this.critiqueRunner.run({
+              editedPaths: [editedPath],
+              messages: this.messages,
+              turn,
+            });
+            if (critique?.nudge) {
+              body = `${body}\n\n${critique.nudge}`;
+              // Comment: host maps this to delta.reasoning → Thought accordion
+              this.emit({
+                type: 'self_critique',
+                turn,
+                passes: critique.passes,
+                text: critique.nudge,
+              });
+            }
           }
         } catch {
           /* verification must not break tool batch */
@@ -595,7 +676,24 @@ export class AgentLoopController {
       });
     }
 
-    return batchOutcome;
+    return { outcome: batchOutcome, editedPaths, toolNames };
+  }
+
+  /**
+   * V31-LOOP-01 — phase inject/observe for task turns only.
+   * Comment: conversation/question skip; also off when verificationFirst=false.
+   */
+  private phasesEnabled(): boolean {
+    const kind = this.config.intentKind;
+    if (kind === 'conversation' || kind === 'question') return false;
+    return this.config.verificationFirst !== false;
+  }
+
+  /** HARNESS-002 — true when any edited path still lacks a clean lint. */
+  private hasPendingVerification(): boolean {
+    return [...this.verifyExitState.pendingPaths].some(
+      (p) => !this.verifyExitState.verifiedPaths.has(p)
+    );
   }
 
   private emit(event: AgentLoopEvent): void {

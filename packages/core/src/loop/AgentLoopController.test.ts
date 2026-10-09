@@ -134,4 +134,169 @@ describe('AgentLoopController (AGENT-001…004)', () => {
       )
     ).toBe(true);
   });
+
+  it('emits phase transitions (V31-LOOP-01)', async () => {
+    let turn = 0;
+    const phases: Array<{ phase: string; turn: number; reason: string }> = [];
+
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          turn++;
+          if (turn === 1) {
+            return {
+              content: '',
+              toolCalls: [
+                {
+                  id: 'c1',
+                  name: 'edit_file',
+                  arguments: { path: 'src/a.ts' },
+                },
+              ],
+            } satisfies ModelTurnResult;
+          }
+          return {
+            content:
+              '## Summary\n\nEdited src/a.ts and verified the change with read_lints; no remaining issues.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async ({ name }) => {
+          if (name === 'read_lints') {
+            return { success: true, data: { errors: [] } };
+          }
+          return { success: true, data: 'edited' };
+        },
+        onEvent: (e) => {
+          if (e.type === 'phase') {
+            phases.push({ phase: e.phase, turn: e.turn, reason: e.reason });
+          }
+        },
+      },
+      { maxTurns: 5, parallelTools: false, intentKind: 'task' }
+    );
+
+    const result = await controller.run({ prompt: 'Edit src/a.ts.' });
+
+    expect(result.reason).toBe('completed');
+    expect(phases.map((p) => p.phase)).toEqual(['execute', 'done']);
+  });
+
+  it('appends inline self-critique after clean edits, capped at maxPasses (V31-LOOP-02)', async () => {
+    let turn = 0;
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          turn++;
+          if (turn <= 3) {
+            return {
+              content: '',
+              toolCalls: [
+                {
+                  id: `c${turn}`,
+                  name: 'edit_file',
+                  arguments: { path: `src/f${turn}.ts` },
+                },
+              ],
+            } satisfies ModelTurnResult;
+          }
+          return {
+            content:
+              '## Summary\n\nEdited src/f1.ts, src/f2.ts and src/f3.ts; each was verified with read_lints and no issues remain.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async ({ name }) => {
+          if (name === 'read_lints') {
+            return { success: true, data: { errors: [] } };
+          }
+          return { success: true, data: 'edited' };
+        },
+      },
+      { maxTurns: 6, parallelTools: false, intentKind: 'task' }
+    );
+
+    const result = await controller.run({ prompt: 'Edit three files.' });
+    const bodies = result.messages
+      .filter((m) => m.role === 'tool' && m.name === 'edit_file')
+      .map((m) => String(m.content));
+
+    expect(bodies).toHaveLength(3);
+    expect(bodies[0]).toContain('<self_critique>');
+    expect(bodies[1]).toContain('<self_critique>');
+    expect(bodies[2]).not.toContain('<self_critique>');
+  });
+
+  it('emits self_critique events for Thought channel (V31-LOOP-02)', async () => {
+    let turn = 0;
+    const critiques: Array<{ turn: number; passes: number; text: string }> = [];
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          turn++;
+          if (turn === 1) {
+            return {
+              content: '',
+              toolCalls: [
+                {
+                  id: 'c1',
+                  name: 'edit_file',
+                  arguments: { path: 'src/a.ts' },
+                },
+              ],
+            } satisfies ModelTurnResult;
+          }
+          return {
+            content:
+              '## Summary\n\nEdited src/a.ts; verified with read_lints; no issues remain.',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async ({ name }) => {
+          if (name === 'read_lints') {
+            return { success: true, data: { errors: [] } };
+          }
+          return { success: true, data: 'edited' };
+        },
+        onEvent: (e) => {
+          if (e.type === 'self_critique') {
+            critiques.push({
+              turn: e.turn,
+              passes: e.passes,
+              text: e.text,
+            });
+          }
+        },
+      },
+      { maxTurns: 5, parallelTools: false, intentKind: 'task' }
+    );
+
+    await controller.run({ prompt: 'Edit src/a.ts.' });
+    expect(critiques).toHaveLength(1);
+    expect(critiques[0].passes).toBe(1);
+    expect(critiques[0].text).toContain('<self_critique>');
+  });
+
+  it('skips phase inject for conversation intent (V31-LOOP-01)', async () => {
+    let seenSystem = '';
+    const phases: string[] = [];
+    const controller = new AgentLoopController(
+      {
+        runModel: async ({ messages }) => {
+          seenSystem = String(
+            messages.find((m) => m.role === 'system')?.content ?? ''
+          );
+          return {
+            content: 'Hello! How can I help you today?',
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async () => ({ success: true, data: null }),
+        onEvent: (e) => {
+          if (e.type === 'phase') phases.push(e.phase);
+        },
+      },
+      { maxTurns: 3, intentKind: 'conversation' }
+    );
+
+    await controller.run({ prompt: 'hi' });
+    expect(seenSystem).not.toContain('## Loop phase');
+    expect(phases).toEqual([]);
+  });
 });
