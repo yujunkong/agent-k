@@ -486,72 +486,55 @@ function ToolSlideList({
   maxHeight: number;
   onOpenFile?: (path: string) => void;
 }) {
+  // Comment: V31-UI-20 — ak-explore-tool-row owns layout/typography (no inline density).
   return (
     <div
-      className="ak-tool-slide-list"
-      style={{
-        color: STEPS_MUTED,
-        maxHeight,
-        overflow: 'hidden'
-      }}
+      className={`ak-tool-slide-list${live ? ' ak-explore-scroll--live' : ' ak-explore-scroll--settled'}`}
+      style={{ maxHeight, overflow: 'hidden' }}
     >
-      {items.map((s) => (
-        <div
-          key={s.id}
-          className={
-            live && s.itemStatus === 'running'
-              ? 'ak-tool-slide-in ak-tool-row--running'
-              : undefined
-          }
-          style={{
-            display: 'flex',
-            gap: 8,
-            padding: '1px 0',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            fontSize: 11.5
-          }}
-        >
-          <span
-            style={{
-              opacity: s.itemStatus === 'error' ? 0.95 : 0.5,
-              flexShrink: 0,
-              color: s.itemStatus === 'error' ? '#f87171' : undefined
-            }}
-            title={s.itemStatus === 'error' ? s.detail || 'failed' : undefined}
+      {items.map((s) => {
+        const failed = s.itemStatus === 'error';
+        const running = live && s.itemStatus === 'running';
+        return (
+          <div
+            key={s.id}
+            className={[
+              'ak-explore-tool-row',
+              failed ? 'ak-explore-tool-row--failed' : '',
+              running ? 'ak-tool-slide-in ak-tool-row--running' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
           >
-            {s.itemStatus === 'error' ? '✗' : s.itemStatus === 'running' ? '›' : '·'}
-          </span>
-          <span
-            style={{
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              flex: 1,
-              color: s.itemStatus === 'error' ? '#fca5a5' : undefined
-            }}
-          >
-            {toolRowLabel(s)}
-            {s.toolName === 'task_run' && s.detail && TASK_STATUS_WORDS.has(s.detail) ? (
-              <TaskStatusBadge status={s.detail} />
-            ) : resolveExploreDetail(s) ? (
-              <ExploreDetailLink
-                detail={resolveExploreDetail(s)!}
-                openPath={s.openPath}
-                onOpenFile={onOpenFile}
-                isError={s.itemStatus === 'error'}
-              />
-            ) : null}
-          </span>
-          {s.itemStatus === 'running' ? (
-            <span className="ak-live-blink ak-live-blink--sm" aria-hidden>
-              <span className="ak-live-blink__dot" />
+            <span
+              className="ak-explore-tool-row__marker"
+              title={failed ? s.detail || 'failed' : undefined}
+            >
+              {failed ? '✗' : running ? '›' : '·'}
             </span>
-          ) : s.durationMs != null ? (
-            <span style={{ opacity: 0.4, flexShrink: 0 }}>{formatMs(s.durationMs)}</span>
-          ) : null}
-        </div>
-      ))}
+            <span className="ak-explore-tool-row__text">
+              {toolRowLabel(s)}
+              {s.toolName === 'task_run' && s.detail && TASK_STATUS_WORDS.has(s.detail) ? (
+                <TaskStatusBadge status={s.detail} />
+              ) : resolveExploreDetail(s) ? (
+                <ExploreDetailLink
+                  detail={resolveExploreDetail(s)!}
+                  openPath={s.openPath}
+                  onOpenFile={onOpenFile}
+                  isError={failed}
+                />
+              ) : null}
+            </span>
+            {running ? (
+              <span className="ak-live-blink ak-live-blink--sm" aria-hidden>
+                <span className="ak-live-blink__dot" />
+              </span>
+            ) : s.durationMs != null ? (
+              <span className="ak-explore-tool-row__meta">{formatMs(s.durationMs)}</span>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -578,12 +561,12 @@ function ExploreStreamList({
     el.scrollTop = el.scrollHeight;
   }, [rows, live]);
 
+  // Comment: V31-UI-20 — CSS owns explore density; keep only scroll stickiness inline.
   return (
     <div
       ref={listRef}
-      className="ak-tool-slide-list ak-explore-scroll"
+      className={`ak-tool-slide-list ak-explore-scroll${live ? ' ak-explore-scroll--live' : ' ak-explore-scroll--settled'}`}
       style={{
-        color: STEPS_MUTED,
         maxHeight,
         overflowX: 'hidden',
         overflowY: 'auto',
@@ -596,14 +579,12 @@ function ExploreStreamList({
         stickRef.current = gap < 48;
       }}
       onWheel={(e) => {
-        // Keep wheel inside Exploring list — don't scroll the whole chat away
         e.stopPropagation();
       }}
     >
       {rows.map((row) => {
         const s = row.step;
         if (row.type === 'prose') {
-          // Legacy sealed asides — show as nested Thought, not bare markdown
           const text = (s.detail || '').trim();
           if (!text) return null;
           const thoughtLive = live && s.itemStatus === 'running';
@@ -621,7 +602,6 @@ function ExploreStreamList({
                   ? 'ak-explore-mid-thought ak-explore-mid-thought--live'
                   : 'ak-explore-mid-thought'
               }
-              style={{ padding: '1px 0' }}
             >
               <button
                 type="button"
@@ -633,26 +613,14 @@ function ExploreStreamList({
                     [s.id]: !expanded
                   }));
                 }}
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  width: '100%',
-                  padding: 0,
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'inherit',
-                  font: 'inherit',
-                  fontSize: 11.5,
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
               >
-                <span style={{ opacity: 0.7, flexShrink: 0, width: 10 }}>
+                <span className="ak-explore-mid-thought__chevron">
                   {expanded ? '▾' : '▸'}
                 </span>
                 <LiveStepTitle
                   title={title}
                   live={!!thoughtLive}
+                  className="ak-explore-mid-thought__title"
                   style={{
                     flex: '0 1 auto',
                     minWidth: 0,
@@ -682,7 +650,6 @@ function ExploreStreamList({
                   ? 'ak-explore-mid-thought ak-explore-mid-thought--live'
                   : 'ak-explore-mid-thought'
               }
-              style={{ padding: '1px 0' }}
             >
               <button
                 type="button"
@@ -697,27 +664,18 @@ function ExploreStreamList({
                   }));
                 }}
                 style={{
-                  display: 'flex',
-                  gap: 8,
-                  width: '100%',
-                  padding: 0,
-                  border: 'none',
-                  background: 'transparent',
-                  color: 'inherit',
-                  font: 'inherit',
-                  fontSize: 11.5,
                   cursor: body || thoughtLive ? 'pointer' : 'default',
-                  textAlign: 'left',
                   whiteSpace: 'nowrap',
                   overflow: thoughtLive ? 'visible' : 'hidden'
                 }}
               >
-                <span style={{ opacity: 0.7, flexShrink: 0, width: 10 }}>
+                <span className="ak-explore-mid-thought__chevron">
                   {body || thoughtLive ? (expanded ? '▾' : '▸') : '·'}
                 </span>
                 <LiveStepTitle
                   title={title}
                   live={!!thoughtLive}
+                  className="ak-explore-mid-thought__title"
                   style={{
                     overflow: thoughtLive ? 'visible' : 'hidden',
                     textOverflow: thoughtLive ? 'clip' : 'ellipsis',
@@ -735,56 +693,39 @@ function ExploreStreamList({
             </div>
           );
         }
+        const failed = s.itemStatus === 'error';
+        const running = live && s.itemStatus === 'running';
         return (
           <div
             key={s.id}
-            className={
-              live && s.itemStatus === 'running'
-                ? 'ak-tool-slide-in ak-tool-row--running'
-                : undefined
-            }
-            style={{
-              display: 'flex',
-              gap: 8,
-              padding: '1px 0',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              fontSize: 11.5
-            }}
+            className={[
+              'ak-explore-tool-row',
+              failed ? 'ak-explore-tool-row--failed' : '',
+              running ? 'ak-tool-slide-in ak-tool-row--running' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
           >
-            <span
-              style={{
-                opacity: s.itemStatus === 'error' ? 0.95 : 0.5,
-                flexShrink: 0,
-                width: 10,
-                color: s.itemStatus === 'error' ? '#f87171' : undefined
-              }}
-            >
-              {s.itemStatus === 'error' ? '✗' : s.itemStatus === 'running' ? '›' : '·'}
+            <span className="ak-explore-tool-row__marker">
+              {failed ? '✗' : running ? '›' : '·'}
             </span>
-            <span
-              style={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                flex: 1,
-                color: s.itemStatus === 'error' ? '#fca5a5' : undefined
-              }}
-            >
+            <span className="ak-explore-tool-row__text">
               {toolRowLabel(s)}
               {resolveExploreDetail(s) ? (
                 <ExploreDetailLink
                   detail={resolveExploreDetail(s)!}
                   openPath={s.openPath}
                   onOpenFile={onOpenFile}
-                  isError={s.itemStatus === 'error'}
+                  isError={failed}
                 />
               ) : null}
             </span>
-            {s.itemStatus === 'running' ? (
+            {running ? (
               <span className="ak-live-blink ak-live-blink--sm" aria-hidden>
                 <span className="ak-live-blink__dot" />
               </span>
+            ) : s.durationMs != null ? (
+              <span className="ak-explore-tool-row__meta">{formatMs(s.durationMs)}</span>
             ) : null}
           </div>
         );

@@ -80,6 +80,19 @@ describe('V31-UI-16 chrome carve-out', () => {
   });
 });
 
+describe('V31-UI-20 step transcript tokens', () => {
+  it('defines step muted/tool/chrome tokens', () => {
+    for (const token of [
+      '--ak-step-muted',
+      '--ak-step-tool-font',
+      '--ak-step-header-size',
+      '--ak-step-chrome-border',
+    ]) {
+      expect(cursorUiCss).toMatch(new RegExp(`${token}\\s*:`));
+    }
+  });
+});
+
 describe('V31-UI-02 focus-visible contract', () => {
   const FOCUS_SELECTORS = [
     '.mode-selector--btn',

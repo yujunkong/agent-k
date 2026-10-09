@@ -88,6 +88,15 @@
   --ak-chip-folder-border: color-mix(in srgb, var(--ak-accent) 38%, transparent);
   --ak-chip-log-bg: color-mix(in srgb, var(--ak-warning) 7%, transparent);
   --ak-chip-log-border: color-mix(in srgb, var(--ak-warning) 26%, transparent);
+
+  /* Comment: V31-UI-20 — one transcript language for Thought / Explore / tool / cards. */
+  --ak-step-muted: var(--vscode-descriptionForeground, #9d9d9d);
+  --ak-step-tool-font: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+  --ak-step-tool-size: var(--ak-fs-xs);
+  --ak-step-header-size: var(--ak-fs-sm);
+  --ak-step-row-gap: 6px;
+  --ak-step-chrome-border: var(--ak-border, color-mix(in srgb, var(--vscode-foreground, #ccc) 14%, transparent));
+  --ak-step-inline-code-bg: color-mix(in srgb, var(--vscode-foreground, #ccc) 8%, transparent);
 }
 
 .message-bubble {
