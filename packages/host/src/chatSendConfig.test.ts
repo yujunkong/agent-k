@@ -4,6 +4,8 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  readDeltaAwareRetryEnabled,
+  readDoomLoopOptions,
   readIntentGateEnabled,
   readPermissionRecoveryEnabled,
   readRealCompactionEnabled,
@@ -128,5 +130,45 @@ describe('V31-RETRY-04 readPermissionRecoveryEnabled', () => {
         reader({ 'retry.permissionRecovery': true }),
       ),
     ).toBe(true);
+  });
+});
+
+describe('V31-RETRY-02 readDeltaAwareRetryEnabled', () => {
+  it('defaults to false when the key is missing', () => {
+    expect(readDeltaAwareRetryEnabled(reader({}))).toBe(false);
+  });
+
+  it('honors explicit true', () => {
+    expect(
+      readDeltaAwareRetryEnabled(reader({ 'retry.deltaAware': true })),
+    ).toBe(true);
+  });
+});
+
+describe('V31-RETRY-03 readDoomLoopOptions', () => {
+  it('returns undefined when neither option is set', () => {
+    expect(readDoomLoopOptions(reader({}))).toBeUndefined();
+  });
+
+  it('reads each option independently', () => {
+    expect(
+      readDoomLoopOptions(reader({ 'retry.doomLoop.detectAlternation': true })),
+    ).toEqual({ detectAlternation: true, ignoreArgsOnSameError: false });
+    expect(
+      readDoomLoopOptions(
+        reader({ 'retry.doomLoop.ignoreArgsOnSameError': true }),
+      ),
+    ).toEqual({ detectAlternation: false, ignoreArgsOnSameError: true });
+  });
+
+  it('returns both when both are set', () => {
+    expect(
+      readDoomLoopOptions(
+        reader({
+          'retry.doomLoop.detectAlternation': true,
+          'retry.doomLoop.ignoreArgsOnSameError': true,
+        }),
+      ),
+    ).toEqual({ detectAlternation: true, ignoreArgsOnSameError: true });
   });
 });

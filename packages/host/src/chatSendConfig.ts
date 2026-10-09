@@ -86,3 +86,26 @@ export function readSessionTranscriptEnabled(cfg: ConfigReader): boolean {
 export function readPermissionRecoveryEnabled(cfg: ConfigReader): boolean {
   return cfg.get('retry.permissionRecovery') === true;
 }
+
+/**
+ * V31-RETRY-02 — delta-aware retry. When on, a failure with changed arguments
+ * starts a fresh attempt budget instead of counting toward exhaustion.
+ * Default false (opt-in).
+ */
+export function readDeltaAwareRetryEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('retry.deltaAware') === true;
+}
+
+/**
+ * V31-RETRY-03 — extended doom-loop detection options. Both default off so the
+ * AGENT-010 behavior is preserved. Returns undefined when neither is enabled.
+ */
+export function readDoomLoopOptions(
+  cfg: ConfigReader,
+): { detectAlternation?: boolean; ignoreArgsOnSameError?: boolean } | undefined {
+  const detectAlternation = cfg.get('retry.doomLoop.detectAlternation') === true;
+  const ignoreArgsOnSameError =
+    cfg.get('retry.doomLoop.ignoreArgsOnSameError') === true;
+  if (!detectAlternation && !ignoreArgsOnSameError) return undefined;
+  return { detectAlternation, ignoreArgsOnSameError };
+}

@@ -21,7 +21,16 @@ export {
   type SubagentWorktree,
   type SubagentWorktreeSnapshot,
   type SubagentWorktreeBindings,
+  type BindWorktreeOptions,
 } from './subagentWorktree';
+export {
+  applyParentBaseline,
+  parentTrackedPatch,
+  parentUntrackedFiles,
+  applyPatchInWorktree,
+  type ParentBaselineOptions,
+  type ParentBaselineResult,
+} from './parentBaseline';
 export {
   WORKTREE_BASE_SEGMENTS,
   managedWorktreeBase,

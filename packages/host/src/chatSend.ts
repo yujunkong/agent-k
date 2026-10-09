@@ -25,6 +25,8 @@ import {
   type ModelTurnResult,
 } from '@agent-k/core';
 import {
+  readDeltaAwareRetryEnabled,
+  readDoomLoopOptions,
   readIntentGateEnabled,
   readPermissionRecoveryEnabled,
   readRealCompactionEnabled,
@@ -1543,6 +1545,10 @@ export async function runHostChatSend(
       workspace: collectWorkspaceContext(),
       // Comment: V31-RETRY-04 — denied tool recovers instead of killing the run
       permissionRecovery: readPermissionRecoveryEnabled(cfg),
+      // Comment: V31-RETRY-02 — changed-args failures get a fresh budget
+      deltaAwareRetry: readDeltaAwareRetryEnabled(cfg),
+      // Comment: V31-RETRY-03 — extended doom-loop detection (opt-in)
+      doomLoopOptions: readDoomLoopOptions(cfg),
       stickyContext: inlineEditReq
         ? formatInlineEditStickyContext(inlineEditReq)
         : undefined,

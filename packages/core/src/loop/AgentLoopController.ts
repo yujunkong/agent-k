@@ -90,6 +90,20 @@ export interface AgentLoopConfig {
   systemPrompt?: string;
   contextBudgetTokens?: number;
   doomLoopThreshold?: number;
+  /**
+   * V31-RETRY-03 — extended doom-loop detection. Both default off so the
+   * AGENT-010 behavior is preserved until a caller opts in.
+   */
+  doomLoopOptions?: {
+    detectAlternation?: boolean;
+    ignoreArgsOnSameError?: boolean;
+  };
+  /**
+   * V31-RETRY-02 — when true, a failure whose arguments changed since a
+   * previous failure gets a fresh attempt budget (delta retry) instead of
+   * counting toward the same-tool+args exhaustion. Default off.
+   */
+  deltaAwareRetry?: boolean;
   parallelTools?: boolean;
   /**
    * HARNESS-005 — workspace root for AGENTS.md / `.agentk/rules` inject.
@@ -225,8 +239,13 @@ export class AgentLoopController {
       realCompaction: config.realCompaction,
       workspace: config.workspace,
       permissionRecovery: config.permissionRecovery,
+      doomLoopOptions: config.doomLoopOptions,
+      deltaAwareRetry: config.deltaAwareRetry,
     };
-    this.doom = new DoomLoopDetector(this.config.doomLoopThreshold);
+    this.doom = new DoomLoopDetector(
+      this.config.doomLoopThreshold,
+      this.config.doomLoopOptions,
+    );
     this.assembler = new ContextAssembler(this.config.contextBudgetTokens);
     this.compaction = new CompactionEngine(this.config.contextBudgetTokens);
     this.summaryProvider = new ModelSummaryProvider(({ messages, signal }) =>
@@ -633,14 +652,22 @@ export class AgentLoopController {
           : JSON.stringify(result.data ?? null)
         : `Error: ${result.error ?? 'tool failed'}`;
 
-      // Comment: V31-RETRY-01 — escalate after 3 failures on the same tool+args
+      // Comment: V31-RETRY-01/02 — tool+args failure budget; delta-aware retry
       if (!result.success) {
+        const errorText = String(result.error ?? 'tool failed');
+        const deltaRetry =
+          this.config.deltaAwareRetry === true &&
+          this.failureTracker.isDeltaRetry(call.name, call.arguments);
         const record = this.failureTracker.record(
           call.name,
           call.arguments,
-          String(result.error ?? 'tool failed'),
+          errorText,
         );
-        if (
+        if (deltaRetry) {
+          body +=
+            `\n\n"${call.name}" failed before with different arguments; ` +
+            `retry with the current arguments.`;
+        } else if (
           this.failureTracker.isExhausted({
             toolName: call.name,
             argsHash: record.argsHash,

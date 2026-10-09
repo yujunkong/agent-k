@@ -438,4 +438,68 @@ describe('AgentLoopController (AGENT-001…004)', () => {
     expect(result.reason).toBe('completed');
     expect(toolContents.some((c) => c.includes('alternative'))).toBe(true);
   });
+
+  it('V31-RETRY-02 delta-aware retry nudges a changed-args retry', async () => {
+    const toolContents: string[] = [];
+    let modelCalls = 0;
+    const controller = new AgentLoopController(
+      {
+        runModel: async ({ messages }) => {
+          modelCalls++;
+          if (modelCalls === 1) {
+            return {
+              content: '',
+              toolCalls: [{ id: 'c1', name: 'read_file', arguments: { path: 'a.ts' } }],
+            } satisfies ModelTurnResult;
+          }
+          if (modelCalls === 2) {
+            const tool = messages.filter((m) => m.role === 'tool').pop();
+            if (tool) toolContents.push(tool.content);
+            return {
+              content: '',
+              toolCalls: [{ id: 'c2', name: 'read_file', arguments: { path: 'b.ts' } }],
+            } satisfies ModelTurnResult;
+          }
+          const tool = messages.filter((m) => m.role === 'tool').pop();
+          if (tool) toolContents.push(tool.content);
+          return { content: '## Summary\n\nretried with new args.' } satisfies ModelTurnResult;
+        },
+        executeTool: async () => ({ success: false, error: 'Error: not found' }),
+      },
+      { maxTurns: 5, parallelTools: false, deltaAwareRetry: true },
+    );
+
+    const result = await controller.run({ prompt: 'read the file' });
+    expect(result.reason).toBe('completed');
+    expect(
+      toolContents.some((c) => c.includes('different arguments')),
+    ).toBe(true);
+  });
+
+  it('V31-RETRY-03 extended doom loop needs the option to be on', async () => {
+    let modelCalls = 0;
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          modelCalls++;
+          // Same tool and error signature but drifting args.
+          return {
+            content: '',
+            toolCalls: [
+              { id: `c${modelCalls}`, name: 'read_file', arguments: { path: `${modelCalls}.ts` } },
+            ],
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async () => ({ success: false, error: 'Error: not found' }),
+      },
+      {
+        maxTurns: 8,
+        parallelTools: false,
+        doomLoopOptions: { ignoreArgsOnSameError: true },
+      },
+    );
+
+    const result = await controller.run({ prompt: 'read files' });
+    expect(result.reason).toBe('doom_loop');
+  });
 });

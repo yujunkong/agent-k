@@ -391,6 +391,21 @@
           "default": false,
           "description": "V31-RETRY-04 — recover from permission denial instead of stopping the run."
         },
+        "agent-k.retry.deltaAware": {
+          "type": "boolean",
+          "default": false,
+          "description": "V31-RETRY-02 — fresh attempt budget when tool args changed since the previous failure."
+        },
+        "agent-k.retry.doomLoop.detectAlternation": {
+          "type": "boolean",
+          "default": false,
+          "description": "V31-RETRY-03 — treat alternating A/B/A/B tool pattern with identical args as a doom loop."
+        },
+        "agent-k.retry.doomLoop.ignoreArgsOnSameError": {
+          "type": "boolean",
+          "default": false,
+          "description": "V31-RETRY-03 — same tool+error repeats count as doom loop even when args drift."
+        },
         "agent-k.harness.enabled": {
           "type": "boolean",
           "default": true,
