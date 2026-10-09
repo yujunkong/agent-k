@@ -11,6 +11,16 @@ import type { CuriosityPhase as BuiltCuriosityPhase } from '../curiosityPhases';
 import { assignTerminalCardsToPhases } from '../assignTerminalCards';
 import { logTimelinePhaseOrder } from '../conversation/timelineOrderLog';
 import { openPathFromExploreDetail } from '../../host/timelineLabels';
+import {
+  MID_THOUGHT_DISPLAY_MAX,
+  THOUGHT_DISPLAY_MAX,
+  formatExploreDetail,
+  formatRollingTool,
+  formatThoughtTitle,
+  toolRowLabel
+} from './messageSteps/exploreHelpers';
+import { inferTurn, isMeta } from './messageSteps/stepPredicates';
+import { PLAN_GENERATE_STEP_ID, isPlanGenerateStep } from '../planGenerateStep';
 
 /**
  * Curiosity phases (Cursor-style):
@@ -26,7 +36,7 @@ import { openPathFromExploreDetail } from '../../host/timelineLabels';
  */
 
 /** Live timeline row while Plan V2 JSON is generated after clarifying questions */
-export const PLAN_V2_GENERATE_STEP_ID = 'tl_plan_v2_generate';
+export const PLAN_V2_GENERATE_STEP_ID = PLAN_GENERATE_STEP_ID;
 
 export interface MessageStep {
   id: string;
@@ -107,28 +117,6 @@ const STEPS_ERROR = '#e2556f';
 /** Explore/tool list body — opaque muted (never mix with transparent; that looked like a wipe) */
 const STEPS_MUTED = 'var(--vscode-descriptionForeground, #9d9d9d)';
 
-/** UI display cap for Thought body (host may send more) */
-const THOUGHT_DISPLAY_MAX = 16000;
-/** Exploring mid-Thought — keep the nested pane short */
-const MID_THOUGHT_DISPLAY_MAX = 900;
-
-function isPlanGenerateStep(s: MessageStep): boolean {
-  return (
-    s.id === PLAN_V2_GENERATE_STEP_ID ||
-    /계획 생성|Creating plan|Created plan|Failed to create plan/.test(s.label || '')
-  );
-}
-
-function inferTurn(step: MessageStep): number {
-  if (typeof step.turn === 'number' && step.turn > 0) return step.turn;
-  const m = step.id.match(/(?:thinking|planning|tool|step)[^\d]*(\d+)/i);
-  return m ? Number(m[1]) : 1;
-}
-
-function isMeta(kind: string): boolean {
-  return kind === 'thinking' || kind === 'planning' || kind === 'done' || kind === 'session';
-}
-
 /** Explore-class tools (search / read / web / mcp browse) — Cursor "Exploring" */
 function isExploreStep(s: MessageStep): boolean {
   if (s.kind === 'searching' || s.kind === 'reading' || s.kind === 'browsing') return true;
@@ -206,14 +194,6 @@ function thoughtWithText(steps: MessageStep[]): MessageStep | undefined {
   if (withText.length) return withText[withText.length - 1];
   // Placeholder Thought row while first reasoning tokens arrive
   return thinking.find((s) => s.itemStatus === 'running');
-}
-
-function fileBasename(detail?: string): string | undefined {
-  if (!detail?.trim()) return undefined;
-  const norm = detail.replace(/\\/g, '/').split('/').filter(Boolean);
-  const base = norm[norm.length - 1] || detail.trim();
-  if (!base || base === '.' || base === '..') return undefined;
-  return base.length > 40 ? `${base.slice(0, 38)}…` : base;
 }
 
 /** Count explore tools — live "Exploring N files…" or settled "Explored N files…" */
@@ -370,54 +350,6 @@ function ExploringChrome({
   );
 }
 
-function formatRollingTool(s: MessageStep): string {
-  const name = (s.toolName || '').toLowerCase();
-  // Keep "dir/file L10-50" / "pattern in path" — do not strip parent via basename.
-  let detail = '';
-  if (s.detail) {
-    if (/\sL\d/.test(s.detail) || /\sin\s/.test(s.detail)) {
-      detail = formatExploreDetail(s.detail);
-    } else {
-      detail = fileBasename(s.detail) || shortPath(s.detail);
-    }
-  }
-  const live = s.itemStatus === 'running';
-  let verb: string;
-  switch (name) {
-    case 'read_file':
-    case 'read_files':
-      verb = live ? 'Reading' : 'Read';
-      break;
-    case 'grep':
-      verb = live ? 'Grepping' : 'Grepped';
-      break;
-    case 'glob':
-    case 'file_search':
-      verb = live ? 'Searching' : 'Searched';
-      break;
-    case 'list_dir':
-      verb = live ? 'Listing' : 'Listed';
-      break;
-    case 'codebase_search':
-      verb = live ? 'Searching codebase' : 'Searched codebase';
-      break;
-    case 'read_lints':
-      verb = live ? 'Checking lints' : 'Checked lints';
-      break;
-    case 'web_search':
-      verb = live ? 'Searching web' : 'Searched web';
-      break;
-    case 'web_fetch':
-      verb = live ? 'Fetching' : 'Fetched';
-      break;
-    default:
-      if (s.kind === 'reading') verb = live ? 'Reading' : 'Read';
-      else if (s.kind === 'searching') verb = live ? 'Searching' : 'Searched';
-      else verb = live ? 'Working' : toolRowLabel(s);
-  }
-  return detail ? `${verb} ${detail}` : verb;
-}
-
 function summarizeActions(steps: MessageStep[]): string {
   // Comment: caller already strips editing + shell (cards own those); title is ask/task/other only
   const tools = actionSteps(steps).filter(
@@ -442,85 +374,10 @@ function summarizeActions(steps: MessageStep[]): string {
   return tools.length === 1 ? 'Used 1 tool' : `Used ${tools.length} tools`;
 }
 
-/** Cursor-style Thought title: brief stays "briefly"; longer → "Thought 3s". */
-function formatThoughtTitle(th: MessageStep, live: boolean): string {
-  if (isPlanGenerateStep(th)) {
-    if (live && th.itemStatus === 'running') return 'Creating plan';
-    if (th.itemStatus === 'error') return 'Failed to create plan';
-    return 'Created plan';
-  }
-  if (live && th.itemStatus === 'running') return 'Thinking';
-  const ms = th.durationMs;
-  // Comment: sub-second / short digests stay "briefly"; only material waits show clock
-  if (ms != null && Number.isFinite(ms) && ms >= 1000) {
-    return `Thought ${Math.max(1, Math.round(ms / 1000))}s`;
-  }
-  return 'Thought briefly';
-}
-
 function formatMs(ms?: number): string {
   if (ms == null) return '';
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
-}
-
-function shortPath(detail?: string): string {
-  if (!detail) return '';
-  const parts = detail.replace(/\\/g, '/').split('/');
-  if (parts.length <= 3) return detail;
-  return `…/${parts.slice(-2).join('/')}`;
-}
-
-/** Cursor-style verb for explore/action rows (Read / Grepped / …) */
-function toolRowLabel(s: MessageStep): string {
-  const name = (s.toolName || s.label.replace(/\s*·.*$/, '') || '').toLowerCase();
-  switch (name) {
-    case 'read_file':
-    case 'read_files':
-      return 'Read';
-    case 'grep':
-      return 'Grepped';
-    case 'glob':
-    case 'file_search':
-      return 'Searched';
-    case 'list_dir':
-      return 'Listed';
-    case 'codebase_search':
-      return 'Searched codebase';
-    case 'read_lints':
-      return 'Checked lints';
-    case 'web_search':
-      return 'Searched web';
-    case 'web_fetch':
-      return 'Fetched';
-    case 'edit_file':
-      return 'Edited';
-    case 'write_file':
-      return 'Wrote';
-    case 'delete_file':
-      return 'Deleted';
-    case 'run_terminal_cmd':
-    case 'terminal_output':
-      return 'Ran';
-    case 'ask_question':
-      return 'Asked';
-    case 'todo_write':
-      return 'Updated todos';
-    case 'task':
-    case 'task_run':
-      return 'Started agent';
-    case 'skill_run':
-      return 'Ran skill';
-    case 'switch_mode':
-      return 'Switched mode';
-    default:
-      if (s.kind === 'reading') return 'Read';
-      if (s.kind === 'searching') return 'Searched';
-      if (s.kind === 'editing') return 'Edited';
-      if (isShellStep(s)) return 'Ran';
-      if (s.kind === 'task') return 'Started agent';
-      return s.toolName || name || 'Tool';
-  }
 }
 
 /** Keep last N, prefer showing running items */
@@ -742,15 +599,6 @@ function TaskStatusBadge({ status }: { status: string }) {
       {status}
     </span>
   );
-}
-
-function formatExploreDetail(detail?: string): string {
-  if (!detail) return '';
-  // Already Cursor-formatted ("pattern in path", "file.ts L10-20")
-  if (/\sin\s/.test(detail) || /\sL\d/.test(detail)) {
-    return detail.length > 100 ? `${detail.slice(0, 97)}…` : detail;
-  }
-  return shortPath(detail);
 }
 
 /** Resolve Cursor-style detail for Read/Grepped rows (never bare "Read"). */

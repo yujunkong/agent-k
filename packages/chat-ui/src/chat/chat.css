@@ -1042,23 +1042,29 @@ body {
   overflow: hidden;
 }
 
+/*
+ * Live shimmer titles: no !important needed — these selectors (0,2,0)/(0,3,0)
+ * already outrank `.ak-step-title--live-shimmer` (0,1,0). Inline styles on
+ * MessageSteps mid-Thought rows carry the same flex/overflow values, so the
+ * computed result is unchanged.
+ */
 .ak-step-row--live > .ak-step-chevron-btn > .ak-step-title--live-shimmer,
 .ak-step-rolling--live > .ak-step-title--live-shimmer,
 .ak-explore-mid-thought--live
   > .ak-explore-mid-thought__btn
   > .ak-step-title--live-shimmer {
-  flex: 0 0 auto !important;
-  min-width: max-content !important;
-  max-width: none !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
+  flex: 0 0 auto;
+  min-width: max-content;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
   font-weight: 600;
   /* Muted base so the bright shine band reads clearly */
-  color: var(--vscode-descriptionForeground, #8b8b8b) !important;
-  -webkit-text-fill-color: unset !important;
-  background: none !important;
-  background-image: none !important;
-  animation: none !important;
+  color: var(--vscode-descriptionForeground, #8b8b8b);
+  -webkit-text-fill-color: unset;
+  background: none;
+  background-image: none;
+  animation: none;
 }
 
 .ak-step-title--live-shimmer .ak-step-title__base {
@@ -1101,32 +1107,38 @@ body {
   animation: ak-text-shimmer 1.8s linear infinite;
 }
 
-/* Finished nested Thought labels only — do NOT match --live Thinking */
-.ak-explore-scroll
-  .ak-explore-mid-thought:not(.ak-explore-mid-thought--live)
+/*
+ * Finished nested Thought labels only — do NOT match --live Thinking.
+ * Flattened to 3 compound levels (dropped the redundant `.ak-explore-scroll`
+ * ancestor — `.ak-explore-mid-thought` only exists inside the explore rail).
+ * No !important: (0,3,0) already outranks `.ak-step-title` (0,1,0), and
+ * MessageSteps inline styles carry the same flex/overflow values.
+ */
+.ak-explore-mid-thought:not(.ak-explore-mid-thought--live)
   > .ak-explore-mid-thought__btn
   > .ak-step-title {
-  animation: none !important;
-  opacity: 1 !important;
-  color: inherit !important;
-  -webkit-text-fill-color: unset !important;
-  background: none !important;
-  background-image: none !important;
-  -webkit-background-clip: border-box !important;
-  background-clip: border-box !important;
-  flex: 0 1 auto !important;
-  min-width: 0 !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  animation: none;
+  opacity: 1;
+  color: inherit;
+  -webkit-text-fill-color: unset;
+  background: none;
+  background-image: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* Same specificity as the base shimmer rules above — later source order wins. */
 @media (prefers-reduced-motion: reduce) {
   .ak-step-title--live-shimmer .ak-step-title__shine {
-    display: none !important;
-    animation: none !important;
+    display: none;
+    animation: none;
   }
   .ak-step-title--live-shimmer .ak-step-title__base {
-    color: var(--vscode-foreground, #e8e8e8) !important;
+    color: var(--vscode-foreground, #e8e8e8);
   }
 }
 
@@ -1264,7 +1276,11 @@ body {
   color: var(--vscode-textLink-foreground, #3794ff);
 }
 
-/* Prose inside explore rail — don't re-apply thread inset */
+/*
+ * Prose inside explore rail — don't re-apply thread inset.
+ * !important is load-bearing: `.message-steps .message-content.message-turn-prose`
+ * (0,3,0, later in this file) sets padding-left back to --ak-thread-inset.
+ */
 .ak-explore-scroll .ak-explore-inline-prose,
 .ak-explore-scroll .message-turn-prose {
   padding-left: 0 !important;
@@ -1718,11 +1734,13 @@ body.vscode-dark .user-chip--file,
   opacity: 1;
 }
 
+/* No max-width here — the live-shimmer rule above already sets `none`
+   (same specificity, earlier source order; base .ak-step-title--live-shimmer
+   would otherwise re-clamp to 100%). */
 .ak-step-rolling--live > .ak-step-title--live-shimmer {
   font-weight: 500;
   font-size: 12px;
   line-height: 1.65;
-  max-width: 100%;
 }
 
 @keyframes ak-rolling-fade {
