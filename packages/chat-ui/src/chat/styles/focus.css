@@ -1,0 +1,39 @@
+/**
+ * V31-UI-02 — keyboard focus rings (WCAG 2.4.7).
+ * Comment: solid gray ring — reliable on light/dark; VS Code focusBorder was not
+ * painting in Settings nav for this webview path.
+ */
+
+:root {
+  --ak-focus-ring: color-mix(
+    in srgb,
+    var(--vscode-foreground, #ccc) 45%,
+    transparent
+  );
+}
+
+.mode-selector--btn:focus-visible,
+.mode-selector--btn:focus-visible.is-open,
+.model-selector--btn:focus-visible,
+.model-selector--btn:focus-visible.is-open,
+.model-selector__filter-input:focus-visible,
+.chat-icon-btn:focus-visible,
+.chat-actions button:focus-visible,
+.settings-open-btn:focus-visible,
+.settings-close:focus-visible,
+.settings-search__input:focus-visible,
+.settings-tab:focus-visible,
+.settings-switch:focus-visible,
+.composer-icon-btn:focus-visible,
+.ak-empty-state__action:focus-visible,
+.ak-empty-state__settings-btn:focus-visible,
+.chat-tab:focus-visible,
+.chat-tab__close:focus-visible {
+  outline: 2px solid var(--ak-focus-ring);
+  outline-offset: 2px;
+}
+
+.settings-search:focus-within {
+  outline: 2px solid var(--ak-focus-ring);
+  outline-offset: 2px;
+}

@@ -10,6 +10,7 @@ import './ui/conversation-tabs.css';
 import './ui/workspace-polish.css';
 import './components/conversation-variants.css';
 import './styles/empty-state.css';
+import './styles/focus.css';
 
 const el = document.getElementById('chat-root');
 if (!el) {

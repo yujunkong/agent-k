@@ -7,6 +7,7 @@
  * Presentation-only: agent behavior and message data remain unchanged.
  */
 :root {
+  /* V31-UI-04 — single token SoT for chat-ui (chat.css must not redefine --ak-*). */
   --ak-space-1: 4px;
   --ak-space-2: 8px;
   --ak-space-3: 12px;
@@ -28,6 +29,48 @@
   --ak-ui-border: var(--ak-border);
   --ak-ui-border-strong: var(--ak-border-strong);
   --ak-ui-surface: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 94%, var(--vscode-foreground, #fff));
+
+  /* Panel / card surfaces (moved from chat.css #chat-root). */
+  --ak-panel-bg: var(--vscode-input-background, #3c3c3c);
+  --ak-panel-border: color-mix(
+    in srgb,
+    var(--vscode-foreground, #cccccc) 26%,
+    transparent
+  );
+  --ak-panel-shadow:
+    0 1px 2px color-mix(in srgb, var(--vscode-widget-shadow, #000) 12%, transparent),
+    0 4px 16px color-mix(in srgb, var(--vscode-widget-shadow, #000) 10%, transparent);
+  --ak-panel-hover: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
+  --ak-panel-selected: var(--vscode-list-activeSelectionBackground, rgba(255, 255, 255, 0.09));
+  --ak-card-bg: color-mix(
+    in srgb,
+    var(--vscode-editor-background, #1e1e1e) 82%,
+    var(--vscode-input-background, #3c3c3c) 18%
+  );
+  --ak-card-header-bg: color-mix(
+    in srgb,
+    var(--vscode-foreground, #fff) 4%,
+    var(--ak-card-bg)
+  );
+  --ak-card-border: color-mix(
+    in srgb,
+    var(--vscode-foreground, #cccccc) 16%,
+    transparent
+  );
+  --ak-chrome-border: color-mix(
+    in srgb,
+    var(--vscode-foreground, #cccccc) 12%,
+    transparent
+  );
+  --ak-divider: color-mix(
+    in srgb,
+    var(--vscode-foreground, #cccccc) 10%,
+    transparent
+  );
+  --ak-thread-inset: 12px;
+  --ak-step-gutter: 12px;
+  /* Focus ring canonical color (UI-02 contrast baseline). */
+  --ak-c-focus-border: var(--vscode-focusBorder, #007fd4);
 }
 
 .message-bubble {
