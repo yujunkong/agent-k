@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   readDeltaAwareRetryEnabled,
+  readInheritParentChangesEnabled,
   readDoomLoopOptions,
   readIntentGateEnabled,
   readPermissionRecoveryEnabled,
@@ -170,5 +171,19 @@ describe('V31-RETRY-03 readDoomLoopOptions', () => {
         }),
       ),
     ).toEqual({ detectAlternation: true, ignoreArgsOnSameError: true });
+  });
+});
+
+describe('V31-SUB-01 readInheritParentChangesEnabled', () => {
+  it('defaults to false when the key is missing', () => {
+    expect(readInheritParentChangesEnabled(reader({}))).toBe(false);
+  });
+
+  it('honors explicit true', () => {
+    expect(
+      readInheritParentChangesEnabled(
+        reader({ 'subagent.inheritParentChanges': true }),
+      ),
+    ).toBe(true);
   });
 });

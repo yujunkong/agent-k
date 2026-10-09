@@ -476,6 +476,38 @@ describe('AgentLoopController (AGENT-001…004)', () => {
     ).toBe(true);
   });
 
+  it('V31-RETRY-02 exhausted args escalate wins over the delta nudge', async () => {
+    // a.ts fails 3x (exhausted) → escalation lands in the 3rd tool result;
+    // a later different-args call must NOT suppress it (else-if bug regression).
+    const controller = new AgentLoopController(
+      {
+        runModel: async ({ messages }) => {
+          const count = messages.filter((m) => m.role === 'tool').length;
+          if (count >= 3) {
+            return { content: '## Summary\n\ngiving up.' } satisfies ModelTurnResult;
+          }
+          return {
+            content: '',
+            toolCalls: [
+              { id: `c${count + 1}`, name: 'read_file', arguments: { path: 'a.ts' } },
+            ],
+          } satisfies ModelTurnResult;
+        },
+        executeTool: async () => ({ success: false, error: 'Error: not found' }),
+      },
+      // Doom detector needs a higher threshold than the failure budget so the
+      // escalation path (not the doom stop) is what's under test here.
+      { maxTurns: 6, parallelTools: false, deltaAwareRetry: true, doomLoopThreshold: 6 },
+    );
+
+    const result = await controller.run({ prompt: 'read the file' });
+    const third = result.messages
+      .filter((m) => m.role === 'tool')
+      .map((m) => m.content)[2];
+    expect(third).toContain('failed 3 times with the same arguments');
+    expect(third).not.toContain('different arguments');
+  });
+
   it('V31-RETRY-03 extended doom loop needs the option to be on', async () => {
     let modelCalls = 0;
     const controller = new AgentLoopController(
@@ -501,5 +533,81 @@ describe('AgentLoopController (AGENT-001…004)', () => {
 
     const result = await controller.run({ prompt: 'read files' });
     expect(result.reason).toBe('doom_loop');
+  });
+
+  it('V31-TOOL-06 switch_mode changes the mode and emits an event', async () => {
+    let turn = 0;
+    const events: string[] = [];
+    const switches: Array<{ from: string; to: string }> = [];
+    let executedTools = 0;
+
+    const controller = new AgentLoopController(
+      {
+        runModel: async () => {
+          turn++;
+          if (turn === 1) {
+            return {
+              content: 'Switching.',
+              toolCalls: [
+                { id: 'c1', name: 'switch_mode', arguments: { mode: 'plan' } },
+              ],
+            } satisfies ModelTurnResult;
+          }
+          return { content: 'Now in plan mode, enough length to close.' };
+        },
+        // switch_mode must NOT reach the host executor.
+        executeTool: async () => {
+          executedTools++;
+          return { success: true, data: 'ok' };
+        },
+        onEvent: (e) => {
+          events.push(e.type);
+          if (e.type === 'mode_switch') {
+            switches.push({ from: e.from, to: e.to });
+          }
+        },
+      },
+      { mode: 'agent', maxTurns: 5, parallelTools: false },
+    );
+
+    const result = await controller.run({ prompt: 'switch to plan' });
+
+    expect(result.reason).toBe('completed');
+    expect(executedTools).toBe(0);
+    expect(switches).toEqual([{ from: 'agent', to: 'plan' }]);
+    expect(events).toContain('mode_switch');
+  });
+
+  it('V31-TOOL-06 switch_mode is rejected in plan mode', async () => {
+    let turn = 0;
+    const toolContents: string[] = [];
+
+    const controller = new AgentLoopController(
+      {
+        runModel: async ({ messages }) => {
+          turn++;
+          if (turn === 1) {
+            return {
+              content: 'Escalating.',
+              toolCalls: [
+                { id: 'c1', name: 'switch_mode', arguments: { mode: 'agent' } },
+              ],
+            } satisfies ModelTurnResult;
+          }
+          const denial = messages.find(
+            (m) => m.role === 'tool' && m.name === 'switch_mode',
+          );
+          if (denial) toolContents.push(denial.content);
+          return { content: 'Staying in plan, enough length to close.' };
+        },
+        executeTool: async () => ({ success: true, data: 'ok' }),
+      },
+      { mode: 'plan', maxTurns: 5, parallelTools: false },
+    );
+
+    const result = await controller.run({ prompt: 'build it' });
+
+    expect(result.reason).toBe('completed');
+    expect(toolContents.some((c) => /PLAN mode/.test(c))).toBe(true);
   });
 });

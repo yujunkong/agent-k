@@ -41,16 +41,19 @@ export async function grepWorkspace(options: {
   cwdRel?: string;
   include?: string;
   maxResults?: number;
+  /** V31-TOOL-08 — exact-case match when true (default: case-insensitive). */
+  caseSensitive?: boolean;
   signal?: AbortSignal;
 }): Promise<{ results: string[]; truncated: boolean }> {
   const maxResults = Math.min(options.maxResults ?? 50, 200);
+  const flags = options.caseSensitive ? '' : 'i';
   let re: RegExp;
   try {
-    re = new RegExp(options.pattern, 'i');
+    re = new RegExp(options.pattern, flags);
   } catch {
     re = new RegExp(
       options.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-      'i'
+      flags
     );
   }
 
@@ -139,6 +142,10 @@ export const grepTool: ToolDefinition = {
       path: { type: 'string', description: 'Subdirectory to search (optional)' },
       include: { type: 'string', description: 'Glob filter e.g. *.ts' },
       maxResults: { type: 'number', description: 'Max hits (default 50)' },
+      caseSensitive: {
+        type: 'boolean',
+        description: 'Match case exactly (default false: case-insensitive)',
+      },
     },
     required: ['pattern'],
   },
@@ -172,6 +179,9 @@ export const grepTool: ToolDefinition = {
             ? String(input.glob)
             : undefined,
         maxResults: Number(input.maxResults) || 50,
+        // Comment: V31-TOOL-08 — caseSensitive wins; ignoreCase:false also opts in
+        caseSensitive:
+          input.caseSensitive === true || input.ignoreCase === false,
         signal: ctx.signal,
       });
       return {

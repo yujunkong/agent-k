@@ -44,9 +44,15 @@ export class SessionTranscriptStore {
     );
   }
 
-  /** Replace the whole transcript (e.g. after compaction). */
+  /** Replace the whole transcript (e.g. after compaction), keeping the newest cap. */
   replace(sessionId: string, messages: AgentMessage[]): void {
-    this.bySession.set(sessionId, [...messages]);
+    const next = [...messages];
+    this.bySession.set(
+      sessionId,
+      next.length > MAX_TRANSCRIPT_MESSAGES
+        ? next.slice(next.length - MAX_TRANSCRIPT_MESSAGES)
+        : next
+    );
   }
 
   clear(sessionId: string): void {

@@ -411,6 +411,11 @@
           "default": false,
           "description": "V31-RETRY-03 — same tool+error repeats count as doom loop even when args drift."
         },
+        "agent-k.subagent.inheritParentChanges": {
+          "type": "boolean",
+          "default": false,
+          "description": "V31-SUB-01 — carry parent uncommitted changes into subagent worktrees (else HEAD-only)."
+        },
         "agent-k.harness.enabled": {
           "type": "boolean",
           "default": true,

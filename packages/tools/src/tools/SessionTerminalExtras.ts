@@ -1,5 +1,7 @@
 /**
- * Checkpoint + terminal helper tools (schema-visible; host may deepen later).
+ * V31-TOOL-07 — Checkpoint + terminal helper tools.
+ * Executors delegate to host callbacks (ctx.createCheckpoint / restoreCheckpoint /
+ * terminalOutput / processList). Without a host bridge they degrade gracefully.
  */
 
 import type { ToolDefinition, ToolResult } from '../types';
@@ -7,7 +9,7 @@ import { withToolTiming } from '../pathUtils';
 
 export const checkpointCreateTool: ToolDefinition = {
   name: 'checkpoint_create',
-  description: 'Create a workspace checkpoint (host/safety; stub until SAFE wiring).',
+  description: 'Create a workspace checkpoint (snapshot of current file contents).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -31,9 +33,9 @@ export const checkpointCreateTool: ToolDefinition = {
       return {
         success: true,
         data: {
-          status: 'stub',
+          status: 'unavailable',
           label: input.label ? String(input.label) : 'checkpoint',
-          note: 'Checkpoint host bridge not wired — no files snapshotted.',
+          note: 'No checkpoint host bridge on this path — no files snapshotted.',
         },
       };
     });
@@ -42,7 +44,8 @@ export const checkpointCreateTool: ToolDefinition = {
 
 export const checkpointRestoreTool: ToolDefinition = {
   name: 'checkpoint_restore',
-  description: 'Restore a workspace checkpoint (host/safety; stub until SAFE wiring).',
+  description:
+    'Restore a workspace checkpoint, or list available checkpoints when id is omitted.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -65,7 +68,7 @@ export const checkpointRestoreTool: ToolDefinition = {
       }
       return {
         success: false,
-        error: 'Checkpoint restore host bridge not wired.',
+        error: 'No checkpoint host bridge on this path — cannot restore.',
       };
     });
   },
@@ -98,7 +101,7 @@ export const terminalOutputTool: ToolDefinition = {
         success: true,
         data: {
           output: '',
-          note: 'Terminal output buffer not wired on host.',
+          note: 'No terminal buffer bridge on this path.',
         },
       };
     });
@@ -127,7 +130,7 @@ export const processListTool: ToolDefinition = {
       }
       return {
         success: true,
-        data: { processes: [], note: 'Process list not wired on host.' },
+        data: { processes: [], note: 'No process table bridge on this path.' },
       };
     });
   },

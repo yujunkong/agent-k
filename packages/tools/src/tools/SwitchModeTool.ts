@@ -1,5 +1,7 @@
 /**
- * switch_mode — schema-visible; UI/host owns real mode changes.
+ * switch_mode — schema-visible. V31-TOOL-06: AgentLoopController intercepts
+ * this call and applies the mode for subsequent turns; this executor is the
+ * fallback path when a host supplies ctx.switchMode directly.
  */
 
 import type { ToolDefinition, ToolResult } from '../types';

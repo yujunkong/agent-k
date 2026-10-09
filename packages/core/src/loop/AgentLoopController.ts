@@ -23,6 +23,8 @@ import {
 } from './critique';
 import { DoomLoopDetector } from './DoomLoopDetector';
 import { DoomLoopHandler } from './DoomLoopHandler';
+import { formatToolResultBody } from './execution/ToolResultBody';
+import { decideModeSwitch } from './ModeSwitchHandler';
 import { classifyError, ErrorRecovery } from './ErrorRecovery';
 import { isParallelSafeTool, ParallelExecutor } from './ParallelExecutor';
 import { LoopPhaseTracker, PhaseEmitter, type LoopPhase } from './phases';
@@ -65,7 +67,9 @@ export type AgentLoopEvent =
   /** V31-LOOP-01 — observed loop phase transition (observation only, no FSM). */
   | { type: 'phase'; phase: LoopPhase; turn: number; reason: string }
   /** V31-LOOP-02 — inline critique shown as Thought; tool body still carries the instruction. */
-  | { type: 'self_critique'; turn: number; passes: number; text: string };
+  | { type: 'self_critique'; turn: number; passes: number; text: string }
+  /** V31-TOOL-06 — model-initiated mode change applied to subsequent turns. */
+  | { type: 'mode_switch'; from: AgentMode; to: AgentMode; turn: number };
 
 export type AgentLoopStatus =
   | 'idle'
@@ -625,6 +629,41 @@ export class AgentLoopController {
         }
       }
 
+      // Comment: V31-TOOL-06 — the loop owns mode changes; do not delegate to
+      // the host tool (returns "not available"). Plan/Debug cannot self-escalate.
+      if (call.name === 'switch_mode') {
+        const current = this.config.mode ?? 'agent';
+        const decision = decideModeSwitch(current, call.arguments?.mode);
+        if (decision.ok && decision.target && decision.config) {
+          this.config.mode = decision.target;
+          this.config.systemPrompt = decision.config.systemPrompt;
+          this.config.maxTurns = decision.config.maxTurns;
+          this.emit({
+            type: 'mode_switch',
+            from: current,
+            to: decision.target,
+            turn,
+          });
+        }
+        const body = decision.ok
+          ? `Switched mode from "${current}" to "${decision.target}". ${decision.config!.description}`
+          : `Error: ${decision.error}`;
+        this.messages.push({
+          role: 'tool',
+          content: body,
+          toolCallId: call.id,
+          name: call.name,
+          metadata: { turn, toolName: call.name, type: 'tool_result' },
+        });
+        this.emit({
+          type: 'tool_end',
+          call,
+          ok: decision.ok,
+          error: decision.ok ? undefined : decision.error,
+        });
+        return 'ok';
+      }
+
       toolNames.push(call.name);
       const result = await streaming.execute({
         callId: call.id,
@@ -646,36 +685,38 @@ export class AgentLoopController {
       const outcome = result.success ? 'ok' : result.error || 'error';
       this.doom.recordCall(call.name, call.arguments, outcome);
 
-      let body = result.success
-        ? typeof result.data === 'string'
-          ? result.data
-          : JSON.stringify(result.data ?? null)
-        : `Error: ${result.error ?? 'tool failed'}`;
+      let body = formatToolResultBody({
+        success: result.success,
+        data: result.data,
+        error: result.error,
+      }).body;
 
       // Comment: V31-RETRY-01/02 — tool+args failure budget; delta-aware retry
       if (!result.success) {
         const errorText = String(result.error ?? 'tool failed');
-        const deltaRetry =
-          this.config.deltaAwareRetry === true &&
-          this.failureTracker.isDeltaRetry(call.name, call.arguments);
         const record = this.failureTracker.record(
           call.name,
           call.arguments,
           errorText,
         );
-        if (deltaRetry) {
-          body +=
-            `\n\n"${call.name}" failed before with different arguments; ` +
-            `retry with the current arguments.`;
-        } else if (
+        if (
           this.failureTracker.isExhausted({
             toolName: call.name,
             argsHash: record.argsHash,
           })
         ) {
+          // Exhausted wins over the delta nudge: alternating args must not
+          // suppress the stop-retrying escalation for the current args.
           body +=
             `\n\n"${call.name}" failed ${record.attempts} times with the same arguments. ` +
             `Stop retrying it and choose a different approach or ask the user.`;
+        } else if (
+          this.config.deltaAwareRetry === true &&
+          this.failureTracker.isDeltaRetry(call.name, call.arguments)
+        ) {
+          body +=
+            `\n\n"${call.name}" failed before with different arguments; ` +
+            `retry with the current arguments.`;
         }
       }
 
