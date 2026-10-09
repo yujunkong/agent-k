@@ -366,6 +366,11 @@
           "default": true,
           "description": "V31-INTENT-01 — classify user text before prefetch/verify/tool schemas. Opt out to restore always-task pipeline."
         },
+        "agent-k.toolCallFallback.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "V31-TOOL-01 — parse XML/JSON tool calls from local models when native tool_calls are absent."
+        },
         "agent-k.harness.enabled": {
           "type": "boolean",
           "default": true,

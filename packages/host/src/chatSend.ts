@@ -25,8 +25,10 @@ import {
 } from '@agent-k/core';
 import {
   readIntentGateEnabled,
+  readToolCallFallbackEnabled,
   resolveEffectiveHarnessFlags,
 } from './chatSendConfig';
+import { NativeThenFallbackNormalizer } from './turn/ToolCallNormalizer';
 import {
   LiteLLMProvider,
   clampThinkingEffort,
@@ -149,6 +151,8 @@ export async function runHostChatSend(
   const abort = new AbortController();
   ctx.setHostLoopRequestId(requestId);
   hostLog('chat.send empty reply', `chatSend start requestId=${requestId}`);
+  // Comment: V31-TOOL-01 — native tool_calls first, XML/JSON fallback second
+  const toolCallNormalizer = new NativeThenFallbackNormalizer();
 
   const isActive = () => ctx.hostLoops.has(requestId);
   // Chars posted as delta — logged on complete; also used if complete omits content.
@@ -244,6 +248,8 @@ export async function runHostChatSend(
     harnessMicroLoop,
     harnessPrefetch,
   } = resolveEffectiveHarnessFlags(cfg);
+  // Comment: V31-TOOL-01 — default true; opt-out via agent-k.toolCallFallback.enabled
+  const toolCallFallbackEnabled = readToolCallFallbackEnabled(cfg);
   const lastUserText = String(
     [...(payload.messages || [])].reverse().find((m) => m.role === 'user')
       ?.content || '',
@@ -552,10 +558,25 @@ export async function runHostChatSend(
                   arguments: args,
                 };
               });
+            // Comment: V31-TOOL-01 — same native-then-fallback normalization
+            const normalizedToolCalls = toolCallFallbackEnabled
+              ? toolCallNormalizer.normalize(toolCalls, content)
+              : toolCalls;
+            if (
+              toolCallFallbackEnabled &&
+              normalizedToolCalls.length > toolCalls.length
+            ) {
+              hostLog(
+                'chat.send empty reply',
+                `tool-call fallback parsed requestId=${requestId} turn=${currentTurn || 1} count=${normalizedToolCalls.length - toolCalls.length}`,
+              );
+            }
             return {
               content: content || undefined,
               reasoning: reasoning || undefined,
-              toolCalls: toolCalls.length ? toolCalls : undefined,
+              toolCalls: normalizedToolCalls.length
+                ? normalizedToolCalls
+                : undefined,
             };
           },
           executeTool: async ({ name, args, callId, signal }) => {
@@ -1123,10 +1144,26 @@ export async function runHostChatSend(
           });
         }
 
+        // Comment: V31-TOOL-01 — native tool_calls win; XML/JSON fallback when absent
+        const normalizedToolCalls = toolCallFallbackEnabled
+          ? toolCallNormalizer.normalize(toolCalls, content)
+          : toolCalls;
+        if (
+          toolCallFallbackEnabled &&
+          normalizedToolCalls.length > toolCalls.length
+        ) {
+          hostLog(
+            'chat.send empty reply',
+            `tool-call fallback parsed requestId=${requestId} turn=${turn} count=${normalizedToolCalls.length - toolCalls.length}`,
+          );
+        }
+
         const result: ModelTurnResult = {
           content: content || undefined,
           reasoning: reasoning || undefined,
-          toolCalls: toolCalls.length ? toolCalls : undefined,
+          toolCalls: normalizedToolCalls.length
+            ? normalizedToolCalls
+            : undefined,
         };
         return result;
       },

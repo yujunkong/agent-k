@@ -71,9 +71,9 @@ export function claimsContinueWork(text: string): boolean {
   );
 }
 
-/** AGENT-015 — Prose that looks like a raw / broken tool-call dump. */
+/** AGENT-015 / V31-TOOL-01 — Prose that looks like a raw / broken tool-call dump. */
 export function looksLikeBrokenToolPayload(content: string): boolean {
-  return /```json\b|tool_calls|<tool\s|tool_code|function_call|"name"\s*:\s*"[^"]*"\s*,\s*"arguments"\s*:/i.test(
+  return /```json\b|tool_calls|<tool\s|tool_code|function_call|<[\w-]*:?invoke\s|function_calls|"name"\s*:\s*"[^"]*"\s*,\s*"arguments"\s*:/i.test(
     content || ''
   );
 }

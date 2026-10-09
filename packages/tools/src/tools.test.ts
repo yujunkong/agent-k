@@ -181,6 +181,16 @@ describe('TOOL-008 ToolCallParser', () => {
     expect(calls[0].arguments).toEqual({ path: 'a.ts' });
     expect(calls[0].strategy).toBe('xml');
   });
+
+  it('parses Claude-style invoke/parameter XML (V31-TOOL-01)', () => {
+    const calls = parser.parse(
+      'noise <|eom|><atem:invoke name="read_file"><atem:parameter name="path">src/a.ts</atem:parameter></atem:invoke>',
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0].name).toBe('read_file');
+    expect(calls[0].arguments).toEqual({ path: 'src/a.ts' });
+    expect(calls[0].strategy).toBe('xml');
+  });
 });
 
 describe('TOOL-017 ParallelSearch', () => {

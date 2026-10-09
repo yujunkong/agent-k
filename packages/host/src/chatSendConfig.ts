@@ -13,6 +13,14 @@ export function readIntentGateEnabled(cfg: ConfigReader): boolean {
 }
 
 /**
+ * V31-TOOL-01 — parse XML/JSON tool calls when native tool_calls are absent.
+ * Default true: fallback only runs when `looksLikeBrokenToolPayload` matches.
+ */
+export function readToolCallFallbackEnabled(cfg: ConfigReader): boolean {
+  return cfg.get('toolCallFallback.enabled') !== false;
+}
+
+/**
  * Resolve harness flags via sub-keys (ISSUE-06 / V31-CFG-01).
  * Comment: never re-prefix with `agent-k.` — ConfigReader already scopes.
  */

@@ -1,5 +1,6 @@
 /**
- * TOOL-008 ToolCallParser — pure OpenAI-style tool_calls + XML-ish fallback.
+ * TOOL-008 / V31-TOOL-01 — ToolCallParser.
+ * Native tool_calls + XML/JSON fallbacks (incl. Claude-style invoke/parameter).
  * No provider/UI dependencies.
  */
 
@@ -38,6 +39,10 @@ export class ToolCallParser {
 
     const xml = this.parseXmlTags(content);
     if (xml.length) return xml;
+
+    // Comment: V31-TOOL-01 — Claude-style <NS:invoke>/<NS:parameter> (local models)
+    const invoke = this.parseInvokeTags(content);
+    if (invoke.length) return invoke;
 
     const fence = this.parseJsonFence(content);
     if (fence.length) return fence;
@@ -126,6 +131,52 @@ export class ToolCallParser {
           args = JSON.parse(body) as Record<string, unknown>;
         } catch {
           args = { raw: body };
+        }
+      }
+      results.push({
+        id: this.nextId(),
+        name,
+        arguments: args,
+        raw: match[0],
+        confidence: 0.9,
+        strategy: 'xml',
+      });
+    }
+    return results;
+  }
+
+  /**
+   * V31-TOOL-01 — `<NS:invoke name="tool"><NS:parameter name="p">v</NS:parameter></NS:invoke>`.
+   * Comment: NS may be antml/atem/empty; open/close prefix must match (backref).
+   */
+  private parseInvokeTags(content: string): ParsedToolCall[] {
+    const results: ParsedToolCall[] = [];
+    const invokeRegex =
+      /<([\w-]+:)?invoke\s+name=["']([^"']+)["'][^>]*>([\s\S]*?)<\/\1invoke>/gi;
+    let match: RegExpExecArray | null;
+
+    while ((match = invokeRegex.exec(content)) !== null) {
+      const prefix = match[1] || '';
+      const name = match[2].trim();
+      const body = match[3];
+      const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const paramRegex = new RegExp(
+        `<${escapedPrefix}parameter\\s+name=["']([^"']+)["'][^>]*>([\\s\\S]*?)<\\/${escapedPrefix}parameter>`,
+        'gi',
+      );
+      const args: Record<string, unknown> = {};
+      let paramMatch: RegExpExecArray | null;
+      while ((paramMatch = paramRegex.exec(body)) !== null) {
+        args[paramMatch[1].trim()] = paramMatch[2].trim();
+      }
+      if (Object.keys(args).length === 0 && body.trim()) {
+        try {
+          const parsed = JSON.parse(body.trim()) as unknown;
+          if (parsed && typeof parsed === 'object') {
+            Object.assign(args, parsed as Record<string, unknown>);
+          }
+        } catch {
+          /* leave args empty */
         }
       }
       results.push({

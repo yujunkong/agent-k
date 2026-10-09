@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   readIntentGateEnabled,
+  readToolCallFallbackEnabled,
   resolveEffectiveHarnessFlags,
   resolveHarnessSubKeys,
   type ConfigReader,
@@ -57,5 +58,19 @@ describe('V31-CFG-01 harness sub-keys', () => {
     expect(eff.harnessPrefetch).toBe(false);
     expect(eff.harnessVerifyFirst).toBe(false);
     expect(eff.harnessMicroLoop).toBe(false);
+  });
+});
+
+describe('V31-TOOL-01 readToolCallFallbackEnabled', () => {
+  it('defaults true when key is missing', () => {
+    expect(readToolCallFallbackEnabled(reader({}))).toBe(true);
+  });
+
+  it('honors explicit false', () => {
+    expect(
+      readToolCallFallbackEnabled(
+        reader({ 'toolCallFallback.enabled': false }),
+      ),
+    ).toBe(false);
   });
 });
