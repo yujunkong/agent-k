@@ -8,7 +8,18 @@ import {
 } from '../inlineEdit';
 import { ModeSelector } from './ModeSelector';
 import { ModelSelector, type ModelSelectorOption } from './ModelSelector';
-import { IconQueue } from './Icons';
+import { ThinkingSelector } from './ThinkingSelector';
+import {
+  IconAttach,
+  IconClipboard,
+  IconFile,
+  IconFolder,
+  IconImage,
+  IconQueue,
+  IconReturn,
+  IconSend,
+  IconUsage
+} from './Icons';
 import { ComposerPalette, type PaletteItem } from './ComposerPalette';
 import {
   THINKING_EFFORT_OPTIONS,
@@ -1570,13 +1581,13 @@ export function Composer({
                           className="composer-chip-thumb"
                         />
                       ) : a.type === 'folder' ? (
-                        '📁'
+                        <IconFolder size={12} />
                       ) : isLog ? (
-                        '📋'
+                        <IconClipboard size={12} />
                       ) : isImage ? (
-                        '🖼'
+                        <IconImage size={12} />
                       ) : (
-                        '📄'
+                        <IconFile size={12} />
                       )}
                     </span>
                     <button
@@ -1687,26 +1698,13 @@ export function Composer({
               )}
               {onThinkingEffortChange &&
               (thinkingOptions?.length ?? THINKING_EFFORT_OPTIONS.length) > 0 ? (
-                <select
-                  className="composer-thinking-select"
+                <ThinkingSelector
                   value={thinkingEffort}
-                  onChange={(e) =>
-                    onThinkingEffortChange(e.target.value as ThinkingEffort)
-                  }
+                  options={thinkingOptions || THINKING_EFFORT_OPTIONS}
+                  onChange={(v) => onThinkingEffortChange(v as ThinkingEffort)}
                   disabled={isStreaming}
-                  title={
-                    (thinkingOptions || THINKING_EFFORT_OPTIONS).find(
-                      (o) => o.value === thinkingEffort
-                    )?.title || 'Thinking effort'
-                  }
-                  aria-label="Thinking effort"
-                >
-                  {(thinkingOptions || THINKING_EFFORT_OPTIONS).map((o) => (
-                    <option key={o.value} value={o.value} title={o.title}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                  label="Thinking effort"
+                />
               ) : null}
             </div>
 
@@ -1719,7 +1717,7 @@ export function Composer({
                 title="Attach file or folder"
                 aria-label="Attach file or folder"
               >
-                📎
+                <IconAttach />
               </button>
               {isStreaming ? (
                 <>
@@ -1742,7 +1740,7 @@ export function Composer({
                     title="Interrupt and merge (⌘/Ctrl+Enter)"
                     aria-label="Interrupt and merge"
                   >
-                    ⏎
+                    <IconReturn />
                   </button>
                   <button
                     type="button"
@@ -1763,7 +1761,7 @@ export function Composer({
                   title="Send"
                   aria-label="Send"
                 >
-                  ▲
+                  <IconSend />
                 </button>
               )}
             </div>
@@ -1778,7 +1776,7 @@ export function Composer({
           title={contextUsageTitle || contextUsageLabel || 'Context usage'}
         >
           <span className="composer-usage__icon" aria-hidden>
-            ◔
+            <IconUsage />
           </span>
           <span className="composer-usage__text">
             {contextUsageLabel ||

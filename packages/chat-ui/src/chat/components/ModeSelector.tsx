@@ -5,6 +5,7 @@ import {
   IconChevronDown,
   IconInfinity,
   IconList,
+  IconLock,
   IconMessage,
   IconSpark
 } from './Icons';
@@ -153,7 +154,7 @@ export function ModeSelector({
 
       {disabled ? (
         <span className="mode-locked" title="Mode locked while streaming" aria-live="polite">
-          🔒
+          <IconLock size={12} />
         </span>
       ) : null}
     </div>
