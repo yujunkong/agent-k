@@ -8,10 +8,13 @@
  */
 import { isPlanGenerateStep } from '../../planGenerateStep';
 
-/** UI display cap for Thought body (host may send more) */
-export const THOUGHT_DISPLAY_MAX = 16000;
+/**
+ * UI display cap for Thought body (host may send more).
+ * Comment: V31-THOUGHT — Cursor-short pane; model still streams full reasoning.
+ */
+export const THOUGHT_DISPLAY_MAX = 4000;
 /** Exploring mid-Thought — keep the nested pane short */
-export const MID_THOUGHT_DISPLAY_MAX = 900;
+export const MID_THOUGHT_DISPLAY_MAX = 600;
 
 /**
  * Minimal structural input both callers satisfy.

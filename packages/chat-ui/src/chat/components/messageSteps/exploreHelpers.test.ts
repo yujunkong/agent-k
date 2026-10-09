@@ -11,9 +11,9 @@ import {
 } from './exploreHelpers';
 
 describe('exploreHelpers constants', () => {
-  it('keeps the Thought display caps', () => {
-    expect(THOUGHT_DISPLAY_MAX).toBe(16000);
-    expect(MID_THOUGHT_DISPLAY_MAX).toBe(900);
+  it('keeps the Thought display caps (Cursor-short panes)', () => {
+    expect(THOUGHT_DISPLAY_MAX).toBe(4000);
+    expect(MID_THOUGHT_DISPLAY_MAX).toBe(600);
   });
 });
 
