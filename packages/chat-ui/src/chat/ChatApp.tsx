@@ -119,6 +119,10 @@ export function ChatApp() {
     contextTokens: 0
   });
   const [stuckEvent, setStuckEvent] = useState<UXEventType | null>(null);
+  // V31-UI-10 — developer diagnostics (harness tier bar) hidden unless opted in
+  const [developerMode, setDeveloperMode] = useState<boolean>(
+    () => configManager.get('agent-k.developerMode') === true,
+  );
 
   // ─── 공유 핵심 refs ────────────────────────────────────────
   const sessionIdRef = useRef(sessionStore.loadActive().id);
@@ -350,6 +354,10 @@ export function ChatApp() {
     activeAssistantStreaming;
   const composerBusy = streaming || plan.generatingPlan || activeAssistantStreaming;
 
+  // V31-UI-12 — screen-reader announcement state (effect below once view flags resolve)
+  const [srAnnouncement, setSrAnnouncement] = useState('');
+  const announcedAssistantIdRef = useRef<string | null>(null);
+
   // plan relay ref 업데이트 — sessions / stream 초기화 이후 최신 구현체 반영
   streamingForPlanRef.current = streaming;
   setMessagesForPlanRef.current = setMessages;
@@ -498,6 +506,14 @@ export function ChatApp() {
   useEffect(() => {
     scrollMessagesToBottom(false);
   }, [messages, scrollMessagesToBottom]);
+
+  // V31-UI-10 — keep developer mode flag in sync with host config
+  useEffect(() => {
+    setDeveloperMode(configManager.get('agent-k.developerMode') === true);
+    return configManager.on('agent-k.developerMode', (_key, value) => {
+      setDeveloperMode(value === true);
+    });
+  }, []);
 
   // Tab switch closes any open pencil editor
   useEffect(() => {
@@ -664,6 +680,23 @@ export function ChatApp() {
     if (!activeSubagentTab) return null;
     return getSessionMessages(activeSubagentTab.id);
   }, [activeSubagentTab, getSessionMessages, messages, sessionList, subagentDetailTick]);
+
+  // V31-UI-12 — announce only the final assistant turn once it settles
+  useEffect(() => {
+    if (activeSubagentTab) return;
+    const lastAssistant = [...messages]
+      .reverse()
+      .find((m) => m.role === 'assistant');
+    if (!lastAssistant) return;
+    if (lastAssistant.status === 'streaming') {
+      announcedAssistantIdRef.current = null;
+      return;
+    }
+    if (lastAssistant.id === announcedAssistantIdRef.current) return;
+    const text = String(lastAssistant.content || '').trim();
+    announcedAssistantIdRef.current = lastAssistant.id;
+    setSrAnnouncement(text || 'Response complete.');
+  }, [messages, activeSubagentTab]);
 
   /** Parent SubagentRunRow peeks child session for rolling status */
   const getSubagentRolling = useCallback(
@@ -849,14 +882,16 @@ export function ChatApp() {
         onCloseSubagent={handleCloseSubagentTab}
       />
 
-          {/* 중급 모델 UX 상태바 */}
-      <UXForMediumPanel
-        uxState={uxState}
-        stuckEvent={stuckEvent}
-        onAction={(action) => {
-              if (action.toLowerCase().includes('stop')) setStuckEvent(null);
-        }}
-      />
+          {/* 중급 모델 UX 상태바 (V31-UI-10 — developer mode only) */}
+      {developerMode && (
+        <UXForMediumPanel
+          uxState={uxState}
+          stuckEvent={stuckEvent}
+          onAction={(action) => {
+                if (action.toLowerCase().includes('stop')) setStuckEvent(null);
+          }}
+        />
+      )}
 
           {/* Design Mode 패널 */}
           {panels.showDesignMode && (
@@ -965,7 +1000,6 @@ export function ChatApp() {
         ref={messageListRef}
         className="message-list"
         role="log"
-        aria-live="polite"
         aria-relevant="additions"
         onScroll={onMessageListScroll}
         data-ak-view={activeSubagentTab ? 'subagent' : 'main'}
@@ -1155,6 +1189,16 @@ export function ChatApp() {
         })()}
         {/* 최신 성장을 항상 scrollHeight에 포함하는 앵커 */}
         <div ref={messageEndRef} aria-hidden className="message-list-end" />
+      </div>
+
+      {/* V31-UI-12 — screen-reader announcement for the final assistant turn */}
+      <div
+        className="ak-sr-announcer"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {srAnnouncement}
       </div>
 
           {/* footer — Queue + ChangedFilesBar + Composer (ask = timeline AskQuestionCard) */}

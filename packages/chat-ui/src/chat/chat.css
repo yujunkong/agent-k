@@ -2197,6 +2197,19 @@ body.vscode-dark .user-chip--file,
   pointer-events: none;
 }
 
+/* V31-UI-12 — screen-reader live region: announce final assistant message once */
+.ak-sr-announcer {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* Diff / terminal cards — same column as Explored (no extra indent) */
 .ak-cards-under-action {
   margin: 2px 0 8px;
@@ -4319,6 +4332,79 @@ body.vscode-high-contrast .ak-code__cursor {
   .composer-thinking-select {
     min-width: 2.75rem;
     max-width: 4.5rem;
+  }
+}
+
+/* V31-UI-13 — very narrow Agent K panel (280px): drop hard min-widths,
+   collapse the history rail, keep the composer toolbar single-row. */
+@container ak-chat (max-width: 300px) {
+  .chat-footer,
+  .composer--cursor,
+  .composer-box {
+    min-width: 0;
+  }
+
+  .chat-footer {
+    padding: 8px 8px 8px;
+  }
+
+  .chat-rail.is-open {
+    flex: 0 0 clamp(160px, 58%, 220px);
+    width: clamp(160px, 58%, 220px);
+    max-width: 220px;
+  }
+
+  .composer-toolbar {
+    gap: 4px;
+    padding: 6px 6px 8px;
+  }
+
+  .composer-toolbar__left .mode-selector,
+  .mode-selector {
+    padding: 3px 6px;
+    gap: 2px;
+  }
+
+  .composer-model-select,
+  .model-selector-wrapper {
+    min-width: 0;
+    max-width: 5rem;
+  }
+
+  .composer-thinking-select {
+    min-width: 0;
+    max-width: 3.5rem;
+  }
+}
+
+/* Fallback when container queries unavailable (webview viewport ≈ panel width) */
+@media (max-width: 300px) {
+  .chat-footer,
+  .composer--cursor,
+  .composer-box {
+    min-width: 0;
+  }
+
+  .chat-rail.is-open {
+    flex: 0 0 clamp(160px, 58%, 220px);
+    width: clamp(160px, 58%, 220px);
+    max-width: 220px;
+  }
+
+  .composer-toolbar {
+    gap: 4px;
+    padding: 6px 6px 8px;
+  }
+
+  .composer-model-select,
+  .model-selector-wrapper {
+    min-width: 0;
+    max-width: 5rem;
+  }
+
+  .composer-thinking-select {
+    min-width: 0;
+    max-width: 3.5rem;
   }
 }
 
