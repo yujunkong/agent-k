@@ -3,7 +3,7 @@
  * Injected runModel + executeTool (no hard providers/safety deps).
  */
 
-import type { AgentMode } from '@agent-k/shared';
+import type { AgentMode, IntentKind } from '@agent-k/shared';
 import { ContextAssembler } from '../context/ContextAssembler';
 import { CompactionEngine } from '../context/CompactionEngine';
 import type {
@@ -100,6 +100,11 @@ export interface AgentLoopConfig {
   harnessEnabled?: boolean;
   /** HARNESS-001/006 — model tier for tool whitelist. */
   modelTier?: 'A' | 'B' | 'C';
+  /**
+   * V31-INTENT-01 — classified intent kind (host gates flags before pass).
+   * Comment: stored for assemblers / future phase policy; host ANDs surfaces.
+   */
+  intentKind?: IntentKind;
 }
 
 export interface AgentLoopDeps {

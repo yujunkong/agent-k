@@ -111,6 +111,17 @@ export class ToolRegistry {
     mode: AgentMode,
     opts?: GetSchemasOptions
   ): boolean {
+    // Comment: V31-INTENT-01 — intent surface before mode/tier filters.
+    if (opts?.intentKind === 'conversation') return false;
+    if (opts?.intentKind === 'question') {
+      const writeLike =
+        tool.category === 'edit' ||
+        tool.category === 'terminal' ||
+        tool.category === 'debug' ||
+        WRITE_TOOL_NAMES.has(tool.name);
+      if (writeLike) return false;
+    }
+
     if (
       opts?.harnessEnabled !== false &&
       opts?.modelTier &&

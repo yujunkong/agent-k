@@ -44,6 +44,7 @@ import { BrowserPreview } from '../browser/BrowserPreview';
 import { UXForMediumPanel } from '../harness/UXForMediumPanel';
 import type { HarnessUXState, UXEventType } from '../harness/UXForMedium';
 import { ChatSessionTabs } from './components/ChatSessionTabs';
+import { EmptyState } from './components/EmptyState';
 import { MessageQueue } from '../loop/MessageQueue';
 import { StopHandler } from '../loop/StopHandler';
 import type { SlashCommand } from './composerPalette';
@@ -1012,6 +1013,25 @@ export function ChatApp() {
               <p className="ak-subagent-detail__empty">
                 Waiting for subagent…
               </p>
+            );
+          }
+          // Comment: V31-UI-01 — first-run empty state when the thread has no turns.
+          if (!activeSubagentTab && viewMessages.length === 0) {
+            const providerReady = Boolean(
+              provider.providerBaseUrl?.trim() && provider.providerModel?.trim(),
+            );
+            return (
+              <EmptyState
+                providerReady={providerReady}
+                onAction={(prompt) => {
+                  if (!providerReady) {
+                    panels.handleToggleSettings();
+                    return;
+                  }
+                  void sendFlow.handleSend(prompt, []);
+                }}
+                onOpenSettings={() => panels.handleToggleSettings()}
+              />
             );
           }
           const lastUserId = [...viewMessages]

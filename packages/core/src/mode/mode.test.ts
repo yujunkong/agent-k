@@ -65,23 +65,23 @@ describe('mode domain (MODE-001…009)', () => {
     expect(handoff.systemPrompt).toContain('Reply style: be concise.');
   });
 
-  it('Per-mode response shaping markers are present', () => {
+  it('V31-MODE-01 rich v2.1 markers are present (SoT)', () => {
     const prompts = Object.fromEntries(
-      modeRegistry.listModes().map((cfg) => [cfg.name, cfg.systemPrompt])
+      modeRegistry.listModes().map((cfg) => [cfg.name, cfg.systemPrompt]),
     );
-    // ask — answer first, file:line refs, one follow-up offer max
+    expect(prompts.ask).toContain('Opening lead');
+    expect(prompts.ask).toContain('Write tools are UNAVAILABLE');
     expect(prompts.ask).toContain('Answer first: direct answer in 1–3 sentences');
-    expect(prompts.ask).toContain('file:line references');
-    expect(prompts.ask).toContain('at most one short follow-up offer');
-    // agent — act, don't narrate
+    expect(prompts.agent).toContain('Opening lead');
     expect(prompts.agent).toContain("Act, don't narrate");
-    expect(prompts.agent).toContain('what changed (files/diffs) + verification result + any risk');
-    // plan — structured doc, clarify before writing
+    expect(prompts.agent).toContain('ask_question in AGENT mode');
     expect(prompts.plan).toContain('structured plan document');
     expect(prompts.plan).toContain('clarifying questions BEFORE writing the plan');
-    // debug — scientific-method framing, no fix before root cause
+    expect(prompts.plan.length).toBeGreaterThan(400);
     expect(prompts.debug).toContain('scientific-method terms');
-    expect(prompts.debug).toContain('hypothesis (one sentence)');
-    expect(prompts.debug).toContain('Do not jump to a fix before the root cause is confirmed');
+    expect(prompts.debug).toContain('Hypothesis');
+    expect(prompts.debug).toMatch(
+      /Do NOT? jump to a fix before the root cause is confirmed/i,
+    );
   });
 });

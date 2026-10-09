@@ -40,7 +40,8 @@ export class LiteLLMProvider implements LLMProviderInterface {
     const {
       messages,
       model,
-      temperature = 0.7,
+      // Comment: V31-MODEL-01 — default tier B (0.2); host should pass tier temp.
+      temperature = 0.2,
       // Reasoning models (hy3) burn completion budget on thinking — keep headroom for final prose.
       maxTokens = 32768,
       signal,

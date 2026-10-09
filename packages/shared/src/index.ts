@@ -10,6 +10,7 @@
 
 export * from './common/errors';
 export * from './common/ids';
+export * from './common/intent';
 export * from './common/mode';
 export * from './mcp';
 export * from './plan';

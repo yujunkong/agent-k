@@ -41,9 +41,8 @@ export function activateAgentK(context: vscode.ExtensionContext): ChatViewProvid
 
   provider = new ChatViewProvider(context.extensionUri, extensionVersion);
   provider.wireInlineEditBridge();
-  context.subscriptions.push(
-    provider.getInlineEditController().register(context),
-  );
+  // Comment: EXT-003 — `agent-k.inlineEdit` is registered once in registerCommands().
+  // Calling InlineEditController.register() here duplicates the command and crashes activate.
 
   // INLINE-006/007 — selection diff + inline completion (best-effort register).
   try {

@@ -1,0 +1,82 @@
+/**
+ * V31-UI-01 — empty-state layout (token-driven; no hardcoded brand purple).
+ */
+
+.ak-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 28px 20px 16px;
+  max-width: 36rem;
+  width: 100%;
+  margin: 0 auto;
+  color: var(--vscode-foreground);
+  /* Comment: parent .message-list is flex; keep empty state visible in empty shell */
+  flex: 0 0 auto;
+}
+
+.ak-empty-state__title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.ak-empty-state__subtitle {
+  margin: 0;
+  opacity: 0.8;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.ak-empty-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.ak-empty-state__action {
+  border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground, var(--vscode-foreground));
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.ak-empty-state__action:hover {
+  background: var(--vscode-list-hoverBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.ak-empty-state__action:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.ak-empty-state__hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.ak-empty-state__settings-btn {
+  border: none;
+  background: transparent;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font-size: inherit;
+}
+
+.ak-empty-state__settings-btn:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}

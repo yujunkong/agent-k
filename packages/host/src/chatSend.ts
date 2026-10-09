@@ -6,10 +6,12 @@
 
 import {
   AgentLoopController,
+  HeuristicIntentClassifier,
+  IntentGate,
   PrefetchEngine,
-  extractHarnessConfig,
   formatInlineEditStickyContext,
   formatInlineEditSystemContext,
+  getPolicyForTier,
   inferTierFromModelId,
   modeRegistry,
   planWriteGate,
@@ -21,6 +23,10 @@ import {
   type InlineEditAgentRequest,
   type ModelTurnResult,
 } from '@agent-k/core';
+import {
+  readIntentGateEnabled,
+  resolveEffectiveHarnessFlags,
+} from './chatSendConfig';
 import {
   LiteLLMProvider,
   clampThinkingEffort,
@@ -231,34 +237,29 @@ export async function runHostChatSend(
   );
 
   const modeConfig = modeRegistry.getModeConfig(mode);
-  const harnessCfg = extractHarnessConfig({
-    'agent-k.harness.enabled': cfg.get('agent-k.harness.enabled'),
-    'agent-k.harness.verificationFirst': cfg.get(
-      'agent-k.harness.verificationFirst',
-    ),
-    'agent-k.harness.verificationMicroLoop': cfg.get(
-      'agent-k.harness.verificationMicroLoop',
-    ),
-    'agent-k.harness.prefetchEnabled': cfg.get(
-      'agent-k.harness.prefetchEnabled',
-    ),
-  });
-  const harnessEnabled = harnessCfg.enabled;
-  const harnessVerifyFirst = harnessEnabled && harnessCfg.verificationFirst;
-  const harnessMicroLoop = harnessEnabled && harnessCfg.verificationMicroLoop;
-  const harnessPrefetch = harnessEnabled && harnessCfg.prefetchEnabled;
+  // Comment: V31-CFG-01 — sub-keys under getConfiguration('agent-k') (no double prefix).
+  const {
+    harnessEnabled,
+    harnessVerifyFirst,
+    harnessMicroLoop,
+    harnessPrefetch,
+  } = resolveEffectiveHarnessFlags(cfg);
+  const lastUserText = String(
+    [...(payload.messages || [])].reverse().find((m) => m.role === 'user')
+      ?.content || '',
+  );
   const routing = routeByHeuristics({
-    userMessage: String(
-      [...(payload.messages || [])].reverse().find((m) => m.role === 'user')
-        ?.content || '',
-    ),
+    userMessage: lastUserText,
     currentTier: inferTierFromModelId(model),
     mode,
   });
   const modelTier = harnessEnabled ? routing.tier : 'B';
+  // Comment: V31-MODEL-01 — tier temperatures A 0.1 / B 0.2 / C 0.0 (never 0.7).
+  const tierTemperature = getPolicyForTier(modelTier).modelParams.temperature;
+  // Comment: V31-CFG-01 — manifest key is agent-k.maxTurns → sub-key maxTurns.
   const maxTurns = Math.min(
     100,
-    Math.max(5, Number(cfg.get('agent.maxTurns')) || modeConfig.maxTurns),
+    Math.max(5, Number(cfg.get('maxTurns')) || modeConfig.maxTurns),
   );
   // Comment: local LLMs often idle >180s on first token — floor 30m unless user set 0 (disable)
   const configuredTimeout = Number(cfg.get('turnTimeoutMs'));
@@ -288,15 +289,60 @@ export async function runHostChatSend(
 
   const registry = new ToolRegistry();
   registerBuiltinTools(registry);
-  const schemaOpts = {
-    planStage,
-    modelTier,
-    harnessEnabled,
-  };
-  const toolSchemas = registry.getSchemas(mode, schemaOpts);
   const root = workspaceRoot();
   const inlineEditReq = parseInlineEditPayload(payload.inlineEdit);
   const inlineEditActive = inlineEditReq != null;
+
+  // Comment: V31-INTENT-01 — classify before schemas / prefetch / verify inject.
+  const intentEnabled = readIntentGateEnabled(cfg);
+  const intentGate = new IntentGate(new HeuristicIntentClassifier());
+  const intentVerdict = intentEnabled
+    ? await intentGate.evaluate({
+        userText: lastUserText,
+        mode,
+        hasInlineEdit: inlineEditActive,
+        priorTurns: Math.max(0, (payload.messages || []).length - 1),
+      })
+    : {
+        kind: 'task' as const,
+        confidence: 1,
+        reason: 'intent gate disabled',
+        gates: {
+          prefetch: true,
+          verificationFirst: true,
+          harnessBlocks: true,
+          toolSchemas: 'full' as const,
+        },
+      };
+  const intentGates = intentEnabled
+    ? intentGate.apply(intentVerdict, {
+        prefetch: harnessPrefetch,
+        verificationFirst: harnessVerifyFirst,
+        harnessBlocks: harnessEnabled,
+        toolSchemas: 'full',
+      })
+    : {
+        prefetch: harnessPrefetch,
+        verificationFirst: harnessVerifyFirst,
+        harnessBlocks: harnessEnabled,
+        toolSchemas: 'full' as const,
+      };
+  const schemaOpts = {
+    planStage,
+    modelTier,
+    harnessEnabled: intentGates.harnessBlocks,
+    intentKind: intentVerdict.kind,
+  };
+  const toolSchemas =
+    intentGates.toolSchemas === 'none'
+      ? []
+      : registry.getSchemas(mode, {
+          ...schemaOpts,
+          intentKind:
+            intentGates.toolSchemas === 'readonly'
+              ? 'question'
+              : intentVerdict.kind,
+        });
   const toolCtxBase: ToolContext = {
     workspaceRoot: root,
     mode,
@@ -458,6 +504,7 @@ export async function runHostChatSend(
             for await (const chunk of provider.streamChat({
               messages: providerMessages,
               model,
+              temperature: tierTemperature,
               signal,
               tools: childSchemas,
               thinkingEffort,
@@ -960,6 +1007,7 @@ export async function runHostChatSend(
             for await (const chunk of provider.streamChat({
               messages: providerMessages,
               model,
+              temperature: tierTemperature,
               signal,
               tools: toolSchemas,
               thinkingEffort,
@@ -1424,11 +1472,13 @@ export async function runHostChatSend(
       parallelTools: true,
       // Comment: HARNESS-005 — AGENTS.md / .agentk/rules outside compaction
       workspaceRoot: root || undefined,
-      // Comment: HARNESS-002/004 — verify-first prompt + post-edit micro-loop
-      verificationFirst: harnessVerifyFirst,
-      verificationMicroLoop: harnessMicroLoop,
-      harnessEnabled,
+      // Comment: V31-INTENT-01 — gates AND harness; conversation skips verify/prefetch.
+      verificationFirst: intentGates.verificationFirst,
+      verificationMicroLoop:
+        harnessMicroLoop && intentGates.verificationFirst,
+      harnessEnabled: intentGates.harnessBlocks,
       modelTier,
+      intentKind: intentVerdict.kind,
       stickyContext: inlineEditReq
         ? formatInlineEditStickyContext(inlineEditReq)
         : undefined,
@@ -1458,7 +1508,8 @@ export async function runHostChatSend(
       .find((m) => m.role === 'user')?.content || '';
 
   let runPrompt = String(lastUserRaw);
-  if (harnessPrefetch) {
+  // Comment: V31-INTENT-01 — conversation/question skip prefetch entirely.
+  if (intentGates.prefetch) {
     try {
       const prefetchEngine = new PrefetchEngine(
         { enabled: true, ideContextEnabled: true },
