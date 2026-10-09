@@ -1058,18 +1058,9 @@ export function MessageSteps({
     return null;
   }
 
+  // Comment: V31-UI-19 — layout tokens live in CSS (.message-steps--chrome).
   return (
-    <div
-      className="message-steps"
-      style={{
-        margin: '4px 0 10px',
-        fontSize: 12,
-        lineHeight: 1.45,
-        fontFamily: 'var(--vscode-font-family)',
-        width: '100%',
-        maxWidth: '100%'
-      }}
-    >
+    <div className="message-steps message-steps--chrome">
       {phases.map((p) => {
         const tools = p.rows.filter((r) => r.type === 'tool').map((r) => r.step);
         const exploreSummary = summarizeExplored(tools, false);

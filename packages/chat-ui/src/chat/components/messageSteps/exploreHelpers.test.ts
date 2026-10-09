@@ -100,9 +100,9 @@ describe('toolRowLabel', () => {
       ['glob', 'Searched'],
       ['file_search', 'Searched'],
       ['list_dir', 'Listed'],
-      ['codebase_search', 'Searched codebase'],
-      ['read_lints', 'Checked lints'],
-      ['web_search', 'Searched web'],
+      ['codebase_search', 'Searched'],
+      ['read_lints', 'Linted'],
+      ['web_search', 'Searched'],
       ['web_fetch', 'Fetched']
     ];
     for (const [toolName, label] of cases) {
@@ -118,11 +118,11 @@ describe('toolRowLabel', () => {
       ['run_terminal_cmd', 'Ran'],
       ['terminal_output', 'Ran'],
       ['ask_question', 'Asked'],
-      ['todo_write', 'Updated todos'],
-      ['task', 'Started agent'],
-      ['task_run', 'Started agent'],
-      ['skill_run', 'Ran skill'],
-      ['switch_mode', 'Switched mode']
+      ['todo_write', 'Todos'],
+      ['task', 'Agent'],
+      ['task_run', 'Agent'],
+      ['skill_run', 'Skill'],
+      ['switch_mode', 'Mode']
     ];
     for (const [toolName, label] of cases) {
       expect(toolRowLabel({ toolName, label: toolName })).toBe(label);
@@ -134,7 +134,7 @@ describe('toolRowLabel', () => {
     expect(toolRowLabel({ kind: 'searching', label: 'Search' })).toBe('Searched');
     expect(toolRowLabel({ kind: 'editing', label: 'Edit' })).toBe('Edited');
     expect(toolRowLabel({ kind: 'running', label: 'Terminal' })).toBe('Ran');
-    expect(toolRowLabel({ kind: 'task', label: 'Work' })).toBe('Started agent');
+    expect(toolRowLabel({ kind: 'task', label: 'Work' })).toBe('Agent');
   });
 
   it('falls back to toolName then Tool for unknown MessageStep rows', () => {
@@ -165,9 +165,9 @@ describe('formatRollingTool', () => {
       ['glob', 'Searching'],
       ['file_search', 'Searching'],
       ['list_dir', 'Listing'],
-      ['codebase_search', 'Searching codebase'],
-      ['read_lints', 'Checking lints'],
-      ['web_search', 'Searching web'],
+      ['codebase_search', 'Searching'],
+      ['read_lints', 'Linting'],
+      ['web_search', 'Searching'],
       ['web_fetch', 'Fetching']
     ];
     for (const [toolName, verb] of cases) {
@@ -178,7 +178,7 @@ describe('formatRollingTool', () => {
   it('uses settled verbs for MessageStep rows', () => {
     expect(formatRollingTool({ toolName: 'read_file', itemStatus: 'done' })).toBe('Read');
     expect(formatRollingTool({ toolName: 'grep', itemStatus: 'done' })).toBe('Grepped');
-    expect(formatRollingTool({ toolName: 'web_search', itemStatus: 'done' })).toBe('Searched web');
+    expect(formatRollingTool({ toolName: 'web_search', itemStatus: 'done' })).toBe('Searched');
   });
 
   it('falls back to Working for live unknown MessageStep rows', () => {
@@ -227,14 +227,14 @@ describe('formatRollingTool', () => {
       'Listing'
     );
     expect(
-      formatRollingTool({ title: 'Searched codebase', toolName: 'codebase_search', status: 'running' })
-    ).toBe('Searching codebase');
+      formatRollingTool({ title: 'Searched', toolName: 'codebase_search', status: 'running' })
+    ).toBe('Searching');
   });
 
-  it('keeps ExploreChrome settled verbs for web tools', () => {
+  it('maps ExploreChrome web tools to short live verbs', () => {
     expect(
-      formatRollingTool({ title: 'Searched web', toolName: 'web_search', status: 'running' })
-    ).toBe('Searched web');
+      formatRollingTool({ title: 'Searched', toolName: 'web_search', status: 'running' })
+    ).toBe('Searching');
     expect(formatRollingTool({ title: 'Fetched', toolName: 'web_fetch', status: 'running' })).toBe(
       'Fetched'
     );

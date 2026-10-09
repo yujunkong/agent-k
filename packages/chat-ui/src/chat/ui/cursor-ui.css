@@ -160,7 +160,11 @@
 .ak-timeline-card--compact .ak-timeline-card__meta { font-size: var(--ak-fs-xs); }
 .ak-timeline-card--compact.ak-timeline-card--reasoning { opacity: .72; }
 .ak-timeline-card--active { border-color: var(--ak-ui-border-strong); background: var(--ak-ui-surface); opacity: 1; }
-.ak-timeline-card--active.ak-timeline-card--live { border-color: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 40%, transparent); background: linear-gradient(135deg, color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 6%, var(--ak-ui-surface)) 0%, var(--ak-ui-surface) 100%); }
+/* Comment: V31-UI-19 — flat live border (no gradient wash). */
+.ak-timeline-card--active.ak-timeline-card--live {
+  border-color: color-mix(in srgb, var(--vscode-textLink-foreground, #3794ff) 35%, transparent);
+  background: var(--ak-ui-surface);
+}
 .ak-timeline-card--active .ak-timeline-card__header { padding: var(--ak-space-2) 10px; }
 .ak-timeline-card--active .ak-timeline-card__title { font-size: var(--ak-fs-sm); color: var(--ak-text-primary); font-weight: 500; }
 .ak-timeline-card__title--shimmer {

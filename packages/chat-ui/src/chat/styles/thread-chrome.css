@@ -1,4 +1,15 @@
 /* V31-UI-16/19 — Thread chrome: explore rail, thought, file-edit, terminal. */
+
+/* Comment: V31-UI-19 — MessageSteps root; replaces inline fontSize/margin. */
+.message-steps--chrome {
+  margin: 2px 0 8px;
+  font-size: var(--ak-fs-sm);
+  line-height: 1.45;
+  font-family: var(--vscode-font-family);
+  width: 100%;
+  max-width: 100%;
+}
+
 /* Explore list body always fully opaque + scroll behavior */
 .ak-explore-scroll {
   opacity: 1;
@@ -7,7 +18,7 @@
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  scrollbar-color: color-mix(in srgb, var(--vscode-foreground, #ccc) 22%, transparent) transparent;
 }
 
 .ak-tool-slide-list {
@@ -19,7 +30,7 @@
 .ak-tool-slide-list.ak-explore-scroll {
   margin-left: var(--ak-thread-inset, 12px);
   padding: 2px 0 6px 10px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid var(--ak-border, color-mix(in srgb, var(--vscode-foreground, #ccc) 12%, transparent));
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -27,11 +38,11 @@
 
 /* Live vs settled max-height for explore tool list */
 .ak-explore-scroll--live {
-  max-height: 220px;
+  max-height: 180px;
 }
 
 .ak-explore-scroll--settled {
-  max-height: 320px;
+  max-height: 240px;
 }
 
 .ak-explore-nested-thought {
@@ -143,8 +154,9 @@
   padding-left: 0 !important;
 }
 
+/* Comment: V31-UI-19 — drop per-row slide-in; shimmer alone is enough motion. */
 .ak-tool-slide-in {
-  animation: ak-slide-in 0.28s ease-out;
+  animation: none;
 }
 
 .ak-explore-scroll::-webkit-scrollbar {
@@ -152,7 +164,7 @@
 }
 
 .ak-explore-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.22);
+  background: color-mix(in srgb, var(--vscode-foreground, #ccc) 22%, transparent);
   border-radius: 3px;
 }
 
@@ -165,7 +177,7 @@
   color: var(--vscode-descriptionForeground, #9d9d9d);
   font-size: var(--ak-fs-sm);
   line-height: 1.5;
-  max-height: 420px;
+  max-height: 220px;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -182,17 +194,17 @@
 /* Nested under Exploring — already inside the explore rail */
 .message-steps-thought-body--mid {
   padding-left: 0;
-  max-height: 96px;
+  max-height: 72px;
   font-size: var(--ak-fs-xs);
   opacity: 1;
 }
 
 .message-steps-turn:has(.ak-step-row--live) .message-steps-thought-body {
-  max-height: 360px;
+  max-height: 180px;
 }
 
 .message-steps-turn:has(.ak-step-row--live) .message-steps-thought-body--mid {
-  max-height: 120px;
+  max-height: 88px;
 }
 
 /* Diff / terminal cards — same column as Explored (no extra indent) */
@@ -234,7 +246,7 @@
 /* File edit card — same surface as terminal / code */
 .ak-file-edit-card {
   margin: 6px 0;
-  border-radius: 8px;
+  border-radius: var(--ak-radius-sm, 6px);
   border: 1px solid var(--ak-card-border);
   background: var(--ak-card-bg);
   overflow: hidden;
@@ -247,9 +259,9 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 5px 9px;
   border-bottom: 1px solid var(--ak-card-border);
-  background: var(--ak-card-header-bg);
+  background: transparent;
   color: var(--vscode-foreground, #ccc);
   text-align: left;
   font: inherit;
@@ -295,7 +307,7 @@
   height: 16px;
   padding: 0 4px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--vscode-foreground, #ccc) 10%, transparent);
   color: var(--vscode-foreground, #fff);
   font-size: var(--ak-fs-xs);
   font-weight: 700;
@@ -506,7 +518,7 @@
 
 .ak-inline-edit-diff__reject:hover {
   color: var(--vscode-foreground, #ccc);
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--vscode-foreground, #ccc) 6%, transparent);
 }
 
 .ak-inline-edit-diff__accept {
@@ -561,7 +573,7 @@
 
 .ak-diff-review__secondary:hover {
   color: var(--vscode-foreground, #ccc);
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--vscode-foreground, #ccc) 6%, transparent);
 }
 
 .ak-diff-review__body {
@@ -597,7 +609,7 @@
 
 .ak-diff-review__file:hover,
 .ak-diff-review__file--active {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--vscode-foreground, #ccc) 6%, transparent);
 }
 
 .ak-diff-review__file-name {
@@ -671,7 +683,7 @@
 /* Cursor-style terminal run card — FileEdit parity (clipped body + bottom expand) */
 .ak-terminal-card {
   margin: 6px 0;
-  border-radius: 8px;
+  border-radius: var(--ak-radius-sm, 6px);
   border: 1px solid var(--ak-card-border);
   background: var(--ak-card-bg);
   overflow: hidden;
@@ -714,7 +726,7 @@ div.ak-terminal-card__header {
   height: 16px;
   padding: 0 4px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--vscode-foreground, #ccc) 8%, transparent);
   color: var(--vscode-descriptionForeground, #ccc);
   font-size: var(--ak-fs-xs);
   font-weight: 700;

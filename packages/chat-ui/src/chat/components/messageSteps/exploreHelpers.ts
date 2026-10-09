@@ -78,11 +78,12 @@ export function toolRowLabel(step: ExploreStepLike): string {
     case 'list_dir':
       return 'Listed';
     case 'codebase_search':
-      return 'Searched codebase';
+      // Comment: V31-UI-19 — Cursor-short verb (was "Searched codebase").
+      return 'Searched';
     case 'read_lints':
-      return 'Checked lints';
+      return 'Linted';
     case 'web_search':
-      return 'Searched web';
+      return 'Searched';
     case 'web_fetch':
       return 'Fetched';
   }
@@ -109,20 +110,20 @@ export function toolRowLabel(step: ExploreStepLike): string {
     case 'ask_question':
       return 'Asked';
     case 'todo_write':
-      return 'Updated todos';
+      return 'Todos';
     case 'task':
     case 'task_run':
-      return 'Started agent';
+      return 'Agent';
     case 'skill_run':
-      return 'Ran skill';
+      return 'Skill';
     case 'switch_mode':
-      return 'Switched mode';
+      return 'Mode';
   }
   if (step.kind === 'reading') return 'Read';
   if (step.kind === 'searching') return 'Searched';
   if (step.kind === 'editing') return 'Edited';
   if (step.kind === 'running') return 'Ran';
-  if (step.kind === 'task') return 'Started agent';
+  if (step.kind === 'task') return 'Agent';
   return step.toolName || name || 'Tool';
 }
 
@@ -154,7 +155,7 @@ export function formatRollingTool(step: ExploreStepLike): string {
       else if (name === 'grep' || verb === 'Grepped') verb = 'Grepping';
       else if (verb === 'Searched') verb = 'Searching';
       else if (verb === 'Listed') verb = 'Listing';
-      else if (verb === 'Searched codebase') verb = 'Searching codebase';
+      else if (verb === 'Linted') verb = 'Linting';
     }
     return detail ? `${verb} ${detail}` : verb;
   }
@@ -176,13 +177,13 @@ export function formatRollingTool(step: ExploreStepLike): string {
       verb = live ? 'Listing' : 'Listed';
       break;
     case 'codebase_search':
-      verb = live ? 'Searching codebase' : 'Searched codebase';
+      verb = live ? 'Searching' : 'Searched';
       break;
     case 'read_lints':
-      verb = live ? 'Checking lints' : 'Checked lints';
+      verb = live ? 'Linting' : 'Linted';
       break;
     case 'web_search':
-      verb = live ? 'Searching web' : 'Searched web';
+      verb = live ? 'Searching' : 'Searched';
       break;
     case 'web_fetch':
       verb = live ? 'Fetching' : 'Fetched';
