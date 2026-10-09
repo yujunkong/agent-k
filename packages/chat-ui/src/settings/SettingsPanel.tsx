@@ -19,6 +19,20 @@ import { JsonConfigTab } from './tabs/JsonConfigTab';
 import { RulesTab } from './tabs/RulesTab';
 import { TerminalTab } from './tabs/TerminalTab';
 import { ReviewTab } from './tabs/ReviewTab';
+import {
+  IconCheck,
+  IconNavContext,
+  IconNavFeatures,
+  IconNavHarness,
+  IconNavJson,
+  IconNavMcp,
+  IconNavPermission,
+  IconNavPrivacy,
+  IconNavProviders,
+  IconNavRules,
+  IconNavTerminal,
+  IconQueue,
+} from '../chat/components/Icons';
 
 interface SettingsPanelProps {
   onClose?: () => void;
@@ -46,7 +60,6 @@ interface TabInfo {
   label: string;
   /** Short keywords for search */
   keywords: string;
-  icon: string;
 }
 
 interface TabGroup {
@@ -63,13 +76,11 @@ const TAB_GROUPS: TabGroup[] = [
       {
         id: 'models',
         label: 'AI Providers',
-        icon: '⬡',
         keywords: 'provider model api key openai claude openrouter ollama lmstudio litellm credentials save',
       },
       {
         id: 'features',
         label: 'Features',
-        icon: '◇',
         keywords: 'toggle browser mcp skills worktree review memories',
       },
     ],
@@ -81,25 +92,21 @@ const TAB_GROUPS: TabGroup[] = [
       {
         id: 'permission',
         label: 'Permission',
-        icon: '◎',
         keywords: 'permission gate ask auto deny globs trust',
       },
       {
         id: 'queue',
         label: 'Queue',
-        icon: '☰',
         keywords: 'queue enter stop resynthesize debounce',
       },
       {
         id: 'harness',
         label: 'Harness',
-        icon: '▣',
         keywords: 'harness verification prefetch micro loop',
       },
       {
         id: 'context',
         label: 'Context',
-        icon: '▤',
         keywords: 'context budget turns lines window',
       },
     ],
@@ -111,19 +118,16 @@ const TAB_GROUPS: TabGroup[] = [
       {
         id: 'mcp',
         label: 'MCP',
-        icon: '◈',
         keywords: 'mcp server tools schema',
       },
       {
         id: 'rules',
         label: 'Rules',
-        icon: '§',
         keywords: 'rules agentrules agents.md cursorrules clinerules custom .agentk/rules',
       },
       {
         id: 'terminal',
         label: 'Terminal',
-        icon: '>_',
         keywords: 'terminal shell timeout deny allowlist',
       },
     ],
@@ -135,19 +139,16 @@ const TAB_GROUPS: TabGroup[] = [
       {
         id: 'review',
         label: 'Review',
-        icon: '✓',
         keywords: 'review checkpoint apply policy rollback',
       },
       {
         id: 'privacy',
         label: 'Privacy',
-        icon: '◐',
         keywords: 'privacy telemetry status bar',
       },
       {
         id: 'json',
         label: 'JSON',
-        icon: '{ }',
         keywords: 'json settings.json project config file',
       },
     ],
@@ -188,6 +189,39 @@ function normalizeTab(tab: TabId | 'secrets' | undefined): TabId {
   if (!tab || tab === 'secrets') return 'models';
   if (ALL_TABS.some((t) => t.id === tab)) return tab;
   return 'models';
+}
+
+/** Comment: V31-UI-17 — SVG nav glyphs (Cursor settings density). */
+function SettingsNavIcon({ id }: { id: TabId }) {
+  const props = { size: 14 as const };
+  switch (id) {
+    case 'models':
+      return <IconNavProviders {...props} />;
+    case 'features':
+      return <IconNavFeatures {...props} />;
+    case 'permission':
+      return <IconNavPermission {...props} />;
+    case 'queue':
+      return <IconQueue {...props} />;
+    case 'harness':
+      return <IconNavHarness {...props} />;
+    case 'context':
+      return <IconNavContext {...props} />;
+    case 'mcp':
+      return <IconNavMcp {...props} />;
+    case 'rules':
+      return <IconNavRules {...props} />;
+    case 'terminal':
+      return <IconNavTerminal {...props} />;
+    case 'review':
+      return <IconCheck {...props} />;
+    case 'privacy':
+      return <IconNavPrivacy {...props} />;
+    case 'json':
+      return <IconNavJson {...props} />;
+    default:
+      return <IconNavProviders {...props} />;
+  }
 }
 
 export function SettingsPanel({ onClose, initialTab = 'models', onTabChange }: SettingsPanelProps) {
@@ -374,7 +408,7 @@ export function SettingsPanel({ onClose, initialTab = 'models', onTabChange }: S
                     aria-current={activeTab === tab.id ? 'page' : undefined}
                   >
                     <span className="tab-icon" aria-hidden>
-                      {tab.icon}
+                      <SettingsNavIcon id={tab.id} />
                     </span>
                     <span className="tab-label">{tab.label}</span>
                   </button>

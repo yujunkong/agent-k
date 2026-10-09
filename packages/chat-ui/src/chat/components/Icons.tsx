@@ -341,3 +341,92 @@ export function IconExternalLink(p: IconProps) {
     </Svg>
   );
 }
+
+/** V31-UI-17 — Settings nav icons (replace unicode glyphs). */
+export function IconNavProviders(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </Svg>
+  );
+}
+
+export function IconNavFeatures(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 2 15 9l7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z" />
+    </Svg>
+  );
+}
+
+export function IconNavPermission(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="3" />
+    </Svg>
+  );
+}
+
+export function IconNavHarness(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M9 9h6v6H9z" />
+    </Svg>
+  );
+}
+
+export function IconNavContext(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 6h16M4 12h16M4 18h10" />
+    </Svg>
+  );
+}
+
+export function IconNavMcp(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 2v6M12 16v6M2 12h6M16 12h6" />
+      <circle cx="12" cy="12" r="3" />
+    </Svg>
+  );
+}
+
+export function IconNavRules(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M8 4h9a2 2 0 0 1 2 2v14l-4-2-4 2V6a2 2 0 0 0-2-2H6" />
+      <path d="M8 8h6M8 12h6" />
+    </Svg>
+  );
+}
+
+export function IconNavTerminal(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m7 10 3 2-3 2M12 14h5" />
+    </Svg>
+  );
+}
+
+export function IconNavPrivacy(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 3a9 9 0 0 1 0 18" />
+    </Svg>
+  );
+}
+
+export function IconNavJson(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M8 6c-2 0-3 1.5-3 4s1 4 3 4M16 6c2 0 3 1.5 3 4s-1 4-3 4" />
+      <path d="M10 12h4" />
+    </Svg>
+  );
+}

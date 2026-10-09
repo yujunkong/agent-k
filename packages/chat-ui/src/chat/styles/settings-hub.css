@@ -153,9 +153,10 @@
   gap: 8px;
   width: 100%;
   text-align: left;
-  padding: 7px 8px;
+  /* Comment: V31-UI-17 — denser nav row. */
+  padding: 5px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--ak-radius-sm, 6px);
   border-left: 2px solid transparent;
   background: transparent;
   color: inherit;
@@ -176,11 +177,19 @@
 }
 
 .tab-icon {
-  font-size: var(--ak-fs-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 16px;
-  text-align: center;
-  opacity: 0.85;
+  height: 16px;
+  opacity: 0.8;
   flex-shrink: 0;
+  color: var(--ak-text-muted, var(--vscode-descriptionForeground));
+}
+
+.settings-tab.active .tab-icon {
+  opacity: 1;
+  color: inherit;
 }
 
 .tab-label {
