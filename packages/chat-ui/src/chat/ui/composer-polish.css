@@ -1,14 +1,17 @@
+/* V31-UI-18 — Composer chrome (token-driven; Cursor density). */
+
 .composer--cursor {
+  position: relative;
   width: min(860px, calc(100% - 32px));
-  margin: 0 auto 14px;
+  margin: 0 auto 12px;
 }
 
 .composer--cursor .composer-box {
-  border: 1px solid var(--vscode-input-border, rgba(255,255,255,.12));
-  border-radius: 14px;
-  background: var(--vscode-input-background, rgba(255,255,255,.035));
-  box-shadow: 0 8px 30px rgba(0,0,0,.16);
-  /* Visible so mode / model menus can escape the rounded box */
+  border: 1px solid var(--ak-border, var(--vscode-input-border, rgba(128, 128, 128, 0.28)));
+  border-radius: var(--ak-radius-md, 8px);
+  background: var(--vscode-input-background, color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 94%, #fff));
+  /* Comment: V31-UI-18 — drop heavy drop-shadow; border carries the edge. */
+  box-shadow: none;
   overflow: visible;
   transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
   cursor: text;
@@ -17,22 +20,14 @@
 .composer--cursor .composer-box:hover,
 .composer--cursor .composer-box.composer-box--hot,
 .composer--hot .composer-box {
-  border-color: var(--vscode-focusBorder, #007fd4) !important;
-  box-shadow:
-    0 10px 32px rgba(0, 0, 0, 0.2),
-    0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 45%, transparent) !important;
-  background: color-mix(
-    in srgb,
-    var(--vscode-input-background, rgba(255, 255, 255, 0.035)) 82%,
-    var(--vscode-focusBorder, #007fd4)
-  );
+  border-color: var(--vscode-focusBorder, #007fd4);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 40%, transparent);
+  background: var(--vscode-input-background, inherit);
 }
 
 .composer--cursor:focus-within .composer-box {
   border-color: var(--vscode-focusBorder, #007fd4);
-  box-shadow:
-    0 10px 34px rgba(0, 0, 0, 0.22),
-    0 0 0 2px color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder, #007fd4) 50%, transparent);
 }
 
 .composer--cursor textarea {
@@ -41,7 +36,7 @@
   border: 0;
   outline: 0;
   resize: none;
-  padding: 13px 15px 8px;
+  padding: 10px 12px 6px;
   background: transparent;
   color: var(--vscode-input-foreground, inherit);
   font: inherit;
@@ -52,47 +47,34 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 10px 12px 0;
+  padding: 8px 10px 0;
 }
 
-/* Comment: override washed-out white chip — Cursor teal file-ref wash */
+/* Comment: V31-UI-18 — chip palette from cursor-ui.css tokens (no teal hex). */
 .composer--cursor .composer-chip,
 .composer--cursor .composer-chip--file {
   max-width: min(100%, 320px);
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 8px 3px 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, #5eead4 34%, var(--vscode-input-background, #fff));
-  border: 1px solid color-mix(in srgb, #14b8a6 40%, transparent);
-  color: color-mix(in srgb, #0f766e 92%, #115e59);
+  padding: 2px 8px 2px 6px;
+  border-radius: var(--ak-radius-sm, 6px);
+  background: var(--ak-chip-file-bg);
+  border: 1px solid var(--ak-chip-file-border);
+  color: var(--ak-text-primary, var(--vscode-foreground));
   font-size: var(--ak-fs-sm);
   font-weight: 500;
 }
 
 .composer--cursor .composer-chip--folder {
-  background: color-mix(in srgb, #2dd4bf 28%, var(--vscode-input-background, #fff));
-  border-color: color-mix(in srgb, #14b8a6 38%, transparent);
-  color: color-mix(in srgb, #0f766e 88%, #134e4a);
+  background: var(--ak-chip-folder-bg);
+  border-color: var(--ak-chip-folder-border);
 }
 
 .composer--cursor .composer-chip--log,
 .composer--cursor .composer-chip--snippet {
-  background: color-mix(in srgb, #facc15 18%, var(--vscode-input-background, #fff));
-  border-color: color-mix(in srgb, #ca8a04 40%, transparent);
-  color: color-mix(in srgb, #a16207 85%, #854d0e);
-}
-
-body.vscode-dark .composer--cursor .composer-chip,
-.vscode-dark .composer--cursor .composer-chip,
-body.vscode-dark .composer--cursor .composer-chip--file,
-.vscode-dark .composer--cursor .composer-chip--file,
-body.vscode-dark .composer--cursor .composer-chip--folder,
-.vscode-dark .composer--cursor .composer-chip--folder {
-  background: rgba(45, 212, 191, 0.2);
-  border-color: rgba(45, 212, 191, 0.45);
-  color: #5eead4;
+  background: var(--ak-chip-log-bg);
+  border-color: var(--ak-chip-log-border);
 }
 
 .composer--cursor .composer-chip-label {
@@ -116,7 +98,7 @@ body.vscode-dark .composer--cursor .composer-chip--folder,
   border: 0;
   background: transparent;
   color: inherit;
-  opacity: .68;
+  opacity: 0.68;
   cursor: pointer;
 }
 
@@ -126,12 +108,12 @@ body.vscode-dark .composer--cursor .composer-chip--folder,
 }
 
 .composer--cursor .composer-toolbar {
-  min-height: 38px;
-  padding: 5px 8px 7px;
+  min-height: 34px;
+  padding: 4px 6px 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   overflow: visible;
 }
 
@@ -139,7 +121,7 @@ body.vscode-dark .composer--cursor .composer-chip--folder,
 .composer--cursor .composer-toolbar__right {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
   overflow: visible;
 }
@@ -148,35 +130,31 @@ body.vscode-dark .composer--cursor .composer-chip--folder,
 .composer--cursor .composer-thinking-select {
   max-width: 150px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--ak-radius-sm, 6px);
   padding: 4px 6px;
   background: transparent;
   color: inherit;
   font-size: var(--ak-fs-sm);
-  opacity: .72;
+  opacity: 0.72;
 }
 
 .composer--cursor .composer-thinking-select:hover,
 .composer--cursor .composer-model:hover {
-  background: rgba(255,255,255,.055);
+  background: color-mix(in srgb, var(--vscode-foreground, #ccc) 6%, transparent);
   opacity: 1;
 }
 
 .composer--cursor .composer-icon-btn {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 7px;
+  border-radius: var(--ak-radius-sm, 6px);
 }
 
 .composer--cursor .composer-icon-btn:hover {
-  background: rgba(255,255,255,.07);
-}
-
-.composer--cursor {
-  position: relative;
+  background: color-mix(in srgb, var(--vscode-foreground, #ccc) 7%, transparent);
 }
 
 .composer--cursor .composer-drop-hint {
@@ -185,7 +163,11 @@ body.vscode-dark .composer--cursor .composer-chip--folder,
 }
 
 @media (max-width: 620px) {
-  .composer--cursor { width: calc(100% - 20px); }
+  .composer--cursor {
+    width: calc(100% - 20px);
+  }
   .composer--cursor .composer-model,
-  .composer--cursor .composer-thinking-select { max-width: 105px; }
+  .composer--cursor .composer-thinking-select {
+    max-width: 105px;
+  }
 }
